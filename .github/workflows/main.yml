@@ -1,0 +1,35 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [ assigned, opened, synchronize, reopened ]
+  release:
+    types: [ prereleased, released ]
+
+name: Default
+jobs:
+  Pr:
+    if: github.event_name == 'pull_request'
+    uses: numary/gh-workflows/.github/workflows/pr-style.yml@main
+
+  Lint:
+    uses: numary/gh-workflows/.github/workflows/golang-lint.yml@main
+    with:
+      go_version: 1.18
+
+  Test:
+    uses: numary/gh-workflows/.github/workflows/golang-test.yml@main
+
+  Docker:
+    if: github.event_name == 'release'
+    uses: ./.github/workflows/template_docker.yaml
+    needs:
+      - Lint
+      - Test
+    with:
+      VERSION: ${{ github.event.release.tag_name }}
+      APP_SHA: ${{ github.sha }}
+      RELEASE: ${{ github.event.action }}
+    secrets:
+      NUMARY_GITHUB_TOKEN: ${{ secrets.NUMARY_GITHUB_TOKEN }}

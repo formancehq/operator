@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - k8s.formance.com
+  resources:
+  - organizations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - k8s.formance.com
+  resources:
+  - organizations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - k8s.formance.com
+  resources:
+  - organizations/status
+  verbs:
+  - get
+  - patch
+  - update
