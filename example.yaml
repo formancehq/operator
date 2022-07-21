@@ -1,0 +1,58 @@
+apiVersion: stack.formance.com/v1
+kind: Stack
+metadata:
+  name: Full Option
+spec:
+  version: v1.8.0
+  namespace: toto
+  monitoring:
+    traces:
+      enabled: true
+      otlp:
+        enabled: true
+        endpoint: $(ENDPOINT_IP):4317
+        insecure: true
+        mode: grpc
+  services:
+    collector:
+      scaling:
+        enabled: true
+        minreplica: 1
+        maxreplica: 10
+        cpulimit: 60
+    control:
+      scaling:
+        enabled: true
+        minreplica: 1
+        maxreplica: 10
+        cpulimit: 60
+    ledger:
+      enabled: true
+      databases:
+        pgsql:
+          url: postgresql://formance:formance@localhost:5432/formance
+        redis:
+          url: redis://formance:formance@localhost:6379/0
+      auth:
+        enabled: true
+        type: oauth
+      scaling:
+        enabled: true
+        minreplica: 1
+        maxreplica: 10
+        cpulimit: 60
+    payements:
+      enabled: true
+      databases:
+        pgsql:
+          url: postgresql://formance:formance@localhost:5432/formance
+        redis:
+          url: redis://formance:formance@localhost:6379/0
+      auth:
+        enabled: true
+        type: oauth
+      scaling:
+        enabled: true
+        minreplica: 1
+        maxreplica: 10
+        cpulimit: 60
