@@ -1,7 +1,7 @@
-apiVersion: stack.formance.com/v1
+apiVersion: stack.formance.com/v1beta1
 kind: Stack
 metadata:
-  name: Full Option
+  name: maxence
 spec:
   version: v1.8.0
   namespace: toto
@@ -17,42 +17,26 @@ spec:
     collector:
       scaling:
         enabled: true
-        minreplica: 1
-        maxreplica: 10
-        cpulimit: 60
+        minReplica: 1
+        maxReplica: 10
+        cpuLimit: 60
     control:
       scaling:
         enabled: true
-        minreplica: 1
-        maxreplica: 10
-        cpulimit: 60
+        minReplica: 1
+        maxReplica: 10
+        cpuLimit: 60
     ledger:
-      enabled: true
-      databases:
-        pgsql:
-          url: postgresql://formance:formance@localhost:5432/formance
-        redis:
-          url: redis://formance:formance@localhost:6379/0
+      scaling:
+        enabled: true
+        minReplica: 1
+        maxReplica: 10
+        cpuLimit: 60
       auth:
         enabled: true
         type: oauth
-      scaling:
-        enabled: true
-        minreplica: 1
-        maxreplica: 10
-        cpulimit: 60
-    payements:
-      enabled: true
       databases:
-        pgsql:
+        - type: postgresql
           url: postgresql://formance:formance@localhost:5432/formance
-        redis:
-          url: redis://formance:formance@localhost:6379/0
-      auth:
-        enabled: true
-        type: oauth
-      scaling:
-        enabled: true
-        minreplica: 1
-        maxreplica: 10
-        cpulimit: 60
+        - type: redis
+          url: redis://localhost:6379/0

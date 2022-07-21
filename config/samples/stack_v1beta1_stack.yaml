@@ -1,6 +1,0 @@
-apiVersion: stack.formance.com/v1beta1
-kind: Stack
-metadata:
-  name: stack-sample
-spec:
-  # TODO(user): Add fields here
