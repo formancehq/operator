@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	k8sv1beta1 "github.com/numary/formance-operator/api/v1beta1"
-	"github.com/numary/formance-operator/controllers"
+	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
+	stackcontrollers "github.com/numary/formance-operator/controllers/stack"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -44,7 +44,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(k8sv1beta1.AddToScheme(scheme))
+	utilruntime.Must(stackv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -89,11 +89,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.OrganizationReconciler{
+	if err = (&stackcontrollers.StackReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Organization")
+		setupLog.Error(err, "unable to create controller", "controller", "Stack")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

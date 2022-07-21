@@ -23,17 +23,17 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// OrganizationSpec defines the desired state of Organization
-type OrganizationSpec struct {
+// StackSpec defines the desired state of Stack
+type StackSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Organization. Edit organization_types.go to remove/update
+	// Foo is an example field of Stack. Edit stack_types.go to remove/update
 	Foo string `json:"foo,omitempty"`
 }
 
-// OrganizationStatus defines the observed state of Organization
-type OrganizationStatus struct {
+// StackStatus defines the observed state of Stack
+type StackStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -42,24 +42,24 @@ type OrganizationStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
 
-// Organization is the Schema for the organizations API
-type Organization struct {
+// Stack is the Schema for the stacks API
+type Stack struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   OrganizationSpec   `json:"spec,omitempty"`
-	Status OrganizationStatus `json:"status,omitempty"`
+	Spec   StackSpec   `json:"spec,omitempty"`
+	Status StackStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// OrganizationList contains a list of Organization
-type OrganizationList struct {
+// StackList contains a list of Stack
+type StackList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Organization `json:"items"`
+	Items           []Stack `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Organization{}, &OrganizationList{})
+	SchemeBuilder.Register(&Stack{}, &StackList{})
 }
