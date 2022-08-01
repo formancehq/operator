@@ -1,0 +1,6 @@
+apiVersion: stack.formance.com/v1beta1
+kind: License
+metadata:
+  name: license-sample
+spec:
+  # TODO(user): Add fields here

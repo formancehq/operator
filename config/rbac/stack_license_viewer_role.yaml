@@ -1,0 +1,20 @@
+# permissions for end users to view licenses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: license-viewer-role
+rules:
+- apiGroups:
+  - stack.formance.com
+  resources:
+  - licenses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - stack.formance.com
+  resources:
+  - licenses/status
+  verbs:
+  - get
