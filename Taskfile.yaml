@@ -19,3 +19,5 @@ tasks:
       - build
     cmds:
       - kubectl apply --context kind-formance -f config/crd/bases/
+      - kubectl apply --context kind-formance -f example.yaml
+      - make run

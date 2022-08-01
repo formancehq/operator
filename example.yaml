@@ -40,3 +40,10 @@ spec:
           url: postgresql://formance:formance@localhost:5432/formance
         - type: redis
           url: redis://localhost:6379/0
+---
+apiVersion: stack.formance.com/v1beta1
+kind: License
+metadata:
+  name: maxence
+spec:
+  licenceId: maxence
