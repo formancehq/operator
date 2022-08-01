@@ -18,6 +18,7 @@ package stack
 
 import (
 	"context"
+	"github.com/numary/formance-operator/pkg/reconcile"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -54,7 +55,14 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	actual := &stackv1beta1.Stack{}
 	actual.Status.Progress = stackv1beta1.StackProgressPending
 	actual.Status.SetReady()
-	// TODO(user): your logic here
+	// Add Reconcile for Ledger
+	reconcile.NewLedgerReconcile(ctx, req)
+	// Add Reconcile for Payments
+	reconcile.NewPaymentsReconcile(ctx, req)
+	// Add Reconcile for Search
+	reconcile.NewSearchReconcile(ctx, req)
+	// Add Reconcile for Control
+	reconcile.NewControlReconcile(ctx, req)
 
 	return ctrl.Result{}, nil
 }

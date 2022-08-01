@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/numary/formance-operator/pkg/reconcile"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -34,6 +35,13 @@ type StackSpec struct {
 	Monitoring MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
 	Services ServicesSpec `json:"services,omitempty"`
+	// +optional
+	Auth AuthSpec `json:"auth,omitempty"`
+}
+
+type AuthSpec struct {
+	// +optional
+	Type string `json:"type,omitempty"`
 }
 
 type MonitoringSpec struct {
@@ -56,49 +64,10 @@ type TracesOtlpSpec struct {
 }
 
 type ServicesSpec struct {
-	Collector ServiceSpec `json:"collector,omitempty"`
-	Control   ServiceSpec `json:"control,omitempty"`
-	Ledger    ServiceSpec `json:"ledger,omitempty"`
-	Payments  ServiceSpec `json:"payments,omitempty"`
-	Search    ServiceSpec `json:"search,omitempty"`
-}
-
-type ServiceSpec struct {
-	// +required
-	Name string `json:"name,omitempty"`
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-	// +optional
-	Scaling ScalingSpec `json:"scaling,omitempty"`
-	// +optional
-	Auth AuthSpec `json:"auth,omitempty"`
-	// +optional
-	Databases []DatabaseSpec `json:"databases,omitempty"`
-}
-
-type ScalingSpec struct {
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-	// +optional
-	MinReplica int `json:"minReplica,omitempty"`
-	// +optional
-	MaxReplica int `json:"maxReplica,omitempty"`
-	// +optional
-	CpuLimit int `json:"cpuLimit,omitempty"`
-}
-
-type AuthSpec struct {
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-	// +optional
-	Type string `json:"type,omitempty"`
-}
-
-type DatabaseSpec struct {
-	// +optional
-	Url string `json:"url,omitempty"`
-	// +optional
-	Type string `json:"type,omitempty"`
+	Control  reconcile.ControlSpec  `json:"control,omitempty"`
+	Ledger   reconcile.LedgerSpec   `json:"ledger,omitempty"`
+	Payments reconcile.PaymentsSpec `json:"payments,omitempty"`
+	Search   reconcile.SearchSpec   `json:"search,omitempty"`
 }
 
 // StackProgress is a word summarizing the state of a Stack resource.

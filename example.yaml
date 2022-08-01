@@ -5,6 +5,8 @@ metadata:
 spec:
   version: v1.8.0
   namespace: toto
+  auth:
+    type: oauth
   monitoring:
     traces:
       enabled: true
@@ -14,12 +16,6 @@ spec:
         insecure: true
         mode: grpc
   services:
-    collector:
-      scaling:
-        enabled: true
-        minReplica: 1
-        maxReplica: 10
-        cpuLimit: 60
     control:
       scaling:
         enabled: true
@@ -32,9 +28,6 @@ spec:
         minReplica: 1
         maxReplica: 10
         cpuLimit: 60
-      auth:
-        enabled: true
-        type: oauth
       databases:
         - type: postgresql
           url: postgresql://formance:formance@localhost:5432/formance
