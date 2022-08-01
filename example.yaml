@@ -4,7 +4,7 @@ metadata:
   name: maxence
 spec:
   version: v1.8.0
-  namespace: toto
+  namespace: default
   auth:
     type: oauth
   monitoring:

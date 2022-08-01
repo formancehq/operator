@@ -1,4 +1,4 @@
-package reconcile
+package v1beta1
 
 // +kubebuilder:object:generate=true
 type ControlSpec struct {

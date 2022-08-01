@@ -17,7 +17,6 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/numary/formance-operator/pkg/reconcile"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -64,10 +63,10 @@ type TracesOtlpSpec struct {
 }
 
 type ServicesSpec struct {
-	Control  reconcile.ControlSpec  `json:"control,omitempty"`
-	Ledger   reconcile.LedgerSpec   `json:"ledger,omitempty"`
-	Payments reconcile.PaymentsSpec `json:"payments,omitempty"`
-	Search   reconcile.SearchSpec   `json:"search,omitempty"`
+	Control  ControlSpec  `json:"control,omitempty"`
+	Ledger   LedgerSpec   `json:"ledger,omitempty"`
+	Payments PaymentsSpec `json:"payments,omitempty"`
+	Search   SearchSpec   `json:"search,omitempty"`
 }
 
 // StackProgress is a word summarizing the state of a Stack resource.

@@ -18,21 +18,12 @@ package stack
 
 import (
 	"context"
-	"github.com/numary/formance-operator/pkg/reconcile"
-
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
+	"github.com/numary/formance-operator/apis/stack/v1beta1"
 )
-
-// StackReconciler reconciles a Stack object
-type StackReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
-}
 
 //+kubebuilder:rbac:groups=stack.formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=stack.formance.com,resources=stacks/status,verbs=get;update;patch
@@ -52,24 +43,38 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	logger.Info("Starting Stack reconciliation")
 
 	logger.Info("Add status for Stack is Pending")
-	actual := &stackv1beta1.Stack{}
-	actual.Status.Progress = stackv1beta1.StackProgressPending
+	actual := &v1beta1.Stack{}
+	actual.Status.Progress = v1beta1.StackProgressPending
 	actual.Status.SetReady()
-	// Add Reconcile for Ledger
-	reconcile.NewLedgerReconcile(ctx, req)
-	// Add Reconcile for Payments
-	reconcile.NewPaymentsReconcile(ctx, req)
-	// Add Reconcile for Search
-	reconcile.NewSearchReconcile(ctx, req)
-	// Add Reconcile for Control
-	reconcile.NewControlReconcile(ctx, req)
 
+	// Get Actual Stack Status
+	actualStack := &v1beta1.Stack{}
+	if err := r.Get(ctx, req.NamespacedName, actualStack); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("Stack resource not found")
+			return ctrl.Result{}, nil
+		}
+		logger.Info("Failed to fetch Stack resource")
+		return ctrl.Result{}, err
+	}
+
+	actualStack = actualStack.DeepCopy()
+	// Add Reconcile for Ledger
+	r.NewLedgerReconcile(ctx, req, actualStack)
+
+	return ctrl.Result{}, nil
+}
+
+func (r *StackReconciler) NewLedgerReconcile(ctx context.Context, req ctrl.Request, actualStack *v1beta1.Stack) (ctrl.Result, error) {
+	logger := log.FromContext(ctx, "Ledger", req.NamespacedName)
+	logger.Info("Starting Ledger reconciliation")
+	r.reconcileService(ctx, actualStack, logger)
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *StackReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&stackv1beta1.Stack{}).
+		For(&v1beta1.Stack{}).
 		Complete(r)
 }

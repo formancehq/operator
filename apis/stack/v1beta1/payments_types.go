@@ -1,7 +1,7 @@
-package reconcile
+package v1beta1
 
 // +kubebuilder:object:generate=true
-type SearchSpec struct {
+type PaymentsSpec struct {
 	// +required
 	Name string `json:"name,omitempty"`
 	// +optional
