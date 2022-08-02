@@ -30,6 +30,8 @@ type StackSpec struct {
 	Version string `json:"version,omitempty"`
 	// +required
 	Namespace string `json:"namespace,omitempty"`
+	// +required
+	Url string `json:"url,omitempty"`
 	// +optional
 	Monitoring MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional

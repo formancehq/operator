@@ -117,6 +117,9 @@ spec:
                         type: boolean
                       name:
                         type: string
+                      port:
+                        default: 80
+                        type: integer
                       scaling:
                         properties:
                           cpuLimit:
@@ -184,6 +187,8 @@ spec:
                         type: object
                     type: object
                 type: object
+              url:
+                type: string
               version:
                 type: string
             type: object

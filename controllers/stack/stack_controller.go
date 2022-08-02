@@ -57,18 +57,46 @@ func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		logger.Info("Failed to fetch Stack resource")
 		return ctrl.Result{}, err
 	}
-
 	actualStack = actualStack.DeepCopy()
+
+	// Generate Annotations for Stack
+	annotations := make(map[string]string)
+	annotations["stack.formance.com/name"] = actualStack.Name
+	annotations["stack.formance.com/version"] = actualStack.Spec.Version
+
+	labels := make(map[string]string)
+	labels["stack.formance.com/name"] = actualStack.Name
+	labels["stack.formance.com/version"] = actualStack.Spec.Version
+
+	// Create Config Object
+	config := Config{
+		Context:     ctx,
+		Request:     req,
+		Stack:       *actualStack,
+		Annotations: annotations,
+		Labels:      labels,
+	}
+
 	// Add Reconcile for Ledger
-	r.NewLedgerReconcile(ctx, req, actualStack)
+	r.NewLedgerReconcile(config)
 
 	return ctrl.Result{}, nil
 }
 
-func (r *StackReconciler) NewLedgerReconcile(ctx context.Context, req ctrl.Request, actualStack *v1beta1.Stack) (ctrl.Result, error) {
-	logger := log.FromContext(ctx, "Ledger", req.NamespacedName)
+func (r *StackReconciler) NewLedgerReconcile(config Config) (ctrl.Result, error) {
+	logger := log.FromContext(config.Context, "Ledger", config.Request.NamespacedName)
 	logger.Info("Starting Ledger reconciliation")
-	r.reconcileService(ctx, actualStack, logger)
+	// Update value in Config object
+	config.Stack.Name = config.Stack.Name + "-ledger"
+	config.Labels["stack.formance.com/component"] = "ledger"
+
+	// Namespace Reconcile
+	r.reconcileNamespace(logger, config)
+	// Service Reconcile
+	r.reconcileService(logger, config)
+	// Ingress Reconcile
+	r.reconcileIngress(logger, config)
+
 	return ctrl.Result{}, nil
 }
 

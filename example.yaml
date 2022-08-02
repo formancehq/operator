@@ -4,7 +4,8 @@ metadata:
   name: maxence
 spec:
   version: v1.8.0
-  namespace: default
+  namespace: maxence
+  url: localhost
   auth:
     type: oauth
   monitoring:
@@ -23,6 +24,7 @@ spec:
         maxReplica: 10
         cpuLimit: 60
     ledger:
+      port: 3068
       scaling:
         enabled: true
         minReplica: 1

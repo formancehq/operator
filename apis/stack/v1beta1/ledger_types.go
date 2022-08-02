@@ -10,4 +10,7 @@ type LedgerSpec struct {
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional
 	Databases []DatabaseSpec `json:"databases,omitempty"`
+	// +optional
+	// +kubebuilder:default=80
+	Port int `json:"port,omitempty"`
 }
