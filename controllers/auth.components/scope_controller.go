@@ -47,34 +47,40 @@ var scopeFinalizer = newFinalizer("auth.components.formance.com/finalizer")
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return ctrl.Result{}, r.reconcile(ctx, req)
-}
-
-func (r *ScopeReconciler) reconcile(ctx context.Context, req ctrl.Request) error {
 	actualScope := &authcomponentsv1beta1.Scope{}
 	if err := r.Get(ctx, req.NamespacedName, actualScope); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	reconcileError := r.reconcile(ctx, actualScope)
+	if reconcileError != nil {
+		actualScope.Status.Error = reconcileError.Error()
+		actualScope.Status.Synchronized = false
+	} else {
+		actualScope.Status.Synchronized = true
+	}
+
+	err := r.Client.Update(ctx, actualScope)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, reconcileError
+}
+
+func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcomponentsv1beta1.Scope) error {
+
+	if isHandledByFinalizer, err := scopeFinalizer.handle(ctx, r.Client, actualScope, func() error {
+		if actualScope.IsCreatedOnAuthServer() {
+			return r.API.DeleteScope(ctx, actualScope.Status.AuthServerID)
+		}
+		return nil
+	}); err != nil || isHandledByFinalizer {
 		return err
 	}
 
-	if isDeleted(actualScope) {
-		if !scopeFinalizer.isPresent(actualScope) {
-			return nil
-		}
-		if actualScope.IsCreatedOnAuthServer() {
-			if err := r.API.DeleteScope(ctx, actualScope.Status.AuthServerID); err != nil {
-				return err
-			}
-		}
-		if err := scopeFinalizer.removeFinalizer(ctx, r.Client, actualScope); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	if !scopeFinalizer.isPresent(actualScope) {
-		if err := scopeFinalizer.add(ctx, r.Client, actualScope); err != nil {
-			return err
-		}
+	if err := scopeFinalizer.assertIsInstalled(ctx, r.Client, actualScope); err != nil {
+		return err
 	}
 
 	if actualScope.Status.AuthServerID != "" {
@@ -98,11 +104,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, req ctrl.Request) error
 	if err != nil {
 		return err
 	}
-
 	actualScope.Status.AuthServerID = id
-	if err := r.Client.Update(ctx, actualScope); err != nil {
-		return err
-	}
 
 	return nil
 }

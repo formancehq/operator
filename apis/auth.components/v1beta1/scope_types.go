@@ -27,6 +27,8 @@ type ScopeSpec struct {
 
 // ScopeStatus defines the observed state of Scope
 type ScopeStatus struct {
+	Synchronized bool   `json:"synchronized"`
+	Error        string `json:"error"`
 	AuthServerID string `json:"authServerID,omitempty"`
 }
 
