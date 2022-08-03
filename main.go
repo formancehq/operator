@@ -137,11 +137,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Control")
 		os.Exit(1)
 	}
-	if err = (&authcomponentscontrollers.OauthReconciler{
+	if err = (&authcomponentscontrollers.OAuthReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Oauth")
+		setupLog.Error(err, "unable to create controller", "controller", "OAuth")
 		os.Exit(1)
 	}
 	if err = (&authcomponentscontrollers.ScopeReconciler{

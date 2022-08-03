@@ -20,45 +20,35 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// OauthSpec defines the desired state of Oauth
-type OauthSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Oauth. Edit oauth_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+// OAuthSpec defines the desired state of OAuth
+type OAuthSpec struct {
 }
 
-// OauthStatus defines the observed state of Oauth
-type OauthStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+// OAuthStatus defines the observed state of OAuth
+type OAuthStatus struct {
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Oauth is the Schema for the oauths API
-type Oauth struct {
+// OAuth is the Schema for the oauths API
+type OAuth struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   OauthSpec   `json:"spec,omitempty"`
-	Status OauthStatus `json:"status,omitempty"`
+	Spec   OAuthSpec   `json:"spec,omitempty"`
+	Status OAuthStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// OauthList contains a list of Oauth
-type OauthList struct {
+// OAuthList contains a list of OAuth
+type OAuthList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Oauth `json:"items"`
+	Items           []OAuth `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Oauth{}, &OauthList{})
+	SchemeBuilder.Register(&OAuth{}, &OAuthList{})
 }

@@ -27,8 +27,8 @@ import (
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 )
 
-// OauthReconciler reconciles a Oauth object
-type OauthReconciler struct {
+// OAuthReconciler reconciles a OAuth object
+type OAuthReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -39,24 +39,17 @@ type OauthReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Oauth object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
-func (r *OauthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *OAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
-
-	// TODO(user): your logic here
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *OauthReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *OAuthReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&authcomponentsv1beta1.Oauth{}).
+		For(&authcomponentsv1beta1.OAuth{}).
 		Complete(r)
 }
