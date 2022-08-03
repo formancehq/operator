@@ -16,7 +16,7 @@ type ScopeAPI interface {
 	ReadScope(ctx context.Context, id string) (*authclient.Scope, error)
 	CreateScope(ctx context.Context, label string) (*authclient.Scope, error)
 	UpdateScope(ctx context.Context, id string, label string) error
-	ListScopes(ctx context.Context) (collectionutil.Filterable[authclient.Scope], error)
+	ListScopes(ctx context.Context) (collectionutil.Array[authclient.Scope], error)
 	ReadScopeByLabel(ctx context.Context, label string) (*authclient.Scope, error)
 	AddTransientScope(ctx context.Context, scope, transientScope string) error
 	RemoveTransientScope(ctx context.Context, scope, transientScope string) error
@@ -102,7 +102,7 @@ func (d *defaultServerApi) UpdateScope(ctx context.Context, id string, label str
 	return err
 }
 
-func (d *defaultServerApi) ListScopes(ctx context.Context) (collectionutil.Filterable[authclient.Scope], error) {
+func (d *defaultServerApi) ListScopes(ctx context.Context) (collectionutil.Array[authclient.Scope], error) {
 	scopes, _, err := d.API.DefaultApi.ListScopes(ctx).Execute()
 	if err != nil {
 		return nil, err

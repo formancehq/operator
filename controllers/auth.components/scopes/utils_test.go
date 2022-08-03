@@ -37,7 +37,7 @@ func (i *inMemoryScopeApi) RemoveTransientScope(ctx context.Context, scope, tran
 	if !ok {
 		return ErrNotFound
 	}
-	firstScope.Transient = collectionutil.Filterable[string](firstScope.Transient).Filter(func(t string) bool {
+	firstScope.Transient = collectionutil.Array[string](firstScope.Transient).Filter(func(t string) bool {
 		return t != transientScope
 	})
 	return nil
@@ -83,8 +83,8 @@ func (i *inMemoryScopeApi) UpdateScope(ctx context.Context, id string, label str
 	return nil
 }
 
-func (i *inMemoryScopeApi) ListScopes(ctx context.Context) (collectionutil.Filterable[authclient.Scope], error) {
-	ret := collectionutil.Filterable[authclient.Scope]{}
+func (i *inMemoryScopeApi) ListScopes(ctx context.Context) (collectionutil.Array[authclient.Scope], error) {
+	ret := collectionutil.Array[authclient.Scope]{}
 	for _, scope := range i.scopes {
 		ret = append(ret, *scope)
 	}

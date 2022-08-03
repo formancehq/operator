@@ -108,8 +108,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcompon
 	// Scope already created auth server side
 	if actualScope.IsCreatedOnAuthServer() {
 		// Scope can have been manually deleted
-		authServerScope, err = r.API.ReadScope(ctx, actualScope.Status.AuthServerID)
-		if err != nil && err != ErrNotFound {
+		if authServerScope, err = r.API.ReadScope(ctx, actualScope.Status.AuthServerID); err != nil && err != ErrNotFound {
 			return nil, err
 		}
 		if authServerScope != nil { // If found, check the label and update if required
@@ -135,8 +134,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcompon
 
 		// If the scope is not found auth server side, we can create the scope
 		if scopeByLabel == nil {
-			authServerScope, err = r.API.CreateScope(ctx, actualScope.Spec.Label)
-			if err != nil {
+			if authServerScope, err = r.API.CreateScope(ctx, actualScope.Spec.Label); err != nil {
 				return nil, err
 			}
 			actualScope.Status.AuthServerID = authServerScope.Id
@@ -151,21 +149,19 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcompon
 	transientScopeIds := make([]string, 0)
 	for _, transientScopeName := range actualScope.Spec.Transient {
 		transientScope := &authcomponentsv1beta1.Scope{}
-		err := r.Get(ctx, types.NamespacedName{
+		if err := r.Get(ctx, types.NamespacedName{
 			Name:      transientScopeName,
 			Namespace: actualScope.Namespace,
-		}, transientScope)
-		if err != nil {
-			switch {
-			case errors.IsNotFound(err): // The transient scope is not created, requeue is needed
-				needRequeue = true
-			default:
+		}, transientScope); err != nil {
+			if !errors.IsNotFound(err) {
 				return nil, err
 			}
+			// The transient scope is not created, requeue is needed
+			needRequeue = true
 			continue
 		}
 
-		if First(authServerScope.Transient, Equal(transientScope.Status.AuthServerID)) == nil {
+		if !transientScope.IsIn(authServerScope) { // Transient scope not found auth server side
 			if err = r.API.AddTransientScope(ctx, actualScope.Status.AuthServerID, transientScope.Status.AuthServerID); err != nil {
 				return nil, err
 			}

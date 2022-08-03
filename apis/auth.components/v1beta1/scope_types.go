@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/numary/auth/authclient"
+	. "github.com/numary/formance-operator/pkg/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -44,6 +46,10 @@ type Scope struct {
 
 	Spec   ScopeSpec   `json:"spec,omitempty"`
 	Status ScopeStatus `json:"status,omitempty"`
+}
+
+func (s Scope) IsIn(authScope *authclient.Scope) bool {
+	return First(authScope.Transient, Equal(s.Status.AuthServerID)) != nil
 }
 
 func (s Scope) IsCreatedOnAuthServer() bool {
