@@ -3,6 +3,7 @@ package scopes
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"github.com/numary/auth/authclient"
 	"github.com/numary/formance-operator/pkg/collectionutil"
@@ -26,12 +27,18 @@ type defaultServerApi struct {
 }
 
 func (d *defaultServerApi) AddTransientScope(ctx context.Context, scope, transientScope string) error {
-	_, err := d.API.DefaultApi.AddTransientScope(ctx, scope, transientScope).Execute()
+	httpResponse, err := d.API.DefaultApi.AddTransientScope(ctx, scope, transientScope).Execute()
+	if err != nil && httpResponse.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
 	return err
 }
 
 func (d *defaultServerApi) RemoveTransientScope(ctx context.Context, scope, transientScope string) error {
-	_, err := d.API.DefaultApi.DeleteTransientScope(ctx, scope, transientScope).Execute()
+	httpResponse, err := d.API.DefaultApi.DeleteTransientScope(ctx, scope, transientScope).Execute()
+	if err != nil && httpResponse.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
 	return err
 }
 
@@ -50,36 +57,48 @@ func (d *defaultServerApi) ReadScopeByLabel(ctx context.Context, label string) (
 }
 
 func (d *defaultServerApi) ReadScope(ctx context.Context, id string) (*authclient.Scope, error) {
-	ret, _, err := d.API.DefaultApi.
+	ret, httpResponse, err := d.API.DefaultApi.
 		ReadScope(ctx, id).
 		Execute()
 	if err != nil {
+		if httpResponse.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return ret.Data, nil
 }
 
 func (d *defaultServerApi) DeleteScope(ctx context.Context, id string) error {
-	_, err := d.API.DefaultApi.
+	httpResponse, err := d.API.DefaultApi.
 		DeleteScope(ctx, id).
 		Execute()
+	if err != nil && httpResponse.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
 	return err
 }
 
 func (d *defaultServerApi) CreateScope(ctx context.Context, label string) (*authclient.Scope, error) {
-	ret, _, err := d.API.DefaultApi.CreateScope(ctx).Body(authclient.ScopeOptions{
+	ret, httpResponse, err := d.API.DefaultApi.CreateScope(ctx).Body(authclient.ScopeOptions{
 		Label: label,
 	}).Execute()
 	if err != nil {
+		if httpResponse.StatusCode == http.StatusNotFound {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return ret.Data, nil
 }
 
 func (d *defaultServerApi) UpdateScope(ctx context.Context, id string, label string) error {
-	_, _, err := d.API.DefaultApi.UpdateScope(ctx, id).Body(authclient.ScopeOptions{
+	_, httpResponse, err := d.API.DefaultApi.UpdateScope(ctx, id).Body(authclient.ScopeOptions{
 		Label: label,
 	}).Execute()
+	if err != nil && httpResponse.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
 	return err
 }
 
