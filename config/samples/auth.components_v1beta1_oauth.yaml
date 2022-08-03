@@ -1,0 +1,6 @@
+apiVersion: auth.components.formance.com/v1beta1
+kind: Oauth
+metadata:
+  name: oauth-sample
+spec:
+  # TODO(user): Add fields here

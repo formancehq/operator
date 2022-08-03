@@ -31,7 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
+	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
+	authcomponentscontrollers "github.com/numary/formance-operator/controllers/auth.components"
+	componentscontrollers "github.com/numary/formance-operator/controllers/components"
 	stackcontrollers "github.com/numary/formance-operator/controllers/stack"
 	//+kubebuilder:scaffold:imports
 )
@@ -45,6 +49,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(stackv1beta1.AddToScheme(scheme))
+	utilruntime.Must(componentsv1beta1.AddToScheme(scheme))
+	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -94,6 +100,55 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")
+		os.Exit(1)
+	}
+	if err = (&componentscontrollers.AuthReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Auth")
+		os.Exit(1)
+	}
+	if err = (&componentscontrollers.LedgerReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Ledger")
+		os.Exit(1)
+	}
+	if err = (&componentscontrollers.PaymentsReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Payments")
+		os.Exit(1)
+	}
+	if err = (&componentscontrollers.SearchReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Search")
+		os.Exit(1)
+	}
+	if err = (&componentscontrollers.ControlReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Control")
+		os.Exit(1)
+	}
+	if err = (&authcomponentscontrollers.OauthReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Oauth")
+		os.Exit(1)
+	}
+	if err = (&authcomponentscontrollers.ScopeReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Scope")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

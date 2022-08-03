@@ -1,0 +1,6 @@
+apiVersion: components.formance.com/v1beta1
+kind: Payments
+metadata:
+  name: payments-sample
+spec:
+  # TODO(user): Add fields here
