@@ -152,7 +152,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 			continue
 		}
 
-		if !transientScope.IsIn(actualAuthServerScope) { // Transient scope not found auth server side
+		if !transientScope.IsInTransient(actualAuthServerScope) { // Transient scope not found auth server side
 			if err = r.API.AddTransientScope(ctx, actualK8SScope.Status.AuthServerID, transientScope.Status.AuthServerID); err != nil {
 				return nil, err
 			}

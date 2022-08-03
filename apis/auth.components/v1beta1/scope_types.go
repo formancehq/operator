@@ -48,7 +48,7 @@ type Scope struct {
 	Status ScopeStatus `json:"status,omitempty"`
 }
 
-func (s Scope) IsIn(authScope *authclient.Scope) bool {
+func (s Scope) IsInTransient(authScope *authclient.Scope) bool {
 	return First(authScope.Transient, Equal(s.Status.AuthServerID)) != nil
 }
 
