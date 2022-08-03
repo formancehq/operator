@@ -17,10 +17,22 @@ type ScopeAPI interface {
 	UpdateScope(ctx context.Context, id string, label string) error
 	ListScopes(ctx context.Context) (collectionutil.Filterable[authclient.Scope], error)
 	ReadScopeByLabel(ctx context.Context, label string) (*authclient.Scope, error)
+	AddTransientScope(ctx context.Context, scope, transientScope string) error
+	RemoveTransientScope(ctx context.Context, scope, transientScope string) error
 }
 
 type defaultServerApi struct {
 	API *authclient.APIClient
+}
+
+func (d *defaultServerApi) AddTransientScope(ctx context.Context, scope, transientScope string) error {
+	_, err := d.API.DefaultApi.AddTransientScope(ctx, scope, transientScope).Execute()
+	return err
+}
+
+func (d *defaultServerApi) RemoveTransientScope(ctx context.Context, scope, transientScope string) error {
+	_, err := d.API.DefaultApi.DeleteTransientScope(ctx, scope, transientScope).Execute()
+	return err
 }
 
 func (d *defaultServerApi) ReadScopeByLabel(ctx context.Context, label string) (*authclient.Scope, error) {

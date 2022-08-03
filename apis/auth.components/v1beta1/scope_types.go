@@ -23,6 +23,8 @@ import (
 // ScopeSpec defines the desired state of Scope
 type ScopeSpec struct {
 	Label string `json:"label"`
+	// +optional
+	Transient []string `json:"transient"`
 }
 
 // ScopeStatus defines the observed state of Scope
@@ -62,13 +64,14 @@ func (s *Scope) SetSynchronized() {
 	s.Status.Error = ""
 }
 
-func NewScope(name, label string) *Scope {
+func NewScope(name, label string, transient ...string) *Scope {
 	return &Scope{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: ScopeSpec{
-			Label: label,
+			Label:     label,
+			Transient: transient,
 		},
 	}
 }

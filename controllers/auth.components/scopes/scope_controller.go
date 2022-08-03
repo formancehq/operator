@@ -19,11 +19,15 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ScopeReconciler reconciles a Scope object
@@ -44,6 +48,10 @@ var scopeFinalizer = finalizerutil.New("scopes.auth.components.formance.com/fina
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	logger := log.FromContext(ctx).WithValues("scope", req.Name)
+	logger.Info("Reconcile scope")
+
 	actualScope := &authcomponentsv1beta1.Scope{}
 	if err := r.Get(ctx, req.NamespacedName, actualScope); err != nil {
 		return ctrl.Result{}, err
@@ -51,23 +59,29 @@ func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	updatedScope := actualScope.DeepCopy()
 
-	reconcileError := r.reconcile(ctx, updatedScope)
+	result, reconcileError := r.reconcile(ctx, updatedScope)
 	if reconcileError != nil {
+		logger.Error(reconcileError, "Error reconciling")
 		updatedScope.SetSynchronizationError(reconcileError)
-	} else {
-		updatedScope.SetSynchronized()
 	}
 
-	if !reflect.DeepEqual(updatedScope, actualScope) {
+	if !reflect.DeepEqual(updatedScope.Status, actualScope.Status) {
+		logger.Info("Update status")
 		if patchErr := r.Status().Update(ctx, updatedScope); patchErr != nil {
+			logger.Error(patchErr, "Updating status")
 			return ctrl.Result{}, patchErr
 		}
 	}
+	if result != nil {
+		return *result, reconcileError
+	}
+
+	logger.Info("Reconcile terminated")
 
 	return ctrl.Result{}, reconcileError
 }
 
-func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcomponentsv1beta1.Scope) error {
+func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcomponentsv1beta1.Scope) (*ctrl.Result, error) {
 
 	// Handle finalizer
 	if isHandledByFinalizer, err := scopeFinalizer.Handle(ctx, r.Client, actualScope, func() error {
@@ -77,51 +91,113 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcompon
 		}
 		return nil
 	}); err != nil || isHandledByFinalizer {
-		return err
+		return nil, err
 	}
 
 	// Assert finalizer is properly installed on the object
 	if err := scopeFinalizer.AssertIsInstalled(ctx, r.Client, actualScope); err != nil {
-		return err
+		return nil, err
 	}
+
+	var (
+		authServerScope *authclient.Scope
+		err             error
+	)
 
 	// Scope already created auth server side
 	if actualScope.IsCreatedOnAuthServer() {
 		// Scope can have been manually deleted
-		scope, err := r.API.ReadScope(ctx, actualScope.Status.AuthServerID)
+		authServerScope, err = r.API.ReadScope(ctx, actualScope.Status.AuthServerID)
 		if err != nil && err != ErrNotFound {
-			return err
+			return nil, err
 		}
-		if scope != nil { // If found, just check the label and update if required
-			if scope.Label != actualScope.Spec.Label {
-				return r.API.UpdateScope(ctx, scope.Id, actualScope.Spec.Label)
+		if authServerScope != nil { // If found, check the label and update if required
+			if authServerScope.Label != actualScope.Spec.Label {
+				if err := r.API.UpdateScope(ctx, authServerScope.Id, actualScope.Spec.Label); err != nil {
+					return nil, err
+				}
 			}
-			return nil
+		} else {
+			// Scope was deleted
+			actualScope.ClearAuthServerID()
 		}
-		// Scope was deleted
-		actualScope.ClearAuthServerID()
 	}
 
-	// As it could be the status update of the reconciliation which could have been fail
-	// the scope can exist auth server side, so try to find it
-	scopeByLabel, err := r.API.ReadScopeByLabel(ctx, actualScope.Spec.Label)
-	if err != nil && err != ErrNotFound {
-		return err
+	// Still not created
+	if !actualScope.IsCreatedOnAuthServer() {
+		// As it could be the status update of the reconciliation which could have been fail
+		// the scope can exist auth server side, so try to find it
+		scopeByLabel, err := r.API.ReadScopeByLabel(ctx, actualScope.Spec.Label)
+		if err != nil && err != ErrNotFound {
+			return nil, err
+		}
+
+		// If the scope is not found auth server side, we can create the scope
+		if scopeByLabel == nil {
+			authServerScope, err = r.API.CreateScope(ctx, actualScope.Spec.Label)
+			if err != nil {
+				return nil, err
+			}
+			actualScope.Status.AuthServerID = authServerScope.Id
+		} else {
+			// Just reuse the scope
+			actualScope.Status.AuthServerID = scopeByLabel.Id
+			authServerScope = scopeByLabel
+		}
 	}
 
-	// If the scope is not found auth server side, we can create the scope
-	if scopeByLabel == nil {
-		scope, err := r.API.CreateScope(ctx, actualScope.Spec.Label)
+	needRequeue := false
+	transientScopeIds := make([]string, 0)
+	for _, transientScopeName := range actualScope.Spec.Transient {
+		transientScope := &authcomponentsv1beta1.Scope{}
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      transientScopeName,
+			Namespace: actualScope.Namespace,
+		}, transientScope)
 		if err != nil {
-			return err
+			switch {
+			case errors.IsNotFound(err): // The transient scope is not created, requeue is needed
+				needRequeue = true
+			default:
+				return nil, err
+			}
+			continue
 		}
-		actualScope.Status.AuthServerID = scope.Id
-	} else {
-		// Just reuse the scope
-		actualScope.Status.AuthServerID = scopeByLabel.Id
+		found := false
+		for _, transientAuthServerScope := range authServerScope.Transient {
+			if transientAuthServerScope == transientScope.Status.AuthServerID {
+				found = true
+			}
+		}
+		if !found {
+			if err = r.API.AddTransientScope(ctx, actualScope.Status.AuthServerID, transientScope.Status.AuthServerID); err != nil {
+				return nil, err
+			}
+		}
+		transientScopeIds = append(transientScopeIds, transientScope.Status.AuthServerID)
 	}
 
-	return nil
+l:
+	for _, authServerTransientScope := range authServerScope.Transient {
+		for _, transientScopeId := range transientScopeIds {
+			if transientScopeId == authServerTransientScope {
+				continue l
+			}
+		}
+		if err = r.API.RemoveTransientScope(ctx, authServerScope.Id, authServerTransientScope); err != nil {
+			return nil, err
+		}
+	}
+
+	if needRequeue {
+		return &ctrl.Result{
+			Requeue: true,
+		}, nil
+	}
+
+	actualScope.SetSynchronized()
+
+	return nil, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

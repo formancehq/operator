@@ -15,6 +15,34 @@ type inMemoryScopeApi struct {
 	scopes map[string]*authclient.Scope
 }
 
+func (i *inMemoryScopeApi) AddTransientScope(ctx context.Context, scope, transientScope string) error {
+	firstScope, ok := i.scopes[scope]
+	if !ok {
+		return ErrNotFound
+	}
+	_, ok = i.scopes[transientScope]
+	if !ok {
+		return ErrNotFound
+	}
+	firstScope.Transient = append(firstScope.Transient, transientScope)
+	return nil
+}
+
+func (i *inMemoryScopeApi) RemoveTransientScope(ctx context.Context, scope, transientScope string) error {
+	firstScope, ok := i.scopes[scope]
+	if !ok {
+		return ErrNotFound
+	}
+	_, ok = i.scopes[transientScope]
+	if !ok {
+		return ErrNotFound
+	}
+	firstScope.Transient = collectionutil.Filterable[string](firstScope.Transient).Filter(func(t string) bool {
+		return t != transientScope
+	})
+	return nil
+}
+
 func (i *inMemoryScopeApi) ReadScope(ctx context.Context, id string) (*authclient.Scope, error) {
 	s, ok := i.scopes[id]
 	if !ok {
@@ -75,8 +103,8 @@ func newInMemoryScopeApi() *inMemoryScopeApi {
 
 var _ ScopeAPI = (*inMemoryScopeApi)(nil)
 
-func newScope() *v1beta1.Scope {
-	return v1beta1.NewScope(uuid.NewString(), uuid.NewString())
+func newScope(transient ...string) *v1beta1.Scope {
+	return v1beta1.NewScope(uuid.NewString(), uuid.NewString(), transient...)
 }
 
 func apiScopeLength() int {

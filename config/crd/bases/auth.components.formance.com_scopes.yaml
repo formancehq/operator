@@ -37,6 +37,10 @@ spec:
             properties:
               label:
                 type: string
+              transient:
+                items:
+                  type: string
+                type: array
             required:
             - label
             type: object
