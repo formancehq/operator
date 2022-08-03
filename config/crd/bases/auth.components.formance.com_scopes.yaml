@@ -45,6 +45,12 @@ spec:
             properties:
               authServerID:
                 type: string
+              error:
+                type: string
+              synchronized:
+                type: boolean
+            required:
+            - synchronized
             type: object
         type: object
     served: true

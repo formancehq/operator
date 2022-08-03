@@ -1,4 +1,4 @@
-package authcomponents
+package collectionutil
 
 type Filterable[T any] []T
 

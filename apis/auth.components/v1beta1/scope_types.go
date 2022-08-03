@@ -28,7 +28,7 @@ type ScopeSpec struct {
 // ScopeStatus defines the observed state of Scope
 type ScopeStatus struct {
 	Synchronized bool   `json:"synchronized"`
-	Error        string `json:"error"`
+	Error        string `json:"error,omitempty"`
 	AuthServerID string `json:"authServerID,omitempty"`
 }
 
@@ -46,6 +46,31 @@ type Scope struct {
 
 func (s Scope) IsCreatedOnAuthServer() bool {
 	return s.Status.AuthServerID != ""
+}
+
+func (s *Scope) ClearAuthServerID() {
+	s.Status.AuthServerID = ""
+}
+
+func (s *Scope) SetSynchronizationError(err error) {
+	s.Status.Error = err.Error()
+	s.Status.Synchronized = false
+}
+
+func (s *Scope) SetSynchronized() {
+	s.Status.Synchronized = true
+	s.Status.Error = ""
+}
+
+func NewScope(name, label string) *Scope {
+	return &Scope{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: ScopeSpec{
+			Label: label,
+		},
+	}
 }
 
 //+kubebuilder:object:root=true
