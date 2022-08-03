@@ -21,6 +21,7 @@ import (
 
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
+	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -163,13 +164,8 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcompon
 			}
 			continue
 		}
-		found := false
-		for _, transientAuthServerScope := range authServerScope.Transient {
-			if transientAuthServerScope == transientScope.Status.AuthServerID {
-				found = true
-			}
-		}
-		if !found {
+
+		if First(authServerScope.Transient, Equal(transientScope.Status.AuthServerID)) == nil {
 			if err = r.API.AddTransientScope(ctx, actualScope.Status.AuthServerID, transientScope.Status.AuthServerID); err != nil {
 				return nil, err
 			}
@@ -177,27 +173,20 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualScope *authcompon
 		transientScopeIds = append(transientScopeIds, transientScope.Status.AuthServerID)
 	}
 
-l:
-	for _, authServerTransientScope := range authServerScope.Transient {
-		for _, transientScopeId := range transientScopeIds {
-			if transientScopeId == authServerTransientScope {
-				continue l
-			}
-		}
-		if err = r.API.RemoveTransientScope(ctx, authServerScope.Id, authServerTransientScope); err != nil {
+	extraTransientScopes := Filter(authServerScope.Transient, NotIn(transientScopeIds...))
+	for _, extraScope := range extraTransientScopes {
+		if err = r.API.RemoveTransientScope(ctx, authServerScope.Id, extraScope); err != nil {
 			return nil, err
 		}
 	}
 
-	if needRequeue {
-		return &ctrl.Result{
-			Requeue: true,
-		}, nil
+	if !needRequeue {
+		actualScope.SetSynchronized()
 	}
 
-	actualScope.SetSynchronized()
-
-	return nil, nil
+	return &ctrl.Result{
+		Requeue: needRequeue,
+	}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
