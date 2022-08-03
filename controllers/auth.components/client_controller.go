@@ -27,29 +27,29 @@ import (
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 )
 
-// OAuthReconciler reconciles a OAuth object
-type OAuthReconciler struct {
+// ClientReconciler reconciles a Client object
+type ClientReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=oauths,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=oauths/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=oauths/finalizers,verbs=update
+//+kubebuilder:rbac:groups=auth.components.formance.com,resources=clients,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=auth.components.formance.com,resources=clients/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=auth.components.formance.com,resources=clients/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
-func (r *OAuthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *OAuthReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&authcomponentsv1beta1.OAuth{}).
+		For(&authcomponentsv1beta1.Client{}).
 		Complete(r)
 }

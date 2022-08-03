@@ -20,35 +20,35 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// OAuthSpec defines the desired state of OAuth
-type OAuthSpec struct {
+// ClientSpec defines the desired state of Client
+type ClientSpec struct {
 }
 
-// OAuthStatus defines the observed state of OAuth
-type OAuthStatus struct {
+// ClientStatus defines the observed state of Client
+type ClientStatus struct {
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// OAuth is the Schema for the oauths API
-type OAuth struct {
+// Client is the Schema for the oauths API
+type Client struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   OAuthSpec   `json:"spec,omitempty"`
-	Status OAuthStatus `json:"status,omitempty"`
+	Spec   ClientSpec   `json:"spec,omitempty"`
+	Status ClientStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// OAuthList contains a list of OAuth
-type OAuthList struct {
+// ClientList contains a list of Client
+type ClientList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []OAuth `json:"items"`
+	Items           []Client `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&OAuth{}, &OAuthList{})
+	SchemeBuilder.Register(&Client{}, &ClientList{})
 }

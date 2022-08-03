@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.0
   creationTimestamp: null
-  name: scopes.auth.components.formance.com
+  name: clients.auth.components.formance.com
 spec:
   group: auth.components.formance.com
   names:
-    kind: Scope
-    listKind: ScopeList
-    plural: scopes
-    singular: scope
+    kind: Client
+    listKind: ClientList
+    plural: clients
+    singular: client
   scope: Namespaced
   versions:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: Scope is the Schema for the scopes API
+        description: Client is the Schema for the oauths API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,18 +33,10 @@ spec:
           metadata:
             type: object
           spec:
-            description: ScopeSpec defines the desired state of Scope
-            properties:
-              label:
-                type: string
-            required:
-            - label
+            description: ClientSpec defines the desired state of Client
             type: object
           status:
-            description: ScopeStatus defines the observed state of Scope
-            properties:
-              authServerID:
-                type: string
+            description: ClientStatus defines the observed state of Client
             type: object
         type: object
     served: true

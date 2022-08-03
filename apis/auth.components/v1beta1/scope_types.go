@@ -22,10 +22,12 @@ import (
 
 // ScopeSpec defines the desired state of Scope
 type ScopeSpec struct {
+	Label string `json:"label"`
 }
 
 // ScopeStatus defines the observed state of Scope
 type ScopeStatus struct {
+	AuthServerID string `json:"authServerID,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -38,6 +40,10 @@ type Scope struct {
 
 	Spec   ScopeSpec   `json:"spec,omitempty"`
 	Status ScopeStatus `json:"status,omitempty"`
+}
+
+func (s Scope) IsCreatedOnAuthServer() bool {
+	return s.Status.AuthServerID != ""
 }
 
 //+kubebuilder:object:root=true
