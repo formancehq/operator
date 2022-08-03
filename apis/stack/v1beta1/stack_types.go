@@ -30,10 +30,19 @@ type StackSpec struct {
 	Version string `json:"version,omitempty"`
 	// +required
 	Namespace string `json:"namespace,omitempty"`
+	// +required
+	Url string `json:"url,omitempty"`
 	// +optional
 	Monitoring MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
 	Services ServicesSpec `json:"services,omitempty"`
+	// +optional
+	Auth AuthSpec `json:"auth,omitempty"`
+}
+
+type AuthSpec struct {
+	// +optional
+	Type string `json:"type,omitempty"`
 }
 
 type MonitoringSpec struct {
@@ -56,49 +65,10 @@ type TracesOtlpSpec struct {
 }
 
 type ServicesSpec struct {
-	Collector ServiceSpec `json:"collector,omitempty"`
-	Control   ServiceSpec `json:"control,omitempty"`
-	Ledger    ServiceSpec `json:"ledger,omitempty"`
-	Payments  ServiceSpec `json:"payments,omitempty"`
-	Search    ServiceSpec `json:"search,omitempty"`
-}
-
-type ServiceSpec struct {
-	// +required
-	Name string `json:"name,omitempty"`
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-	// +optional
-	Scaling ScalingSpec `json:"scaling,omitempty"`
-	// +optional
-	Auth AuthSpec `json:"auth,omitempty"`
-	// +optional
-	Databases []DatabaseSpec `json:"databases,omitempty"`
-}
-
-type ScalingSpec struct {
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-	// +optional
-	MinReplica int `json:"minReplica,omitempty"`
-	// +optional
-	MaxReplica int `json:"maxReplica,omitempty"`
-	// +optional
-	CpuLimit int `json:"cpuLimit,omitempty"`
-}
-
-type AuthSpec struct {
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-	// +optional
-	Type string `json:"type,omitempty"`
-}
-
-type DatabaseSpec struct {
-	// +optional
-	Url string `json:"url,omitempty"`
-	// +optional
-	Type string `json:"type,omitempty"`
+	Control  ControlSpec  `json:"control,omitempty"`
+	Ledger   LedgerSpec   `json:"ledger,omitempty"`
+	Payments PaymentsSpec `json:"payments,omitempty"`
+	Search   SearchSpec   `json:"search,omitempty"`
 }
 
 // StackProgress is a word summarizing the state of a Stack resource.

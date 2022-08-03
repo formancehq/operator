@@ -21,4 +21,74 @@ resources:
   kind: Stack
   path: github.com/numary/formance-operator/apis/stack/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+  domain: formance.com
+  group: stack
+  kind: License
+  path: github.com/numary/formance-operator/apis/stack/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Auth
+  path: github.com/numary/formance-operator/apis/components/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Ledger
+  path: github.com/numary/formance-operator/apis/components/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Payments
+  path: github.com/numary/formance-operator/apis/components/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Search
+  path: github.com/numary/formance-operator/apis/components/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Control
+  path: github.com/numary/formance-operator/apis/components/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: auth.components
+  kind: Oauth
+  path: github.com/numary/formance-operator/apis/auth.components/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: auth.components
+  kind: Scope
+  path: github.com/numary/formance-operator/apis/auth.components/v1beta1
+  version: v1beta1
 version: "3"

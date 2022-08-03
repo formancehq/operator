@@ -47,6 +47,11 @@ spec:
           spec:
             description: StackSpec defines the desired state of Stack
             properties:
+              auth:
+                properties:
+                  type:
+                    type: string
+                type: object
               monitoring:
                 properties:
                   traces:
@@ -70,49 +75,8 @@ spec:
                 type: string
               services:
                 properties:
-                  collector:
-                    properties:
-                      auth:
-                        properties:
-                          enabled:
-                            type: boolean
-                          type:
-                            type: string
-                        type: object
-                      databases:
-                        items:
-                          properties:
-                            type:
-                              type: string
-                            url:
-                              type: string
-                          type: object
-                        type: array
-                      enabled:
-                        type: boolean
-                      name:
-                        type: string
-                      scaling:
-                        properties:
-                          cpuLimit:
-                            type: integer
-                          enabled:
-                            type: boolean
-                          maxReplica:
-                            type: integer
-                          minReplica:
-                            type: integer
-                        type: object
-                    type: object
                   control:
                     properties:
-                      auth:
-                        properties:
-                          enabled:
-                            type: boolean
-                          type:
-                            type: string
-                        type: object
                       databases:
                         items:
                           properties:
@@ -140,13 +104,6 @@ spec:
                     type: object
                   ledger:
                     properties:
-                      auth:
-                        properties:
-                          enabled:
-                            type: boolean
-                          type:
-                            type: string
-                        type: object
                       databases:
                         items:
                           properties:
@@ -160,6 +117,9 @@ spec:
                         type: boolean
                       name:
                         type: string
+                      port:
+                        default: 80
+                        type: integer
                       scaling:
                         properties:
                           cpuLimit:
@@ -174,13 +134,6 @@ spec:
                     type: object
                   payments:
                     properties:
-                      auth:
-                        properties:
-                          enabled:
-                            type: boolean
-                          type:
-                            type: string
-                        type: object
                       databases:
                         items:
                           properties:
@@ -208,13 +161,6 @@ spec:
                     type: object
                   search:
                     properties:
-                      auth:
-                        properties:
-                          enabled:
-                            type: boolean
-                          type:
-                            type: string
-                        type: object
                       databases:
                         items:
                           properties:
@@ -241,6 +187,8 @@ spec:
                         type: object
                     type: object
                 type: object
+              url:
+                type: string
               version:
                 type: string
             type: object

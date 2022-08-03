@@ -4,6 +4,18 @@
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 
+## How to work reconciliation
+```mermaid
+graph TD
+    A[Reconcilier] -->|Start| B(Watch Formance Stack is exist)
+    B --> |True| D[Create or Update Stack]
+    B --> |False| E[Check Stack is a same md5]
+    E --> |True| F[Finish]
+    E --> |False| D
+    D --> |Generate Manifests| I[Apply Manifests]
+    I --> F
+```
+
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
 **Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).

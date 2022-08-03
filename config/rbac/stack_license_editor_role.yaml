@@ -1,0 +1,24 @@
+# permissions for end users to edit licenses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: license-editor-role
+rules:
+- apiGroups:
+  - stack.formance.com
+  resources:
+  - licenses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stack.formance.com
+  resources:
+  - licenses/status
+  verbs:
+  - get

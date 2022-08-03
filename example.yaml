@@ -4,7 +4,10 @@ metadata:
   name: maxence
 spec:
   version: v1.8.0
-  namespace: toto
+  namespace: maxence
+  url: localhost
+  auth:
+    type: oauth
   monitoring:
     traces:
       enabled: true
@@ -14,12 +17,6 @@ spec:
         insecure: true
         mode: grpc
   services:
-    collector:
-      scaling:
-        enabled: true
-        minReplica: 1
-        maxReplica: 10
-        cpuLimit: 60
     control:
       scaling:
         enabled: true
@@ -27,16 +24,21 @@ spec:
         maxReplica: 10
         cpuLimit: 60
     ledger:
+      port: 3068
       scaling:
         enabled: true
         minReplica: 1
         maxReplica: 10
         cpuLimit: 60
-      auth:
-        enabled: true
-        type: oauth
       databases:
         - type: postgresql
           url: postgresql://formance:formance@localhost:5432/formance
         - type: redis
           url: redis://localhost:6379/0
+---
+apiVersion: stack.formance.com/v1beta1
+kind: License
+metadata:
+  name: maxence
+spec:
+  licenceId: maxence
