@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ScopeReconciler reconciles a Scope object
@@ -45,9 +44,6 @@ var scopeFinalizer = finalizerutil.New("scopes.auth.components.formance.com/fina
 //+kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes/finalizers,verbs=update
 func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	logger := log.FromContext(ctx).WithValues("scope", req.Name)
-	logger.Info("Reconcile scope")
-
 	actualScope := &authcomponentsv1beta1.Scope{}
 	if err := r.Get(ctx, req.NamespacedName, actualScope); err != nil {
 		return ctrl.Result{}, err
@@ -57,22 +53,17 @@ func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	result, reconcileError := r.reconcile(ctx, updatedScope)
 	if reconcileError != nil {
-		logger.Error(reconcileError, "Error reconciling")
 		updatedScope.SetSynchronizationError(reconcileError)
 	}
 
 	if !reflect.DeepEqual(updatedScope.Status, actualScope.Status) {
-		logger.Info("Update status")
 		if patchErr := r.Status().Update(ctx, updatedScope); patchErr != nil {
-			logger.Error(patchErr, "Updating status")
 			return ctrl.Result{}, patchErr
 		}
 	}
 	if result != nil {
 		return *result, reconcileError
 	}
-
-	logger.Info("Reconcile terminated")
 
 	return ctrl.Result{}, reconcileError
 }

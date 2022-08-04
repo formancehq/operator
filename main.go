@@ -21,6 +21,7 @@ import (
 	"os"
 
 	"github.com/numary/auth/authclient"
+	authcomponentscontrollers "github.com/numary/formance-operator/controllers/auth.components/clients"
 	"github.com/numary/formance-operator/controllers/auth.components/scopes"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -36,7 +37,6 @@ import (
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
-	authcomponentscontrollers "github.com/numary/formance-operator/controllers/auth.components"
 	componentscontrollers "github.com/numary/formance-operator/controllers/components"
 	stackcontrollers "github.com/numary/formance-operator/controllers/stack"
 	//+kubebuilder:scaffold:imports

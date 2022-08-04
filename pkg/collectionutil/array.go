@@ -48,3 +48,9 @@ func Equal[T comparable](value T) func(t T) bool {
 		return t == value
 	}
 }
+
+func NotEqual[T comparable](value T) func(t T) bool {
+	return func(t T) bool {
+		return t != value
+	}
+}
