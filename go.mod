@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/go-logr/logr v1.2.3
-	github.com/numary/auth/authclient v0.0.0-20220803160347-89f1e8a801ef
+	github.com/numary/auth/authclient v0.0.0-20220804105722-cda8889c7d55
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.18.1
 	gorm.io/gorm v1.23.8

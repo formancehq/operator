@@ -51,11 +51,23 @@ func (i *inMemoryScopeApi) ReadScope(ctx context.Context, id string) (*authclien
 	return s, nil
 }
 
-func (i *inMemoryScopeApi) ReadScopeByLabel(ctx context.Context, label string) (*authclient.Scope, error) {
-	for _, scope := range i.scopes {
-		if scope.Label == label {
-			return scope, nil
+func (i *inMemoryScopeApi) ReadScopeByMetadata(ctx context.Context, metadata map[string]string) (*authclient.Scope, error) {
+	allScopes, err := i.ListScopes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+l:
+	for _, scope := range allScopes {
+		if scope.Metadata == nil {
+			continue
 		}
+		for k, v := range *scope.Metadata {
+			if metadata[k] != v {
+				continue l
+			}
+		}
+		return &scope, nil
 	}
 	return nil, ErrNotFound
 }
@@ -69,17 +81,19 @@ func (i *inMemoryScopeApi) DeleteScope(ctx context.Context, id string) error {
 	return nil
 }
 
-func (i *inMemoryScopeApi) CreateScope(ctx context.Context, label string) (*authclient.Scope, error) {
+func (i *inMemoryScopeApi) CreateScope(ctx context.Context, label string, metadata map[string]string) (*authclient.Scope, error) {
 	id := uuid.NewString()
 	i.scopes[id] = &authclient.Scope{
-		Label: label,
-		Id:    id,
+		Label:    label,
+		Id:       id,
+		Metadata: &metadata,
 	}
 	return i.scopes[id], nil
 }
 
-func (i *inMemoryScopeApi) UpdateScope(ctx context.Context, id string, label string) error {
+func (i *inMemoryScopeApi) UpdateScope(ctx context.Context, id string, label string, metadata map[string]string) error {
 	i.scopes[id].Label = label
+	i.scopes[id].Metadata = &metadata
 	return nil
 }
 

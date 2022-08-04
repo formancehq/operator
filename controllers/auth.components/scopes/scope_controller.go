@@ -96,8 +96,12 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	}
 
 	var (
-		actualAuthServerScope *authclient.Scope
-		err                   error
+		actualAuthServerScope           *authclient.Scope
+		err                             error
+		authServerScopeExpectedMetadata = map[string]string{
+			"namespace": actualK8SScope.Namespace,
+			"name":      actualK8SScope.Name,
+		}
 	)
 
 	// Scope already created auth server side
@@ -108,7 +112,8 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 		}
 		if actualAuthServerScope != nil { // If found, check the label and update if required
 			if actualAuthServerScope.Label != actualK8SScope.Spec.Label {
-				if err := r.API.UpdateScope(ctx, actualAuthServerScope.Id, actualK8SScope.Spec.Label); err != nil {
+				if err := r.API.UpdateScope(ctx, actualAuthServerScope.Id, actualK8SScope.Spec.Label,
+					authServerScopeExpectedMetadata); err != nil {
 					return nil, err
 				}
 			}
@@ -121,15 +126,15 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	// Still not created
 	if !actualK8SScope.IsCreatedOnAuthServer() {
 		// As it could be the status update of the reconciliation which could have been fail
-		// the scope can exist auth server side, so try to find it
+		// the scope can exist auth server side, so try to find it using metadata
 		if actualAuthServerScope, err = r.API.
-			ReadScopeByLabel(ctx, actualK8SScope.Spec.Label); err != nil && err != ErrNotFound {
+			ReadScopeByMetadata(ctx, authServerScopeExpectedMetadata); err != nil && err != ErrNotFound {
 			return nil, err
 		}
 
 		// If the scope is not found auth server side, we can create the scope
 		if actualAuthServerScope == nil {
-			if actualAuthServerScope, err = r.API.CreateScope(ctx, actualK8SScope.Spec.Label); err != nil {
+			if actualAuthServerScope, err = r.API.CreateScope(ctx, actualK8SScope.Spec.Label, authServerScopeExpectedMetadata); err != nil {
 				return nil, err
 			}
 		}
