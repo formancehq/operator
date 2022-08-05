@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var clientFinalizer = finalizerutil.New("clients.auth.components.formance.com/finalizer")
@@ -52,6 +54,13 @@ type ClientReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
 func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	logger := log.FromContext(ctx)
+	logger.Info("Start reconciliation")
+	defer func() {
+		logger.Info("Reconciliation terminated")
+	}()
+
 	actualClient := &authcomponentsv1beta1.Client{}
 	if err := r.Get(ctx, req.NamespacedName, actualClient); err != nil {
 		return ctrl.Result{}, err
@@ -61,13 +70,17 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	result, reconcileError := r.reconcile(ctx, updatedClient)
 	if reconcileError != nil {
-		updatedClient.SetSynchronizationError(reconcileError)
+		log.FromContext(ctx).Error(reconcileError, "Reconciling error")
 	}
 
 	if !reflect.DeepEqual(updatedClient.Status, actualClient.Status) {
-		if patchErr := r.Status().Update(ctx, updatedClient); patchErr != nil {
-			return ctrl.Result{}, patchErr
+		diff := cmp.Diff(actualClient.Status, updatedClient.Status)
+		logger.Info("Detect status update, update resource",
+			"generation", actualClient.Generation, "diff", diff)
+		if err := r.Status().Update(ctx, updatedClient); err != nil {
+			return ctrl.Result{}, err
 		}
+		logger.Info("Status updated", "generation", updatedClient.Generation)
 	}
 	if result != nil {
 		return *result, reconcileError
@@ -84,6 +97,11 @@ func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authcomponentsv1beta1.Client) (*ctrl.Result, error) {
+
+	logger := log.FromContext(ctx)
+
+	actualK8SClient.Progressing()
+
 	// Handle finalizer
 	if isHandledByFinalizer, err := clientFinalizer.Handle(ctx, r.Client, actualK8SClient, func() error {
 		// If the scope was created auth server side, we have to remove it
@@ -111,7 +129,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 			Public:                 &actualK8SClient.Spec.Public,
 			RedirectUris:           actualK8SClient.Spec.RedirectUris,
 			Description:            actualK8SClient.Spec.Description,
-			Name:                   actualK8SClient.Spec.Name,
+			Name:                   actualK8SClient.Name,
 			PostLogoutRedirectUris: actualK8SClient.Spec.PostLogoutRedirectUris,
 			Metadata:               &authServerClientExpectedMetadata,
 		}
@@ -124,12 +142,14 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 		}
 		if actualAuthServerClient != nil {
 			if !actualK8SClient.Match(actualAuthServerClient) {
+				logger.Info("Detect divergence between auth server and k8s information, update auth server resource")
 				if err := r.API.UpdateClient(ctx, actualAuthServerClient.Id, expectedClientOptions); err != nil {
 					return nil, err
 				}
 			}
 		} else {
-			// Scope was deleted
+			// Client was deleted
+			logger.Info("ID saved in status does not match any clients auth server side")
 			actualK8SClient.ClearAuthServerID()
 		}
 	}
@@ -145,9 +165,12 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 
 		// If the scope is not found auth server side, we can create it
 		if actualAuthServerClient == nil {
+			logger.Info("Create auth server client")
 			if actualAuthServerClient, err = r.API.CreateClient(ctx, expectedClientOptions); err != nil {
 				return nil, err
 			}
+		} else {
+			logger.Info("Found auth server client using metadata, use it")
 		}
 		actualK8SClient.Status.AuthServerID = actualAuthServerClient.Id
 	}
@@ -155,42 +178,55 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 	needRequeue := false
 	scopeIds := make([]string, 0)
 	for _, k8sScopeName := range actualK8SClient.Spec.Scopes {
+		logger = logger.WithValues("scope", k8sScopeName)
+
+		logger.Info("Checking scope presence on auth server client")
 		scope := &authcomponentsv1beta1.Scope{}
 		err := r.Get(ctx, types.NamespacedName{
 			Namespace: actualK8SClient.Namespace,
 			Name:      k8sScopeName,
 		}, scope)
 		if err != nil && !errors.IsNotFound(err) {
+			logger.Error(err, "Scope not found locally")
 			return nil, err
 		}
 		if err != nil {
-			needRequeue = true // If the scope does not exists, we simply requeue
+			logger.Info("Scope used by client not found, requeue")
+			needRequeue = true // If the scope does not exist, we simply requeue
 			continue
 		}
 		if !scope.IsCreatedOnAuthServer() {
+			logger.Info("Scope used by client not synchronized, requeue")
 			needRequeue = true
 			continue
 		}
 		scopeIds = append(scopeIds, scope.Status.AuthServerID)
-		if Filter(actualAuthServerClient.Scopes, Equal(scope.Status.AuthServerID)) != nil {
+		if v := First(actualAuthServerClient.Scopes, Equal(scope.Status.AuthServerID)); v != nil {
+			logger.Info("Scope already configured")
 			// Scope already on client
 			continue
 		}
 
 		if err := r.API.AddScopeToClient(ctx, actualAuthServerClient.Id, scope.Status.AuthServerID); err != nil {
+			logger.Error(err, "Adding scope to the auth server client")
 			return nil, err
 		}
+
+		actualK8SClient.SetScopeSynchronized(scope)
+		logger.Info("Scope added to the client")
 	}
 
-	extraScopes := Filter(scopeIds, NotIn(actualAuthServerClient.Scopes...))
+	extraScopes := Filter(actualAuthServerClient.Scopes, NotIn(scopeIds...))
 	for _, extraScope := range extraScopes {
+		logger.Info("Delete scope from the client as it is not needed anymore", "scope", extraScope)
 		if err := r.API.DeleteScopeFromClient(ctx, actualAuthServerClient.Id, extraScope); err != nil {
 			return nil, err
 		}
+		actualK8SClient.SetScopesRemoved(extraScope)
 	}
 
 	if !needRequeue {
-		actualK8SClient.SetSynchronized()
+		actualK8SClient.Ready()
 	}
 
 	return &ctrl.Result{

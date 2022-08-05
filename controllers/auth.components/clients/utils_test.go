@@ -25,7 +25,7 @@ func isClientSynchronized(client *v1beta1.Client) (bool, error) {
 	if err := getClient(client); err != nil {
 		return false, err
 	}
-	return client.Status.Synchronized, nil
+	return client.Status.Ready, nil
 }
 
 func EventuallyClientSynchronized(client *v1beta1.Client) {

@@ -29,22 +29,34 @@ type ClientSpec struct {
 	// +optional
 	Public bool `json:"public"`
 	// +optional
-	Name string `json:"name"`
-	// +optional
 	Description *string `json:"description,omitempty"`
 	// +optional
-	RedirectUris []string `json:"redirectUris,omitempty"`
+	RedirectUris []string `json:"redirectUris"`
 	// +optional
 	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris"`
 	// +optional
 	Scopes []string `json:"scopes"`
 }
 
+const (
+	ConditionTypeClientProgressing  = "Progressing"
+	ConditionTypeClientCreated      = "ClientCreated"
+	ConditionTypeClientUpdated      = "ClientUpdated"
+	ConditionTypeScopesSynchronized = "ScopesSynchronized"
+)
+
+type ClientConfiguredScopeStatus struct {
+	AuthServerID string      `json:"authServerID"`
+	At           metav1.Time `json:"at"`
+}
+
 // ClientStatus defines the observed state of Client
 type ClientStatus struct {
-	Synchronized bool   `json:"synchronized"`
-	Error        string `json:"error,omitempty"`
-	AuthServerID string `json:"authServerID,omitempty"`
+	Conditions   []metav1.Condition `json:"conditions"`
+	Ready        bool               `json:"ready"`
+	AuthServerID string             `json:"authServerID,omitempty"`
+	// +optional
+	Scopes map[string]ClientConfiguredScopeStatus `json:"scopes"`
 }
 
 //+kubebuilder:object:root=true
@@ -82,9 +94,7 @@ func (in *Client) Match(client *authclient.Client) bool {
 			return false
 		}
 	}
-	if len(client.RedirectUris) != len(in.Spec.RedirectUris) {
-		return false
-	}
+
 	sort.Strings(client.RedirectUris)
 	sort.Strings(in.Spec.RedirectUris)
 	if !reflect.DeepEqual(client.RedirectUris, in.Spec.RedirectUris) {
@@ -107,14 +117,87 @@ func (in *Client) Match(client *authclient.Client) bool {
 	return true
 }
 
-func (in *Client) SetSynchronized() {
-	in.Status.Error = ""
-	in.Status.Synchronized = true
+func (in *Client) Progressing() {
+	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+		Type:               ConditionTypeClientProgressing,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "SynchronizationStarted",
+	})
+	in.Status.Ready = false
 }
 
-func (in *Client) SetSynchronizationError(err error) {
-	in.Status.Synchronized = false
-	in.Status.Error = err.Error()
+func (in *Client) Ready() {
+	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+		Type:               ConditionTypeClientProgressing,
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "SynchronizationTerminated",
+	})
+	in.Status.Ready = true
+}
+
+func (in *Client) SetClientCreated(id string) {
+	in.Status.AuthServerID = id
+	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+		Type:               ConditionTypeClientCreated,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ClientCreated",
+	})
+}
+
+func (in *Client) SetClientUpdated() {
+	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+		Type:               ConditionTypeClientUpdated,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ClientUpdated",
+	})
+}
+
+func (in *Client) checkScopesSynchronized() {
+	if len(in.Spec.Scopes) != len(in.Status.Scopes) {
+		return
+	}
+	for _, wantedScope := range in.Spec.Scopes {
+		if _, ok := in.Status.Scopes[wantedScope]; !ok {
+			return
+		}
+	}
+	// Scopes synchronized
+	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+		Type:               ConditionTypeScopesSynchronized,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ScopesSynchronized",
+	})
+}
+
+func (in *Client) SetScopeSynchronized(scope *Scope) {
+	_, ok := in.Status.Scopes[scope.Name]
+	if ok {
+		return
+	}
+	in.Status.Scopes[scope.Name] = ClientConfiguredScopeStatus{
+		AuthServerID: scope.Status.AuthServerID,
+		At:           metav1.Now(),
+	}
+	in.checkScopesSynchronized()
+}
+
+func (in *Client) SetScopesRemoved(authServerID string) {
+	for name, status := range in.Status.Scopes {
+		if status.AuthServerID == authServerID {
+			delete(in.Status.Scopes, name)
+			return
+		}
+	}
+	in.checkScopesSynchronized()
+}
+
+func (in *Client) AddScopeSpec(scope *Scope) {
+	in.Spec.Scopes = append(in.Spec.Scopes, scope.Name)
 }
 
 func NewClient(name string) *Client {
