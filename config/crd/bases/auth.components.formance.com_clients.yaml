@@ -129,16 +129,7 @@ spec:
                 type: boolean
               scopes:
                 additionalProperties:
-                  properties:
-                    at:
-                      format: date-time
-                      type: string
-                    authServerID:
-                      type: string
-                  required:
-                  - at
-                  - authServerID
-                  type: object
+                  type: string
                 type: object
             required:
             - conditions

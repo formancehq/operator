@@ -50,6 +50,7 @@ var (
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
+	ns        *corev1.Namespace
 )
 
 func TestAPIs(t *testing.T) {
@@ -111,13 +112,16 @@ var _ = AfterSuite(func() {
 })
 
 var _ = BeforeEach(func() {
-	ns := uuid.NewString()
-	Expect(k8sClient.Create(ctx, &corev1.Namespace{
+	ns = &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
+			Name: uuid.NewString(),
 		},
-	})).To(BeNil())
+	}
+	Expect(k8sClient.Create(ctx, ns)).To(BeNil())
 
-	nsClient = client.NewNamespacedClient(k8sClient, ns)
+	nsClient = client.NewNamespacedClient(k8sClient, ns.Name)
+})
+
+var _ = AfterEach(func() {
 	api.reset()
 })

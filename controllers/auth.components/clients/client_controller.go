@@ -19,9 +19,7 @@ package clients
 import (
 	"context"
 	"fmt"
-	"reflect"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
@@ -30,8 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 var clientFinalizer = finalizerutil.New("clients.auth.components.formance.com/finalizer")
@@ -73,27 +73,16 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		log.FromContext(ctx).Error(reconcileError, "Reconciling error")
 	}
 
-	if !reflect.DeepEqual(updatedClient.Status, actualClient.Status) {
-		diff := cmp.Diff(actualClient.Status, updatedClient.Status)
-		logger.Info("Detect status update, update resource",
-			"generation", actualClient.Generation, "diff", diff)
-		if err := r.Status().Update(ctx, updatedClient); err != nil {
-			return ctrl.Result{}, err
-		}
-		logger.Info("Status updated", "generation", updatedClient.Generation)
+	if err := r.Status().Update(ctx, updatedClient); err != nil {
+		return ctrl.Result{}, err
 	}
+
+	logger.Info("Status updated", "generation", updatedClient.Generation)
 	if result != nil {
 		return *result, reconcileError
 	}
 
 	return ctrl.Result{}, reconcileError
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&authcomponentsv1beta1.Client{}).
-		Complete(r)
 }
 
 func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authcomponentsv1beta1.Client) (*ctrl.Result, error) {
@@ -172,7 +161,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 		} else {
 			logger.Info("Found auth server client using metadata, use it")
 		}
-		actualK8SClient.Status.AuthServerID = actualAuthServerClient.Id
+		actualK8SClient.SetClientCreated(actualAuthServerClient.Id)
 	}
 
 	needRequeue := false
@@ -232,6 +221,13 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 	return &ctrl.Result{
 		Requeue: needRequeue,
 	}, nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&authcomponentsv1beta1.Client{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Complete(r)
 }
 
 func NewReconciler(client client.Client, scheme *runtime.Scheme, api ClientAPI) *ClientReconciler {

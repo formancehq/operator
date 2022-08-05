@@ -45,18 +45,13 @@ const (
 	ConditionTypeScopesSynchronized = "ScopesSynchronized"
 )
 
-type ClientConfiguredScopeStatus struct {
-	AuthServerID string      `json:"authServerID"`
-	At           metav1.Time `json:"at"`
-}
-
 // ClientStatus defines the observed state of Client
 type ClientStatus struct {
 	Conditions   []metav1.Condition `json:"conditions"`
 	Ready        bool               `json:"ready"`
 	AuthServerID string             `json:"authServerID,omitempty"`
 	// +optional
-	Scopes map[string]ClientConfiguredScopeStatus `json:"scopes"`
+	Scopes map[string]string `json:"scopes"`
 }
 
 //+kubebuilder:object:root=true
@@ -117,8 +112,18 @@ func (in *Client) Match(client *authclient.Client) bool {
 	return true
 }
 
+func (in *Client) setCondition(c metav1.Condition) {
+	for ind, condition := range in.Status.Conditions {
+		if condition.Type == c.Type {
+			in.Status.Conditions[ind] = c
+			return
+		}
+	}
+	in.Status.Conditions = append(in.Status.Conditions, c)
+}
+
 func (in *Client) Progressing() {
-	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+	in.setCondition(metav1.Condition{
 		Type:               ConditionTypeClientProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -128,7 +133,7 @@ func (in *Client) Progressing() {
 }
 
 func (in *Client) Ready() {
-	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+	in.setCondition(metav1.Condition{
 		Type:               ConditionTypeClientProgressing,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
@@ -138,17 +143,17 @@ func (in *Client) Ready() {
 }
 
 func (in *Client) SetClientCreated(id string) {
-	in.Status.AuthServerID = id
-	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+	in.setCondition(metav1.Condition{
 		Type:               ConditionTypeClientCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "ClientCreated",
 	})
+	in.Status.AuthServerID = id
 }
 
 func (in *Client) SetClientUpdated() {
-	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+	in.setCondition(metav1.Condition{
 		Type:               ConditionTypeClientUpdated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -157,16 +162,28 @@ func (in *Client) SetClientUpdated() {
 }
 
 func (in *Client) checkScopesSynchronized() {
+
+	notSynchronized := func() {
+		in.setCondition(metav1.Condition{
+			Type:               ConditionTypeScopesSynchronized,
+			Status:             metav1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "ScopesNotSynchronized",
+		})
+	}
+
 	if len(in.Spec.Scopes) != len(in.Status.Scopes) {
+		notSynchronized()
 		return
 	}
 	for _, wantedScope := range in.Spec.Scopes {
 		if _, ok := in.Status.Scopes[wantedScope]; !ok {
+			notSynchronized()
 			return
 		}
 	}
 	// Scopes synchronized
-	in.Status.Conditions = append(in.Status.Conditions, metav1.Condition{
+	in.setCondition(metav1.Condition{
 		Type:               ConditionTypeScopesSynchronized,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -179,16 +196,16 @@ func (in *Client) SetScopeSynchronized(scope *Scope) {
 	if ok {
 		return
 	}
-	in.Status.Scopes[scope.Name] = ClientConfiguredScopeStatus{
-		AuthServerID: scope.Status.AuthServerID,
-		At:           metav1.Now(),
+	if in.Status.Scopes == nil {
+		in.Status.Scopes = map[string]string{}
 	}
+	in.Status.Scopes[scope.Name] = scope.Status.AuthServerID
 	in.checkScopesSynchronized()
 }
 
 func (in *Client) SetScopesRemoved(authServerID string) {
-	for name, status := range in.Status.Scopes {
-		if status.AuthServerID == authServerID {
+	for name, scopeAuthServerId := range in.Status.Scopes {
+		if scopeAuthServerId == authServerID {
 			delete(in.Status.Scopes, name)
 			return
 		}
