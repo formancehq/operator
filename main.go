@@ -23,6 +23,8 @@ import (
 	"github.com/numary/auth/authclient"
 	authcomponentscontrollers "github.com/numary/formance-operator/controllers/auth.components/clients"
 	"github.com/numary/formance-operator/controllers/auth.components/scopes"
+	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -53,6 +55,8 @@ func init() {
 	utilruntime.Must(stackv1beta1.AddToScheme(scheme))
 	utilruntime.Must(componentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
+	utilruntime.Must(traefik.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
 

@@ -56,12 +56,8 @@ spec:
                 properties:
                   traces:
                     properties:
-                      enabled:
-                        type: boolean
                       otlp:
                         properties:
-                          enabled:
-                            type: boolean
                           endpoint:
                             type: string
                           insecure:

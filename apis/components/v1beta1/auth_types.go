@@ -17,19 +17,49 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
+	"github.com/numary/formance-operator/apis/stack/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type DelegatedOIDCServerConfiguration struct {
+	Issuer       string `json:"issuer"`
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+}
+
+type PostgresConfig struct {
+	Database string `json:"database"`
+	Port     int    `json:"port"`
+	Host     string `json:"host"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (c PostgresConfig) URI() string {
+	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s",
+		c.Username,
+		c.Password,
+		c.Host,
+		c.Port,
+		c.Database,
+	)
+}
 
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +kubebuilder:validation:Optional
+	Image      string         `json:"image,omitempty"`
+	Postgres   PostgresConfig `json:"postgres"`
+	BaseURL    string         `json:"baseURL"`
+	SigningKey string         `json:"signingKey"`
+	DevMode    bool           `json:"devMode"`
 
-	// Foo is an example field of Auth. Edit auth_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	DelegatedOIDCServer DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+
+	// +optional
+	Monitoring *v1beta1.MonitoringSpec `json:"monitoring"`
 }
 
 // AuthStatus defines the observed state of Auth

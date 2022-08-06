@@ -2,10 +2,157 @@
 
 version: '3'
 
+vars:
+  POSTGRES_USERNAME: formance
+  POSTGRES_PASSWORD: formance
+  POSTGRES_DATABASE: formance
+  POSTGRES_DSN: postgresql://formance:formance@postgresql:5432/formance
+  STACK_NAMESPACE: hosting
+
 tasks:
+
   cluster:create:
     cmds:
-      - kind create cluster --config kind.yaml
+    - kind create cluster --config kind.yaml
+
+  cluster:delete:
+    cmds:
+    - kind delete cluster --name formance
+
+  helm:repository:bitnami:
+    run: once
+    cmds:
+    - helm repo add bitnami https://charts.bitnami.com/bitnami
+
+  helm:repository:dex:
+    run: once
+    cmds:
+    - helm repo add dex https://charts.dexidp.io
+
+  helm:repository:traefik:
+    run: once
+    cmds:
+    - helm repo add traefik https://helm.traefik.io/traefik
+
+  postgres:install:
+    deps:
+    - helm:repository:bitnami
+    run: once
+    cmds:
+    - >
+      helm upgrade postgresql bitnami/postgresql 
+      --namespace {{.STACK_NAMESPACE}} 
+      --create-namespace 
+      --install 
+      --set architecture=standalone 
+      --set global.postgresql.auth.postgresPassword={{.POSTGRES_PASSWORD}} 
+      --set global.postgresql.auth.username={{.POSTGRES_USERNAME}} 
+      --set global.postgresql.auth.password={{.POSTGRES_PASSWORD}} 
+      --set global.postgresql.auth.database={{.POSTGRES_DATABASE}}
+
+  postgres:database:create:
+    deps:
+    - postgres:install
+    cmds:
+    - |
+      cat <<EOF | kubectl apply --namespace {{.STACK_NAMESPACE}} -f -
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: create-database-{{.NAME}}
+      spec:
+        template:
+          spec:
+            containers:
+            - name: pi
+              image: docker.io/bitnami/postgresql:14.4.0-debian-11-r21
+              command:
+              - sh
+              - -c
+              - psql -Atx {{.POSTGRES_DSN}} -c "SELECT 1 FROM pg_database WHERE datname = '{{.NAME}}'" | grep -q 1 && echo "Base already exists" || psql -Atx {{.POSTGRES_DSN}} -c "CREATE DATABASE \"{{.NAME}}\""
+            restartPolicy: Never
+      EOF
+
+  postgres:uninstall:
+    cmds:
+    - >
+      helm uninstall postgresql --namespace {{.STACK_NAMESPACE}}
+
+  traefik:install:
+    deps:
+    - helm:repository:traefik
+    run: once
+    cmds:
+    - >
+      helm upgrade traefik traefik/traefik 
+      --namespace ingress 
+      --create-namespace 
+      --install 
+      --set service.type=NodePort 
+      --set ports.web.nodePort=30080
+      --set ports.traefik.nodePort=30090 
+      --set ports.traefik.expose=true 
+      --set ingressClass.enabled=true
+
+  dex:install:
+    vars:
+      DATABASE_NAME: dex
+    run: once
+    deps:
+    - task: helm:repository:dex
+    - task: postgres:install
+    - task: traefik:install
+    - task: postgres:database:create
+      vars:
+        NAME: "{{.DATABASE_NAME}}"
+    cmds:
+    - >
+      helm upgrade dex dex/dex
+      --namespace {{.STACK_NAMESPACE}} 
+      --create-namespace 
+      --install
+      --set config.issuer="http://kubernetes.docker.internal/dex"
+      --set config.storage.type=postgres
+      --set config.storage.config.host=postgresql
+      --set config.storage.config.port=5432
+      --set config.storage.config.database={{.DATABASE_NAME}}
+      --set config.storage.config.user={{.POSTGRES_USERNAME}}
+      --set config.storage.config.password={{.POSTGRES_PASSWORD}}
+      --set config.storage.config.ssl.mode=disable
+      --set config.enablePasswordDB=true
+      --set config.staticPasswords[0].email="admin@formance.com"
+      --set config.staticPasswords[0].hash="\$2a\$10\$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+      --set config.staticPasswords[0].username="admin"
+      --set config.staticPasswords[0].userID="08a8684b-db88-4b73-90a9-3cd1661f5466"
+      --set ingress.enabled=true
+      --set ingress.hosts[0].host=kubernetes.docker.internal
+      --set ingress.hosts[0].paths[0].path=/dex
+      --set ingress.hosts[0].paths[0].pathType=Prefix
+#      --set ingress.annotations."traefik\.ingress\.kubernetes\.io/router\.middlewares"="{{.STACK_NAMESPACE}}-stripprefix@kubernetescrd"
+#    - |
+#      cat <<EOF | kubectl apply --namespace {{.STACK_NAMESPACE}} -f -
+#      apiVersion: traefik.containo.us/v1alpha1
+#      kind: Middleware
+#      metadata:
+#        name: stripprefix
+#      spec:
+#        stripPrefix:
+#          prefixes:
+#            - /dex
+#      EOF
+
+  samples:auth:install:
+    cmds:
+    - kubectl apply -f ./config/samples/components_v1beta1_auth.yaml --namespace {{.STACK_NAMESPACE}}
+
+  dex:uninstall:
+    cmds:
+    - >
+      helm uninstall dex --namespace {{.STACK_NAMESPACE}}
+
+  crd:install:
+    cmds:
+    - kubectl apply --context kind-formance -f config/crd/bases/
 
   build:
     cmds:
@@ -17,7 +164,7 @@ tasks:
   local:deploy:
     deps:
       - build
+      - crd:install
     cmds:
-      - kubectl apply --context kind-formance -f config/crd/bases/
-      - kubectl apply --context kind-formance -f example.yaml
+#      - kubectl apply --context kind-formance -f example.yaml
       - make run

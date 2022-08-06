@@ -35,10 +35,67 @@ spec:
           spec:
             description: AuthSpec defines the desired state of Auth
             properties:
-              foo:
-                description: Foo is an example field of Auth. Edit auth_types.go to
-                  remove/update
+              baseURL:
                 type: string
+              delegatedOIDCServer:
+                properties:
+                  clientID:
+                    type: string
+                  clientSecret:
+                    type: string
+                  issuer:
+                    type: string
+                required:
+                - clientID
+                - clientSecret
+                - issuer
+                type: object
+              devMode:
+                type: boolean
+              image:
+                type: string
+              monitoring:
+                properties:
+                  traces:
+                    properties:
+                      otlp:
+                        properties:
+                          endpoint:
+                            type: string
+                          insecure:
+                            type: boolean
+                          mode:
+                            type: string
+                        type: object
+                    type: object
+                type: object
+              postgres:
+                properties:
+                  database:
+                    type: string
+                  host:
+                    type: string
+                  password:
+                    type: string
+                  port:
+                    type: integer
+                  username:
+                    type: string
+                required:
+                - database
+                - host
+                - password
+                - port
+                - username
+                type: object
+              signingKey:
+                type: string
+            required:
+            - baseURL
+            - delegatedOIDCServer
+            - devMode
+            - postgres
+            - signingKey
             type: object
           status:
             description: AuthStatus defines the observed state of Auth

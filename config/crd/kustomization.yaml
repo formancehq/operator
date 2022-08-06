@@ -21,7 +21,7 @@ patchesStrategicMerge:
 #- patches/webhook_in_payments.yaml
 #- patches/webhook_in_searches.yaml
 #- patches/webhook_in_controls.yaml
-#- patches/webhook_in_oauths.yaml
+- patches/webhook_in_oauths.yaml
 #- patches/webhook_in_scopes.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 

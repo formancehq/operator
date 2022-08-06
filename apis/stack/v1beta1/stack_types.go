@@ -17,6 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
+	"github.com/numary/formance-operator/pkg/envutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -47,21 +50,44 @@ type AuthSpec struct {
 
 type MonitoringSpec struct {
 	// +optional
-	Traces TracesSpec `json:"traces,omitempty"`
+	Traces *TracesSpec `json:"traces,omitempty"`
+}
+
+func (in *MonitoringSpec) Env() []corev1.EnvVar {
+	ret := make([]corev1.EnvVar, 0)
+	if in.Traces != nil {
+		ret = append(ret, in.Traces.Env()...)
+	}
+	return ret
 }
 
 type TracesSpec struct {
 	// +optional
-	Enabled bool           `json:"enabled,omitempty"`
-	Otlp    TracesOtlpSpec `json:"otlp,omitempty"`
+	Otlp *TracesOtlpSpec `json:"otlp,omitempty"`
+}
+
+func (in *TracesSpec) Env() []corev1.EnvVar {
+	ret := make([]corev1.EnvVar, 0)
+	if in.Otlp != nil {
+		ret = append(ret, in.Otlp.Env()...)
+	}
+	return ret
 }
 
 type TracesOtlpSpec struct {
-	// +optional
-	Enabled  bool   `json:"enabled,omitempty"`
 	Endpoint string `json:"endpoint,omitempty"`
 	Insecure bool   `json:"insecure,omitempty"`
 	Mode     string `json:"mode,omitempty"`
+}
+
+func (in *TracesOtlpSpec) Env() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		envutil.Env("OTEL_TRACES", "true"),
+		envutil.Env("OTEL_TRACES_EXPORTER", "otlp"),
+		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", in.Endpoint),
+		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_INSECURE", fmt.Sprintf("%t", in.Insecure)),
+		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_MODE", in.Mode),
+	}
 }
 
 type ServicesSpec struct {
