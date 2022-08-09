@@ -67,7 +67,7 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -93,7 +93,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	api = newInMemoryClientAPI()
-	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), api).SetupWithManager(mgr)
+	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), ApiFactoryFn(func(client *authcomponentsv1beta1.Client) ClientAPI {
+		return api
+	})).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {

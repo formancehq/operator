@@ -21,6 +21,7 @@ import (
 	"os"
 
 	"github.com/numary/formance-operator/controllers/components/auth"
+	"github.com/numary/formance-operator/controllers/components/auth/clients"
 	"github.com/numary/formance-operator/controllers/components/auth/scopes"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 
@@ -140,13 +141,11 @@ func main() {
 	//	setupLog.Error(err, "unable to create controller", "controller", "Control")
 	//	os.Exit(1)
 	//}
-	//if err = (&authcomponentscontrollers.ClientReconciler{
-	//	Client: mgr.GetClient(),
-	//	Scheme: mgr.GetScheme(),
-	//}).SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Client")
-	//	os.Exit(1)
-	//}
+	if err = clients.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clients.DefaultApiFactory).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Client")
+		os.Exit(1)
+	}
 	//
 	if err = scopes.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopes.DefaultApiFactory).
 		SetupWithManager(mgr); err != nil {

@@ -44,6 +44,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - auth.components.formance.com
+  resources:
+  - scopes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - auth.components.formance.com
+  resources:
+  - scopes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - auth.components.formance.com
+  resources:
+  - scopes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - components.formance.com
   resources:
   - auths

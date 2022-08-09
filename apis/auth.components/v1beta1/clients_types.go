@@ -26,6 +26,7 @@ import (
 
 // ClientSpec defines the desired state of Client
 type ClientSpec struct {
+	AuthServerReference string `json:"authServerReference"`
 	// +optional
 	Public bool `json:"public"`
 	// +optional

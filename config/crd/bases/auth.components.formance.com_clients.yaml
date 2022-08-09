@@ -35,6 +35,8 @@ spec:
           spec:
             description: ClientSpec defines the desired state of Client
             properties:
+              authServerReference:
+                type: string
               description:
                 type: string
               postLogoutRedirectUris:
@@ -51,6 +53,8 @@ spec:
                 items:
                   type: string
                 type: array
+            required:
+            - authServerReference
             type: object
           status:
             description: ClientStatus defines the observed state of Client

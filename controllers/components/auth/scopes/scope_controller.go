@@ -43,7 +43,7 @@ func (fn ApiFactoryFn) Create(scope *authcomponentsv1beta1.Scope) ScopeAPI {
 var DefaultApiFactory = ApiFactoryFn(func(scope *authcomponentsv1beta1.Scope) ScopeAPI {
 	configuration := authclient.NewConfiguration()
 	configuration.Servers = []authclient.ServerConfiguration{{
-		URL: fmt.Sprintf("http://%s:8080", scope.Spec.AuthServerReference),
+		URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080", scope.Spec.AuthServerReference, scope.Namespace),
 	}}
 	return NewDefaultServerApi(authclient.NewAPIClient(configuration))
 })
@@ -60,6 +60,7 @@ var scopeFinalizer = finalizerutil.New("scopes.auth.components.formance.com/fina
 //+kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes/finalizers,verbs=update
+
 func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	actualScope := &authcomponentsv1beta1.Scope{}

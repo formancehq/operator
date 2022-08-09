@@ -56,3 +56,22 @@ metadata:
 spec:
   label: scope1
   authServerReference: auth
+---
+apiVersion: auth.components.formance.com/v1beta1
+kind: Scope
+metadata:
+  name: scope2
+spec:
+  label: scope2
+  authServerReference: auth
+  transient:
+  - scope1
+---
+apiVersion: auth.components.formance.com/v1beta1
+kind: Client
+metadata:
+  name: client1
+spec:
+  authServerReference: auth
+  scopes:
+  - scope2

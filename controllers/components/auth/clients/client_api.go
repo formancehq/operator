@@ -108,6 +108,12 @@ func (d defaultClientApi) DeleteScopeFromClient(ctx context.Context, clientId, s
 
 var _ ClientAPI = (*defaultClientApi)(nil)
 
+func NewDefaultClientAPI(apiClient *authclient.APIClient) *defaultClientApi {
+	return &defaultClientApi{
+		APIClient: apiClient,
+	}
+}
+
 type inMemoryClientApi struct {
 	clients map[string]*authclient.Client
 }
