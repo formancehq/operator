@@ -53,9 +53,12 @@ type AuthReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=components.formance.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=components.formance.com,resources=auths/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=components.formance.com,resources=auths/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.formance.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.formance.com,resources=auths/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.formance.com,resources=auths/finalizers,verbs=update
 
 func (r *AuthReconciler) reconcileDeployment(ctx context.Context, auth *componentsv1beta1.Auth) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.Create("app.kubernetes.io/name", "auth")
