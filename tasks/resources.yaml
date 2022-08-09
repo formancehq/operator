@@ -1,0 +1,19 @@
+version: '3'
+
+includes:
+  postgres:
+    taskfile: ./resources/postgres.yaml
+    dir: .
+  traefik:
+    taskfile: ./resources/traefik.yaml
+    dir: .
+  dex:
+    taskfile: ./resources/dex.yaml
+    dir: .
+
+tasks:
+  install:
+    cmds:
+    - task: postgres:install
+    - task: dex:install
+    - task: traefik:install

@@ -13,7 +13,7 @@ spec:
     host: kubernetes.docker.internal
     path: /auth
   postgres:
-    host: postgresql
+    host: postgresql.default.svc.cluster.local
     port: 5432
     username: formance
     password: formance
