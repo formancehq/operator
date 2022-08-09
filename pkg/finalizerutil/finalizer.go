@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func isDeleted(meta client.Object) bool {
+func IsDeleted(meta client.Object) bool {
 	return meta.GetDeletionTimestamp() != nil && !meta.GetDeletionTimestamp().IsZero()
 }
 
@@ -36,7 +36,7 @@ func (f *Finalizer) IsPresent(ob client.Object) bool {
 }
 
 func (f *Finalizer) Handle(ctx context.Context, client client.Client, ob client.Object, fn func() error) (bool, error) {
-	if isDeleted(ob) {
+	if IsDeleted(ob) {
 		if !f.IsPresent(ob) {
 			f.logger(ctx).Info("Resource deleted and finalizer not present")
 			return true, nil

@@ -128,20 +128,10 @@ tasks:
       --set ingress.hosts[0].host=kubernetes.docker.internal
       --set ingress.hosts[0].paths[0].path=/dex
       --set ingress.hosts[0].paths[0].pathType=Prefix
-#      --set ingress.annotations."traefik\.ingress\.kubernetes\.io/router\.middlewares"="{{.STACK_NAMESPACE}}-stripprefix@kubernetescrd"
-#    - |
-#      cat <<EOF | kubectl apply --namespace {{.STACK_NAMESPACE}} -f -
-#      apiVersion: traefik.containo.us/v1alpha1
-#      kind: Middleware
-#      metadata:
-#        name: stripprefix
-#      spec:
-#        stripPrefix:
-#          prefixes:
-#            - /dex
-#      EOF
 
   samples:auth:install:
+    deps:
+    - dex:install
     cmds:
     - kubectl apply -f ./config/samples/components_v1beta1_auth.yaml --namespace {{.STACK_NAMESPACE}}
 

@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	. "github.com/onsi/ginkgo"
@@ -74,7 +73,6 @@ var _ = Describe("Client reconciler", func() {
 						Eventually(clientSynchronizedScopes(actualClient)).Should(Equal(map[string]string{}))
 					})
 					It("Should delete the scope auth server side", func() {
-						spew.Dump(api.clients)
 						Expect(api.clients).To(HaveLen(1))
 						client := api.clients[actualClient.Status.AuthServerID]
 						Expect(client.Scopes).To(HaveLen(0))

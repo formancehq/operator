@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/numary/formance-operator/apis/stack/v1beta1"
+	. "github.com/numary/formance-operator/pkg/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -38,13 +39,21 @@ type PostgresConfig struct {
 }
 
 func (c PostgresConfig) URI() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s",
+	return fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s",
 		c.Username,
 		c.Password,
 		c.Host,
 		c.Port,
 		c.Database,
 	)
+}
+
+type IngressSpec struct {
+	Path string `json:"path"`
+	Host string `json:"host"`
+	// +optional
+	Annotations map[string]string `json:"annotations"`
 }
 
 // AuthSpec defines the desired state of Auth
@@ -55,6 +64,8 @@ type AuthSpec struct {
 	BaseURL    string         `json:"baseURL"`
 	SigningKey string         `json:"signingKey"`
 	DevMode    bool           `json:"devMode"`
+	// +optional
+	Ingress *IngressSpec `json:"ingress"`
 
 	DelegatedOIDCServer DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 
@@ -62,10 +73,20 @@ type AuthSpec struct {
 	Monitoring *v1beta1.MonitoringSpec `json:"monitoring"`
 }
 
+const (
+	ConditionTypeDeploymentCreated = "DeploymentCreated"
+	ConditionTypeServiceCreated    = "ServiceCreated"
+	ConditionTypeIngressCreated    = "IngressCreated"
+	ConditionTypeReady             = "Ready"
+)
+
 // AuthStatus defines the observed state of Auth
 type AuthStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 //+kubebuilder:object:root=true
@@ -78,6 +99,103 @@ type Auth struct {
 
 	Spec   AuthSpec   `json:"spec,omitempty"`
 	Status AuthStatus `json:"status,omitempty"`
+}
+
+func (a *Auth) setCondition(expectedCondition metav1.Condition) {
+	for i, condition := range a.Status.Conditions {
+		if condition.Type == expectedCondition.Type {
+			a.Status.Conditions[i] = expectedCondition
+			return
+		}
+	}
+	a.Status.Conditions = append(a.Status.Conditions, expectedCondition)
+}
+
+func (a *Auth) SetReady() {
+	a.setCondition(metav1.Condition{
+		Type:               ConditionTypeReady,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: a.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "Ready",
+	})
+}
+
+func (a *Auth) SetDeploymentCreated() {
+	a.setCondition(metav1.Condition{
+		Type:               ConditionTypeDeploymentCreated,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: a.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "DeploymentCreated",
+	})
+}
+
+func (a *Auth) SetDeploymentFailure(err error) {
+	a.setCondition(metav1.Condition{
+		Type:               ConditionTypeDeploymentCreated,
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: a.Generation,
+		LastTransitionTime: metav1.Now(),
+		Message:            err.Error(),
+		Reason:             "DeploymentError",
+	})
+}
+
+func (a *Auth) SetServiceCreated() {
+	a.setCondition(metav1.Condition{
+		Type:               ConditionTypeServiceCreated,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: a.Generation,
+		LastTransitionTime: metav1.Now(),
+		Message:            "Service created",
+		Reason:             "ServiceCreated",
+	})
+}
+
+func (a *Auth) SetServiceFailure(err error) {
+	a.setCondition(metav1.Condition{
+		Type:               ConditionTypeServiceCreated,
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: a.Generation,
+		LastTransitionTime: metav1.Now(),
+		Message:            err.Error(),
+		Reason:             "ServiceFailure",
+	})
+}
+
+func (a *Auth) SetIngressCreated() {
+	a.setCondition(metav1.Condition{
+		Type:               ConditionTypeIngressCreated,
+		Status:             metav1.ConditionTrue,
+		ObservedGeneration: a.Generation,
+		LastTransitionTime: metav1.Now(),
+		Message:            "Ingress created",
+		Reason:             "IngressCreated",
+	})
+}
+
+func (a *Auth) SetIngressFailure(err error) {
+	a.setCondition(metav1.Condition{
+		Type:               ConditionTypeIngressCreated,
+		Status:             metav1.ConditionFalse,
+		ObservedGeneration: a.Generation,
+		LastTransitionTime: metav1.Now(),
+		Message:            err.Error(),
+		Reason:             "IngressFailure",
+	})
+}
+
+func (in *Auth) RemoveIngressStatus() {
+	in.Status.Conditions = Filter(in.Status.Conditions, func(c metav1.Condition) bool {
+		return c.Type != ConditionTypeIngressCreated
+	})
+}
+
+func (in *Auth) Condition(conditionType string) *metav1.Condition {
+	return First(in.Status.Conditions, func(c metav1.Condition) bool {
+		return c.Type == conditionType
+	})
 }
 
 //+kubebuilder:object:root=true

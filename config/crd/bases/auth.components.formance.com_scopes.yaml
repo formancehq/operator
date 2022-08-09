@@ -35,6 +35,8 @@ spec:
           spec:
             description: ScopeSpec defines the desired state of Scope
             properties:
+              authServerReference:
+                type: string
               label:
                 type: string
               transient:
@@ -42,6 +44,7 @@ spec:
                   type: string
                 type: array
             required:
+            - authServerReference
             - label
             type: object
           status:

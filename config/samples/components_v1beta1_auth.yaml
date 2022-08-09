@@ -1,20 +1,24 @@
+---
 apiVersion: components.formance.com/v1beta1
 kind: Auth
 metadata:
-  name: auth-sample
+  name: auth
 spec:
   image: ghcr.io/numary/auth:de751120e5bb13007345379e68a357f211b4fe27
   delegatedOIDCServer:
     issuer: http://kubernetes.docker.internal/dex
     clientID: foo
     clientSecret: bar
+  ingress:
+    host: kubernetes.docker.internal
+    path: /auth
   postgres:
     host: postgresql
     port: 5432
     username: formance
     password: formance
     database: formance
-  baseURL: http://localhost/auth
+  baseURL: http://kubernetes.docker.internal/auth
   devMode: true
   signingKey: |
     -----BEGIN RSA PRIVATE KEY-----
@@ -44,3 +48,11 @@ spec:
     Cv6TRZPe2y6Bbgg4Q3FuF0DMqx6ongFKQAWo3DkqNFCGRgjJMQ9JbcfOnGySq4U+
     EL/wy5C80pa3jahniqVgO5L6zz0ZLtRIRE7aCtCIu826gctJ1+ShIso=
     -----END RSA PRIVATE KEY-----
+---
+apiVersion: auth.components.formance.com/v1beta1
+kind: Scope
+metadata:
+  name: scope1
+spec:
+  label: scope1
+  authServerReference: auth

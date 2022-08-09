@@ -26,7 +26,8 @@ import (
 type ScopeSpec struct {
 	Label string `json:"label"`
 	// +optional
-	Transient []string `json:"transient"`
+	Transient           []string `json:"transient"`
+	AuthServerReference string   `json:"authServerReference"`
 }
 
 // ScopeStatus defines the observed state of Scope
@@ -48,11 +49,11 @@ type Scope struct {
 	Status ScopeStatus `json:"status,omitempty"`
 }
 
-func (s Scope) IsInTransient(authScope *authclient.Scope) bool {
+func (s *Scope) IsInTransient(authScope *authclient.Scope) bool {
 	return First(authScope.Transient, Equal(s.Status.AuthServerID)) != nil
 }
 
-func (s Scope) IsCreatedOnAuthServer() bool {
+func (s *Scope) IsCreatedOnAuthServer() bool {
 	return s.Status.AuthServerID != ""
 }
 

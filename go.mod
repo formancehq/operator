@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/numary/auth/authclient v0.0.0-20220804105722-cda8889c7d55
 	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/ginkgo/v2 v2.0.0
 	github.com/onsi/gomega v1.18.1
 	github.com/traefik/traefik/v2 v2.8.1
 	k8s.io/api v0.24.0

@@ -20,9 +20,9 @@ import (
 	"flag"
 	"os"
 
-	"github.com/numary/auth/authclient"
 	authcomponentscontrollers "github.com/numary/formance-operator/controllers/auth.components/clients"
 	"github.com/numary/formance-operator/controllers/auth.components/scopes"
+	"github.com/numary/formance-operator/controllers/components/auth"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -108,7 +108,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")
 		os.Exit(1)
 	}
-	if err = (&componentscontrollers.AuthReconciler{
+	if err = (&auth.AuthReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
@@ -151,8 +151,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var api *authclient.APIClient
-	if err = scopes.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopes.NewDefaultServerApi(api)).
+	if err = scopes.NewReconciler(mgr.GetClient(), mgr.GetScheme()).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Scope")
 		os.Exit(1)
