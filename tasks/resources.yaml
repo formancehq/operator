@@ -13,6 +13,7 @@ includes:
 
 tasks:
   install:
+    desc: Install all availables resources (PostgreSQL, dex...)
     cmds:
     - task: postgres:install
     - task: dex:install

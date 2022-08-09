@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	ConditionTypeScopesProgressing = "Progress"
+	ConditionTypeScopesProgressing = "Progressing"
 )
 
 type ConditionScope struct {

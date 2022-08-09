@@ -41,7 +41,7 @@ type ClientSpec struct {
 }
 
 const (
-	ConditionTypeClientProgressing  = "Progress"
+	ConditionTypeClientProgressing  = "Progressing"
 	ConditionTypeClientCreated      = "ClientCreated"
 	ConditionTypeClientUpdated      = "ClientUpdated"
 	ConditionTypeScopesSynchronized = "ScopesSynchronized"

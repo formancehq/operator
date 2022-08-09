@@ -22,3 +22,9 @@ tasks:
     vars:
       CLUSTER_NAME:
         sh: cat kind.yaml|yq .name
+
+  install:
+    desc: Create the cluster and install all resources (PostgreSQL, dex...)
+    cmds:
+    - task: create
+    - task: ":resources:install"
