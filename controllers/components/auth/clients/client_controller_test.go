@@ -11,24 +11,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ConditionAware interface {
-	client.Object
-	Condition(v string) *authcomponentsv1beta1.ConditionClient
-}
-
-func Condition(object ConditionAware, condition string) func() *authcomponentsv1beta1.ConditionClient {
+func condition(c *authcomponentsv1beta1.Client, conditionType string) func() *authcomponentsv1beta1.ConditionClient {
 	return func() *authcomponentsv1beta1.ConditionClient {
-		err := nsClient.Get(ctx, client.ObjectKeyFromObject(object), object)
+		err := nsClient.Get(ctx, client.ObjectKeyFromObject(c), c)
 		if err != nil {
 			return nil
 		}
-		return object.Condition(condition)
+		return c.Condition(conditionType)
 	}
 }
 
-func ConditionStatus(object ConditionAware, condition string) func() metav1.ConditionStatus {
+func conditionStatus(object *authcomponentsv1beta1.Client, conditionType string) func() metav1.ConditionStatus {
 	return func() metav1.ConditionStatus {
-		c := Condition(object, condition)()
+		c := condition(object, conditionType)()
 		if c == nil {
 			return metav1.ConditionUnknown
 		}
@@ -36,7 +31,7 @@ func ConditionStatus(object ConditionAware, condition string) func() metav1.Cond
 	}
 }
 
-func NotFound(object client.Object) func() bool {
+func notFound(object client.Object) func() bool {
 	return func() bool {
 		err := nsClient.Get(ctx, types.NamespacedName{
 			Namespace: object.GetNamespace(),
@@ -64,7 +59,7 @@ var _ = Describe("Client reconciler", func() {
 		BeforeEach(func() {
 			actualClient = newClient()
 			Expect(nsClient.Create(ctx, actualClient)).To(BeNil())
-			Eventually(ConditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientCreated)).
+			Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientCreated)).
 				Should(Equal(metav1.ConditionTrue))
 		})
 		AfterEach(func() {
@@ -79,7 +74,7 @@ var _ = Describe("Client reconciler", func() {
 		Context("Then deleting it", func() {
 			BeforeEach(func() {
 				Expect(nsClient.Delete(ctx, actualClient)).To(BeNil())
-				Eventually(NotFound(actualClient)).Should(BeTrue())
+				Eventually(notFound(actualClient)).Should(BeTrue())
 			})
 			It("Should be remove on auth server", func() {
 				Expect(api.Clients()).To(HaveLen(0))
@@ -94,18 +89,18 @@ var _ = Describe("Client reconciler", func() {
 				Expect(nsClient.Update(ctx, actualClient)).To(BeNil())
 			})
 			It("Should set the client to not ready state", func() {
-				Eventually(ConditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
+				Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			Context("Then creating the scope", func() {
 				BeforeEach(func() {
-					Eventually(ConditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
+					Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
 						Should(Equal(metav1.ConditionTrue))
 					Expect(nsClient.Create(ctx, scope)).To(BeNil())
 					scope.Status.AuthServerID = "XXX"
 					Expect(nsClient.Status().Update(ctx, scope)).To(BeNil())
 
-					Eventually(ConditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
+					Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
 						Should(Equal(metav1.ConditionFalse))
 					Expect(actualClient.Status.Scopes).To(Equal(map[string]string{
 						scope.Name: scope.Status.AuthServerID,

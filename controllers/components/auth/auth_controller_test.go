@@ -12,24 +12,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ConditionAware interface {
-	client.Object
-	Condition(v string) *metav1.Condition
-}
-
-func Condition(object ConditionAware, condition string) func() *metav1.Condition {
+func condition(object *v1beta1.Auth, conditionType string) func() *metav1.Condition {
 	return func() *metav1.Condition {
 		err := nsClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil
 		}
-		return object.Condition(condition)
+		return object.Condition(conditionType)
 	}
 }
 
-func ConditionStatus(object ConditionAware, condition string) func() metav1.ConditionStatus {
+func conditionStatus(object *v1beta1.Auth, conditionType string) func() metav1.ConditionStatus {
 	return func() metav1.ConditionStatus {
-		c := Condition(object, condition)()
+		c := condition(object, conditionType)()
 		if c == nil {
 			return metav1.ConditionUnknown
 		}
@@ -37,13 +32,13 @@ func ConditionStatus(object ConditionAware, condition string) func() metav1.Cond
 	}
 }
 
-func NotFound(key client.ObjectKey, object client.Object) func() bool {
+func notFound(key client.ObjectKey, object client.Object) func() bool {
 	return func() bool {
 		return errors.IsNotFound(nsClient.Get(ctx, key, object))
 	}
 }
 
-func Exists(key client.ObjectKey, object client.Object) func() bool {
+func exists(key client.ObjectKey, object client.Object) func() bool {
 	return func() bool {
 		return nsClient.Get(ctx, key, object) == nil
 	}
@@ -86,25 +81,25 @@ var _ = Describe("Auth controller", func() {
 				},
 			}
 			Expect(nsClient.Create(ctx, auth)).To(BeNil())
-			Eventually(ConditionStatus(auth, v1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+			Eventually(conditionStatus(auth, v1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a deployment", func() {
-			Eventually(ConditionStatus(auth, v1beta1.ConditionTypeDeploymentCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(conditionStatus(auth, v1beta1.ConditionTypeDeploymentCreated)).Should(Equal(metav1.ConditionTrue))
 			deployment := &appsv1.Deployment{}
-			Expect(Exists(client.ObjectKeyFromObject(auth), deployment)()).To(BeTrue())
+			Expect(exists(client.ObjectKeyFromObject(auth), deployment)()).To(BeTrue())
 			Expect(deployment.OwnerReferences).To(HaveLen(1))
 			Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(auth)))
 		})
 		It("Should create a service", func() {
-			Eventually(ConditionStatus(auth, v1beta1.ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(conditionStatus(auth, v1beta1.ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
 			service := &corev1.Service{}
-			Expect(Exists(client.ObjectKeyFromObject(auth), service)()).To(BeTrue())
+			Expect(exists(client.ObjectKeyFromObject(auth), service)()).To(BeTrue())
 			Expect(service.OwnerReferences).To(HaveLen(1))
 			Expect(service.OwnerReferences).To(ContainElement(ownerReference(auth)))
 		})
 		Context("Then enable ingress", func() {
 			BeforeEach(func() {
-				Eventually(ConditionStatus(auth, v1beta1.ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
+				Eventually(conditionStatus(auth, v1beta1.ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
 				auth.Spec.Ingress = &v1beta1.IngressSpec{
 					Path: "/auth",
 					Host: "localhost",
@@ -112,23 +107,23 @@ var _ = Describe("Auth controller", func() {
 				Expect(nsClient.Update(ctx, auth)).To(BeNil())
 			})
 			It("Should create a ingress", func() {
-				Eventually(ConditionStatus(auth, v1beta1.ConditionTypeIngressCreated)).Should(Equal(metav1.ConditionTrue))
+				Eventually(conditionStatus(auth, v1beta1.ConditionTypeIngressCreated)).Should(Equal(metav1.ConditionTrue))
 				ingress := &networkingv1.Ingress{}
-				Expect(Exists(client.ObjectKeyFromObject(auth), ingress)()).To(BeTrue())
+				Expect(exists(client.ObjectKeyFromObject(auth), ingress)()).To(BeTrue())
 				Expect(ingress.OwnerReferences).To(HaveLen(1))
 				Expect(ingress.OwnerReferences).To(ContainElement(ownerReference(auth)))
 			})
 			Context("Then disabling ingress support", func() {
 				BeforeEach(func() {
-					Eventually(ConditionStatus(auth, v1beta1.ConditionTypeIngressCreated)).
+					Eventually(conditionStatus(auth, v1beta1.ConditionTypeIngressCreated)).
 						Should(Equal(metav1.ConditionTrue))
 					auth.Spec.Ingress = nil
 					Expect(nsClient.Update(ctx, auth)).To(BeNil())
-					Eventually(ConditionStatus(auth, v1beta1.ConditionTypeIngressCreated)).
+					Eventually(conditionStatus(auth, v1beta1.ConditionTypeIngressCreated)).
 						Should(Equal(metav1.ConditionUnknown))
 				})
 				It("Should remove the ingress", func() {
-					Eventually(NotFound(client.ObjectKeyFromObject(auth), &networkingv1.Ingress{})).Should(BeTrue())
+					Eventually(notFound(client.ObjectKeyFromObject(auth), &networkingv1.Ingress{})).Should(BeTrue())
 				})
 			})
 		})

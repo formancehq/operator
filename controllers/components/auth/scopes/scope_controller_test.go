@@ -10,24 +10,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ConditionAware interface {
-	client.Object
-	Condition(v string) *authcomponentsbeta1.ConditionScope
-}
-
-func Condition(object ConditionAware, condition string) func() *authcomponentsbeta1.ConditionScope {
+func condition(object *authcomponentsbeta1.Scope, conditionType string) func() *authcomponentsbeta1.ConditionScope {
 	return func() *authcomponentsbeta1.ConditionScope {
 		err := nsClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil
 		}
-		return object.Condition(condition)
+		return object.Condition(conditionType)
 	}
 }
 
-func ConditionStatus(object ConditionAware, condition string) func() metav1.ConditionStatus {
+func conditionStatus(object *authcomponentsbeta1.Scope, conditionType string) func() metav1.ConditionStatus {
 	return func() metav1.ConditionStatus {
-		c := Condition(object, condition)()
+		c := condition(object, conditionType)()
 		if c == nil {
 			return metav1.ConditionUnknown
 		}
@@ -44,7 +39,7 @@ var _ = Describe("Scope reconciler", func() {
 		BeforeEach(func() {
 			firstScope = newScope()
 			Expect(nsClient.Create(ctx, firstScope)).To(BeNil())
-			Eventually(ConditionStatus(firstScope, authcomponentsbeta1.ConditionTypeScopesProgressing)).
+			Eventually(conditionStatus(firstScope, authcomponentsbeta1.ConditionTypeScopesProgressing)).
 				Should(Equal(metav1.ConditionFalse))
 		})
 		It("Should create a new scope on auth server", func() {
@@ -80,7 +75,7 @@ var _ = Describe("Scope reconciler", func() {
 			BeforeEach(func() {
 				secondScope = newScope(firstScope.Name)
 				Expect(nsClient.Create(ctx, secondScope)).To(BeNil())
-				Eventually(ConditionStatus(secondScope, authcomponentsbeta1.ConditionTypeScopesProgressing)).
+				Eventually(conditionStatus(secondScope, authcomponentsbeta1.ConditionTypeScopesProgressing)).
 					Should(Equal(metav1.ConditionFalse))
 			})
 			It("Should create scope with transient on auth server", func() {
