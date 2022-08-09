@@ -19,6 +19,10 @@ tasks:
     cmds:
     - kind delete cluster --name formance
 
+  helm:repository:twuni:
+    cmds:
+    - helm repo add twuni https://helm.twun.io
+
   helm:repository:bitnami:
     run: once
     cmds:
@@ -33,6 +37,20 @@ tasks:
     run: once
     cmds:
     - helm repo add traefik https://helm.traefik.io/traefik
+
+  registry:install:
+    run: once
+    deps:
+    - helm:repository:twuni
+    cmds:
+    - >
+      helm upgrade registry twuni/docker-registry 
+      --namespace registry 
+      --create-namespace 
+      --install
+      --set persistence.enabled=true
+      --set service.type=NodePort
+      --set service.nodePort=30100
 
   postgres:install:
     deps:
@@ -158,3 +176,21 @@ tasks:
     cmds:
 #      - kubectl apply --context kind-formance -f example.yaml
       - make run
+
+  docker:build:
+    deps:
+    - registry:install
+    cmds:
+    - make docker-build IMG=localhost:5005/numary/operator:latest
+
+  docker:push:
+    deps:
+    - docker:build
+    cmds:
+    - make docker-push IMG=localhost:5005/numary/operator:latest
+
+  deploy:
+    deps:
+    - docker:push
+    cmds:
+    - make deploy IMG=localhost:30100/numary/operator:latest

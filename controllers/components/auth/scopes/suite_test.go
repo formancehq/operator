@@ -89,7 +89,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	api = newInMemoryScopeApi()
-	err = NewReconciler(mgr.GetClient(), mgr.GetScheme()).SetupWithManager(mgr)
+	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), ApiFactoryFn(func(scope *authcomponentsv1beta1.Scope) ScopeAPI {
+		return api
+	})).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {

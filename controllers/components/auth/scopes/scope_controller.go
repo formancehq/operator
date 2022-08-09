@@ -17,14 +17,13 @@ package scopes
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
-	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,10 +31,28 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type APIFactory interface {
+	Create(scope *authcomponentsv1beta1.Scope) ScopeAPI
+}
+type ApiFactoryFn func(scope *authcomponentsv1beta1.Scope) ScopeAPI
+
+func (fn ApiFactoryFn) Create(scope *authcomponentsv1beta1.Scope) ScopeAPI {
+	return fn(scope)
+}
+
+var DefaultApiFactory = ApiFactoryFn(func(scope *authcomponentsv1beta1.Scope) ScopeAPI {
+	configuration := authclient.NewConfiguration()
+	configuration.Servers = []authclient.ServerConfiguration{{
+		URL: fmt.Sprintf("http://%s:8080", scope.Spec.AuthServerReference),
+	}}
+	return NewDefaultServerApi(authclient.NewAPIClient(configuration))
+})
+
 // ScopeReconciler reconciles a Scope object
 type ScopeReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme  *runtime.Scheme
+	factory APIFactory
 }
 
 var scopeFinalizer = finalizerutil.New("scopes.auth.components.formance.com/finalizer")
@@ -71,17 +88,7 @@ func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcomponentsv1beta1.Scope) (*ctrl.Result, error) {
 
-	configuration := authclient.NewConfiguration()
-	configuration.Servers = []authclient.ServerConfiguration{{
-		URL: "http://auth:8080",
-	}}
-	api := NewDefaultServerApi(authclient.NewAPIClient(configuration))
-
-	scopes, err := api.ListScopes(ctx)
-	if err != nil {
-		return &ctrl.Result{}, pkgError.Wrap(err, "listing scopes")
-	}
-	spew.Dump(scopes)
+	api := r.factory.Create(actualK8SScope)
 
 	// Handle finalizer
 	if isHandledByFinalizer, err := scopeFinalizer.Handle(ctx, r.Client, actualK8SScope, func() error {
@@ -100,6 +107,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	}
 
 	var (
+		err                             error
 		actualAuthServerScope           *authclient.Scope
 		authServerScopeExpectedMetadata = map[string]string{
 			"namespace": actualK8SScope.Namespace,
@@ -191,9 +199,10 @@ func (r *ScopeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func NewReconciler(c client.Client, scheme *runtime.Scheme) *ScopeReconciler {
+func NewReconciler(c client.Client, scheme *runtime.Scheme, factory APIFactory) *ScopeReconciler {
 	return &ScopeReconciler{
-		Client: c,
-		Scheme: scheme,
+		Client:  c,
+		Scheme:  scheme,
+		factory: factory,
 	}
 }
