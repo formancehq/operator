@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"github.com/numary/auth/authclient"
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
+	"github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -39,15 +39,15 @@ var clientFinalizer = finalizerutil.New("clients.auth.components.formance.com/fi
 var ErrNotFound = fmt.Errorf("client not found")
 
 type APIFactory interface {
-	Create(client *authcomponentsv1beta1.Client) ClientAPI
+	Create(client *v1beta1.Client) ClientAPI
 }
-type ApiFactoryFn func(client *authcomponentsv1beta1.Client) ClientAPI
+type ApiFactoryFn func(client *v1beta1.Client) ClientAPI
 
-func (fn ApiFactoryFn) Create(client *authcomponentsv1beta1.Client) ClientAPI {
+func (fn ApiFactoryFn) Create(client *v1beta1.Client) ClientAPI {
 	return fn(client)
 }
 
-var DefaultApiFactory = ApiFactoryFn(func(client *authcomponentsv1beta1.Client) ClientAPI {
+var DefaultApiFactory = ApiFactoryFn(func(client *v1beta1.Client) ClientAPI {
 	configuration := authclient.NewConfiguration()
 	configuration.Servers = []authclient.ServerConfiguration{{
 		URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080", client.Spec.AuthServerReference, client.Namespace),
@@ -74,7 +74,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		logger.Info("Reconciliation terminated")
 	}()
 
-	actualClient := &authcomponentsv1beta1.Client{}
+	actualClient := &v1beta1.Client{}
 	if err := r.Get(ctx, req.NamespacedName, actualClient); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -98,7 +98,7 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, reconcileError
 }
 
-func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authcomponentsv1beta1.Client) (*ctrl.Result, error) {
+func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1beta1.Client) (*ctrl.Result, error) {
 
 	logger := log.FromContext(ctx)
 
@@ -185,7 +185,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 		logger = logger.WithValues("scope", k8sScopeName)
 
 		logger.Info("Checking scope presence on auth server client")
-		scope := &authcomponentsv1beta1.Scope{}
+		scope := &v1beta1.Scope{}
 		err := r.Get(ctx, types.NamespacedName{
 			Namespace: actualK8SClient.Namespace,
 			Name:      k8sScopeName,
@@ -241,7 +241,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *authc
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&authcomponentsv1beta1.Client{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		For(&v1beta1.Client{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }
 

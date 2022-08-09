@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	"github.com/numary/formance-operator/controllers/components/auth"
 	"github.com/numary/formance-operator/controllers/components/auth/clients"
 	"github.com/numary/formance-operator/controllers/components/auth/scopes"
@@ -36,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
 	//+kubebuilder:scaffold:imports

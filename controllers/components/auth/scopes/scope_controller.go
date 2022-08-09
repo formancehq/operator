@@ -21,7 +21,7 @@ import (
 	"reflect"
 
 	"github.com/numary/auth/authclient"
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
 	"k8s.io/apimachinery/pkg/api/errors"

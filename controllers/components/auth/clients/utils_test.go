@@ -2,7 +2,7 @@ package clients
 
 import (
 	"github.com/google/uuid"
-	"github.com/numary/formance-operator/apis/auth.components/v1beta1"
+	"github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 )

@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -34,8 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -77,7 +76,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = authcomponentsv1beta1.AddToScheme(scheme.Scheme)
+	err = v1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -93,7 +92,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	api = newInMemoryClientAPI()
-	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), ApiFactoryFn(func(client *authcomponentsv1beta1.Client) ClientAPI {
+	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), ApiFactoryFn(func(client *v1beta1.Client) ClientAPI {
 		return api
 	})).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())

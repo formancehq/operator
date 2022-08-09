@@ -2,7 +2,7 @@ package clients
 
 import (
 	"github.com/google/uuid"
-	"github.com/numary/formance-operator/apis/auth.components/v1beta1"
+	v1beta12 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -10,7 +10,7 @@ import (
 
 var _ = Describe("Client reconciler", func() {
 	When("Creating a new client object", func() {
-		var actualClient *v1beta1.Client
+		var actualClient *v1beta12.Client
 		BeforeEach(func() {
 			actualClient = newClient()
 			Expect(nsClient.Create(ctx, actualClient)).To(BeNil())
@@ -35,9 +35,9 @@ var _ = Describe("Client reconciler", func() {
 			})
 		})
 		Context("Then adding an unknown scope without creating it", func() {
-			var scope *v1beta1.Scope
+			var scope *v1beta12.Scope
 			BeforeEach(func() {
-				scope = v1beta1.NewScope(uuid.NewString(), uuid.NewString())
+				scope = v1beta12.NewScope(uuid.NewString(), uuid.NewString())
 
 				actualClient.AddScopeSpec(scope)
 				Expect(nsClient.Update(ctx, actualClient)).To(BeNil())
