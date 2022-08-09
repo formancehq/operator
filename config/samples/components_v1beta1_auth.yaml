@@ -4,7 +4,7 @@ kind: Auth
 metadata:
   name: auth
 spec:
-  image: ghcr.io/numary/auth:de751120e5bb13007345379e68a357f211b4fe27
+  image: ghcr.io/numary/auth:5113d5db8e438cc697624e7c8ebefb85a23c2a25
   delegatedOIDCServer:
     issuer: http://kubernetes.docker.internal/dex
     clientID: foo
@@ -64,8 +64,18 @@ metadata:
 spec:
   label: scope2
   authServerReference: auth
+---
+apiVersion: auth.components.formance.com/v1beta1
+kind: Scope
+metadata:
+  name: scope3
+spec:
+  label: scope3
+  authServerReference: auth
   transient:
   - scope1
+  - scope2
+  - unknown
 ---
 apiVersion: auth.components.formance.com/v1beta1
 kind: Client
@@ -74,4 +84,4 @@ metadata:
 spec:
   authServerReference: auth
   scopes:
-  - scope2
+  - scope3

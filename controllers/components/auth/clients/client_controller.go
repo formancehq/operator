@@ -18,12 +18,13 @@ package clients
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/numary/auth/authclient"
 	"github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	"github.com/numary/formance-operator/controllers/components/auth/internal"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
+	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -36,30 +37,11 @@ import (
 
 var clientFinalizer = finalizerutil.New("clients.auth.components.formance.com/finalizer")
 
-var ErrNotFound = fmt.Errorf("client not found")
-
-type APIFactory interface {
-	Create(client *v1beta1.Client) ClientAPI
-}
-type ApiFactoryFn func(client *v1beta1.Client) ClientAPI
-
-func (fn ApiFactoryFn) Create(client *v1beta1.Client) ClientAPI {
-	return fn(client)
-}
-
-var DefaultApiFactory = ApiFactoryFn(func(client *v1beta1.Client) ClientAPI {
-	configuration := authclient.NewConfiguration()
-	configuration.Servers = []authclient.ServerConfiguration{{
-		URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080", client.Spec.AuthServerReference, client.Namespace),
-	}}
-	return NewDefaultClientAPI(authclient.NewAPIClient(configuration))
-})
-
 // ClientReconciler reconciles a Client object
 type ClientReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
-	factory APIFactory
+	factory internal.APIFactory
 }
 
 //+kubebuilder:rbac:groups=auth.components.formance.com,resources=clients,verbs=get;list;watch;create;update;patch;delete
@@ -83,26 +65,26 @@ func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	result, reconcileError := r.reconcile(ctx, updatedClient)
 	if reconcileError != nil {
-		log.FromContext(ctx).Error(reconcileError, "Reconciling error")
+		log.FromContext(ctx).Error(reconcileError, "Reconciling")
+	}
+	if patchErr := r.Status().Update(ctx, updatedClient); patchErr != nil {
+		return ctrl.Result{}, patchErr
 	}
 
-	if err := r.Status().Update(ctx, updatedClient); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	logger.Info("Status updated", "generation", updatedClient.Generation)
 	if result != nil {
-		return *result, reconcileError
+		return *result, nil
 	}
 
-	return ctrl.Result{}, reconcileError
+	return ctrl.Result{
+		Requeue: reconcileError != nil,
+	}, nil
 }
 
 func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1beta1.Client) (*ctrl.Result, error) {
 
 	logger := log.FromContext(ctx)
 
-	actualK8SClient.Progressing()
+	actualK8SClient.Progress()
 
 	api := r.factory.Create(actualK8SClient)
 
@@ -110,7 +92,8 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 	if isHandledByFinalizer, err := clientFinalizer.Handle(ctx, r.Client, actualK8SClient, func() error {
 		// If the scope was created auth server side, we have to remove it
 		if actualK8SClient.IsCreatedOnAuthServer() {
-			return api.DeleteClient(ctx, actualK8SClient.Status.AuthServerID)
+			return pkgError.Wrap(api.DeleteClient(ctx, actualK8SClient.Status.AuthServerID),
+				"Deleting client auth server side")
 		}
 		return nil
 	}); err != nil || isHandledByFinalizer {
@@ -141,14 +124,14 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 	// Client already created auth server side
 	if actualK8SClient.IsCreatedOnAuthServer() {
 		// Client can have been manually deleted
-		if actualAuthServerClient, err = api.ReadClient(ctx, actualK8SClient.Status.AuthServerID); err != nil && err != ErrNotFound {
-			return nil, err
+		if actualAuthServerClient, err = api.ReadClient(ctx, actualK8SClient.Status.AuthServerID); err != nil && err != internal.ErrNotFound {
+			return nil, pkgError.Wrap(err, "Reading client auth server side")
 		}
 		if actualAuthServerClient != nil {
 			if !actualK8SClient.Match(actualAuthServerClient) {
 				logger.Info("Detect divergence between auth server and k8s information, update auth server resource")
 				if err := api.UpdateClient(ctx, actualAuthServerClient.Id, expectedClientOptions); err != nil {
-					return nil, err
+					return nil, pkgError.Wrap(err, "Updating client auth server side")
 				}
 			}
 		} else {
@@ -163,15 +146,15 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 		// As it could be the status update of the reconciliation which could have been fail
 		// the client can exist auth server side, so try to find it
 		if actualAuthServerClient, err = api.
-			ReadClientByMetadata(ctx, authServerClientExpectedMetadata); err != nil && err != ErrNotFound {
-			return nil, err
+			ReadClientByMetadata(ctx, authServerClientExpectedMetadata); err != nil && err != internal.ErrNotFound {
+			return nil, pkgError.Wrap(err, "Reading client by metadata")
 		}
 
-		// If the scope is not found auth server side, we can create it
+		// If the client is not found auth server side, we can create it
 		if actualAuthServerClient == nil {
 			logger.Info("Create auth server client")
 			if actualAuthServerClient, err = api.CreateClient(ctx, expectedClientOptions); err != nil {
-				return nil, err
+				return nil, pkgError.Wrap(err, "Creating client")
 			}
 		} else {
 			logger.Info("Found auth server client using metadata, use it")
@@ -192,7 +175,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 		}, scope)
 		if err != nil && !errors.IsNotFound(err) {
 			logger.Error(err, "Scope not found locally")
-			return nil, err
+			return nil, pkgError.Wrap(err, "Reading local scope")
 		}
 		if err != nil {
 			logger.Info("Scope used by client not found, requeue")
@@ -213,7 +196,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 
 		if err := api.AddScopeToClient(ctx, actualAuthServerClient.Id, scope.Status.AuthServerID); err != nil {
 			logger.Error(err, "Adding scope to the auth server client")
-			return nil, err
+			return nil, pkgError.Wrap(err, "Adding scope to the client auth server side")
 		}
 
 		actualK8SClient.SetScopeSynchronized(scope)
@@ -224,13 +207,13 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 	for _, extraScope := range extraScopes {
 		logger.Info("Delete scope from the client as it is not needed anymore", "scope", extraScope)
 		if err := api.DeleteScopeFromClient(ctx, actualAuthServerClient.Id, extraScope); err != nil {
-			return nil, err
+			return nil, pkgError.Wrap(err, "Deleting scope from client auth server side")
 		}
 		actualK8SClient.SetScopesRemoved(extraScope)
 	}
 
 	if !needRequeue {
-		actualK8SClient.Ready()
+		actualK8SClient.StopProgression()
 	}
 
 	return &ctrl.Result{
@@ -245,10 +228,12 @@ func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func NewReconciler(client client.Client, scheme *runtime.Scheme, factory APIFactory) *ClientReconciler {
+func NewReconciler(client client.Client, scheme *runtime.Scheme, factory internal.APIFactory) *ClientReconciler {
 	return &ClientReconciler{
 		Client:  client,
 		Scheme:  scheme,
 		factory: factory,
 	}
 }
+
+var DefaultApiFactory = internal.DefaultApiFactory

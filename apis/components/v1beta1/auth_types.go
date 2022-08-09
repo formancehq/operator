@@ -77,7 +77,7 @@ const (
 	ConditionTypeDeploymentCreated = "DeploymentCreated"
 	ConditionTypeServiceCreated    = "ServiceCreated"
 	ConditionTypeIngressCreated    = "IngressCreated"
-	ConditionTypeReady             = "Ready"
+	ConditionTypeReady             = "StopProgression"
 )
 
 // AuthStatus defines the observed state of Auth
@@ -117,7 +117,7 @@ func (a *Auth) SetReady() {
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
 		LastTransitionTime: metav1.Now(),
-		Reason:             "Ready",
+		Reason:             "StopProgression",
 	})
 }
 

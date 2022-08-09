@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	"github.com/numary/formance-operator/controllers/components/auth/internal"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -42,7 +43,7 @@ var (
 	ctx       context.Context
 	cancel    func()
 	nsClient  client.Client
-	api       *inMemoryScopeApi
+	api       *internal.InMemoryApi
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
@@ -87,8 +88,8 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	api = newInMemoryScopeApi()
-	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), ApiFactoryFn(func(scope *v1beta1.Scope) ScopeAPI {
+	api = internal.NewInMemoryAPI()
+	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), internal.ApiFactoryFn(func(internal.AuthServerReferencer) internal.API {
 		return api
 	})).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
@@ -117,5 +118,5 @@ var _ = BeforeEach(func() {
 	})).To(BeNil())
 
 	nsClient = client.NewNamespacedClient(k8sClient, ns)
-	api.reset()
+	api.Reset()
 })

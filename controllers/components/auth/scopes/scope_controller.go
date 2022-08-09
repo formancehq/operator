@@ -17,42 +17,28 @@ package scopes
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	"github.com/numary/formance-operator/controllers/components/auth/internal"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
+	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
-
-type APIFactory interface {
-	Create(scope *authcomponentsv1beta1.Scope) ScopeAPI
-}
-type ApiFactoryFn func(scope *authcomponentsv1beta1.Scope) ScopeAPI
-
-func (fn ApiFactoryFn) Create(scope *authcomponentsv1beta1.Scope) ScopeAPI {
-	return fn(scope)
-}
-
-var DefaultApiFactory = ApiFactoryFn(func(scope *authcomponentsv1beta1.Scope) ScopeAPI {
-	configuration := authclient.NewConfiguration()
-	configuration.Servers = []authclient.ServerConfiguration{{
-		URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080", scope.Spec.AuthServerReference, scope.Namespace),
-	}}
-	return NewDefaultServerApi(authclient.NewAPIClient(configuration))
-})
 
 // ScopeReconciler reconciles a Scope object
 type ScopeReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
-	factory APIFactory
+	factory internal.APIFactory
 }
 
 var scopeFinalizer = finalizerutil.New("scopes.auth.components.formance.com/finalizer")
@@ -72,19 +58,19 @@ func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	result, reconcileError := r.reconcile(ctx, updatedScope)
 	if reconcileError != nil {
-		updatedScope.SetSynchronizationError(reconcileError)
+		log.FromContext(ctx).Error(reconcileError, "Reconciling")
+	}
+	if patchErr := r.Status().Update(ctx, updatedScope); patchErr != nil {
+		return ctrl.Result{}, patchErr
 	}
 
-	if !reflect.DeepEqual(updatedScope.Status, actualScope.Status) {
-		if patchErr := r.Status().Update(ctx, updatedScope); patchErr != nil {
-			return ctrl.Result{}, patchErr
-		}
-	}
 	if result != nil {
-		return *result, reconcileError
+		return *result, nil
 	}
 
-	return ctrl.Result{}, reconcileError
+	return ctrl.Result{
+		Requeue: reconcileError != nil,
+	}, nil
 }
 
 func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcomponentsv1beta1.Scope) (*ctrl.Result, error) {
@@ -95,12 +81,14 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	if isHandledByFinalizer, err := scopeFinalizer.Handle(ctx, r.Client, actualK8SScope, func() error {
 		// If the scope was created auth server side, we have to remove it
 		if actualK8SScope.IsCreatedOnAuthServer() {
-			return api.DeleteScope(ctx, actualK8SScope.Status.AuthServerID)
+			return pkgError.Wrap(api.DeleteScope(ctx, actualK8SScope.Status.AuthServerID), "Deleting scope")
 		}
 		return nil
 	}); err != nil || isHandledByFinalizer {
 		return nil, err
 	}
+
+	actualK8SScope.Progress()
 
 	// Assert finalizer is properly installed on the object
 	if err := scopeFinalizer.AssertIsInstalled(ctx, r.Client, actualK8SScope); err != nil {
@@ -119,14 +107,14 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	// Scope already created auth server side
 	if actualK8SScope.IsCreatedOnAuthServer() {
 		// Scope can have been manually deleted
-		if actualAuthServerScope, err = api.ReadScope(ctx, actualK8SScope.Status.AuthServerID); err != nil && err != ErrNotFound {
-			return nil, err
+		if actualAuthServerScope, err = api.ReadScope(ctx, actualK8SScope.Status.AuthServerID); err != nil && err != internal.ErrNotFound {
+			return nil, pkgError.Wrap(err, "Reading scope auth server side")
 		}
 		if actualAuthServerScope != nil { // If found, check the label and update if required
 			if actualAuthServerScope.Label != actualK8SScope.Spec.Label {
 				if err := api.UpdateScope(ctx, actualAuthServerScope.Id, actualK8SScope.Spec.Label,
 					authServerScopeExpectedMetadata); err != nil {
-					return nil, err
+					return nil, pkgError.Wrap(err, "Updating scope auth server side")
 				}
 			}
 		} else {
@@ -140,14 +128,14 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 		// As it could be the status update of the reconciliation which could have been fail
 		// the scope can exist auth server side, so try to find it using metadata
 		if actualAuthServerScope, err = api.
-			ReadScopeByMetadata(ctx, authServerScopeExpectedMetadata); err != nil && err != ErrNotFound {
-			return nil, err
+			ReadScopeByMetadata(ctx, authServerScopeExpectedMetadata); err != nil && err != internal.ErrNotFound {
+			return nil, pkgError.Wrap(err, "Reading scope by metadata")
 		}
 
 		// If the scope is not found auth server side, we can create the scope
 		if actualAuthServerScope == nil {
 			if actualAuthServerScope, err = api.CreateScope(ctx, actualK8SScope.Spec.Label, authServerScopeExpectedMetadata); err != nil {
-				return nil, err
+				return nil, pkgError.Wrap(err, "Creating scope auth server side")
 			}
 		}
 		actualK8SScope.Status.AuthServerID = actualAuthServerScope.Id
@@ -156,36 +144,38 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	needRequeue := false
 	transientScopeIds := make([]string, 0)
 	for _, transientScopeName := range actualK8SScope.Spec.Transient {
-		transientScope := &authcomponentsv1beta1.Scope{}
+		transientK8SScope := &authcomponentsv1beta1.Scope{}
 		if err := r.Get(ctx, types.NamespacedName{
 			Name:      transientScopeName,
 			Namespace: actualK8SScope.Namespace,
-		}, transientScope); err != nil {
+		}, transientK8SScope); err != nil {
 			if !errors.IsNotFound(err) {
-				return nil, err
+				return nil, pkgError.Wrap(err, "Reading scope k8s side")
 			}
 			// The transient scope is not created, requeue is needed
+			log.FromContext(ctx).Info("Scope not found, need requeue", "scope", transientScopeName)
 			needRequeue = true
 			continue
 		}
 
-		if !transientScope.IsInTransient(actualAuthServerScope) { // Transient scope not found auth server side
-			if err = api.AddTransientScope(ctx, actualK8SScope.Status.AuthServerID, transientScope.Status.AuthServerID); err != nil {
-				return nil, err
+		if !transientK8SScope.IsInTransient(actualAuthServerScope) { // Transient scope not found auth server side
+			if err = api.AddTransientScope(ctx, actualK8SScope.Status.AuthServerID, transientK8SScope.Status.AuthServerID); err != nil {
+				return nil, pkgError.Wrap(err, "Adding transient scope auth server side")
 			}
+			actualK8SScope.SetRegisteredTransientScope(transientK8SScope)
 		}
-		transientScopeIds = append(transientScopeIds, transientScope.Status.AuthServerID)
+		transientScopeIds = append(transientScopeIds, transientK8SScope.Status.AuthServerID)
 	}
 
 	extraTransientScopes := Filter(actualAuthServerScope.Transient, NotIn(transientScopeIds...))
 	for _, extraScope := range extraTransientScopes {
 		if err = api.RemoveTransientScope(ctx, actualAuthServerScope.Id, extraScope); err != nil {
-			return nil, err
+			return nil, pkgError.Wrap(err, "Removing transient scope auth server side")
 		}
 	}
 
 	if !needRequeue {
-		actualK8SScope.SetSynchronized()
+		actualK8SScope.StopProgression()
 	}
 
 	return &ctrl.Result{
@@ -196,14 +186,16 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 // SetupWithManager sets up the controller with the Manager.
 func (r *ScopeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&authcomponentsv1beta1.Scope{}).
+		For(&authcomponentsv1beta1.Scope{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }
 
-func NewReconciler(c client.Client, scheme *runtime.Scheme, factory APIFactory) *ScopeReconciler {
+func NewReconciler(c client.Client, scheme *runtime.Scheme, factory internal.APIFactory) *ScopeReconciler {
 	return &ScopeReconciler{
 		Client:  c,
 		Scheme:  scheme,
 		factory: factory,
 	}
 }
+
+var DefaultApiFactory = internal.DefaultApiFactory

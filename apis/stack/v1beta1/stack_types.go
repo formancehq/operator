@@ -113,7 +113,7 @@ const (
 type StackConditionType string
 
 const (
-	StackReady StackConditionType = "Ready"
+	StackReady StackConditionType = "StopProgression"
 )
 
 type StackCondition struct {

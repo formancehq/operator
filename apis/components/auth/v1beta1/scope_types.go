@@ -17,10 +17,47 @@ limitations under the License.
 package v1beta1
 
 import (
+	"time"
+
 	"github.com/numary/auth/authclient"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+const (
+	ConditionTypeScopesProgressing = "Progress"
+)
+
+type ConditionScope struct {
+	// type of condition in CamelCase or in foo.example.com/CamelCase.
+	// ---
+	// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+	// useful (see .node.status.conditions), the ability to deconflict is important.
+	// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
+	// +kubebuilder:validation:MaxLength=316
+	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
+	// status of the condition, one of True, False, Unknown.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=True;False;Unknown
+	Status metav1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status"`
+	// observedGeneration represents the .metadata.generation that the condition was set based upon.
+	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+	// with respect to the current state of the instance.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
+	// lastTransitionTime is the last time the condition transitioned from one status to another.
+	// This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Format=date-time
+	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
+}
 
 // ScopeSpec defines the desired state of Scope
 type ScopeSpec struct {
@@ -30,15 +67,26 @@ type ScopeSpec struct {
 	AuthServerReference string   `json:"authServerReference"`
 }
 
-// ScopeStatus defines the observed state of Scope
-type ScopeStatus struct {
-	Synchronized bool   `json:"synchronized"`
-	Error        string `json:"error,omitempty"`
-	AuthServerID string `json:"authServerID,omitempty"`
+type TransientScopeStatus struct {
+	ObservedGeneration int64  `json:"observedGeneration"`
+	AuthServerID       string `json:"authServerID"`
+	Date               string `json:"date"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// ScopeStatus defines the observed state of Scope
+type ScopeStatus struct {
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions   []ConditionScope                `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	AuthServerID string                          `json:"authServerID,omitempty"`
+	Transient    map[string]TransientScopeStatus `json:"transient,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Server ID",type="string",JSONPath=".status.authServerID",description="Auth server ID"
 
 // Scope is the Schema for the scopes API
 type Scope struct {
@@ -47,6 +95,43 @@ type Scope struct {
 
 	Spec   ScopeSpec   `json:"spec,omitempty"`
 	Status ScopeStatus `json:"status,omitempty"`
+}
+
+func (in *Scope) Condition(conditionType string) *ConditionScope {
+	return First(in.Status.Conditions, func(c ConditionScope) bool {
+		return c.Type == conditionType
+	})
+}
+
+func (s *Scope) AuthServerReference() string {
+	return s.Spec.AuthServerReference
+}
+
+func (s *Scope) setCondition(c ConditionScope) {
+	c.ObservedGeneration = s.Generation
+	for ind, condition := range s.Status.Conditions {
+		if condition.Type == c.Type {
+			s.Status.Conditions[ind] = c
+			return
+		}
+	}
+	s.Status.Conditions = append(s.Status.Conditions, c)
+}
+
+func (s *Scope) Progress() {
+	s.setCondition(ConditionScope{
+		Type:               ConditionTypeScopesProgressing,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (s *Scope) StopProgression() {
+	s.setCondition(ConditionScope{
+		Type:               ConditionTypeScopesProgressing,
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+	})
 }
 
 func (s *Scope) IsInTransient(authScope *authclient.Scope) bool {
@@ -61,14 +146,15 @@ func (s *Scope) ClearAuthServerID() {
 	s.Status.AuthServerID = ""
 }
 
-func (s *Scope) SetSynchronizationError(err error) {
-	s.Status.Error = err.Error()
-	s.Status.Synchronized = false
-}
-
-func (s *Scope) SetSynchronized() {
-	s.Status.Synchronized = true
-	s.Status.Error = ""
+func (s *Scope) SetRegisteredTransientScope(transientScope *Scope) {
+	if s.Status.Transient == nil {
+		s.Status.Transient = map[string]TransientScopeStatus{}
+	}
+	s.Status.Transient[transientScope.Name] = TransientScopeStatus{
+		ObservedGeneration: transientScope.Generation,
+		AuthServerID:       transientScope.Status.AuthServerID,
+		Date:               time.Now().Format(time.RFC3339),
+	}
 }
 
 func NewScope(name, label string, transient ...string) *Scope {
