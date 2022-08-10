@@ -2,64 +2,26 @@ package clients
 
 import (
 	"github.com/google/uuid"
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func condition(c *authcomponentsv1beta1.Client, conditionType string) func() *authcomponentsv1beta1.ClientCondition {
-	return func() *authcomponentsv1beta1.ClientCondition {
-		err := nsClient.Get(ctx, client.ObjectKeyFromObject(c), c)
-		if err != nil {
-			return nil
-		}
-		return c.Condition(conditionType)
-	}
-}
-
-func conditionStatus(object *authcomponentsv1beta1.Client, conditionType string) func() metav1.ConditionStatus {
-	return func() metav1.ConditionStatus {
-		c := condition(object, conditionType)()
-		if c == nil {
-			return metav1.ConditionUnknown
-		}
-		return c.Status
-	}
-}
-
-func notFound(object client.Object) func() bool {
-	return func() bool {
-		err := nsClient.Get(ctx, types.NamespacedName{
-			Namespace: object.GetNamespace(),
-			Name:      object.GetName(),
-		}, object)
-		switch {
-		case errors.IsNotFound(err):
-			return false
-		case err != nil:
-			panic(err)
-		default:
-			return true
-		}
-	}
-}
-
 var _ = Describe("Client reconciler", func() {
 
-	newClient := func() *authcomponentsv1beta1.Client {
-		return authcomponentsv1beta1.NewClient(uuid.NewString())
+	newClient := func() *Client {
+		return NewClient(uuid.NewString())
 	}
 
 	When("Creating a new client object", func() {
-		var actualClient *authcomponentsv1beta1.Client
+		var actualClient *Client
 		BeforeEach(func() {
 			actualClient = newClient()
 			Expect(nsClient.Create(ctx, actualClient)).To(BeNil())
-			Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientCreated)).
+			Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientCreated)).
 				Should(Equal(metav1.ConditionTrue))
 		})
 		AfterEach(func() {
@@ -74,33 +36,33 @@ var _ = Describe("Client reconciler", func() {
 		Context("Then deleting it", func() {
 			BeforeEach(func() {
 				Expect(nsClient.Delete(ctx, actualClient)).To(BeNil())
-				Eventually(notFound(actualClient)).Should(BeTrue())
+				Eventually(NotFound(nsClient, actualClient)).Should(BeTrue())
 			})
 			It("Should be remove on auth server", func() {
 				Expect(api.Clients()).To(HaveLen(0))
 			})
 		})
 		Context("Then adding an unknown scope without creating it", func() {
-			var scope *authcomponentsv1beta1.Scope
+			var scope *Scope
 			BeforeEach(func() {
-				scope = authcomponentsv1beta1.NewScope(uuid.NewString(), uuid.NewString())
+				scope = NewScope(uuid.NewString(), uuid.NewString())
 
 				actualClient.AddScopeSpec(scope)
 				Expect(nsClient.Update(ctx, actualClient)).To(BeNil())
 			})
 			It("Should set the client to not ready state", func() {
-				Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
+				Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			Context("Then creating the scope", func() {
 				BeforeEach(func() {
-					Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
+					Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
 						Should(Equal(metav1.ConditionTrue))
 					Expect(nsClient.Create(ctx, scope)).To(BeNil())
 					scope.Status.AuthServerID = "XXX"
 					Expect(nsClient.Status().Update(ctx, scope)).To(BeNil())
 
-					Eventually(conditionStatus(actualClient, authcomponentsv1beta1.ConditionTypeClientProgressing)).
+					Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
 						Should(Equal(metav1.ConditionFalse))
 					Expect(actualClient.Status.Scopes).To(Equal(map[string]string{
 						scope.Name: scope.Status.AuthServerID,

@@ -21,7 +21,7 @@ import (
 
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/internal"
-	"github.com/numary/formance-operator/pkg/collectionutil"
+	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/pkg/containerutil"
 	"github.com/numary/formance-operator/pkg/envutil"
 	"github.com/numary/formance-operator/pkg/probeutil"

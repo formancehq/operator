@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/pkg/collectionutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

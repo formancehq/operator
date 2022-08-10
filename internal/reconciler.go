@@ -4,7 +4,7 @@ import (
 	"context"
 	"reflect"
 
-	. "github.com/numary/formance-operator/pkg/collectionutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

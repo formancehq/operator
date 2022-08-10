@@ -7,7 +7,7 @@ import (
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
 	"github.com/numary/formance-operator/internal"
-	. "github.com/numary/formance-operator/pkg/collectionutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
