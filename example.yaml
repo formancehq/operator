@@ -55,9 +55,7 @@ spec:
     traces:
       otlp:
         endpoint:
-          valueFrom:
-            fieldRef:
-              fieldPath: status.hostIP
+          value: otel-collector-opentelemetry-collector.default.svc.cluster.local
         insecure: true
         mode: grpc
         port: 4317
