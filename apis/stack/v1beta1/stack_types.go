@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
@@ -24,6 +26,7 @@ import (
 )
 
 type IngressStack struct {
+	// +optional
 	Annotations map[string]string `json:"annotations"`
 }
 
@@ -55,6 +58,10 @@ type AuthSpec struct {
 	PostgresConfig      authcomponentsv1beta1.PostgresConfig                   `json:"postgres"`
 	SigningKey          string                                                 `json:"signingKey"`
 	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+}
+
+func (s *AuthSpec) Name(stack *Stack) string {
+	return fmt.Sprintf("%s-auth", stack.Name)
 }
 
 type ServicesSpec struct {

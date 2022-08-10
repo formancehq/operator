@@ -44,9 +44,11 @@ type StackReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=stack.formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=stack.formance.com,resources=stacks/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=stack.formance.com,resources=stacks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.stack.formance.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=stack.formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/finalizers,verbs=update
 
 func (r *StackReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -118,24 +120,8 @@ func (r *StackReconciler) reconcile(ctx context.Context, actual *v1beta1.Stack) 
 	if err := r.reconcileNamespace(ctx, actual); err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling namespace")
 	}
-	if actual.Spec.Auth != nil {
-		if err := r.reconcileAuth(ctx, actual); err != nil {
-			return nil, pkgError.Wrap(err, "Reconciling Auth")
-		}
-	} else {
-		err := r.Client.Delete(ctx, &authcomponentsv1beta1.Auth{
-			ObjectMeta: v1.ObjectMeta{
-				Namespace: actual.Spec.Namespace,
-				Name:      actual.Name,
-			},
-		})
-		switch {
-		case errors.IsNotFound(err):
-		case err != nil:
-			return nil, pkgError.Wrap(err, "Deleting Auth")
-		default:
-			actual.RemoveAuthStatus()
-		}
+	if err := r.reconcileAuth(ctx, actual); err != nil {
+		return nil, pkgError.Wrap(err, "Reconciling Auth")
 	}
 
 	actual.SetReady()
@@ -183,9 +169,26 @@ func (r *StackReconciler) reconcileNamespace(ctx context.Context, stack *v1beta1
 func (r *StackReconciler) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error {
 	log.FromContext(ctx).Info("Reconciling Auth")
 
+	if stack.Spec.Auth == nil {
+		err := r.Client.Delete(ctx, &authcomponentsv1beta1.Auth{
+			ObjectMeta: v1.ObjectMeta{
+				Namespace: stack.Spec.Namespace,
+				Name:      stack.Spec.Auth.Name(stack),
+			},
+		})
+		switch {
+		case errors.IsNotFound(err):
+		case err != nil:
+			return pkgError.Wrap(err, "Deleting Auth")
+		default:
+			stack.RemoveAuthStatus()
+		}
+		return nil
+	}
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithOwner(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
-		Name:      stack.Name,
+		Name:      stack.Spec.Auth.Name(stack),
 	}, stack, func(ns *authcomponentsv1beta1.Auth) error {
 		var ingress *authcomponentsv1beta1.IngressSpec
 		if stack.Spec.Ingress != nil {
@@ -288,10 +291,10 @@ func (r *StackReconciler) reconcileAuth(ctx context.Context, stack *v1beta1.Stac
 func (r *StackReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1beta1.Stack{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Owns(&authcomponentsv1beta1.Ledger{}).
-		Owns(&authcomponentsv1beta1.Control{}).
-		Owns(&authcomponentsv1beta1.Payments{}).
-		Owns(&authcomponentsv1beta1.Search{}).
+		//Owns(&authcomponentsv1beta1.Ledger{}).
+		//Owns(&authcomponentsv1beta1.Control{}).
+		//Owns(&authcomponentsv1beta1.Payments{}).
+		//Owns(&authcomponentsv1beta1.Search{}).
 		Owns(&authcomponentsv1beta1.Auth{}).
 		Owns(&corev1.Namespace{}).
 		Complete(r)

@@ -84,7 +84,7 @@ var _ = Describe("Stack controller", func() {
 			})
 			It("Should create a auth server on a new namespace", func() {
 				Expect(exists(types.NamespacedName{
-					Name:      stack.Name,
+					Name:      stack.Spec.Auth.Name(stack),
 					Namespace: stack.Spec.Namespace,
 				}, &componentsv1beta1.Auth{})()).To(BeTrue())
 			})

@@ -14,3 +14,15 @@ tasks:
       --set ports.traefik.nodePort=30090
       --set ports.traefik.expose=true
       --set ingressClass.enabled=true
+    - task: "::cluster:apply"
+      vars:
+        MANIFEST: |
+          apiVersion: traefik.containo.us/v1alpha1
+          kind: Middleware
+          metadata:
+            name: stripprefix
+          spec:
+            stripPrefix:
+              prefixes:
+              - /auth
+              - /dex

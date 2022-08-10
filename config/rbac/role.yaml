@@ -200,6 +200,30 @@ rules:
   - patch
   - update
 - apiGroups:
+  - components.stack.formance.com
+  resources:
+  - auths
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - ""
   resources:
   - services

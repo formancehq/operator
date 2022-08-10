@@ -23,6 +23,13 @@ tasks:
       CLUSTER_NAME:
         sh: cat kind.yaml|yq .name
 
+  apply:
+    cmds:
+    - |
+      cat <<EOF | kubectl apply -f -
+      {{.MANIFEST}}
+      EOF
+
   install:
     desc: Create the cluster and install all resources (PostgreSQL, dex...)
     cmds:
