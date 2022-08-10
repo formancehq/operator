@@ -22,7 +22,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
+	"github.com/numary/formance-operator/apis/sharedtypes"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -98,7 +98,7 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	out.DelegatedOIDCServer = in.DelegatedOIDCServer
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(stackv1beta1.MonitoringSpec)
+		*out = new(sharedtypes.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 }

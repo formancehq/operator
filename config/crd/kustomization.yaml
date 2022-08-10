@@ -3,7 +3,7 @@
 # It should be run by config/default
 resources:
 #- bases/stack.formance.com_licenses.yaml
-#- bases/stack.formance.com_stacks.yaml
+- bases/stack.formance.com_stacks.yaml
 - bases/components.formance.com_auths.yaml
 #- bases/components.formance.com_ledgers.yaml
 #- bases/components.formance.com_payments.yaml
@@ -17,12 +17,10 @@ patchesStrategicMerge:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
 #- patches/webhook_in_licenses.yaml
-#- patches/webhook_in_auths.yaml
 #- patches/webhook_in_ledgers.yaml
 #- patches/webhook_in_payments.yaml
 #- patches/webhook_in_searches.yaml
 #- patches/webhook_in_controls.yaml
-#- patches/webhook_in_oauths.yaml
 #- patches/webhook_in_scopes.yaml
 #- patches/webhook_in_auth.components_clients.yaml
 #- patches/webhook_in_auth.components_scopes.yaml

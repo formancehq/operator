@@ -19,7 +19,7 @@ package v1beta1
 import (
 	"fmt"
 
-	"github.com/numary/formance-operator/apis/stack/v1beta1"
+	"github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -70,14 +70,14 @@ type AuthSpec struct {
 	DelegatedOIDCServer DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 
 	// +optional
-	Monitoring *v1beta1.MonitoringSpec `json:"monitoring"`
+	Monitoring *sharedtypes.MonitoringSpec `json:"monitoring"`
 }
 
 const (
 	ConditionTypeDeploymentCreated = "DeploymentCreated"
 	ConditionTypeServiceCreated    = "ServiceCreated"
 	ConditionTypeIngressCreated    = "IngressCreated"
-	ConditionTypeReady             = "StopProgression"
+	ConditionTypeReady             = "Ready"
 )
 
 // AuthStatus defines the observed state of Auth
@@ -117,7 +117,7 @@ func (a *Auth) SetReady() {
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
 		LastTransitionTime: metav1.Now(),
-		Reason:             "StopProgression",
+		Reason:             "Ready",
 	})
 }
 

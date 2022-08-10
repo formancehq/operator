@@ -49,8 +49,59 @@ spec:
             properties:
               auth:
                 properties:
-                  type:
+                  delegatedOIDCServer:
+                    properties:
+                      clientID:
+                        type: string
+                      clientSecret:
+                        type: string
+                      issuer:
+                        type: string
+                    required:
+                    - clientID
+                    - clientSecret
+                    - issuer
+                    type: object
+                  image:
                     type: string
+                  postgres:
+                    properties:
+                      database:
+                        type: string
+                      host:
+                        type: string
+                      password:
+                        type: string
+                      port:
+                        type: integer
+                      username:
+                        type: string
+                    required:
+                    - database
+                    - host
+                    - password
+                    - port
+                    - username
+                    type: object
+                  signingKey:
+                    type: string
+                required:
+                - delegatedOIDCServer
+                - postgres
+                - signingKey
+                type: object
+              debug:
+                type: boolean
+              host:
+                type: string
+              ingress:
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    type: object
+                required:
+                - annotations
                 type: object
               monitoring:
                 properties:
@@ -68,6 +119,8 @@ spec:
                     type: object
                 type: object
               namespace:
+                type: string
+              scheme:
                 type: string
               services:
                 properties:
@@ -183,8 +236,6 @@ spec:
                         type: object
                     type: object
                 type: object
-              url:
-                type: string
               version:
                 type: string
             type: object
