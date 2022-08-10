@@ -10,6 +10,8 @@ includes:
   dex:
     taskfile: ./resources/dex.yaml
     dir: .
+  otel:
+    taskfile: ./resources/otel.yaml
 
 tasks:
   install:
@@ -18,3 +20,4 @@ tasks:
     - task: postgres:install
     - task: dex:install
     - task: traefik:install
+    - task: otel:install

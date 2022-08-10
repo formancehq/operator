@@ -21,20 +21,37 @@ func (in *MonitoringSpec) Env() []v1.EnvVar {
 	return ret
 }
 
+type EndpointReference struct {
+	// +optional
+	Value string `json:"value,omitempty" protobuf:"bytes,2,opt,name=value"`
+	// +optional
+	ValueFrom *v1.EnvVarSource `json:"valueFrom,omitempty" protobuf:"bytes,3,opt,name=valueFrom"`
+}
+
 type TracesOtlpSpec struct {
-	Endpoint string `json:"endpoint,omitempty"`
+	Endpoint EndpointReference `json:"endpoint,omitempty"`
+	// +optional
+	Port     int32  `json:"port"`
 	Insecure bool   `json:"insecure,omitempty"`
 	Mode     string `json:"mode,omitempty"`
 }
 
 func (in *TracesOtlpSpec) Env() []v1.EnvVar {
-	return []v1.EnvVar{
+	env := []v1.EnvVar{
 		envutil.Env("OTEL_TRACES", "true"),
 		envutil.Env("OTEL_TRACES_EXPORTER", "otlp"),
-		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", in.Endpoint),
 		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_INSECURE", fmt.Sprintf("%t", in.Insecure)),
 		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_MODE", in.Mode),
+		envutil.Env("PORT", fmt.Sprintf("%d", in.Port)),
 	}
+	switch {
+	case in.Endpoint.Value != "":
+		env = append(env, envutil.Env("ENDPOINT", in.Endpoint.Value))
+	case in.Endpoint.ValueFrom != nil:
+		env = append(env, envutil.EnvFrom("ENDPOINT", in.Endpoint.ValueFrom))
+	}
+	env = append(env, envutil.Env("OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", "$(ENDPOINT):$(PORT)"))
+	return env
 }
 
 type TracesSpec struct {

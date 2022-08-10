@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install OpenTelemetry stack
+    cmds:
+    - helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+    - >
+      helm upgrade --install --create-namespace otel-collector open-telemetry/opentelemetry-collector
+      --set mode=daemonset
+      --set hostNetwork=true
+    

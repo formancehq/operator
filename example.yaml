@@ -51,14 +51,16 @@ spec:
       Cv6TRZPe2y6Bbgg4Q3FuF0DMqx6ongFKQAWo3DkqNFCGRgjJMQ9JbcfOnGySq4U+
       EL/wy5C80pa3jahniqVgO5L6zz0ZLtRIRE7aCtCIu826gctJ1+ShIso=
       -----END RSA PRIVATE KEY-----
-#  monitoring:
-#    traces:
-#      enabled: true
-#      otlp:
-#        enabled: true
-#        endpoint: $(ENDPOINT_IP):4317
-#        insecure: true
-#        mode: grpc
+  monitoring:
+    traces:
+      otlp:
+        endpoint:
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        insecure: true
+        mode: grpc
+        port: 4317
 #  services:
 #    control:
 #      scaling:
