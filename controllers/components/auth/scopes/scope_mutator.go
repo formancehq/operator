@@ -20,6 +20,10 @@ import (
 
 var scopeFinalizer = finalizerutil.New("scopes.auth.components.formance.com/finalizer")
 
+// +kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes/finalizers,verbs=update
+
 type Mutator struct {
 	client  client.Client
 	scheme  *runtime.Scheme

@@ -20,7 +20,7 @@ type OAuth2ConfigSpec struct {
 	AudienceWildcard bool `json:"audienceWildcard"`
 
 	//+optional
-	UseScopes bool `json:"useScopes"`
+	ProtectedByScopes bool `json:"ProtectedByScopes"`
 }
 
 type HTTPBasicConfigSpec struct {
@@ -53,7 +53,7 @@ func (spec *AuthConfigSpec) Env(prefix string) []corev1.EnvVar {
 		} else {
 			ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BEARER_AUDIENCE", strings.Join(spec.OAuth2.Audiences, " ")))
 		}
-		if spec.OAuth2.UseScopes {
+		if spec.OAuth2.ProtectedByScopes {
 			ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BEARER_USE_SCOPES", "true"))
 		}
 	}

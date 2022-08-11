@@ -59,6 +59,20 @@ spec:
         insecure: true
         mode: grpc
         port: 4317
+  collector:
+    kind: kafka
+    kafka:
+      brokers:
+      - redpanda.default.svc.cluster.local:9092
+  services:
+    ledger:
+      postgres:
+        host: postgresql.default.svc.cluster.local
+        port: 5432
+        username: formance
+        password: formance
+        database: ledger
+        createDatabase: true
 #  services:
 #    control:
 #      scaling:

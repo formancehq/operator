@@ -48,6 +48,8 @@ spec:
                     type: object
                   oauth2:
                     properties:
+                      ProtectedByScopes:
+                        type: boolean
                       audienceWildcard:
                         type: boolean
                       audiences:
@@ -56,16 +58,41 @@ spec:
                         type: array
                       introspectUrl:
                         type: string
-                      useScopes:
-                        type: boolean
                     required:
                     - introspectUrl
                     type: object
                 type: object
               collector:
                 properties:
-                  enabled:
-                    type: boolean
+                  kafka:
+                    properties:
+                      brokers:
+                        items:
+                          type: string
+                        type: array
+                      sasl:
+                        properties:
+                          mechanism:
+                            type: string
+                          password:
+                            type: string
+                          scramSHASize:
+                            type: string
+                          username:
+                            type: string
+                        required:
+                        - mechanism
+                        - password
+                        - scramSHASize
+                        - username
+                        type: object
+                      tls:
+                        type: boolean
+                    required:
+                    - brokers
+                    - sasl
+                    - tls
+                    type: object
                   kind:
                     type: string
                   topicMapping:

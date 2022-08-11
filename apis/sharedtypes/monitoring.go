@@ -46,9 +46,9 @@ func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
 	}
 	switch {
 	case in.Endpoint.Value != "":
-		env = append(env, envutil.EnvWithPrefix(prefix, "ENDPOINT", in.Endpoint.Value))
+		env = append(env, envutil.Env("ENDPOINT", in.Endpoint.Value))
 	case in.Endpoint.ValueFrom != nil:
-		env = append(env, envutil.EnvFromWithPrefix(prefix, "ENDPOINT", in.Endpoint.ValueFrom))
+		env = append(env, envutil.EnvFrom("ENDPOINT", in.Endpoint.ValueFrom))
 	}
 	env = append(env, envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", "$(ENDPOINT):$(PORT)"))
 	return env

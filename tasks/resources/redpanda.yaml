@@ -1,0 +1,14 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install RedPanda
+    cmds:
+    - mkdir -p /tmp/redpanda
+    - defer: rm -fr /tmp/redpanda
+    - git clone https://github.com/redpanda-data/helm-charts.git /tmp/redpanda
+    - >
+      helm upgrade --install redpanda /tmp/redpanda/redpanda
+      --set statefulset.replicas=1
+      --set statefulset.redpanda.memory=512M
+    

@@ -18,6 +18,58 @@ rules:
   - update
   - watch
 - apiGroups:
+  - auth.components.formance.com
+  resources:
+  - clients
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - auth.components.formance.com
+  resources:
+  - clients/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - auth.components.formance.com
+  resources:
+  - clients/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - auth.components.formance.com
+  resources:
+  - scopes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - auth.components.formance.com
+  resources:
+  - scopes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - auth.components.formance.com
+  resources:
+  - scopes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - components.formance.com
   resources:
   - auths
@@ -150,6 +202,18 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - namespaces
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - create
@@ -171,3 +235,29 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - stack.formance.com
+  resources:
+  - stacks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stack.formance.com
+  resources:
+  - stacks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stack.formance.com
+  resources:
+  - stacks/status
+  verbs:
+  - get
+  - patch
+  - update

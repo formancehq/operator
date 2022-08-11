@@ -26,6 +26,7 @@ import (
 	"github.com/numary/formance-operator/controllers/components/auth"
 	"github.com/numary/formance-operator/controllers/components/auth/clients"
 	"github.com/numary/formance-operator/controllers/components/auth/scopes"
+	"github.com/numary/formance-operator/controllers/components/ledger"
 	"github.com/numary/formance-operator/controllers/stack"
 	"github.com/numary/formance-operator/internal"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
@@ -109,10 +110,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Auth")
 		os.Exit(1)
 	}
-	//if err = components.NewLedgerReconciler(mgr.GetClient(), mgr.GetScheme()).SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Ledger")
-	//	os.Exit(1)
-	//}
+	ledgerMutator := ledger.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), ledgerMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Ledger")
+		os.Exit(1)
+	}
 	//if err = (&componentscontrollers.PaymentsReconciler{
 	//	Client: mgr.GetClient(),
 	//	Scheme: mgr.GetScheme(),

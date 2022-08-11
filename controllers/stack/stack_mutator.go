@@ -21,6 +21,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=stack.formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/finalizers,verbs=update
+
 type Mutator struct {
 	client client.Client
 	scheme *runtime.Scheme
@@ -168,7 +173,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 					Audiences: []string{
 						fmt.Sprintf("%s://%s", stack.Spec.Scheme, stack.Spec.Host),
 					},
-					UseScopes: true,
+					ProtectedByScopes: false, // TODO: Maybe later...
 				},
 			}
 		}

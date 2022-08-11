@@ -12,6 +12,8 @@ includes:
     dir: .
   otel:
     taskfile: ./resources/otel.yaml
+  redpanda:
+    taskfile: ./resources/redpanda.yaml
 
 tasks:
   install:

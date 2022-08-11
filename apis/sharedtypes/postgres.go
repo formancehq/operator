@@ -23,3 +23,13 @@ func (c PostgresConfig) URI() string {
 		c.Database,
 	)
 }
+
+func (c PostgresConfig) URIWithoutDatabase() string {
+	return fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d",
+		c.Username,
+		c.Password,
+		c.Host,
+		c.Port,
+	)
+}

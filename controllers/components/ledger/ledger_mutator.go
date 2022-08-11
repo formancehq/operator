@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
@@ -161,9 +162,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.
 					"sh",
 					"-c",
 					fmt.Sprintf(`psql -Atx %s -c "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 && echo "Base already exists" || psql -Atx %s -c "CREATE DATABASE \"%s\""`,
-						m.Spec.Postgres.URI(),
+						m.Spec.Postgres.URIWithoutDatabase(),
 						m.Spec.Postgres.Database,
-						m.Spec.Postgres.URI(),
+						m.Spec.Postgres.URIWithoutDatabase(),
 						m.Spec.Postgres.Database,
 					),
 				},
@@ -254,7 +255,8 @@ func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
-		Owns(&networkingv1.Ingress{})
+		Owns(&networkingv1.Ingress{}).
+		Owns(&authcomponentsv1beta1.Scope{})
 }
 
 func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[

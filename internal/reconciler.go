@@ -102,8 +102,7 @@ func (r *Reconciler[COND, T]) Reconcile(ctx context.Context, req ctrl.Request) (
 func (r *Reconciler[COND, T]) SetupWithManager(mgr ctrl.Manager) error {
 	var t T
 	t = reflect.New(reflect.TypeOf(t).Elem()).Interface().(T)
-	builder := ctrl.NewControllerManagedBy(mgr).
-		For(t)
+	builder := ctrl.NewControllerManagedBy(mgr).For(t)
 	r.Mutator.SetupWithBuilder(builder)
 	return builder.Complete(r)
 }
