@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1beta1 contains API Schema definitions for the components v1beta1 API group
-//+kubebuilder:object:generate=true
-//+groupName=components.formance.com
+// +kubebuilder:object:generate=true
+// +groupName=components.formance.com
 package v1beta1
 
 import (

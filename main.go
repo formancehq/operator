@@ -20,23 +20,24 @@ import (
 	"flag"
 	"os"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
+	"github.com/numary/formance-operator/controllers/components/auth"
+	"github.com/numary/formance-operator/controllers/components/auth/clients"
+	"github.com/numary/formance-operator/controllers/components/auth/scopes"
+	"github.com/numary/formance-operator/controllers/stack"
+	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/auth.components/v1beta1"
-	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
-	authcomponentscontrollers "github.com/numary/formance-operator/controllers/auth.components"
-	componentscontrollers "github.com/numary/formance-operator/controllers/components"
-	stackcontrollers "github.com/numary/formance-operator/controllers/stack"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -51,6 +52,8 @@ func init() {
 	utilruntime.Must(stackv1beta1.AddToScheme(scheme))
 	utilruntime.Must(componentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
+	utilruntime.Must(traefik.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -95,59 +98,56 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&stackcontrollers.StackReconciler{
+	if err = (&stack.StackReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")
 		os.Exit(1)
 	}
-	if err = (&componentscontrollers.AuthReconciler{
+	if err = (&auth.AuthReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Auth")
 		os.Exit(1)
 	}
-	if err = (&componentscontrollers.LedgerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Ledger")
+	//if err = (&componentscontrollers.LedgerReconciler{
+	//	Client: mgr.GetClient(),
+	//	Scheme: mgr.GetScheme(),
+	//}).SetupWithManager(mgr); err != nil {
+	//	setupLog.Error(err, "unable to create controller", "controller", "Ledger")
+	//	os.Exit(1)
+	//}
+	//if err = (&componentscontrollers.PaymentsReconciler{
+	//	Client: mgr.GetClient(),
+	//	Scheme: mgr.GetScheme(),
+	//}).SetupWithManager(mgr); err != nil {
+	//	setupLog.Error(err, "unable to create controller", "controller", "Payments")
+	//	os.Exit(1)
+	//}
+	//if err = (&componentscontrollers.SearchReconciler{
+	//	Client: mgr.GetClient(),
+	//	Scheme: mgr.GetScheme(),
+	//}).SetupWithManager(mgr); err != nil {
+	//	setupLog.Error(err, "unable to create controller", "controller", "Search")
+	//	os.Exit(1)
+	//}
+	//if err = (&componentscontrollers.ControlReconciler{
+	//	Client: mgr.GetClient(),
+	//	Scheme: mgr.GetScheme(),
+	//}).SetupWithManager(mgr); err != nil {
+	//	setupLog.Error(err, "unable to create controller", "controller", "Control")
+	//	os.Exit(1)
+	//}
+	if err = clients.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clients.DefaultApiFactory).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Client")
 		os.Exit(1)
 	}
-	if err = (&componentscontrollers.PaymentsReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Payments")
-		os.Exit(1)
-	}
-	if err = (&componentscontrollers.SearchReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Search")
-		os.Exit(1)
-	}
-	if err = (&componentscontrollers.ControlReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Control")
-		os.Exit(1)
-	}
-	if err = (&authcomponentscontrollers.OauthReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Oauth")
-		os.Exit(1)
-	}
-	if err = (&authcomponentscontrollers.ScopeReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	//
+	if err = scopes.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopes.DefaultApiFactory).
+		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Scope")
 		os.Exit(1)
 	}

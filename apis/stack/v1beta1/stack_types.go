@@ -17,51 +17,51 @@ limitations under the License.
 package v1beta1
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	"fmt"
+
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/pkg/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type IngressStack struct {
+	// +optional
+	Annotations map[string]string `json:"annotations"`
+}
 
 // StackSpec defines the desired state of Stack
 type StackSpec struct {
+	// +optional
+	Debug bool `json:"debug"`
 	// +required
 	Version string `json:"version,omitempty"`
 	// +required
 	Namespace string `json:"namespace,omitempty"`
 	// +required
-	Url string `json:"url,omitempty"`
+	Host string `json:"host,omitempty"`
 	// +optional
-	Monitoring MonitoringSpec `json:"monitoring,omitempty"`
+	Scheme string `json:"scheme,omitempty"`
+	// +optional
+	Monitoring *sharedtypes.MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
 	Services ServicesSpec `json:"services,omitempty"`
 	// +optional
-	Auth AuthSpec `json:"auth,omitempty"`
+	Auth *AuthSpec `json:"auth,omitempty"`
+	// +optional
+	Ingress *IngressStack `json:"ingress"`
 }
 
 type AuthSpec struct {
 	// +optional
-	Type string `json:"type,omitempty"`
+	Image               string                                                 `json:"image"`
+	PostgresConfig      authcomponentsv1beta1.PostgresConfig                   `json:"postgres"`
+	SigningKey          string                                                 `json:"signingKey"`
+	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 }
 
-type MonitoringSpec struct {
-	// +optional
-	Traces TracesSpec `json:"traces,omitempty"`
-}
-
-type TracesSpec struct {
-	// +optional
-	Enabled bool           `json:"enabled,omitempty"`
-	Otlp    TracesOtlpSpec `json:"otlp,omitempty"`
-}
-
-type TracesOtlpSpec struct {
-	// +optional
-	Enabled  bool   `json:"enabled,omitempty"`
-	Endpoint string `json:"endpoint,omitempty"`
-	Insecure bool   `json:"insecure,omitempty"`
-	Mode     string `json:"mode,omitempty"`
+func (s *AuthSpec) Name(stack *Stack) string {
+	return fmt.Sprintf("%s-auth", stack.Name)
 }
 
 type ServicesSpec struct {
@@ -84,19 +84,22 @@ const (
 	StackProgressRunning = StackProgress("Running")
 )
 
-type StackConditionType string
+type ConditionType string
 
 const (
-	StackReady StackConditionType = "Ready"
+	ConditionTypeStackProgressing      ConditionType = "Progressing"
+	ConditionTypeStackReady            ConditionType = "Ready"
+	ConditionTypeStackNamespaceCreated ConditionType = "NamespaceCreated"
+	ConditionTypeStackAuthCreated      ConditionType = "AuthCreated"
 )
 
-type StackCondition struct {
-	Type   StackConditionType     `json:"type"`
-	Status corev1.ConditionStatus `json:"status"`
+type ConditionStack struct {
+	Type   ConditionType          `json:"type"`
+	Status metav1.ConditionStatus `json:"status"`
 
 	// LastTransitionTime is the last time the condition transited from one status to another.
 	// +optional
-	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 // StackStatus defines the observed state of Stack
@@ -110,50 +113,7 @@ type StackStatus struct {
 	DeployedServices []string `json:"deployedServices,omitempty"`
 
 	// +optional
-	Conditions []StackCondition `json:"conditions,omitempty"`
-}
-
-func (in *StackStatus) GetConditionStatus(conditionType StackConditionType) corev1.ConditionStatus {
-	if in != nil {
-		for _, condition := range in.Conditions {
-			if condition.Type == conditionType {
-				return condition.Status
-			}
-		}
-	}
-	return corev1.ConditionUnknown
-}
-
-func (in *StackStatus) SetCondition(condition StackCondition) {
-	for i, c := range in.Conditions {
-		if c.Type == condition.Type {
-			in.Conditions[i] = condition
-			return
-		}
-	}
-	in.Conditions = append(in.Conditions, condition)
-}
-
-func (in *StackStatus) IsReady() bool {
-	return in != nil && in.GetConditionStatus(StackReady) == corev1.ConditionTrue
-}
-
-func (in *StackStatus) SetReady() {
-	now := metav1.Now()
-	in.SetCondition(StackCondition{
-		Type:               StackReady,
-		Status:             corev1.ConditionTrue,
-		LastTransitionTime: &now,
-	})
-}
-
-func (in *StackStatus) SetNotReady() {
-	now := metav1.Now()
-	in.SetCondition(StackCondition{
-		Type:               StackReady,
-		Status:             corev1.ConditionFalse,
-		LastTransitionTime: &now,
-	})
+	Conditions []ConditionStack `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -170,6 +130,90 @@ type Stack struct {
 
 	Spec   StackSpec   `json:"spec,omitempty"`
 	Status StackStatus `json:"status,omitempty"`
+}
+
+func (in *Stack) Condition(conditionType ConditionType) *ConditionStack {
+	if in != nil {
+		for _, condition := range in.Status.Conditions {
+			if condition.Type == conditionType {
+				return &condition
+			}
+		}
+	}
+	return nil
+}
+
+func (in *Stack) setCondition(condition ConditionStack) {
+	for i, c := range in.Status.Conditions {
+		if c.Type == condition.Type {
+			in.Status.Conditions[i] = condition
+			return
+		}
+	}
+	in.Status.Conditions = append(in.Status.Conditions, condition)
+}
+
+func (in *Stack) removeCondition(v ConditionType) {
+	in.Status.Conditions = Filter(in.Status.Conditions, func(stack ConditionStack) bool {
+		return stack.Type != v
+	})
+}
+
+func (in *Stack) Scheme() string {
+	if in.Spec.Scheme != "" {
+		return in.Spec.Scheme
+	}
+	return "https"
+}
+
+func (in *Stack) Progress() {
+	in.setCondition(ConditionStack{
+		Type:               ConditionTypeStackProgressing,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	})
+	in.setCondition(ConditionStack{
+		Type:               ConditionTypeStackReady,
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (in *Stack) IsReady() bool {
+	condition := in.Condition(ConditionTypeStackReady)
+	if condition == nil {
+		return false
+	}
+	return in != nil && condition.Status == metav1.ConditionTrue
+}
+
+func (in *Stack) SetReady() {
+	in.removeCondition(ConditionTypeStackProgressing)
+	in.setCondition(ConditionStack{
+		Type:               ConditionTypeStackReady,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (in *Stack) SetNamespaceCreated() {
+	in.setCondition(ConditionStack{
+		Type:               ConditionTypeStackNamespaceCreated,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (in *Stack) SetAuthCreated() {
+	in.setCondition(ConditionStack{
+		Type:               ConditionTypeStackAuthCreated,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	})
+}
+
+func (in *Stack) RemoveAuthStatus() {
+	in.removeCondition(ConditionTypeStackAuthCreated)
 }
 
 //+kubebuilder:object:root=true

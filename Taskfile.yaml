@@ -1,23 +1,24 @@
-# https://taskfile.dev
-
 version: '3'
 
+vars:
+  POSTGRES_USERNAME: formance
+  POSTGRES_PASSWORD: formance
+  POSTGRES_DATABASE: formance
+  POSTGRES_DSN: postgresql://formance:formance@postgresql:5432/formance
+  STACK_NAMESPACE: hosting
+
+includes:
+  cluster:
+    taskfile: ./tasks/cluster.yaml
+    dir: .
+  resources:
+    taskfile: ./tasks/resources.yaml
+    dir: .
+  operator:
+    taskfile: ./tasks/operator.yaml
+    dir: .
+
 tasks:
-  cluster:create:
+  tests:
     cmds:
-      - kind create cluster --config kind.yaml
-
-  build:
-    cmds:
-      - make manifests
-      - make generate
-      - make fmt
-      - make vet
-
-  local:deploy:
-    deps:
-      - build
-    cmds:
-      - kubectl apply --context kind-formance -f config/crd/bases/
-      - kubectl apply --context kind-formance -f example.yaml
-      - make run
+      - make test
