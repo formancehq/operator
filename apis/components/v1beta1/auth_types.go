@@ -17,8 +17,6 @@ limitations under the License.
 package v1beta1
 
 import (
-	"fmt"
-
 	"github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,42 +28,16 @@ type DelegatedOIDCServerConfiguration struct {
 	ClientSecret string `json:"clientSecret"`
 }
 
-type PostgresConfig struct {
-	Database string `json:"database"`
-	Port     int    `json:"port"`
-	Host     string `json:"host"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-func (c PostgresConfig) URI() string {
-	return fmt.Sprintf(
-		"postgresql://%s:%s@%s:%d/%s",
-		c.Username,
-		c.Password,
-		c.Host,
-		c.Port,
-		c.Database,
-	)
-}
-
-type IngressSpec struct {
-	Path string `json:"path"`
-	Host string `json:"host"`
-	// +optional
-	Annotations map[string]string `json:"annotations"`
-}
-
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
 	// +kubebuilder:validation:Optional
-	Image      string         `json:"image,omitempty"`
-	Postgres   PostgresConfig `json:"postgres"`
-	BaseURL    string         `json:"baseURL"`
-	SigningKey string         `json:"signingKey"`
-	DevMode    bool           `json:"devMode"`
+	Image      string                     `json:"image,omitempty"`
+	Postgres   sharedtypes.PostgresConfig `json:"postgres"`
+	BaseURL    string                     `json:"baseURL"`
+	SigningKey string                     `json:"signingKey"`
+	DevMode    bool                       `json:"devMode"`
 	// +optional
-	Ingress *IngressSpec `json:"ingress"`
+	Ingress *sharedtypes.IngressSpec `json:"ingress"`
 
 	DelegatedOIDCServer DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 

@@ -50,25 +50,23 @@ type StackSpec struct {
 	Auth *AuthSpec `json:"auth,omitempty"`
 	// +optional
 	Ingress *IngressStack `json:"ingress"`
+	// +optional
+	Collector *sharedtypes.CollectorConfigSpec `json:"collector"`
 }
 
 type AuthSpec struct {
 	// +optional
 	Image               string                                                 `json:"image"`
-	PostgresConfig      authcomponentsv1beta1.PostgresConfig                   `json:"postgres"`
+	PostgresConfig      sharedtypes.PostgresConfig                             `json:"postgres"`
 	SigningKey          string                                                 `json:"signingKey"`
 	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 }
 
-func (s *AuthSpec) Name(stack *Stack) string {
-	return fmt.Sprintf("%s-auth", stack.Name)
-}
-
 type ServicesSpec struct {
-	Control  ControlSpec  `json:"control,omitempty"`
-	Ledger   LedgerSpec   `json:"ledger,omitempty"`
-	Payments PaymentsSpec `json:"payments,omitempty"`
-	Search   SearchSpec   `json:"search,omitempty"`
+	Control  *ControlSpec  `json:"control,omitempty"`
+	Ledger   *LedgerSpec   `json:"ledger,omitempty"`
+	Payments *PaymentsSpec `json:"payments,omitempty"`
+	Search   *SearchSpec   `json:"search,omitempty"`
 }
 
 // StackProgress is a word summarizing the state of a Stack resource.
@@ -89,6 +87,7 @@ const (
 	ConditionTypeStackReady            = "Ready"
 	ConditionTypeStackNamespaceCreated = "NamespaceCreated"
 	ConditionTypeStackAuthCreated      = "AuthCreated"
+	ConditionTypeStackLedgerCreated    = "LedgerCreated"
 )
 
 type StackCondition struct {
@@ -253,8 +252,21 @@ func (in *Stack) SetAuthCreated() {
 	})
 }
 
+func (in *Stack) SetLedgerCreated() {
+	in.setCondition(StackCondition{
+		Type:               ConditionTypeStackLedgerCreated,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
+	})
+}
+
 func (in *Stack) RemoveAuthStatus() {
 	in.removeCondition(ConditionTypeStackAuthCreated)
+}
+
+func (s *Stack) ServiceName(v string) string {
+	return fmt.Sprintf("%s-%s", s.Name, v)
 }
 
 //+kubebuilder:object:root=true

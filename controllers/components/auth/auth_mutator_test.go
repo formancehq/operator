@@ -2,6 +2,7 @@ package auth
 
 import (
 	. "github.com/numary/formance-operator/apis/components/v1beta1"
+	"github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -34,7 +35,7 @@ var _ = Describe("Auth controller", func() {
 					Name: "auth",
 				},
 				Spec: AuthSpec{
-					Postgres: PostgresConfig{
+					Postgres: sharedtypes.PostgresConfig{
 						Database: "auth",
 						Port:     5432,
 						Host:     "postgres",
@@ -80,7 +81,7 @@ var _ = Describe("Auth controller", func() {
 		Context("Then enable ingress", func() {
 			BeforeEach(func() {
 				Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
-				auth.Spec.Ingress = &IngressSpec{
+				auth.Spec.Ingress = &sharedtypes.IngressSpec{
 					Path: "/auth",
 					Host: "localhost",
 				}

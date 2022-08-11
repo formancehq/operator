@@ -3,6 +3,7 @@ package stack
 import (
 	"github.com/google/uuid"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	"github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/apis/stack/v1beta1"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
@@ -12,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-var _ = Describe("Stack controller", func() {
+var _ = Describe("Stack controller (Auth)", func() {
 	Context("When creating stack", func() {
 		var (
 			stack *Stack
@@ -37,10 +38,37 @@ var _ = Describe("Stack controller", func() {
 				Name: stack.Spec.Namespace,
 			}, &v1.Namespace{})).To(BeNil())
 		})
+		Context("With ledger service", func() {
+			BeforeEach(func() {
+				stack.Spec.Services.Ledger = &LedgerSpec{
+					Postgres: componentsv1beta1.PostgresConfig{
+						PostgresConfig: sharedtypes.PostgresConfig{
+							Database: "XXX",
+							Port:     1234,
+							Host:     "XXX",
+							Username: "XXX",
+							Password: "XXX",
+						},
+					},
+				}
+				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
+				Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackLedgerCreated)).
+					Should(Equal(metav1.ConditionTrue))
+			})
+			It("Should create a ledger on a new namespace", func() {
+				ledger := &componentsv1beta1.Ledger{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      stack.ServiceName("ledger"),
+						Namespace: stack.Spec.Namespace,
+					},
+				}
+				Expect(Exists(k8sClient, ledger)()).To(BeTrue())
+			})
+		})
 		Context("With auth configuration", func() {
 			BeforeEach(func() {
 				stack.Spec.Auth = &AuthSpec{
-					PostgresConfig: componentsv1beta1.PostgresConfig{
+					PostgresConfig: sharedtypes.PostgresConfig{
 						Database: "test",
 						Port:     5432,
 						Host:     "postgres",
@@ -61,7 +89,7 @@ var _ = Describe("Stack controller", func() {
 			It("Should create a auth server on a new namespace", func() {
 				Expect(Exists(k8sClient, &componentsv1beta1.Auth{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      stack.Spec.Auth.Name(stack),
+						Name:      stack.ServiceName("auth"),
 						Namespace: stack.Spec.Namespace,
 					},
 				})()).To(BeTrue())

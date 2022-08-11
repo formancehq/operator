@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package ledger
 
 import (
 	"context"
+	"fmt"
 
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/pkg/containerutil"
 	"github.com/numary/formance-operator/pkg/envutil"
-	"github.com/numary/formance-operator/pkg/probeutil"
 	"github.com/numary/formance-operator/pkg/resourceutil"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -41,7 +40,7 @@ import (
 )
 
 const (
-	defaultImage = "ghcr.io/numary/auth:latest"
+	defaultImage = "ghcr.io/numary/ledger:latest"
 )
 
 // Mutator reconciles a Auth object
@@ -57,72 +56,80 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=auths/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.formance.com,resources=auths/finalizers,verbs=update
 
-func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ctrl.Result, error) {
-	deployment, err := r.reconcileDeployment(ctx, auth)
+func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) (*ctrl.Result, error) {
+	deployment, err := r.reconcileDeployment(ctx, ledger)
 	if err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	service, err := r.reconcileService(ctx, auth, deployment)
+	service, err := r.reconcileService(ctx, ledger, deployment)
 	if err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if auth.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, auth, service)
+	if ledger.Spec.Ingress != nil {
+		_, err = r.reconcileIngress(ctx, ledger, service)
 		if err != nil {
 			return nil, pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      auth.Name,
-				Namespace: auth.Namespace,
+				Name:      ledger.Name,
+				Namespace: ledger.Namespace,
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
 			return nil, pkgError.Wrap(err, "Deleting ingress")
 		}
-		auth.RemoveIngressStatus()
+		ledger.RemoveIngressStatus()
 	}
 
-	auth.SetReady()
+	ledger.SetReady()
 
-	if err := r.Client.Status().Update(ctx, auth); err != nil {
+	if err := r.Client.Status().Update(ctx, ledger); err != nil {
 		return nil, pkgError.Wrap(err, "Updating status")
 	}
 
 	return nil, nil
 }
 
-func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1beta1.Auth) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "auth")
-	port := int32(8080)
+func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.Ledger) (*appsv1.Deployment, error) {
+	matchLabels := collectionutil.Create("app.kubernetes.io/name", "ledger")
 
 	env := []corev1.EnvVar{
-		envutil.Env("POSTGRES_URI", auth.Spec.Postgres.URI()),
-		envutil.Env("DELEGATED_CLIENT_SECRET", auth.Spec.DelegatedOIDCServer.ClientSecret),
-		envutil.Env("DELEGATED_CLIENT_ID", auth.Spec.DelegatedOIDCServer.ClientID),
-		envutil.Env("DELEGATED_ISSUER", auth.Spec.DelegatedOIDCServer.Issuer),
-		envutil.Env("BASE_URL", auth.Spec.BaseURL),
-		envutil.Env("SIGNING_KEY", auth.Spec.SigningKey),
+		envutil.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
+		envutil.Env("NUMARY_STORAGE_DRIVER", "postgres"),
+		envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", m.Spec.Postgres.URI()),
 	}
-	if auth.Spec.DevMode {
-		env = append(env,
-			envutil.Env("DEBUG", "1"),
-			envutil.Env("CAOS_OIDC_DEV", "1"),
-		)
+	if m.Spec.Debug {
+		env = append(env, envutil.Env("NUMARY_DEBUG", "true"))
 	}
-	if auth.Spec.Monitoring != nil {
-		env = append(env, auth.Spec.Monitoring.Env("")...)
+	if m.Spec.Redis != nil {
+		env = append(env, envutil.Env("NUMARY_REDIS_ENABLED", "true"))
+		env = append(env, envutil.Env("NUMARY_REDIS_ADDR", m.Spec.Redis.Uri))
+		if !m.Spec.Redis.TLS {
+			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "false"))
+		} else {
+			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "true"))
+		}
+	}
+	if m.Spec.Auth != nil {
+		env = append(env, m.Spec.Auth.Env("NUMARY_")...)
+	}
+	if m.Spec.Monitoring != nil {
+		env = append(env, m.Spec.Monitoring.Env("NUMARY_")...)
+	}
+	if m.Spec.Collector != nil {
+		env = append(env, m.Spec.Collector.Env("NUMARY_")...)
 	}
 
-	image := auth.Spec.Image
+	image := m.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
 
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(m), m, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -133,29 +140,51 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:          "auth",
-						Image:         image,
-						Command:       []string{"/main", "serve"},
-						Ports:         containerutil.SinglePort("http", port),
-						Env:           env,
-						LivenessProbe: probeutil.DefaultLiveness(),
+						Name:            "ledger",
+						Image:           image,
+						ImagePullPolicy: corev1.PullAlways,
+						Env:             env,
+						Ports: []corev1.ContainerPort{{
+							Name:          "ledger",
+							ContainerPort: 8080,
+						}},
 					}},
 				},
 			},
+		}
+		if m.Spec.Postgres.CreateDatabase {
+			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+				Name:            "init-create-db-user",
+				Image:           "postgres:13",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{
+					"sh",
+					"-c",
+					fmt.Sprintf(`psql -Atx %s -c "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 && echo "Base already exists" || psql -Atx %s -c "CREATE DATABASE \"%s\""`,
+						m.Spec.Postgres.URI(),
+						m.Spec.Postgres.Database,
+						m.Spec.Postgres.URI(),
+						m.Spec.Postgres.Database,
+					),
+				},
+				Env: []corev1.EnvVar{
+					envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", m.Spec.Postgres.URI()),
+				},
+			}}
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
-		auth.SetDeploymentFailure(err)
+		m.SetDeploymentFailure(err)
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetDeploymentCreated()
+		m.SetDeploymentCreated()
 	}
 	return ret, err
 }
 
-func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.Auth, deployment *appsv1.Deployment) (*corev1.Service, error) {
+func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.Ledger, deployment *appsv1.Deployment) (*corev1.Service, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
 		service.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
@@ -179,7 +208,7 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	return ret, err
 }
 
-func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.Auth, service *corev1.Service) (*networkingv1.Ingress, error) {
+func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.Ledger, service *corev1.Service) (*networkingv1.Ingress, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = auth.Spec.Ingress.Annotations
@@ -229,7 +258,7 @@ func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 }
 
 func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[
-	componentsv1beta1.AuthCondition, *componentsv1beta1.Auth] {
+	componentsv1beta1.LedgerCondition, *componentsv1beta1.Ledger] {
 	return &Mutator{
 		Client: client,
 		Scheme: scheme,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	"github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/apis/stack/v1beta1"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/pkg/resourceutil"
@@ -25,13 +26,13 @@ type Mutator struct {
 	scheme *runtime.Scheme
 }
 
-func (m Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 	builder.
 		Owns(&authcomponentsv1beta1.Auth{}).
 		Owns(&corev1.Namespace{})
 }
 
-func (m Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
+func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
 	actual.Progress()
 
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
@@ -39,6 +40,9 @@ func (m Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resul
 	}
 	if err := m.reconcileAuth(ctx, actual); err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling Auth")
+	}
+	if err := m.reconcileLedger(ctx, actual); err != nil {
+		return nil, pkgError.Wrap(err, "Reconciling Ledger")
 	}
 
 	actual.SetReady()
@@ -70,10 +74,11 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	log.FromContext(ctx).Info("Reconciling Auth")
 
 	if stack.Spec.Auth == nil {
+		log.FromContext(ctx).Info("Deleting Auth")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Auth{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: stack.Spec.Namespace,
-				Name:      stack.Spec.Auth.Name(stack),
+				Name:      stack.ServiceName("auth"),
 			},
 		})
 		switch {
@@ -88,11 +93,11 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
-		Name:      stack.Spec.Auth.Name(stack),
+		Name:      stack.ServiceName("auth"),
 	}, stack, func(ns *authcomponentsv1beta1.Auth) error {
-		var ingress *authcomponentsv1beta1.IngressSpec
+		var ingress *sharedtypes.IngressSpec
 		if stack.Spec.Ingress != nil {
-			ingress = &authcomponentsv1beta1.IngressSpec{
+			ingress = &sharedtypes.IngressSpec{
 				Path:        "/auth",
 				Host:        stack.Spec.Host,
 				Annotations: stack.Spec.Ingress.Annotations,
@@ -119,6 +124,75 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	}
 
 	log.FromContext(ctx).Info("Auth ready")
+	return nil
+}
+
+func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) error {
+	log.FromContext(ctx).Info("Reconciling Ledger")
+
+	if stack.Spec.Services.Ledger == nil {
+		log.FromContext(ctx).Info("Deleting Ledger")
+		err := r.client.Delete(ctx, &authcomponentsv1beta1.Ledger{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: stack.Spec.Namespace,
+				Name:      stack.ServiceName("ledger"),
+			},
+		})
+		switch {
+		case errors.IsNotFound(err):
+		case err != nil:
+			return pkgError.Wrap(err, "Deleting Ledger")
+		default:
+			stack.RemoveAuthStatus()
+		}
+		return nil
+	}
+
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      stack.ServiceName("ledger"),
+	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
+		var ingress *sharedtypes.IngressSpec
+		if stack.Spec.Ingress != nil {
+			ingress = &sharedtypes.IngressSpec{
+				Path:        "/ledger",
+				Host:        stack.Spec.Host,
+				Annotations: stack.Spec.Ingress.Annotations,
+			}
+		}
+		var authConfig *sharedtypes.AuthConfigSpec
+		if stack.Spec.Auth != nil {
+			authConfig = &sharedtypes.AuthConfigSpec{
+				OAuth2: &sharedtypes.OAuth2ConfigSpec{
+					IntrospectUrl: fmt.Sprintf("http://%s.%s.svc.cluster.local", stack.ServiceName("auth"), stack.Spec.Namespace),
+					Audiences: []string{
+						fmt.Sprintf("%s://%s", stack.Spec.Scheme, stack.Spec.Host),
+					},
+					UseScopes: true,
+				},
+			}
+		}
+		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
+			Ingress:    ingress,
+			Debug:      stack.Spec.Services.Ledger.Debug,
+			Redis:      stack.Spec.Services.Ledger.Redis,
+			Postgres:   stack.Spec.Services.Ledger.Postgres,
+			Auth:       authConfig,
+			Monitoring: stack.Spec.Monitoring,
+			Image:      stack.Spec.Services.Ledger.Image,
+			Collector:  stack.Spec.Collector,
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetLedgerCreated()
+	}
+
+	log.FromContext(ctx).Info("Ledger ready")
 	return nil
 }
 

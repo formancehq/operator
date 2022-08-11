@@ -90,6 +90,17 @@ spec:
                 - postgres
                 - signingKey
                 type: object
+              collector:
+                properties:
+                  enabled:
+                    type: boolean
+                  kind:
+                    type: string
+                  topicMapping:
+                    additionalProperties:
+                      type: string
+                    type: object
+                type: object
               debug:
                 type: boolean
               host:
@@ -245,22 +256,41 @@ spec:
                     type: object
                   ledger:
                     properties:
-                      databases:
-                        items:
-                          properties:
-                            type:
-                              type: string
-                            url:
-                              type: string
-                          type: object
-                        type: array
-                      enabled:
+                      debug:
                         type: boolean
-                      name:
+                      image:
                         type: string
-                      port:
-                        default: 80
-                        type: integer
+                      postgres:
+                        properties:
+                          createDatabase:
+                            type: boolean
+                          database:
+                            type: string
+                          host:
+                            type: string
+                          password:
+                            type: string
+                          port:
+                            type: integer
+                          username:
+                            type: string
+                        required:
+                        - createDatabase
+                        - database
+                        - host
+                        - password
+                        - port
+                        - username
+                        type: object
+                      redis:
+                        properties:
+                          tls:
+                            type: boolean
+                          uri:
+                            type: string
+                        required:
+                        - uri
+                        type: object
                       scaling:
                         properties:
                           cpuLimit:
@@ -272,6 +302,8 @@ spec:
                           minReplica:
                             type: integer
                         type: object
+                    required:
+                    - postgres
                     type: object
                   payments:
                     properties:
