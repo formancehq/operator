@@ -19,11 +19,13 @@ package auth
 import (
 	"context"
 
+	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/containerutil"
 	"github.com/numary/formance-operator/pkg/envutil"
 	"github.com/numary/formance-operator/pkg/probeutil"
 	"github.com/numary/formance-operator/pkg/resourceutil"
+	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -38,9 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	pkgError "github.com/pkg/errors"
 )
 
 const (

@@ -19,12 +19,11 @@ package components
 import (
 	"context"
 
+	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 )
 
 // PaymentsReconciler reconciles a Payments object

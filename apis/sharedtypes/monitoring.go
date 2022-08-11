@@ -1,11 +1,11 @@
-//+kubebuilder:object:generate=true
+// +kubebuilder:object:generate=true
 package sharedtypes
 
 import (
 	"fmt"
 
 	"github.com/numary/formance-operator/pkg/envutil"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 type MonitoringSpec struct {

@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	"github.com/numary/formance-operator/apis/stack/v1beta1"
 	"github.com/numary/formance-operator/pkg/resourceutil"
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -34,8 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	"github.com/numary/formance-operator/apis/stack/v1beta1"
 )
 
 // StackReconciler reconciles a Stack object
