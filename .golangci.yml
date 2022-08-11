@@ -24,7 +24,7 @@ linters:
     - unused      #Default linter
     - varcheck    #Default linter
     - gofmt
-    - gci
+#    - gci
     - goimports
 
 run:
