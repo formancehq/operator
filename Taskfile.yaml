@@ -17,3 +17,8 @@ includes:
   operator:
     taskfile: ./tasks/operator.yaml
     dir: .
+
+tasks:
+  tests:
+    cmds:
+      - make test
