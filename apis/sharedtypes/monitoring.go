@@ -42,7 +42,7 @@ func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
 		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER", "otlp"),
 		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_INSECURE", fmt.Sprintf("%t", in.Insecure)),
 		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_MODE", in.Mode),
-		envutil.EnvWithPrefix(prefix, "PORT", fmt.Sprintf("%d", in.Port)),
+		envutil.Env("PORT", fmt.Sprintf("%d", in.Port)),
 	}
 	switch {
 	case in.Endpoint.Value != "":

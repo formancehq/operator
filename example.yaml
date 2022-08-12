@@ -65,6 +65,11 @@ spec:
     kafka:
       brokers:
       - redpanda.default.svc.cluster.local:9092
+    topicMapping:
+      COMMITTED_TRANSACTIONS: ledger
+      SAVED_METADATA: ledger
+      UPDATED_MAPPING: ledger
+      REVERTED_TRANSACTION: ledger
   services:
     ledger:
       postgres:
