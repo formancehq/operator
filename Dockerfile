@@ -11,11 +11,7 @@ COPY go.sum go.sum
 RUN go mod download
 
 # Copy the go source
-COPY main.go main.go
-COPY apis/ apis/
-COPY controllers/ controllers/
-COPY pkg/ pkg/
-COPY internal/ internal/
+COPY . .
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o manager main.go
