@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/internal"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -52,8 +53,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = authcomponentsv1beta1.AddToScheme(scheme.Scheme)
+	err = componentsv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+	Expect(authcomponentsv1beta1.AddToScheme(scheme.Scheme)).To(BeNil())
 
 	//+kubebuilder:scaffold:scheme
 
