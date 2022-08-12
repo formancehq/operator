@@ -41,7 +41,6 @@ type ClientSpec struct {
 }
 
 const (
-	ConditionTypeClientProgressing  = "Progressing"
 	ConditionTypeClientCreated      = "ClientCreated"
 	ConditionTypeClientUpdated      = "ClientUpdated"
 	ConditionTypeScopesSynchronized = "ScopesSynchronized"
@@ -50,7 +49,6 @@ const (
 // ClientStatus defines the observed state of Client
 type ClientStatus struct {
 	Status       `json:",inline"`
-	Ready        bool   `json:"ready"`
 	AuthServerID string `json:"authServerID,omitempty"`
 	// +optional
 	Scopes map[string]string `json:"scopes"`
@@ -69,8 +67,8 @@ type Client struct {
 	Status ClientStatus `json:"status,omitempty"`
 }
 
-func (in *Client) GetConditions() []Condition {
-	return in.Status.GetConditions()
+func (in *Client) GetConditions() *Conditions {
+	return &in.Status.Conditions
 }
 
 func (in *Client) AuthServerReference() string {
@@ -121,26 +119,6 @@ func (in *Client) Match(client *authclient.Client) bool {
 	}
 
 	return true
-}
-
-func (in *Client) Progress() {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeClientProgressing,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-	in.Status.Ready = false
-}
-
-func (in *Client) StopProgression() {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeClientProgressing,
-		Status:             metav1.ConditionFalse,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-	in.Status.Ready = true
 }
 
 func (in *Client) SetClientCreated(id string) {

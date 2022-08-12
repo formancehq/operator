@@ -25,10 +25,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	ConditionTypeScopesProgressing = "Progressing"
-)
-
 // ScopeSpec defines the desired state of Scope
 type ScopeSpec struct {
 	Label string `json:"label"`
@@ -63,30 +59,12 @@ type Scope struct {
 	Status ScopeStatus `json:"status,omitempty"`
 }
 
-func (in *Scope) GetConditions() []Condition {
-	return in.Status.Conditions
+func (in *Scope) GetConditions() *Conditions {
+	return &in.Status.Conditions
 }
 
 func (s *Scope) AuthServerReference() string {
 	return s.Spec.AuthServerReference
-}
-
-func (s *Scope) Progress() {
-	s.Status.SetCondition(Condition{
-		Type:               ConditionTypeScopesProgressing,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: s.Generation,
-	})
-}
-
-func (s *Scope) StopProgression() {
-	s.Status.SetCondition(Condition{
-		Type:               ConditionTypeScopesProgressing,
-		Status:             metav1.ConditionFalse,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: s.Generation,
-	})
 }
 
 func (s *Scope) IsInTransient(authScope *authclient.Scope) bool {

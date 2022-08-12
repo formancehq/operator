@@ -2,6 +2,7 @@ package benthos
 
 import (
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -34,10 +35,10 @@ var _ = Describe("Server controller", func() {
 				},
 			}
 			Expect(nsClient.Create(ctx, server)).To(BeNil())
-			Eventually(ConditionStatus(nsClient, server, ConditionTypeServerReady)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, server, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a deployment", func() {
-			Eventually(ConditionStatus(nsClient, server, ConditionTypeServerDeploymentCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, server, ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 			deployment := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      server.Name,
@@ -49,7 +50,7 @@ var _ = Describe("Server controller", func() {
 			Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(server)))
 		})
 		It("Should create a service", func() {
-			Eventually(ConditionStatus(nsClient, server, ConditionTypeServerServiceCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, server, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 			service := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      server.Name,

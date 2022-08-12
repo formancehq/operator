@@ -18,15 +18,7 @@ package v1beta1
 
 import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
-	"github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	ConditionTypeServerProgressing       = "Progressing"
-	ConditionTypeServerDeploymentCreated = "DeploymentCreated"
-	ConditionTypeServerServiceCreated    = "ServiceCreated"
-	ConditionTypeServerReady             = "Ready"
 )
 
 // ServerSpec defines the desired state of Server
@@ -38,7 +30,6 @@ type ServerSpec struct {
 // ServerStatus defines the observed state of Server
 type ServerStatus struct {
 	Status `json:",inline"`
-	Ready  bool `json:"ready"`
 }
 
 //+kubebuilder:object:root=true
@@ -53,77 +44,8 @@ type Server struct {
 	Status ServerStatus `json:"status,omitempty"`
 }
 
-func (in *Server) GetConditions() []Condition {
-	return in.Status.Conditions
-}
-
-func (in *Server) Progress() {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeServerProgressing,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeServerReady,
-		Status:             metav1.ConditionFalse,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-	in.Status.Ready = false
-}
-
-func (in *Server) removeCondition(v string) {
-	in.Status.Conditions = collectionutil.Filter(in.Status.Conditions, func(stack Condition) bool {
-		return stack.Type != v
-	})
-}
-
-func (in *Server) SetReady() {
-	in.removeCondition(ConditionTypeServerProgressing)
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeServerReady,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-	in.Status.Ready = true
-}
-
-func (a *Server) SetDeploymentCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServerDeploymentCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Server) SetDeploymentFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServerDeploymentCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Server) SetServiceCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServerServiceCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Server) SetServiceFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServerServiceCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
+func (in *Server) GetConditions() *Conditions {
+	return &in.Status.Conditions
 }
 
 //+kubebuilder:object:root=true

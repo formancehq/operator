@@ -4,16 +4,15 @@ import (
 	"context"
 
 	"github.com/numary/formance-operator/apis/sharedtypes"
-	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ConditionStatus(c client.Client, object internal.Object, conditionType string) func() v1.ConditionStatus {
+func ConditionStatus(c client.Client, object sharedtypes.Object, conditionType string) func() v1.ConditionStatus {
 	return func() v1.ConditionStatus {
-		c := Condition(c, object, conditionType)()
+		c := GetCondition(c, object, conditionType)()
 		if c == nil {
 			return v1.ConditionUnknown
 		}
@@ -21,13 +20,13 @@ func ConditionStatus(c client.Client, object internal.Object, conditionType stri
 	}
 }
 
-func Condition(c client.Client, object internal.Object, conditionType string) func() *sharedtypes.Condition {
+func GetCondition(c client.Client, object sharedtypes.Object, conditionType string) func() *sharedtypes.Condition {
 	return func() *sharedtypes.Condition {
 		err := c.Get(context.Background(), client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil
 		}
-		return First(object.GetConditions(), func(t sharedtypes.Condition) bool {
+		return First(*object.GetConditions(), func(t sharedtypes.Condition) bool {
 			return t.Type == conditionType
 		})
 	}

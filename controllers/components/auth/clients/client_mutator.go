@@ -5,6 +5,7 @@ import (
 
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
 	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/collectionutil"
@@ -35,7 +36,7 @@ func (c Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
 func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1beta1.Client) (*ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	actualK8SClient.Progress()
+	SetProgressing(actualK8SClient)
 
 	api := r.factory.Create(actualK8SClient)
 
@@ -165,7 +166,7 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 	}
 
 	if !needRequeue {
-		actualK8SClient.StopProgression()
+		SetReady(actualK8SClient)
 	}
 
 	return &ctrl.Result{

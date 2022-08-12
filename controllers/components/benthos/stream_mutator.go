@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,13 +26,13 @@ type StreamMutator struct {
 
 func (s *StreamMutator) SetupWithBuilder(builder *ctrl.Builder) {}
 
-func (s *StreamMutator) Mutate(ctx context.Context, t *Stream) (*ctrl.Result, error) {
+func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Result, error) {
 
-	t.SetProgressing()
+	SetProgressing(stream)
 
 	req, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("http://%s.%s.svc.cluster.local:4195/streams/%s", t.Spec.Reference, t.Namespace, t.Name),
-		bytes.NewBufferString(t.Spec.Config))
+		fmt.Sprintf("http://%s.%s.svc.cluster.local:4195/streams/%s", stream.Spec.Reference, stream.Namespace, stream.Name),
+		bytes.NewBufferString(stream.Spec.Config))
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func (s *StreamMutator) Mutate(ctx context.Context, t *Stream) (*ctrl.Result, er
 		}
 		return nil, fmt.Errorf("unexpected status code %d: %s", rsp.StatusCode, string(data))
 	}
-	t.SetReady()
+	SetReady(stream)
 
 	return nil, nil
 }

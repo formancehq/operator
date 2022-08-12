@@ -8,24 +8,24 @@ import (
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type Object interface {
-	client.Object
-	GetConditions() []sharedtypes.Condition
-}
+const (
+	ConditionError = "Error"
+)
 
-type Mutator[T Object] interface {
+type Mutator[T sharedtypes.Object] interface {
 	SetupWithBuilder(builder *ctrl.Builder)
 	Mutate(ctx context.Context, t T) (*ctrl.Result, error)
 }
 
 // Reconciler reconciles a Stack object
-type Reconciler[T Object] struct {
+type Reconciler[T sharedtypes.Object] struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	Mutator Mutator[T]
@@ -51,13 +51,16 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	result, reconcileError := r.Mutator.Mutate(ctx, updated)
 	if reconcileError != nil {
+		sharedtypes.SetCondition(actual, ConditionError, metav1.ConditionTrue, reconcileError.Error())
 		log.FromContext(ctx).Error(reconcileError, "Reconciling")
+	} else {
+		actual.GetConditions().Remove(ConditionError)
 	}
 
-	conditionsChanged := len(actual.GetConditions()) != len(updated.GetConditions())
+	conditionsChanged := len(*actual.GetConditions()) != len(*updated.GetConditions())
 	if !conditionsChanged {
-		for _, condition := range actual.GetConditions() {
-			v := First(updated.GetConditions(), func(c sharedtypes.Condition) bool {
+		for _, condition := range *actual.GetConditions() {
+			v := First(*updated.GetConditions(), func(c sharedtypes.Condition) bool {
 				return c.Type == condition.Type
 			})
 			if v == nil {
@@ -101,7 +104,7 @@ func (r *Reconciler[T]) SetupWithManager(mgr ctrl.Manager) error {
 	return builder.Complete(r)
 }
 
-func NewReconciler[T Object](client client.Client, scheme *runtime.Scheme, mutator Mutator[T]) *Reconciler[T] {
+func NewReconciler[T sharedtypes.Object](client client.Client, scheme *runtime.Scheme, mutator Mutator[T]) *Reconciler[T] {
 	return &Reconciler[T]{
 		Client:  client,
 		Scheme:  scheme,

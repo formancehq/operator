@@ -1,6 +1,7 @@
 package sharedtypes
 
 import (
+	"github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -39,4 +40,58 @@ type Condition struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxLength=32768
 	Message string `json:"message" protobuf:"bytes,6,opt,name=message"`
+}
+
+func SetCondition(object Object, conditionType string, status metav1.ConditionStatus, msg ...string) {
+	if len(msg) > 1 {
+		panic("Only one message can be passed")
+	}
+	object.GetConditions().Set(Condition{
+		Type:               conditionType,
+		Status:             status,
+		ObservedGeneration: object.GetGeneration(),
+		LastTransitionTime: metav1.Now(),
+		Message: func() string {
+			if len(msg) > 0 {
+				return msg[0]
+			}
+			return ""
+		}(),
+	})
+}
+
+type Conditions []Condition
+
+func (conditions *Conditions) Set(condition Condition) {
+	if conditions == nil {
+		*conditions = Conditions{}
+	}
+	for i, c := range *conditions {
+		if c.Type == condition.Type {
+			(*conditions)[i] = condition
+			return
+		}
+	}
+	*conditions = append(*conditions, condition)
+}
+
+func (c *Conditions) Remove(t string) {
+	*c = collectionutil.Filter(*c, func(c Condition) bool {
+		return c.Type != t
+	})
+}
+
+const (
+	ConditionTypeReady       = "Ready"
+	ConditionTypeProgressing = "Progressing"
+)
+
+func SetReady(object Object, msg ...string) {
+	object.GetConditions().Remove(ConditionTypeProgressing)
+	SetCondition(object, ConditionTypeReady, metav1.ConditionTrue, msg...)
+}
+
+func SetProgressing(object Object, msg ...string) {
+	object.GetConditions().Remove(ConditionTypeReady)
+	SetCondition(object, ConditionTypeProgressing, metav1.ConditionTrue, msg...)
 }

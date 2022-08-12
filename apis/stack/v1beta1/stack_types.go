@@ -68,22 +68,7 @@ type ServicesSpec struct {
 	Search   *SearchSpec   `json:"search,omitempty"`
 }
 
-// StackProgress is a word summarizing the state of a Stack resource.
-type StackProgress string
-
 const (
-	// StackProgressPending is Stack's status when it's waiting for the datacenter to become ready.
-	StackProgressPending = StackProgress("Pending")
-	// StackProgressDeploying is Stack's status when it's waiting for the Stack instance and its associated service
-	// to become ready.
-	StackProgressDeploying = StackProgress("Deploying")
-	// StackProgressRunning is Stack's status when Stack is up and running.
-	StackProgressRunning = StackProgress("Running")
-)
-
-const (
-	ConditionTypeStackProgressing      = "Progressing"
-	ConditionTypeStackReady            = "Ready"
 	ConditionTypeStackNamespaceCreated = "NamespaceCreated"
 	ConditionTypeStackAuthCreated      = "AuthCreated"
 	ConditionTypeStackLedgerCreated    = "LedgerCreated"
@@ -92,9 +77,6 @@ const (
 // StackStatus defines the observed state of Stack
 type StackStatus struct {
 	Status `json:",inline"`
-
-	// +optional
-	DeployedServices []string `json:"deployedServices,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -113,8 +95,8 @@ type Stack struct {
 	Status StackStatus `json:"status,omitempty"`
 }
 
-func (in *Stack) GetConditions() []Condition {
-	return in.Status.Conditions
+func (in *Stack) GetConditions() *Conditions {
+	return &in.Status.Conditions
 }
 
 func (in *Stack) Scheme() string {
@@ -124,40 +106,8 @@ func (in *Stack) Scheme() string {
 	return "https"
 }
 
-func (in *Stack) Progress() {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStackProgressing,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStackReady,
-		Status:             metav1.ConditionFalse,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-}
-
-func (in *Stack) IsReady() bool {
-	condition := in.Status.GetCondition(ConditionTypeStackReady)
-	if condition == nil {
-		return false
-	}
-	return in != nil && condition.Status == metav1.ConditionTrue
-}
-
-func (in *Stack) SetReady() {
-	in.Status.RemoveCondition(ConditionTypeStackProgressing)
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStackReady,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
-}
-
 func (in *Stack) SetNamespaceCreated() {
+	SetCondition(in, ConditionTypeDeploymentReady, metav1.ConditionTrue)
 	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStackNamespaceCreated,
 		Status:             metav1.ConditionTrue,

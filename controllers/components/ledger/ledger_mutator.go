@@ -22,6 +22,7 @@ import (
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/pkg/envutil"
@@ -83,50 +84,50 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 		if err != nil && !errors.IsNotFound(err) {
 			return nil, pkgError.Wrap(err, "Deleting ingress")
 		}
-		ledger.RemoveIngressStatus()
+		RemoveIngressCondition(ledger)
 	}
 
-	ledger.SetReady()
+	SetReady(ledger)
 
 	return nil, nil
 }
 
-func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.Ledger) (*appsv1.Deployment, error) {
+func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1beta1.Ledger) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.Create("app.kubernetes.io/name", "ledger")
 
 	env := []corev1.EnvVar{
 		envutil.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
 		envutil.Env("NUMARY_STORAGE_DRIVER", "postgres"),
-		envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", m.Spec.Postgres.URI()),
+		envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", ledger.Spec.Postgres.URI()),
 	}
-	if m.Spec.Debug {
+	if ledger.Spec.Debug {
 		env = append(env, envutil.Env("NUMARY_DEBUG", "true"))
 	}
-	if m.Spec.Redis != nil {
+	if ledger.Spec.Redis != nil {
 		env = append(env, envutil.Env("NUMARY_REDIS_ENABLED", "true"))
-		env = append(env, envutil.Env("NUMARY_REDIS_ADDR", m.Spec.Redis.Uri))
-		if !m.Spec.Redis.TLS {
+		env = append(env, envutil.Env("NUMARY_REDIS_ADDR", ledger.Spec.Redis.Uri))
+		if !ledger.Spec.Redis.TLS {
 			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "false"))
 		} else {
 			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "true"))
 		}
 	}
-	if m.Spec.Auth != nil {
-		env = append(env, m.Spec.Auth.Env("NUMARY_")...)
+	if ledger.Spec.Auth != nil {
+		env = append(env, ledger.Spec.Auth.Env("NUMARY_")...)
 	}
-	if m.Spec.Monitoring != nil {
-		env = append(env, m.Spec.Monitoring.Env("NUMARY_")...)
+	if ledger.Spec.Monitoring != nil {
+		env = append(env, ledger.Spec.Monitoring.Env("NUMARY_")...)
 	}
-	if m.Spec.Collector != nil {
-		env = append(env, m.Spec.Collector.Env("NUMARY_")...)
+	if ledger.Spec.Collector != nil {
+		env = append(env, ledger.Spec.Collector.Env("NUMARY_")...)
 	}
 
-	image := m.Spec.Image
+	image := ledger.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
 
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(m), m, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -149,7 +150,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.
 				},
 			},
 		}
-		if m.Spec.Postgres.CreateDatabase {
+		if ledger.Spec.Postgres.CreateDatabase {
 			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
 				Name:            "init-create-db-user",
 				Image:           "postgres:13",
@@ -158,14 +159,14 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.
 					"sh",
 					"-c",
 					fmt.Sprintf(`psql -Atx %s -c "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 && echo "Base already exists" || psql -Atx %s -c "CREATE DATABASE \"%s\""`,
-						m.Spec.Postgres.URIWithoutDatabase(),
-						m.Spec.Postgres.Database,
-						m.Spec.Postgres.URIWithoutDatabase(),
-						m.Spec.Postgres.Database,
+						ledger.Spec.Postgres.URIWithoutDatabase(),
+						ledger.Spec.Postgres.Database,
+						ledger.Spec.Postgres.URIWithoutDatabase(),
+						ledger.Spec.Postgres.Database,
 					),
 				},
 				Env: []corev1.EnvVar{
-					envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", m.Spec.Postgres.URI()),
+					envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", ledger.Spec.Postgres.URI()),
 				},
 			}}
 		}
@@ -173,10 +174,10 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		m.SetDeploymentFailure(err)
+		SetDeploymentError(ledger, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		m.SetDeploymentCreated()
+		SetDeploymentReady(ledger)
 	}
 	return ret, err
 }
@@ -197,27 +198,27 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		auth.SetServiceFailure(err)
+		SetServiceError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetServiceCreated()
+		SetServiceReady(auth)
 	}
 	return ret, err
 }
 
-func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.Ledger, service *corev1.Service) (*networkingv1.Ingress, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(ingress *networkingv1.Ingress) error {
+func (r *Mutator) reconcileIngress(ctx context.Context, ledger *componentsv1beta1.Ledger, service *corev1.Service) (*networkingv1.Ingress, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = auth.Spec.Ingress.Annotations
+		ingress.ObjectMeta.Annotations = ledger.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: auth.Spec.Ingress.Host,
+					Host: ledger.Spec.Ingress.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path:     auth.Spec.Ingress.Path,
+									Path:     ledger.Spec.Ingress.Path,
 									PathType: &pathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
@@ -238,10 +239,10 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		auth.SetIngressFailure(err)
+		SetIngressError(ledger, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetIngressCreated()
+		SetIngressReady(ledger)
 	}
 	return ret, nil
 }

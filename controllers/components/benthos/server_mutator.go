@@ -4,6 +4,7 @@ import (
 	"context"
 
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/pkg/resourceutil"
@@ -40,7 +41,7 @@ func (m *ServerMutator) SetupWithBuilder(builder *ctrl.Builder) {
 
 func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Result, error) {
 
-	server.Progress()
+	SetProgressing(server)
 
 	deployment, err := m.reconcileDeployment(ctx, server)
 	if err != nil {
@@ -52,20 +53,19 @@ func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Resul
 		return nil, pkgError.Wrap(err, "Reconciling service")
 	}
 
-	server.SetReady()
+	SetReady(server)
 
 	return nil, nil
 }
 
 func (r *ServerMutator) reconcileDeployment(ctx context.Context, m *Server) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "benthos")
-
-	image := m.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
-
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, client.ObjectKeyFromObject(m), m, func(deployment *appsv1.Deployment) error {
+		matchLabels := collectionutil.Create("app.kubernetes.io/name", "benthos")
+
+		image := m.Spec.Image
+		if image == "" {
+			image = defaultImage
+		}
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -92,10 +92,10 @@ func (r *ServerMutator) reconcileDeployment(ctx context.Context, m *Server) (*ap
 	})
 	switch {
 	case err != nil:
-		m.SetDeploymentFailure(err)
+		SetDeploymentError(m, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		m.SetDeploymentCreated()
+		SetDeploymentReady(m)
 	}
 	return ret, err
 }
@@ -116,10 +116,10 @@ func (r *ServerMutator) reconcileService(ctx context.Context, srv *Server, deplo
 	})
 	switch {
 	case err != nil:
-		srv.SetServiceFailure(err)
+		SetServiceError(srv, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		srv.SetServiceCreated()
+		SetServiceReady(srv)
 	}
 	return ret, err
 }

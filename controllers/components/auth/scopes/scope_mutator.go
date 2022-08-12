@@ -5,6 +5,7 @@ import (
 
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
 	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/collectionutil"
@@ -46,7 +47,7 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 		return nil, err
 	}
 
-	actualK8SScope.Progress()
+	SetProgressing(actualK8SScope)
 
 	// Assert finalizer is properly installed on the object
 	if err := scopeFinalizer.AssertIsInstalled(ctx, s.client, actualK8SScope); err != nil {
@@ -133,7 +134,7 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 	}
 
 	if !needRequeue {
-		actualK8SScope.StopProgression()
+		SetReady(actualK8SScope)
 	}
 
 	return &ctrl.Result{

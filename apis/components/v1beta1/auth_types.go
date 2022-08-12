@@ -44,13 +44,6 @@ type AuthSpec struct {
 	Monitoring *MonitoringSpec `json:"monitoring"`
 }
 
-const (
-	ConditionTypeDeploymentCreated = "DeploymentCreated"
-	ConditionTypeServiceCreated    = "ServiceCreated"
-	ConditionTypeIngressCreated    = "IngressCreated"
-	ConditionTypeReady             = "Ready"
-)
-
 // AuthStatus defines the observed state of Auth
 type AuthStatus struct {
 	Status `json:",inline"`
@@ -68,75 +61,8 @@ type Auth struct {
 	Status AuthStatus `json:"status,omitempty"`
 }
 
-func (a *Auth) GetConditions() []Condition {
-	return a.Status.Conditions
-}
-
-func (a *Auth) SetReady() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeReady,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Auth) SetDeploymentCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeDeploymentCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Auth) SetDeploymentFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeDeploymentCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Auth) SetServiceCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServiceCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Auth) SetServiceFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServiceCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Auth) SetIngressCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeIngressCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Auth) SetIngressFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeIngressCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (in *Auth) RemoveIngressStatus() {
-	in.Status.RemoveCondition(ConditionTypeIngressCreated)
+func (a *Auth) GetConditions() *Conditions {
+	return &a.Status.Conditions
 }
 
 //+kubebuilder:object:root=true

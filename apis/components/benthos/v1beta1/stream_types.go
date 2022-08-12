@@ -21,11 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	ConditionTypeStreamProgressing = "Progressing"
-	ConditionTypeStreamReady       = "Ready"
-)
-
 // StreamSpec defines the desired state of Stream
 type StreamSpec struct {
 	Reference string `json:"ref"`
@@ -49,28 +44,8 @@ type Stream struct {
 	Status StreamStatus `json:"status,omitempty"`
 }
 
-func (in *Stream) GetConditions() []Condition {
-	return in.Status.Conditions
-}
-
-func (in *Stream) SetProgressing() {
-	in.Status.RemoveCondition(ConditionTypeStreamReady)
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStreamProgressing,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: in.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (in *Stream) SetReady() {
-	in.Status.RemoveCondition(ConditionTypeStreamProgressing)
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStreamReady,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: in.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
+func (in *Stream) GetConditions() *Conditions {
+	return &in.Status.Conditions
 }
 
 //+kubebuilder:object:root=true

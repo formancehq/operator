@@ -3,7 +3,7 @@ package stack
 import (
 	"github.com/google/uuid"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/apis/stack/v1beta1"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
@@ -30,7 +30,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 			}
 
 			Expect(k8sClient.Create(ctx, stack)).To(Succeed())
-			Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackReady)).
+			Eventually(ConditionStatus(k8sClient, stack, ConditionTypeReady)).
 				Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a new namespace", func() {
@@ -42,7 +42,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 			BeforeEach(func() {
 				stack.Spec.Services.Ledger = &LedgerSpec{
 					Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-						PostgresConfig: sharedtypes.PostgresConfig{
+						PostgresConfig: PostgresConfig{
 							Database: "XXX",
 							Port:     1234,
 							Host:     "XXX",
@@ -68,7 +68,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 		Context("With auth configuration", func() {
 			BeforeEach(func() {
 				stack.Spec.Auth = &AuthSpec{
-					PostgresConfig: sharedtypes.PostgresConfig{
+					PostgresConfig: PostgresConfig{
 						Database: "test",
 						Port:     5432,
 						Host:     "postgres",

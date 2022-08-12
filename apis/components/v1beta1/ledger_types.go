@@ -68,75 +68,8 @@ type Ledger struct {
 	Status LedgerStatus `json:"status,omitempty"`
 }
 
-func (a *Ledger) GetConditions() []Condition {
-	return a.Status.Conditions
-}
-
-func (a *Ledger) SetReady() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeReady,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Ledger) SetDeploymentCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeDeploymentCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Ledger) SetDeploymentFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeDeploymentCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Ledger) SetServiceCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServiceCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Ledger) SetServiceFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeServiceCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Ledger) SetIngressCreated() {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeIngressCreated,
-		Status:             metav1.ConditionTrue,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (a *Ledger) SetIngressFailure(err error) {
-	a.Status.SetCondition(Condition{
-		Type:               ConditionTypeIngressCreated,
-		Status:             metav1.ConditionFalse,
-		ObservedGeneration: a.Generation,
-		LastTransitionTime: metav1.Now(),
-	})
-}
-
-func (in *Ledger) RemoveIngressStatus() {
-	in.Status.RemoveCondition(ConditionTypeIngressCreated)
+func (a *Ledger) GetConditions() *Conditions {
+	return &a.Status.Conditions
 }
 
 //+kubebuilder:object:root=true

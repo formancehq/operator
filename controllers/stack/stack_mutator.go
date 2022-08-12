@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/apis/stack/v1beta1"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/pkg/resourceutil"
@@ -38,7 +38,7 @@ func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 }
 
 func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
-	actual.Progress()
+	SetProgressing(actual)
 
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling namespace")
@@ -50,7 +50,7 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 		return nil, pkgError.Wrap(err, "Reconciling Ledger")
 	}
 
-	actual.SetReady()
+	SetReady(actual)
 	return nil, nil
 }
 
@@ -100,9 +100,9 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
 	}, stack, func(ns *authcomponentsv1beta1.Auth) error {
-		var ingress *sharedtypes.IngressSpec
+		var ingress *IngressSpec
 		if stack.Spec.Ingress != nil {
-			ingress = &sharedtypes.IngressSpec{
+			ingress = &IngressSpec{
 				Path:        "/auth",
 				Host:        stack.Spec.Host,
 				Annotations: stack.Spec.Ingress.Annotations,
@@ -160,15 +160,15 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("ledger"),
 	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
-		var ingress *sharedtypes.IngressSpec
+		var ingress *IngressSpec
 		if stack.Spec.Ingress != nil {
-			ingress = &sharedtypes.IngressSpec{
+			ingress = &IngressSpec{
 				Path:        "/ledger",
 				Host:        stack.Spec.Host,
 				Annotations: stack.Spec.Ingress.Annotations,
 			}
 		}
-		var authConfig *sharedtypes.AuthConfigSpec
+		var authConfig *AuthConfigSpec
 		// TODO: Reconfigure properly when the gateway will be in place
 		//if stack.Spec.Auth != nil {
 		//	authConfig = &sharedtypes.AuthConfigSpec{
