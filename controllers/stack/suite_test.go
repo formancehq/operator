@@ -23,6 +23,7 @@ import (
 
 	"github.com/numary/formance-operator/apis/components/v1beta1"
 	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
+	"github.com/numary/formance-operator/internal"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -86,7 +87,8 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	err = NewReconciler(mgr.GetClient(), mgr.GetScheme()).SetupWithManager(mgr)
+	mutator := NewMutator(mgr.GetClient(), mgr.GetScheme())
+	err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), mutator).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {

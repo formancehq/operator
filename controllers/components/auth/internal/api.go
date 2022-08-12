@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/formance-operator/pkg/collectionutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -442,7 +442,10 @@ func (fn ApiFactoryFn) Create(referencer AuthServerReferencer) API {
 var DefaultApiFactory = ApiFactoryFn(func(referencer AuthServerReferencer) API {
 	configuration := authclient.NewConfiguration()
 	configuration.Servers = []authclient.ServerConfiguration{{
-		URL: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080", referencer.AuthServerReference(), referencer.GetNamespace()),
+		URL: fmt.Sprintf("http://%s-%s.%s.svc.cluster.local:8080",
+			referencer.GetNamespace(),
+			referencer.AuthServerReference(),
+			referencer.GetNamespace()),
 	}}
 	configuration.Debug = true
 	return NewDefaultServerApi(authclient.NewAPIClient(configuration))

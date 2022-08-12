@@ -26,7 +26,9 @@ import (
 	"github.com/numary/formance-operator/controllers/components/auth"
 	"github.com/numary/formance-operator/controllers/components/auth/clients"
 	"github.com/numary/formance-operator/controllers/components/auth/scopes"
+	"github.com/numary/formance-operator/controllers/components/ledger"
 	"github.com/numary/formance-operator/controllers/stack"
+	"github.com/numary/formance-operator/internal"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -98,27 +100,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&stack.StackReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	stackMutator := stack.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), stackMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")
 		os.Exit(1)
 	}
-	if err = (&auth.AuthReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	authMutator := auth.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), authMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Auth")
 		os.Exit(1)
 	}
-	//if err = (&componentscontrollers.LedgerReconciler{
-	//	Client: mgr.GetClient(),
-	//	Scheme: mgr.GetScheme(),
-	//}).SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Ledger")
-	//	os.Exit(1)
-	//}
+	ledgerMutator := ledger.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), ledgerMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Ledger")
+		os.Exit(1)
+	}
 	//if err = (&componentscontrollers.PaymentsReconciler{
 	//	Client: mgr.GetClient(),
 	//	Scheme: mgr.GetScheme(),
@@ -140,13 +136,14 @@ func main() {
 	//	setupLog.Error(err, "unable to create controller", "controller", "Control")
 	//	os.Exit(1)
 	//}
-	if err = clients.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clients.DefaultApiFactory).
+	clientMutator := clients.NewMutator(mgr.GetClient(), mgr.GetScheme(), clients.DefaultApiFactory)
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clientMutator).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Client")
 		os.Exit(1)
 	}
-	//
-	if err = scopes.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopes.DefaultApiFactory).
+	scopeMutator := scopes.NewMutator(mgr.GetClient(), mgr.GetScheme(), scopes.DefaultApiFactory)
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopeMutator).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Scope")
 		os.Exit(1)

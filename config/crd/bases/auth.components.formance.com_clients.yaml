@@ -107,6 +107,9 @@ spec:
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               ready:
                 type: boolean
               scopes:
@@ -114,7 +117,6 @@ spec:
                   type: string
                 type: object
             required:
-            - conditions
             - ready
             type: object
         type: object

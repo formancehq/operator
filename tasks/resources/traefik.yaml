@@ -27,3 +27,4 @@ tasks:
               - /auth
               - /dex
               - /jaeger
+              - /ledger

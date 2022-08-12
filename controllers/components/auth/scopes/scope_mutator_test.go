@@ -3,43 +3,23 @@ package scopes
 import (
 	"github.com/google/uuid"
 	"github.com/numary/auth/authclient"
-	authcomponentsbeta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func condition(object *authcomponentsbeta1.Scope, conditionType string) func() *authcomponentsbeta1.ConditionScope {
-	return func() *authcomponentsbeta1.ConditionScope {
-		err := nsClient.Get(ctx, client.ObjectKeyFromObject(object), object)
-		if err != nil {
-			return nil
-		}
-		return object.Condition(conditionType)
-	}
-}
-
-func conditionStatus(object *authcomponentsbeta1.Scope, conditionType string) func() metav1.ConditionStatus {
-	return func() metav1.ConditionStatus {
-		c := condition(object, conditionType)()
-		if c == nil {
-			return metav1.ConditionUnknown
-		}
-		return c.Status
-	}
-}
-
 var _ = Describe("Scope reconciler", func() {
-	newScope := func(transient ...string) *authcomponentsbeta1.Scope {
-		return authcomponentsbeta1.NewScope(uuid.NewString(), uuid.NewString(), transient...)
+	newScope := func(transient ...string) *Scope {
+		return NewScope(uuid.NewString(), uuid.NewString(), transient...)
 	}
 	When("Creating a new scope object", func() {
-		var firstScope *authcomponentsbeta1.Scope
+		var firstScope *Scope
 		BeforeEach(func() {
 			firstScope = newScope()
 			Expect(nsClient.Create(ctx, firstScope)).To(BeNil())
-			Eventually(conditionStatus(firstScope, authcomponentsbeta1.ConditionTypeScopesProgressing)).
+			Eventually(ConditionStatus[ScopeCondition](nsClient, firstScope, ConditionTypeScopesProgressing)).
 				Should(Equal(metav1.ConditionFalse))
 		})
 		It("Should create a new scope on auth server", func() {
@@ -71,11 +51,11 @@ var _ = Describe("Scope reconciler", func() {
 			})
 		})
 		Context("Then creating a new scope with the first as transient", func() {
-			var secondScope *authcomponentsbeta1.Scope
+			var secondScope *Scope
 			BeforeEach(func() {
 				secondScope = newScope(firstScope.Name)
 				Expect(nsClient.Create(ctx, secondScope)).To(BeNil())
-				Eventually(conditionStatus(secondScope, authcomponentsbeta1.ConditionTypeScopesProgressing)).
+				Eventually(ConditionStatus[ScopeCondition](nsClient, secondScope, ConditionTypeScopesProgressing)).
 					Should(Equal(metav1.ConditionFalse))
 			})
 			It("Should create scope with transient on auth server", func() {

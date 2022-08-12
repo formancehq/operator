@@ -23,7 +23,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/numary/formance-operator/apis/components/auth/v1beta1"
-	"github.com/numary/formance-operator/controllers/components/auth/internal"
+	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
+	"github.com/numary/formance-operator/internal"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -43,7 +44,7 @@ var (
 	ctx       context.Context
 	cancel    func()
 	nsClient  client.Client
-	api       *internal.InMemoryApi
+	api       *pkgInternal.InMemoryApi
 	cfg       *rest.Config
 	k8sClient client.Client
 	testEnv   *envtest.Environment
@@ -88,10 +89,11 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	api = internal.NewInMemoryAPI()
-	err = NewReconciler(mgr.GetClient(), mgr.GetScheme(), internal.ApiFactoryFn(func(internal.AuthServerReferencer) internal.API {
+	api = pkgInternal.NewInMemoryAPI()
+	mutator := NewMutator(mgr.GetClient(), mgr.GetScheme(), pkgInternal.ApiFactoryFn(func(referencer pkgInternal.AuthServerReferencer) pkgInternal.API {
 		return api
-	})).SetupWithManager(mgr)
+	}))
+	err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), mutator).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {

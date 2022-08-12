@@ -21,7 +21,7 @@ import (
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/pkg/collectionutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -50,25 +50,23 @@ type StackSpec struct {
 	Auth *AuthSpec `json:"auth,omitempty"`
 	// +optional
 	Ingress *IngressStack `json:"ingress"`
+	// +optional
+	Collector *sharedtypes.CollectorConfigSpec `json:"collector"`
 }
 
 type AuthSpec struct {
 	// +optional
 	Image               string                                                 `json:"image"`
-	PostgresConfig      authcomponentsv1beta1.PostgresConfig                   `json:"postgres"`
+	PostgresConfig      sharedtypes.PostgresConfig                             `json:"postgres"`
 	SigningKey          string                                                 `json:"signingKey"`
 	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 }
 
-func (s *AuthSpec) Name(stack *Stack) string {
-	return fmt.Sprintf("%s-auth", stack.Name)
-}
-
 type ServicesSpec struct {
-	Control  ControlSpec  `json:"control,omitempty"`
-	Ledger   LedgerSpec   `json:"ledger,omitempty"`
-	Payments PaymentsSpec `json:"payments,omitempty"`
-	Search   SearchSpec   `json:"search,omitempty"`
+	Control  *ControlSpec  `json:"control,omitempty"`
+	Ledger   *LedgerSpec   `json:"ledger,omitempty"`
+	Payments *PaymentsSpec `json:"payments,omitempty"`
+	Search   *SearchSpec   `json:"search,omitempty"`
 }
 
 // StackProgress is a word summarizing the state of a Stack resource.
@@ -84,22 +82,55 @@ const (
 	StackProgressRunning = StackProgress("Running")
 )
 
-type ConditionType string
-
 const (
-	ConditionTypeStackProgressing      ConditionType = "Progressing"
-	ConditionTypeStackReady            ConditionType = "Ready"
-	ConditionTypeStackNamespaceCreated ConditionType = "NamespaceCreated"
-	ConditionTypeStackAuthCreated      ConditionType = "AuthCreated"
+	ConditionTypeStackProgressing      = "Progressing"
+	ConditionTypeStackReady            = "Ready"
+	ConditionTypeStackNamespaceCreated = "NamespaceCreated"
+	ConditionTypeStackAuthCreated      = "AuthCreated"
+	ConditionTypeStackLedgerCreated    = "LedgerCreated"
 )
 
-type ConditionStack struct {
-	Type   ConditionType          `json:"type"`
-	Status metav1.ConditionStatus `json:"status"`
-
-	// LastTransitionTime is the last time the condition transited from one status to another.
+type StackCondition struct {
+	// type of condition in CamelCase or in foo.example.com/CamelCase.
+	// ---
+	// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+	// useful (see .node.status.conditions), the ability to deconflict is important.
+	// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
+	// +kubebuilder:validation:MaxLength=316
+	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
+	// status of the condition, one of True, False, Unknown.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=True;False;Unknown
+	Status metav1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status"`
+	// observedGeneration represents the .metadata.generation that the condition was set based upon.
+	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+	// with respect to the current state of the instance.
 	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
+	// lastTransitionTime is the last time the condition transitioned from one status to another.
+	// This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Format=date-time
+	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
+}
+
+func (in StackCondition) GetType() string {
+	return in.Type
+}
+
+func (in StackCondition) GetStatus() metav1.ConditionStatus {
+	return in.Status
+}
+
+func (in StackCondition) GetObservedGeneration() int64 {
+	return in.ObservedGeneration
 }
 
 // StackStatus defines the observed state of Stack
@@ -113,7 +144,7 @@ type StackStatus struct {
 	DeployedServices []string `json:"deployedServices,omitempty"`
 
 	// +optional
-	Conditions []ConditionStack `json:"conditions,omitempty"`
+	Conditions []StackCondition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -132,7 +163,11 @@ type Stack struct {
 	Status StackStatus `json:"status,omitempty"`
 }
 
-func (in *Stack) Condition(conditionType ConditionType) *ConditionStack {
+func (in *Stack) GetConditions() []StackCondition {
+	return in.Status.Conditions
+}
+
+func (in *Stack) Condition(conditionType string) *StackCondition {
 	if in != nil {
 		for _, condition := range in.Status.Conditions {
 			if condition.Type == conditionType {
@@ -143,7 +178,7 @@ func (in *Stack) Condition(conditionType ConditionType) *ConditionStack {
 	return nil
 }
 
-func (in *Stack) setCondition(condition ConditionStack) {
+func (in *Stack) setCondition(condition StackCondition) {
 	for i, c := range in.Status.Conditions {
 		if c.Type == condition.Type {
 			in.Status.Conditions[i] = condition
@@ -153,8 +188,8 @@ func (in *Stack) setCondition(condition ConditionStack) {
 	in.Status.Conditions = append(in.Status.Conditions, condition)
 }
 
-func (in *Stack) removeCondition(v ConditionType) {
-	in.Status.Conditions = Filter(in.Status.Conditions, func(stack ConditionStack) bool {
+func (in *Stack) removeCondition(v string) {
+	in.Status.Conditions = Filter(in.Status.Conditions, func(stack StackCondition) bool {
 		return stack.Type != v
 	})
 }
@@ -167,15 +202,17 @@ func (in *Stack) Scheme() string {
 }
 
 func (in *Stack) Progress() {
-	in.setCondition(ConditionStack{
+	in.setCondition(StackCondition{
 		Type:               ConditionTypeStackProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
-	in.setCondition(ConditionStack{
+	in.setCondition(StackCondition{
 		Type:               ConditionTypeStackReady,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 }
 
@@ -189,31 +226,47 @@ func (in *Stack) IsReady() bool {
 
 func (in *Stack) SetReady() {
 	in.removeCondition(ConditionTypeStackProgressing)
-	in.setCondition(ConditionStack{
+	in.setCondition(StackCondition{
 		Type:               ConditionTypeStackReady,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 }
 
 func (in *Stack) SetNamespaceCreated() {
-	in.setCondition(ConditionStack{
+	in.setCondition(StackCondition{
 		Type:               ConditionTypeStackNamespaceCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 }
 
 func (in *Stack) SetAuthCreated() {
-	in.setCondition(ConditionStack{
+	in.setCondition(StackCondition{
 		Type:               ConditionTypeStackAuthCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
+	})
+}
+
+func (in *Stack) SetLedgerCreated() {
+	in.setCondition(StackCondition{
+		Type:               ConditionTypeStackLedgerCreated,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 }
 
 func (in *Stack) RemoveAuthStatus() {
 	in.removeCondition(ConditionTypeStackAuthCreated)
+}
+
+func (s *Stack) ServiceName(v string) string {
+	return fmt.Sprintf("%s-%s", s.Name, v)
 }
 
 //+kubebuilder:object:root=true

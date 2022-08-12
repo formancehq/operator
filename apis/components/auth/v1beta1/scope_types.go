@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/formance-operator/pkg/collectionutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,7 +28,7 @@ const (
 	ConditionTypeScopesProgressing = "Progressing"
 )
 
-type ConditionScope struct {
+type ScopeCondition struct {
 	// type of condition in CamelCase or in foo.example.com/CamelCase.
 	// ---
 	// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
@@ -59,6 +59,18 @@ type ConditionScope struct {
 	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
 }
 
+func (in ScopeCondition) GetType() string {
+	return in.Type
+}
+
+func (in ScopeCondition) GetStatus() metav1.ConditionStatus {
+	return in.Status
+}
+
+func (in ScopeCondition) GetObservedGeneration() int64 {
+	return in.ObservedGeneration
+}
+
 // ScopeSpec defines the desired state of Scope
 type ScopeSpec struct {
 	Label string `json:"label"`
@@ -79,7 +91,7 @@ type ScopeStatus struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
-	Conditions   []ConditionScope                `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Conditions   []ScopeCondition                `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 	AuthServerID string                          `json:"authServerID,omitempty"`
 	Transient    map[string]TransientScopeStatus `json:"transient,omitempty"`
 }
@@ -97,8 +109,12 @@ type Scope struct {
 	Status ScopeStatus `json:"status,omitempty"`
 }
 
-func (in *Scope) Condition(conditionType string) *ConditionScope {
-	return First(in.Status.Conditions, func(c ConditionScope) bool {
+func (in *Scope) GetConditions() []ScopeCondition {
+	return in.Status.Conditions
+}
+
+func (in *Scope) Condition(conditionType string) *ScopeCondition {
+	return First(in.Status.Conditions, func(c ScopeCondition) bool {
 		return c.Type == conditionType
 	})
 }
@@ -107,7 +123,7 @@ func (s *Scope) AuthServerReference() string {
 	return s.Spec.AuthServerReference
 }
 
-func (s *Scope) setCondition(c ConditionScope) {
+func (s *Scope) setCondition(c ScopeCondition) {
 	c.ObservedGeneration = s.Generation
 	for ind, condition := range s.Status.Conditions {
 		if condition.Type == c.Type {
@@ -119,7 +135,7 @@ func (s *Scope) setCondition(c ConditionScope) {
 }
 
 func (s *Scope) Progress() {
-	s.setCondition(ConditionScope{
+	s.setCondition(ScopeCondition{
 		Type:               ConditionTypeScopesProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -127,7 +143,7 @@ func (s *Scope) Progress() {
 }
 
 func (s *Scope) StopProgression() {
-	s.setCondition(ConditionScope{
+	s.setCondition(ScopeCondition{
 		Type:               ConditionTypeScopesProgressing,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),

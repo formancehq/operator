@@ -13,10 +13,10 @@ type MonitoringSpec struct {
 	Traces *TracesSpec `json:"traces,omitempty"`
 }
 
-func (in *MonitoringSpec) Env() []v1.EnvVar {
+func (in *MonitoringSpec) Env(prefix string) []v1.EnvVar {
 	ret := make([]v1.EnvVar, 0)
 	if in.Traces != nil {
-		ret = append(ret, in.Traces.Env()...)
+		ret = append(ret, in.Traces.Env(prefix)...)
 	}
 	return ret
 }
@@ -36,12 +36,12 @@ type TracesOtlpSpec struct {
 	Mode     string `json:"mode,omitempty"`
 }
 
-func (in *TracesOtlpSpec) Env() []v1.EnvVar {
+func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
 	env := []v1.EnvVar{
-		envutil.Env("OTEL_TRACES", "true"),
-		envutil.Env("OTEL_TRACES_EXPORTER", "otlp"),
-		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_INSECURE", fmt.Sprintf("%t", in.Insecure)),
-		envutil.Env("OTEL_TRACES_EXPORTER_OTLP_MODE", in.Mode),
+		envutil.EnvWithPrefix(prefix, "OTEL_TRACES", "true"),
+		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER", "otlp"),
+		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_INSECURE", fmt.Sprintf("%t", in.Insecure)),
+		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_MODE", in.Mode),
 		envutil.Env("PORT", fmt.Sprintf("%d", in.Port)),
 	}
 	switch {
@@ -50,7 +50,7 @@ func (in *TracesOtlpSpec) Env() []v1.EnvVar {
 	case in.Endpoint.ValueFrom != nil:
 		env = append(env, envutil.EnvFrom("ENDPOINT", in.Endpoint.ValueFrom))
 	}
-	env = append(env, envutil.Env("OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", "$(ENDPOINT):$(PORT)"))
+	env = append(env, envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", "$(ENDPOINT):$(PORT)"))
 	return env
 }
 
@@ -59,10 +59,10 @@ type TracesSpec struct {
 	Otlp *TracesOtlpSpec `json:"otlp,omitempty"`
 }
 
-func (in *TracesSpec) Env() []v1.EnvVar {
+func (in *TracesSpec) Env(prefix string) []v1.EnvVar {
 	ret := make([]v1.EnvVar, 0)
 	if in.Otlp != nil {
-		ret = append(ret, in.Otlp.Env()...)
+		ret = append(ret, in.Otlp.Env(prefix)...)
 	}
 	return ret
 }

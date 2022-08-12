@@ -59,3 +59,10 @@ func (r *LedgerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&componentsv1beta1.Ledger{}).
 		Complete(r)
 }
+
+func NewLedgerReconciler(client client.Client, scheme *runtime.Scheme) *LedgerReconciler {
+	return &LedgerReconciler{
+		Client: client,
+		Scheme: scheme,
+	}
+}
