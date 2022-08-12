@@ -8,7 +8,7 @@ COPY go.sum go.sum
 
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-#RUN go mod download
+RUN go mod download
 
 # Copy the go source
 COPY main.go main.go
@@ -16,7 +16,6 @@ COPY apis/ apis/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
 COPY internal/ internal/
-COPY vendor/ vendor/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o manager main.go
