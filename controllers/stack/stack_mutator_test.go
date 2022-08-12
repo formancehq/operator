@@ -12,8 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func condition(object *v1beta1.Stack, conditionType v1beta1.ConditionType) func() *v1beta1.ConditionStack {
-	return func() *v1beta1.ConditionStack {
+func condition(object *v1beta1.Stack, conditionType string) func() *v1beta1.StackCondition {
+	return func() *v1beta1.StackCondition {
 		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil
@@ -22,7 +22,7 @@ func condition(object *v1beta1.Stack, conditionType v1beta1.ConditionType) func(
 	}
 }
 
-func conditionStatus(object *v1beta1.Stack, conditionType v1beta1.ConditionType) func() metav1.ConditionStatus {
+func conditionStatus(object *v1beta1.Stack, conditionType string) func() metav1.ConditionStatus {
 	return func() metav1.ConditionStatus {
 		c := condition(object, conditionType)()
 		if c == nil {

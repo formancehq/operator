@@ -21,7 +21,7 @@ import (
 	"sort"
 
 	"github.com/numary/auth/authclient"
-	"github.com/numary/formance-operator/pkg/collectionutil"
+	. "github.com/numary/formance-operator/pkg/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -47,7 +47,7 @@ const (
 	ConditionTypeScopesSynchronized = "ScopesSynchronized"
 )
 
-type ConditionClient struct {
+type ClientCondition struct {
 	// type of condition in CamelCase or in foo.example.com/CamelCase.
 	// ---
 	// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
@@ -78,9 +78,25 @@ type ConditionClient struct {
 	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
 }
 
+func (in ClientCondition) GetType() string {
+	return in.Type
+}
+
+func (in ClientCondition) GetStatus() metav1.ConditionStatus {
+	return in.Status
+}
+
+func (in ClientCondition) GetObservedGeneration() int64 {
+	return in.ObservedGeneration
+}
+
 // ClientStatus defines the observed state of Client
 type ClientStatus struct {
-	Conditions   []ConditionClient `json:"conditions"`
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions   []ClientCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 	Ready        bool              `json:"ready"`
 	AuthServerID string            `json:"authServerID,omitempty"`
 	// +optional
@@ -100,8 +116,12 @@ type Client struct {
 	Status ClientStatus `json:"status,omitempty"`
 }
 
-func (in *Client) Condition(v string) *ConditionClient {
-	return collectionutil.First(in.Status.Conditions, func(c ConditionClient) bool {
+func (in *Client) GetConditions() []ClientCondition {
+	return in.Status.Conditions
+}
+
+func (in *Client) Condition(v string) *ClientCondition {
+	return First(in.Status.Conditions, func(c ClientCondition) bool {
 		return c.Type == v
 	})
 }
@@ -156,7 +176,7 @@ func (in *Client) Match(client *authclient.Client) bool {
 	return true
 }
 
-func (in *Client) setCondition(c ConditionClient) {
+func (in *Client) setCondition(c ClientCondition) {
 	for ind, condition := range in.Status.Conditions {
 		if condition.Type == c.Type {
 			in.Status.Conditions[ind] = c
@@ -167,47 +187,52 @@ func (in *Client) setCondition(c ConditionClient) {
 }
 
 func (in *Client) Progress() {
-	in.setCondition(ConditionClient{
+	in.setCondition(ClientCondition{
 		Type:               ConditionTypeClientProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 	in.Status.Ready = false
 }
 
 func (in *Client) StopProgression() {
-	in.setCondition(ConditionClient{
+	in.setCondition(ClientCondition{
 		Type:               ConditionTypeClientProgressing,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 	in.Status.Ready = true
 }
 
 func (in *Client) SetClientCreated(id string) {
-	in.setCondition(ConditionClient{
+	in.setCondition(ClientCondition{
 		Type:               ConditionTypeClientCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 	in.Status.AuthServerID = id
 }
 
 func (in *Client) SetClientUpdated() {
-	in.setCondition(ConditionClient{
+	in.setCondition(ClientCondition{
 		Type:               ConditionTypeClientUpdated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 }
 
 func (in *Client) checkScopesSynchronized() {
 
 	notSynchronized := func() {
-		in.setCondition(ConditionClient{
+		in.setCondition(ClientCondition{
 			Type:               ConditionTypeScopesSynchronized,
 			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
+			ObservedGeneration: in.Generation,
 		})
 	}
 
@@ -222,10 +247,11 @@ func (in *Client) checkScopesSynchronized() {
 		}
 	}
 	// Scopes synchronized
-	in.setCondition(ConditionClient{
+	in.setCondition(ClientCondition{
 		Type:               ConditionTypeScopesSynchronized,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: in.Generation,
 	})
 }
 

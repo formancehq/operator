@@ -10,8 +10,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func condition(object *authcomponentsbeta1.Scope, conditionType string) func() *authcomponentsbeta1.ConditionScope {
-	return func() *authcomponentsbeta1.ConditionScope {
+func condition(object *authcomponentsbeta1.Scope, conditionType string) func() *authcomponentsbeta1.ScopeCondition {
+	return func() *authcomponentsbeta1.ScopeCondition {
 		err := nsClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil

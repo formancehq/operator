@@ -20,6 +20,7 @@ import (
 	"context"
 
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/containerutil"
 	"github.com/numary/formance-operator/pkg/envutil"
@@ -35,19 +36,16 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 const (
 	defaultImage = "ghcr.io/numary/auth:latest"
 )
 
-// AuthReconciler reconciles a Auth object
-type AuthReconciler struct {
+// Mutator reconciles a Auth object
+type Mutator struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -59,7 +57,45 @@ type AuthReconciler struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=auths/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.formance.com,resources=auths/finalizers,verbs=update
 
-func (r *AuthReconciler) reconcileDeployment(ctx context.Context, auth *componentsv1beta1.Auth) (*appsv1.Deployment, error) {
+func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ctrl.Result, error) {
+	deployment, err := r.reconcileDeployment(ctx, auth)
+	if err != nil {
+		return nil, pkgError.Wrap(err, "Reconciling deployment")
+	}
+
+	service, err := r.reconcileService(ctx, auth, deployment)
+	if err != nil {
+		return nil, pkgError.Wrap(err, "Reconciling service")
+	}
+
+	if auth.Spec.Ingress != nil {
+		_, err = r.reconcileIngress(ctx, auth, service)
+		if err != nil {
+			return nil, pkgError.Wrap(err, "Reconciling service")
+		}
+	} else {
+		err = r.Client.Delete(ctx, &networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      auth.Name,
+				Namespace: auth.Namespace,
+			},
+		})
+		if err != nil && !errors.IsNotFound(err) {
+			return nil, pkgError.Wrap(err, "Deleting ingress")
+		}
+		auth.RemoveIngressStatus()
+	}
+
+	auth.SetReady()
+
+	if err := r.Client.Status().Update(ctx, auth); err != nil {
+		return nil, pkgError.Wrap(err, "Updating status")
+	}
+
+	return nil, nil
+}
+
+func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1beta1.Auth) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.Create("app.kubernetes.io/name", "auth")
 	port := int32(8080)
 
@@ -86,7 +122,7 @@ func (r *AuthReconciler) reconcileDeployment(ctx context.Context, auth *componen
 		image = defaultImage
 	}
 
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithOwner(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -119,8 +155,8 @@ func (r *AuthReconciler) reconcileDeployment(ctx context.Context, auth *componen
 	return ret, err
 }
 
-func (r *AuthReconciler) reconcileService(ctx context.Context, auth *componentsv1beta1.Auth, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithOwner(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
+func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.Auth, deployment *appsv1.Deployment) (*corev1.Service, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
 		service.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
 				Name:        "http",
@@ -143,8 +179,8 @@ func (r *AuthReconciler) reconcileService(ctx context.Context, auth *componentsv
 	return ret, err
 }
 
-func (r *AuthReconciler) reconcileIngress(ctx context.Context, auth *componentsv1beta1.Auth, service *corev1.Service) (*networkingv1.Ingress, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithOwner(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(ingress *networkingv1.Ingress) error {
+func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.Auth, service *corev1.Service) (*networkingv1.Ingress, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = auth.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
@@ -184,75 +220,17 @@ func (r *AuthReconciler) reconcileIngress(ctx context.Context, auth *componentsv
 	return ret, nil
 }
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.1/pkg/reconcile
-func (r *AuthReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("Start reconciliation")
-	defer func() {
-		logger.Info("Reconciliation terminated")
-	}()
-
-	auth := &componentsv1beta1.Auth{}
-	if err := r.Get(ctx, req.NamespacedName, auth); err != nil {
-		if errors.IsNotFound(err) {
-			logger.Info("Skip reconcile because of not found")
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{}, pkgError.Wrap(err, "Reading auth")
-	}
-
-	deployment, err := r.reconcileDeployment(ctx, auth)
-	if err != nil {
-		return ctrl.Result{}, pkgError.Wrap(err, "Reconciling deployment")
-	}
-
-	service, err := r.reconcileService(ctx, auth, deployment)
-	if err != nil {
-		return ctrl.Result{}, pkgError.Wrap(err, "Reconciling service")
-	}
-
-	if auth.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, auth, service)
-		if err != nil {
-			return ctrl.Result{}, pkgError.Wrap(err, "Reconciling service")
-		}
-	} else {
-		err = r.Client.Delete(ctx, &networkingv1.Ingress{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      auth.Name,
-				Namespace: auth.Namespace,
-			},
-		})
-		if err != nil && !errors.IsNotFound(err) {
-			return ctrl.Result{}, pkgError.Wrap(err, "Deleting ingress")
-		}
-		auth.RemoveIngressStatus()
-	}
-
-	auth.SetReady()
-
-	if err := r.Client.Status().Update(ctx, auth); err != nil {
-		return ctrl.Result{}, pkgError.Wrap(err, "Updating status")
-	}
-
-	return ctrl.Result{}, nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
-func (r *AuthReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&componentsv1beta1.Auth{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
-		Owns(&networkingv1.Ingress{}).
-		Complete(r)
+		Owns(&networkingv1.Ingress{})
 }
 
-func NewReconciler(client client.Client, scheme *runtime.Scheme) *AuthReconciler {
-	return &AuthReconciler{
+func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[
+	componentsv1beta1.AuthCondition, *componentsv1beta1.Auth] {
+	return &Mutator{
 		Client: client,
 		Scheme: scheme,
 	}

@@ -15,6 +15,7 @@ COPY main.go main.go
 COPY apis/ apis/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
+COPY internal/ internal/
 COPY vendor/ vendor/
 
 # Build

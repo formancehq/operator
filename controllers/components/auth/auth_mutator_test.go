@@ -9,11 +9,12 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func condition(object *v1beta1.Auth, conditionType string) func() *metav1.Condition {
-	return func() *metav1.Condition {
+func condition(object *v1beta1.Auth, conditionType string) func() *v1beta1.AuthCondition {
+	return func() *v1beta1.AuthCondition {
 		err := nsClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil
@@ -46,10 +47,12 @@ func exists(key client.ObjectKey, object client.Object) func() bool {
 
 func ownerReference(auth *v1beta1.Auth) metav1.OwnerReference {
 	return metav1.OwnerReference{
-		Kind:       "Auth",
-		APIVersion: "components.formance.com/v1beta1",
-		Name:       "auth",
-		UID:        auth.UID,
+		Kind:               "Auth",
+		APIVersion:         "components.formance.com/v1beta1",
+		Name:               "auth",
+		UID:                auth.UID,
+		BlockOwnerDeletion: pointer.Bool(true),
+		Controller:         pointer.Bool(true),
 	}
 }
 

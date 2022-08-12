@@ -1,27 +1,12 @@
-/*
-Copyright 2022.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package clients
 
 import (
 	"context"
 
 	"github.com/numary/auth/authclient"
-	"github.com/numary/formance-operator/apis/components/auth/v1beta1"
-	"github.com/numary/formance-operator/controllers/components/auth/internal"
+	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
+	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
 	pkgError "github.com/pkg/errors"
@@ -29,59 +14,21 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 var clientFinalizer = finalizerutil.New("clients.auth.components.formance.com/finalizer")
 
-// ClientReconciler reconciles a Client object
-type ClientReconciler struct {
-	client.Client
-	Scheme  *runtime.Scheme
-	factory internal.APIFactory
+type Mutator struct {
+	client  client.Client
+	scheme  *runtime.Scheme
+	factory pkgInternal.APIFactory
 }
 
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=clients,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=clients/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=clients/finalizers,verbs=update
+func (c Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
 
-func (r *ClientReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	logger := log.FromContext(ctx)
-	logger.Info("Start reconciliation")
-	defer func() {
-		logger.Info("Reconciliation terminated")
-	}()
-
-	actualClient := &v1beta1.Client{}
-	if err := r.Get(ctx, req.NamespacedName, actualClient); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	updatedClient := actualClient.DeepCopy()
-
-	result, reconcileError := r.reconcile(ctx, updatedClient)
-	if reconcileError != nil {
-		log.FromContext(ctx).Error(reconcileError, "Reconciling")
-	}
-	if patchErr := r.Status().Update(ctx, updatedClient); patchErr != nil {
-		return ctrl.Result{}, patchErr
-	}
-
-	if result != nil {
-		return *result, nil
-	}
-
-	return ctrl.Result{
-		Requeue: reconcileError != nil,
-	}, nil
-}
-
-func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1beta1.Client) (*ctrl.Result, error) {
-
+func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1beta1.Client) (*ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	actualK8SClient.Progress()
@@ -89,7 +36,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 	api := r.factory.Create(actualK8SClient)
 
 	// Handle finalizer
-	if isHandledByFinalizer, err := clientFinalizer.Handle(ctx, r.Client, actualK8SClient, func() error {
+	if isHandledByFinalizer, err := clientFinalizer.Handle(ctx, r.client, actualK8SClient, func() error {
 		// If the scope was created auth server side, we have to remove it
 		if actualK8SClient.IsCreatedOnAuthServer() {
 			return pkgError.Wrap(api.DeleteClient(ctx, actualK8SClient.Status.AuthServerID),
@@ -101,7 +48,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 	}
 
 	// Assert finalizer is properly installed on the object
-	if err := clientFinalizer.AssertIsInstalled(ctx, r.Client, actualK8SClient); err != nil {
+	if err := clientFinalizer.AssertIsInstalled(ctx, r.client, actualK8SClient); err != nil {
 		return nil, err
 	}
 
@@ -124,7 +71,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 	// Client already created auth server side
 	if actualK8SClient.IsCreatedOnAuthServer() {
 		// Client can have been manually deleted
-		if actualAuthServerClient, err = api.ReadClient(ctx, actualK8SClient.Status.AuthServerID); err != nil && err != internal.ErrNotFound {
+		if actualAuthServerClient, err = api.ReadClient(ctx, actualK8SClient.Status.AuthServerID); err != nil && err != pkgInternal.ErrNotFound {
 			return nil, pkgError.Wrap(err, "Reading client auth server side")
 		}
 		if actualAuthServerClient != nil {
@@ -143,10 +90,11 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 
 	// Still not created
 	if !actualK8SClient.IsCreatedOnAuthServer() {
+		logger.Info("Auth server ID not defined, try to retrieve by metadata")
 		// As it could be the status update of the reconciliation which could have been fail
 		// the client can exist auth server side, so try to find it
 		if actualAuthServerClient, err = api.
-			ReadClientByMetadata(ctx, authServerClientExpectedMetadata); err != nil && err != internal.ErrNotFound {
+			ReadClientByMetadata(ctx, authServerClientExpectedMetadata); err != nil && err != pkgInternal.ErrNotFound {
 			return nil, pkgError.Wrap(err, "Reading client by metadata")
 		}
 
@@ -157,7 +105,7 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 				return nil, pkgError.Wrap(err, "Creating client")
 			}
 		} else {
-			logger.Info("Found auth server client using metadata, use it")
+			logger.Info("Found auth server client using metadata, use it", "id", actualAuthServerClient.Id)
 		}
 		actualK8SClient.SetClientCreated(actualAuthServerClient.Id)
 	}
@@ -168,8 +116,8 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 		logger = logger.WithValues("scope", k8sScopeName)
 
 		logger.Info("Checking scope presence on auth server client")
-		scope := &v1beta1.Scope{}
-		err := r.Get(ctx, types.NamespacedName{
+		scope := &authcomponentsv1beta1.Scope{}
+		err := r.client.Get(ctx, types.NamespacedName{
 			Namespace: actualK8SClient.Namespace,
 			Name:      k8sScopeName,
 		}, scope)
@@ -221,19 +169,18 @@ func (r *ClientReconciler) reconcile(ctx context.Context, actualK8SClient *v1bet
 	}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *ClientReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1beta1.Client{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Complete(r)
-}
+var _ internal.Mutator[authcomponentsv1beta1.ClientCondition, *authcomponentsv1beta1.Client] = &Mutator{}
 
-func NewReconciler(client client.Client, scheme *runtime.Scheme, factory internal.APIFactory) *ClientReconciler {
-	return &ClientReconciler{
-		Client:  client,
-		Scheme:  scheme,
+func NewMutator(
+	client client.Client,
+	scheme *runtime.Scheme,
+	factory pkgInternal.APIFactory,
+) internal.Mutator[authcomponentsv1beta1.ClientCondition, *authcomponentsv1beta1.Client] {
+	return &Mutator{
+		client:  client,
+		scheme:  scheme,
 		factory: factory,
 	}
 }
 
-var DefaultApiFactory = internal.DefaultApiFactory
+var DefaultApiFactory = pkgInternal.DefaultApiFactory

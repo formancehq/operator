@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func condition(c *authcomponentsv1beta1.Client, conditionType string) func() *authcomponentsv1beta1.ConditionClient {
-	return func() *authcomponentsv1beta1.ConditionClient {
+func condition(c *authcomponentsv1beta1.Client, conditionType string) func() *authcomponentsv1beta1.ClientCondition {
+	return func() *authcomponentsv1beta1.ClientCondition {
 		err := nsClient.Get(ctx, client.ObjectKeyFromObject(c), c)
 		if err != nil {
 			return nil

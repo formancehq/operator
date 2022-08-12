@@ -1,18 +1,3 @@
-/*
-Copyright 2022.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package scopes
 
 import (
@@ -20,7 +5,8 @@ import (
 
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
-	"github.com/numary/formance-operator/controllers/components/auth/internal"
+	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
+	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/pkg/collectionutil"
 	"github.com/numary/formance-operator/pkg/finalizerutil"
 	pkgError "github.com/pkg/errors"
@@ -28,57 +14,25 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
-
-// ScopeReconciler reconciles a Scope object
-type ScopeReconciler struct {
-	client.Client
-	Scheme  *runtime.Scheme
-	factory internal.APIFactory
-}
 
 var scopeFinalizer = finalizerutil.New("scopes.auth.components.formance.com/finalizer")
 
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=auth.components.formance.com,resources=scopes/finalizers,verbs=update
-
-func (r *ScopeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	actualScope := &authcomponentsv1beta1.Scope{}
-	if err := r.Get(ctx, req.NamespacedName, actualScope); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	updatedScope := actualScope.DeepCopy()
-
-	result, reconcileError := r.reconcile(ctx, updatedScope)
-	if reconcileError != nil {
-		log.FromContext(ctx).Error(reconcileError, "Reconciling")
-	}
-	if patchErr := r.Status().Update(ctx, updatedScope); patchErr != nil {
-		return ctrl.Result{}, patchErr
-	}
-
-	if result != nil {
-		return *result, nil
-	}
-
-	return ctrl.Result{
-		Requeue: reconcileError != nil,
-	}, nil
+type Mutator struct {
+	client  client.Client
+	scheme  *runtime.Scheme
+	factory pkgInternal.APIFactory
 }
 
-func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcomponentsv1beta1.Scope) (*ctrl.Result, error) {
+func (s Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
 
-	api := r.factory.Create(actualK8SScope)
+func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1beta1.Scope) (*ctrl.Result, error) {
+	api := s.factory.Create(actualK8SScope)
 
 	// Handle finalizer
-	if isHandledByFinalizer, err := scopeFinalizer.Handle(ctx, r.Client, actualK8SScope, func() error {
+	if isHandledByFinalizer, err := scopeFinalizer.Handle(ctx, s.client, actualK8SScope, func() error {
 		// If the scope was created auth server side, we have to remove it
 		if actualK8SScope.IsCreatedOnAuthServer() {
 			return pkgError.Wrap(api.DeleteScope(ctx, actualK8SScope.Status.AuthServerID), "Deleting scope")
@@ -91,7 +45,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	actualK8SScope.Progress()
 
 	// Assert finalizer is properly installed on the object
-	if err := scopeFinalizer.AssertIsInstalled(ctx, r.Client, actualK8SScope); err != nil {
+	if err := scopeFinalizer.AssertIsInstalled(ctx, s.client, actualK8SScope); err != nil {
 		return nil, err
 	}
 
@@ -107,7 +61,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	// Scope already created auth server side
 	if actualK8SScope.IsCreatedOnAuthServer() {
 		// Scope can have been manually deleted
-		if actualAuthServerScope, err = api.ReadScope(ctx, actualK8SScope.Status.AuthServerID); err != nil && err != internal.ErrNotFound {
+		if actualAuthServerScope, err = api.ReadScope(ctx, actualK8SScope.Status.AuthServerID); err != nil && err != pkgInternal.ErrNotFound {
 			return nil, pkgError.Wrap(err, "Reading scope auth server side")
 		}
 		if actualAuthServerScope != nil { // If found, check the label and update if required
@@ -128,7 +82,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 		// As it could be the status update of the reconciliation which could have been fail
 		// the scope can exist auth server side, so try to find it using metadata
 		if actualAuthServerScope, err = api.
-			ReadScopeByMetadata(ctx, authServerScopeExpectedMetadata); err != nil && err != internal.ErrNotFound {
+			ReadScopeByMetadata(ctx, authServerScopeExpectedMetadata); err != nil && err != pkgInternal.ErrNotFound {
 			return nil, pkgError.Wrap(err, "Reading scope by metadata")
 		}
 
@@ -145,7 +99,7 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	transientScopeIds := make([]string, 0)
 	for _, transientScopeName := range actualK8SScope.Spec.Transient {
 		transientK8SScope := &authcomponentsv1beta1.Scope{}
-		if err := r.Get(ctx, types.NamespacedName{
+		if err := s.client.Get(ctx, types.NamespacedName{
 			Name:      transientScopeName,
 			Namespace: actualK8SScope.Namespace,
 		}, transientK8SScope); err != nil {
@@ -183,19 +137,18 @@ func (r *ScopeReconciler) reconcile(ctx context.Context, actualK8SScope *authcom
 	}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *ScopeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&authcomponentsv1beta1.Scope{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Complete(r)
-}
+var _ internal.Mutator[authcomponentsv1beta1.ScopeCondition, *authcomponentsv1beta1.Scope] = &Mutator{}
 
-func NewReconciler(c client.Client, scheme *runtime.Scheme, factory internal.APIFactory) *ScopeReconciler {
-	return &ScopeReconciler{
-		Client:  c,
-		Scheme:  scheme,
-		factory: factory,
+func NewMutator(
+	client client.Client,
+	scheme *runtime.Scheme,
+	apiFactory pkgInternal.APIFactory,
+) internal.Mutator[authcomponentsv1beta1.ScopeCondition, *authcomponentsv1beta1.Scope] {
+	return &Mutator{
+		client:  client,
+		scheme:  scheme,
+		factory: apiFactory,
 	}
 }
 
-var DefaultApiFactory = internal.DefaultApiFactory
+var DefaultApiFactory = pkgInternal.DefaultApiFactory
