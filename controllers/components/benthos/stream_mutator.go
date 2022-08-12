@@ -55,9 +55,9 @@ func (s *StreamMutator) Mutate(ctx context.Context, t *Stream) (*ctrl.Result, er
 	return nil, nil
 }
 
-var _ internal.Mutator[StreamCondition, *Stream] = &StreamMutator{}
+var _ internal.Mutator[*Stream] = &StreamMutator{}
 
-func NewStreamMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[StreamCondition, *Stream] {
+func NewStreamMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*Stream] {
 	return &StreamMutator{
 		client: client,
 		scheme: scheme,

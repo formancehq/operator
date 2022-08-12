@@ -21,7 +21,7 @@ var _ = Describe("Client reconciler", func() {
 		BeforeEach(func() {
 			actualClient = newClient()
 			Expect(nsClient.Create(ctx, actualClient)).To(BeNil())
-			Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientCreated)).
+			Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeClientCreated)).
 				Should(Equal(metav1.ConditionTrue))
 		})
 		AfterEach(func() {
@@ -51,18 +51,18 @@ var _ = Describe("Client reconciler", func() {
 				Expect(nsClient.Update(ctx, actualClient)).To(BeNil())
 			})
 			It("Should set the client to not ready state", func() {
-				Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
+				Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeClientProgressing)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			Context("Then creating the scope", func() {
 				BeforeEach(func() {
-					Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
+					Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeClientProgressing)).
 						Should(Equal(metav1.ConditionTrue))
 					Expect(nsClient.Create(ctx, scope)).To(BeNil())
 					scope.Status.AuthServerID = "XXX"
 					Expect(nsClient.Status().Update(ctx, scope)).To(BeNil())
 
-					Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
+					Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeClientProgressing)).
 						Should(Equal(metav1.ConditionFalse))
 					Expect(actualClient.Status.Scopes).To(Equal(map[string]string{
 						scope.Name: scope.Status.AuthServerID,

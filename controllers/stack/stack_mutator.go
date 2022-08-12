@@ -109,8 +109,11 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 			}
 		}
 		ns.Spec = authcomponentsv1beta1.AuthSpec{
-			Image:               stack.Spec.Auth.Image,
-			Postgres:            stack.Spec.Auth.PostgresConfig,
+			Image: stack.Spec.Auth.Image,
+			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfig: stack.Spec.Auth.PostgresConfig,
+			},
 			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Scheme(), stack.Spec.Host),
 			SigningKey:          stack.Spec.Auth.SigningKey,
 			DevMode:             stack.Spec.Debug,
@@ -204,12 +207,12 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 	return nil
 }
 
-var _ internal.Mutator[v1beta1.StackCondition, *v1beta1.Stack] = &Mutator{}
+var _ internal.Mutator[*v1beta1.Stack] = &Mutator{}
 
 func NewMutator(
 	client client.Client,
 	scheme *runtime.Scheme,
-) internal.Mutator[v1beta1.StackCondition, *v1beta1.Stack] {
+) internal.Mutator[*v1beta1.Stack] {
 	return &Mutator{
 		client: client,
 		scheme: scheme,

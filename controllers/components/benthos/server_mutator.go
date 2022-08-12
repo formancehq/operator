@@ -124,9 +124,9 @@ func (r *ServerMutator) reconcileService(ctx context.Context, srv *Server, deplo
 	return ret, err
 }
 
-var _ internal.Mutator[ServerCondition, *Server] = &ServerMutator{}
+var _ internal.Mutator[*Server] = &ServerMutator{}
 
-func NewServerMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[ServerCondition, *Server] {
+func NewServerMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*Server] {
 	return &ServerMutator{
 		client: client,
 		scheme: scheme,

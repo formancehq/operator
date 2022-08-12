@@ -30,7 +30,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 			}
 
 			Expect(k8sClient.Create(ctx, stack)).To(Succeed())
-			Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackReady)).
+			Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackReady)).
 				Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a new namespace", func() {
@@ -41,7 +41,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 		Context("With ledger service", func() {
 			BeforeEach(func() {
 				stack.Spec.Services.Ledger = &LedgerSpec{
-					Postgres: componentsv1beta1.PostgresConfig{
+					Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 						PostgresConfig: sharedtypes.PostgresConfig{
 							Database: "XXX",
 							Port:     1234,
@@ -52,7 +52,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					},
 				}
 				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-				Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackLedgerCreated)).
+				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackLedgerCreated)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			It("Should create a ledger on a new namespace", func() {
@@ -83,7 +83,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					},
 				}
 				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-				Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackAuthCreated)).
+				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthCreated)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			It("Should create a auth server on a new namespace", func() {
@@ -98,7 +98,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 				BeforeEach(func() {
 					stack.Spec.Auth = nil
 					Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-					Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackAuthCreated)).Should(Equal(metav1.ConditionUnknown))
+					Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthCreated)).Should(Equal(metav1.ConditionUnknown))
 				})
 				It("Should remove Auth deployment", func() {
 					Expect(Exists(k8sClient, &componentsv1beta1.Auth{

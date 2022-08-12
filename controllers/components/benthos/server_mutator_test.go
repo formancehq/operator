@@ -34,10 +34,10 @@ var _ = Describe("Server controller", func() {
 				},
 			}
 			Expect(nsClient.Create(ctx, server)).To(BeNil())
-			Eventually(ConditionStatus[ServerCondition](nsClient, server, ConditionTypeServerReady)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, server, ConditionTypeServerReady)).Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a deployment", func() {
-			Eventually(ConditionStatus[ServerCondition](nsClient, server, ConditionTypeServerDeploymentCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, server, ConditionTypeServerDeploymentCreated)).Should(Equal(metav1.ConditionTrue))
 			deployment := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      server.Name,
@@ -49,7 +49,7 @@ var _ = Describe("Server controller", func() {
 			Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(server)))
 		})
 		It("Should create a service", func() {
-			Eventually(ConditionStatus[ServerCondition](nsClient, server, ConditionTypeServerServiceCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, server, ConditionTypeServerServiceCreated)).Should(Equal(metav1.ConditionTrue))
 			service := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      server.Name,

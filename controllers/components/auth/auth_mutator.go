@@ -228,8 +228,7 @@ func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 		Owns(&networkingv1.Ingress{})
 }
 
-func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[
-	componentsv1beta1.AuthCondition, *componentsv1beta1.Auth] {
+func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*componentsv1beta1.Auth] {
 	return &Mutator{
 		Client: client,
 		Scheme: scheme,

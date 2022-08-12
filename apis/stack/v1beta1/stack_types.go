@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -43,7 +43,7 @@ type StackSpec struct {
 	// +optional
 	Scheme string `json:"scheme,omitempty"`
 	// +optional
-	Monitoring *sharedtypes.MonitoringSpec `json:"monitoring,omitempty"`
+	Monitoring *MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
 	Services ServicesSpec `json:"services,omitempty"`
 	// +optional
@@ -51,13 +51,13 @@ type StackSpec struct {
 	// +optional
 	Ingress *IngressStack `json:"ingress"`
 	// +optional
-	Collector *sharedtypes.CollectorConfigSpec `json:"collector"`
+	Collector *CollectorConfigSpec `json:"collector"`
 }
 
 type AuthSpec struct {
 	// +optional
 	Image               string                                                 `json:"image"`
-	PostgresConfig      sharedtypes.PostgresConfig                             `json:"postgres"`
+	PostgresConfig      PostgresConfig                                         `json:"postgres"`
 	SigningKey          string                                                 `json:"signingKey"`
 	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 }
@@ -90,49 +90,6 @@ const (
 	ConditionTypeStackLedgerCreated    = "LedgerCreated"
 )
 
-type StackCondition struct {
-	// type of condition in CamelCase or in foo.example.com/CamelCase.
-	// ---
-	// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-	// useful (see .node.status.conditions), the ability to deconflict is important.
-	// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
-	// +kubebuilder:validation:MaxLength=316
-	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
-	// status of the condition, one of True, False, Unknown.
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=True;False;Unknown
-	Status metav1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status"`
-	// observedGeneration represents the .metadata.generation that the condition was set based upon.
-	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
-	// with respect to the current state of the instance.
-	// +optional
-	// +kubebuilder:validation:Minimum=0
-	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
-	// lastTransitionTime is the last time the condition transitioned from one status to another.
-	// This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Format=date-time
-	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
-}
-
-func (in StackCondition) GetType() string {
-	return in.Type
-}
-
-func (in StackCondition) GetStatus() metav1.ConditionStatus {
-	return in.Status
-}
-
-func (in StackCondition) GetObservedGeneration() int64 {
-	return in.ObservedGeneration
-}
-
 // StackStatus defines the observed state of Stack
 type StackStatus struct {
 	// Progress is the progress of this Stack object.
@@ -144,7 +101,7 @@ type StackStatus struct {
 	DeployedServices []string `json:"deployedServices,omitempty"`
 
 	// +optional
-	Conditions []StackCondition `json:"conditions,omitempty"`
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -163,11 +120,11 @@ type Stack struct {
 	Status StackStatus `json:"status,omitempty"`
 }
 
-func (in *Stack) GetConditions() []StackCondition {
+func (in *Stack) GetConditions() []Condition {
 	return in.Status.Conditions
 }
 
-func (in *Stack) Condition(conditionType string) *StackCondition {
+func (in *Stack) Condition(conditionType string) *Condition {
 	if in != nil {
 		for _, condition := range in.Status.Conditions {
 			if condition.Type == conditionType {
@@ -178,7 +135,7 @@ func (in *Stack) Condition(conditionType string) *StackCondition {
 	return nil
 }
 
-func (in *Stack) setCondition(condition StackCondition) {
+func (in *Stack) setCondition(condition Condition) {
 	for i, c := range in.Status.Conditions {
 		if c.Type == condition.Type {
 			in.Status.Conditions[i] = condition
@@ -189,7 +146,7 @@ func (in *Stack) setCondition(condition StackCondition) {
 }
 
 func (in *Stack) removeCondition(v string) {
-	in.Status.Conditions = Filter(in.Status.Conditions, func(stack StackCondition) bool {
+	in.Status.Conditions = Filter(in.Status.Conditions, func(stack Condition) bool {
 		return stack.Type != v
 	})
 }
@@ -202,13 +159,13 @@ func (in *Stack) Scheme() string {
 }
 
 func (in *Stack) Progress() {
-	in.setCondition(StackCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStackProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: in.Generation,
 	})
-	in.setCondition(StackCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStackReady,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
@@ -226,7 +183,7 @@ func (in *Stack) IsReady() bool {
 
 func (in *Stack) SetReady() {
 	in.removeCondition(ConditionTypeStackProgressing)
-	in.setCondition(StackCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStackReady,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -235,7 +192,7 @@ func (in *Stack) SetReady() {
 }
 
 func (in *Stack) SetNamespaceCreated() {
-	in.setCondition(StackCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStackNamespaceCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -244,7 +201,7 @@ func (in *Stack) SetNamespaceCreated() {
 }
 
 func (in *Stack) SetAuthCreated() {
-	in.setCondition(StackCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStackAuthCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -253,7 +210,7 @@ func (in *Stack) SetAuthCreated() {
 }
 
 func (in *Stack) SetLedgerCreated() {
-	in.setCondition(StackCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStackLedgerCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),

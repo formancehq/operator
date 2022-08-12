@@ -401,6 +401,11 @@ spec:
                         using the time when the API field changed is acceptable.
                       format: date-time
                       type: string
+                    message:
+                      description: message is a human readable message indicating
+                        details about the transition. This may be an empty string.
+                      maxLength: 32768
+                      type: string
                     observedGeneration:
                       description: observedGeneration represents the .metadata.generation
                         that the condition was set based upon. For instance, if .metadata.generation

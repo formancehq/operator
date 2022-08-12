@@ -255,8 +255,7 @@ func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 		Owns(&authcomponentsv1beta1.Scope{})
 }
 
-func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[
-	componentsv1beta1.LedgerCondition, *componentsv1beta1.Ledger] {
+func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*componentsv1beta1.Ledger] {
 	return &Mutator{
 		Client: client,
 		Scheme: scheme,

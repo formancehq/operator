@@ -141,13 +141,13 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 	}, nil
 }
 
-var _ internal.Mutator[authcomponentsv1beta1.ScopeCondition, *authcomponentsv1beta1.Scope] = &Mutator{}
+var _ internal.Mutator[*authcomponentsv1beta1.Scope] = &Mutator{}
 
 func NewMutator(
 	client client.Client,
 	scheme *runtime.Scheme,
 	apiFactory pkgInternal.APIFactory,
-) internal.Mutator[authcomponentsv1beta1.ScopeCondition, *authcomponentsv1beta1.Scope] {
+) internal.Mutator[*authcomponentsv1beta1.Scope] {
 	return &Mutator{
 		client:  client,
 		scheme:  scheme,

@@ -4,40 +4,34 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type Condition interface {
-	GetType() string
-	GetStatus() metav1.ConditionStatus
-	GetObservedGeneration() int64
-}
-
-type Object[T Condition] interface {
+type Object interface {
 	client.Object
-	GetConditions() []T
+	GetConditions() []sharedtypes.Condition
 }
 
-type Mutator[COND Condition, T Object[COND]] interface {
+type Mutator[T Object] interface {
 	SetupWithBuilder(builder *ctrl.Builder)
 	Mutate(ctx context.Context, t T) (*ctrl.Result, error)
 }
 
 // Reconciler reconciles a Stack object
-type Reconciler[COND Condition, T Object[COND]] struct {
+type Reconciler[T Object] struct {
 	client.Client
 	Scheme  *runtime.Scheme
-	Mutator Mutator[COND, T]
+	Mutator Mutator[T]
 }
 
-func (r *Reconciler[COND, T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	log.FromContext(ctx).Info("Starting reconciliation")
 	defer func() {
@@ -63,18 +57,18 @@ func (r *Reconciler[COND, T]) Reconcile(ctx context.Context, req ctrl.Request) (
 	conditionsChanged := len(actual.GetConditions()) != len(updated.GetConditions())
 	if !conditionsChanged {
 		for _, condition := range actual.GetConditions() {
-			v := First(updated.GetConditions(), func(c COND) bool {
-				return c.GetType() == condition.GetType()
+			v := First(updated.GetConditions(), func(c sharedtypes.Condition) bool {
+				return c.Type == condition.Type
 			})
 			if v == nil {
 				conditionsChanged = true
 				break
 			}
-			if (*v).GetStatus() != condition.GetStatus() {
+			if (*v).Status != condition.Status {
 				conditionsChanged = true
 				break
 			}
-			if (*v).GetObservedGeneration() != condition.GetObservedGeneration() {
+			if (*v).ObservedGeneration != condition.ObservedGeneration {
 				conditionsChanged = true
 				break
 			}
@@ -99,7 +93,7 @@ func (r *Reconciler[COND, T]) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *Reconciler[COND, T]) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler[T]) SetupWithManager(mgr ctrl.Manager) error {
 	var t T
 	t = reflect.New(reflect.TypeOf(t).Elem()).Interface().(T)
 	builder := ctrl.NewControllerManagedBy(mgr).For(t)
@@ -107,8 +101,8 @@ func (r *Reconciler[COND, T]) SetupWithManager(mgr ctrl.Manager) error {
 	return builder.Complete(r)
 }
 
-func NewReconciler[COND Condition, T Object[COND]](client client.Client, scheme *runtime.Scheme, mutator Mutator[COND, T]) *Reconciler[COND, T] {
-	return &Reconciler[COND, T]{
+func NewReconciler[T Object](client client.Client, scheme *runtime.Scheme, mutator Mutator[T]) *Reconciler[T] {
+	return &Reconciler[T]{
 		Client:  client,
 		Scheme:  scheme,
 		Mutator: mutator,

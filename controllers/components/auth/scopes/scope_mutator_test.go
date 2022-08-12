@@ -19,7 +19,7 @@ var _ = Describe("Scope reconciler", func() {
 		BeforeEach(func() {
 			firstScope = newScope()
 			Expect(nsClient.Create(ctx, firstScope)).To(BeNil())
-			Eventually(ConditionStatus[ScopeCondition](nsClient, firstScope, ConditionTypeScopesProgressing)).
+			Eventually(ConditionStatus(nsClient, firstScope, ConditionTypeScopesProgressing)).
 				Should(Equal(metav1.ConditionFalse))
 		})
 		It("Should create a new scope on auth server", func() {
@@ -55,7 +55,7 @@ var _ = Describe("Scope reconciler", func() {
 			BeforeEach(func() {
 				secondScope = newScope(firstScope.Name)
 				Expect(nsClient.Create(ctx, secondScope)).To(BeNil())
-				Eventually(ConditionStatus[ScopeCondition](nsClient, secondScope, ConditionTypeScopesProgressing)).
+				Eventually(ConditionStatus(nsClient, secondScope, ConditionTypeScopesProgressing)).
 					Should(Equal(metav1.ConditionFalse))
 			})
 			It("Should create scope with transient on auth server", func() {

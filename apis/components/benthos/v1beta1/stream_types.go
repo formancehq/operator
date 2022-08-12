@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,49 +26,6 @@ const (
 	ConditionTypeStreamProgressing = "Progressing"
 	ConditionTypeStreamReady       = "Ready"
 )
-
-type StreamCondition struct {
-	// type of condition in CamelCase or in foo.example.com/CamelCase.
-	// ---
-	// Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-	// useful (see .node.status.conditions), the ability to deconflict is important.
-	// The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`
-	// +kubebuilder:validation:MaxLength=316
-	Type string `json:"type" protobuf:"bytes,1,opt,name=type"`
-	// status of the condition, one of True, False, Unknown.
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=True;False;Unknown
-	Status metav1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status"`
-	// observedGeneration represents the .metadata.generation that the condition was set based upon.
-	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
-	// with respect to the current state of the instance.
-	// +optional
-	// +kubebuilder:validation:Minimum=0
-	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
-	// lastTransitionTime is the last time the condition transitioned from one status to another.
-	// This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
-	// +required
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Format=date-time
-	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
-}
-
-func (in StreamCondition) GetType() string {
-	return in.Type
-}
-
-func (in StreamCondition) GetStatus() metav1.ConditionStatus {
-	return in.Status
-}
-
-func (in StreamCondition) GetObservedGeneration() int64 {
-	return in.ObservedGeneration
-}
 
 // StreamSpec defines the desired state of Stream
 type StreamSpec struct {
@@ -81,7 +39,7 @@ type StreamStatus struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
-	Conditions []StreamCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Conditions []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 //+kubebuilder:object:root=true
@@ -96,11 +54,11 @@ type Stream struct {
 	Status StreamStatus `json:"status,omitempty"`
 }
 
-func (in *Stream) GetConditions() []StreamCondition {
+func (in *Stream) GetConditions() []Condition {
 	return in.Status.Conditions
 }
 
-func (in *Stream) setCondition(c StreamCondition) {
+func (in *Stream) setCondition(c Condition) {
 	for ind, condition := range in.Status.Conditions {
 		if condition.Type == c.Type {
 			in.Status.Conditions[ind] = c
@@ -111,14 +69,14 @@ func (in *Stream) setCondition(c StreamCondition) {
 }
 
 func (in *Stream) removeCondition(v string) {
-	in.Status.Conditions = Filter(in.Status.Conditions, func(stack StreamCondition) bool {
+	in.Status.Conditions = Filter(in.Status.Conditions, func(stack Condition) bool {
 		return stack.Type != v
 	})
 }
 
 func (in *Stream) SetProgressing() {
 	in.removeCondition(ConditionTypeStreamReady)
-	in.setCondition(StreamCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStreamProgressing,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: in.Generation,
@@ -128,7 +86,7 @@ func (in *Stream) SetProgressing() {
 
 func (in *Stream) SetReady() {
 	in.removeCondition(ConditionTypeStreamProgressing)
-	in.setCondition(StreamCondition{
+	in.setCondition(Condition{
 		Type:               ConditionTypeStreamReady,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: in.Generation,
