@@ -70,6 +70,58 @@ rules:
   - patch
   - update
 - apiGroups:
+  - benthos.components.formance.com
+  resources:
+  - servers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - benthos.components.formance.com
+  resources:
+  - servers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - benthos.components.formance.com
+  resources:
+  - servers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - benthos.components.formance.com
+  resources:
+  - streams
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - benthos.components.formance.com
+  resources:
+  - streams/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - benthos.components.formance.com
+  resources:
+  - streams/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - components.formance.com
   resources:
   - auths

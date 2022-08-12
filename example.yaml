@@ -90,6 +90,32 @@ spec:
   authServerReference: auth
   redirectUris:
   - https://oauth.pstmn.io/v1/callback
+---
+apiVersion: benthos.components.formance.com/v1beta1
+kind: Server
+metadata:
+  name: benthos-test
+  namespace: stack1
+spec: {}
+---
+apiVersion: benthos.components.formance.com/v1beta1
+kind: Stream
+metadata:
+  name: benthos-test-stream
+  namespace: stack1
+spec:
+  ref: benthos-test
+  config: |
+    input:
+      stdin: {}
+    
+    pipeline:
+      processors: []
+    
+    output:
+      stdout: {}
+
+
 #  services:
 #    control:
 #      scaling:

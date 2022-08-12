@@ -1,0 +1,6 @@
+apiVersion: components.formance.com.formance.com/v1beta1
+kind: Benthos
+metadata:
+  name: benthos-sample
+spec:
+  # TODO(user): Add fields here

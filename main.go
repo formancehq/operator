@@ -20,6 +20,13 @@ import (
 	"flag"
 	"os"
 
+	benthoscomponentsformancecomv1beta1 "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
+	"github.com/numary/formance-operator/controllers/components/benthos"
+	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	stackv1beta1 "github.com/numary/formance-operator/apis/stack/v1beta1"
@@ -29,10 +36,6 @@ import (
 	"github.com/numary/formance-operator/controllers/components/ledger"
 	"github.com/numary/formance-operator/controllers/stack"
 	"github.com/numary/formance-operator/internal"
-	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -56,6 +59,7 @@ func init() {
 	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(traefik.AddToScheme(scheme))
 
+	utilruntime.Must(benthoscomponentsformancecomv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -146,6 +150,16 @@ func main() {
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopeMutator).
 		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Scope")
+		os.Exit(1)
+	}
+	serverMutator := benthos.NewServerMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), serverMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Server")
+		os.Exit(1)
+	}
+	streamMutator := benthos.NewStreamMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), streamMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Stream")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

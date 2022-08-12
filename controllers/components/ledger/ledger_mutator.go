@@ -88,10 +88,6 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 
 	ledger.SetReady()
 
-	if err := r.Client.Status().Update(ctx, ledger); err != nil {
-		return nil, pkgError.Wrap(err, "Updating status")
-	}
-
 	return nil, nil
 }
 
