@@ -11,4 +11,5 @@ tasks:
       helm upgrade --install redpanda /tmp/redpanda/redpanda
       --set statefulset.replicas=1
       --set statefulset.redpanda.memory=512M
+      --set config.rpk.auto_create_topics_enabled=true
     
