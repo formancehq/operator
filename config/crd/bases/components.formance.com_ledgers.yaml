@@ -90,8 +90,6 @@ spec:
                         type: boolean
                     required:
                     - brokers
-                    - sasl
-                    - tls
                     type: object
                   kind:
                     type: string

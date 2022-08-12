@@ -1,3 +1,4 @@
+---
 apiVersion: stack.formance.com/v1beta1
 kind: Stack
 metadata:
@@ -15,8 +16,8 @@ spec:
     image: ghcr.io/numary/auth:a2d200a8d89fcab9e294f58b361443571ee7e7aa
     delegatedOIDCServer:
       issuer: http://kubernetes.docker.internal/dex
-      clientID: foo
-      clientSecret: bar
+      clientID: dexclient
+      clientSecret: dexclient
     postgres:
       host: postgresql.default.svc.cluster.local
       port: 5432
@@ -73,6 +74,17 @@ spec:
         password: formance
         database: ledger
         createDatabase: true
+---
+apiVersion: auth.components.formance.com/v1beta1
+kind: Client
+metadata:
+  name: postman
+  namespace: stack1
+spec:
+  public: true
+  authServerReference: auth
+  redirectUris:
+  - https://oauth.pstmn.io/v1/callback
 #  services:
 #    control:
 #      scaling:

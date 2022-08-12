@@ -166,17 +166,20 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			}
 		}
 		var authConfig *sharedtypes.AuthConfigSpec
-		if stack.Spec.Auth != nil {
-			authConfig = &sharedtypes.AuthConfigSpec{
-				OAuth2: &sharedtypes.OAuth2ConfigSpec{
-					IntrospectUrl: fmt.Sprintf("http://%s.%s.svc.cluster.local", stack.ServiceName("auth"), stack.Spec.Namespace),
-					Audiences: []string{
-						fmt.Sprintf("%s://%s", stack.Spec.Scheme, stack.Spec.Host),
-					},
-					ProtectedByScopes: false, // TODO: Maybe later...
-				},
-			}
-		}
+		// TODO: Reconfigure properly when the gateway will be in place
+		//if stack.Spec.Auth != nil {
+		//	authConfig = &sharedtypes.AuthConfigSpec{
+		//		OAuth2: &sharedtypes.OAuth2ConfigSpec{
+		//			//TODO: Not hardcode port
+		//			// TODO: Discover on operator, or discover on ledger
+		//			IntrospectUrl: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/oauth/introspect", stack.ServiceName("auth"), stack.Spec.Namespace),
+		//			Audiences: []string{
+		//				fmt.Sprintf("%s://%s", stack.Spec.Scheme, stack.Spec.Host),
+		//			},
+		//			ProtectedByScopes: false, // TODO: Maybe later...
+		//		},
+		//	}
+		//}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
 			Ingress:    ingress,
 			Debug:      stack.Spec.Services.Ledger.Debug,

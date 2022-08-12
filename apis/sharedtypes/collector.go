@@ -16,9 +16,11 @@ type KafkaSASLConfig struct {
 }
 
 type KafkaConfig struct {
-	Brokers []string         `json:"brokers"`
-	TLS     bool             `json:"tls"`
-	SASL    *KafkaSASLConfig `json:"sasl"`
+	Brokers []string `json:"brokers"`
+	// +optional
+	TLS bool `json:"tls"`
+	// +optional
+	SASL *KafkaSASLConfig `json:"sasl,omitempty"`
 }
 
 type CollectorConfigSpec struct {
