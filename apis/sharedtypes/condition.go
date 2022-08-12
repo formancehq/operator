@@ -23,7 +23,7 @@ type Condition struct {
 	// observedGeneration represents the .metadata.generation that the condition was set based upon.
 	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
 	// with respect to the current state of the instance.
-	// +optional
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
 	// lastTransitionTime is the last time the condition transitioned from one status to another.

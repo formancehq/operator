@@ -18,7 +18,6 @@ package v1beta1
 
 import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -54,11 +53,7 @@ const (
 
 // AuthStatus defines the observed state of Auth
 type AuthStatus struct {
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=type
-	Conditions []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Status `json:",inline"`
 }
 
 //+kubebuilder:object:root=true
@@ -77,18 +72,8 @@ func (a *Auth) GetConditions() []Condition {
 	return a.Status.Conditions
 }
 
-func (a *Auth) setCondition(expectedCondition Condition) {
-	for i, condition := range a.Status.Conditions {
-		if condition.Type == expectedCondition.Type {
-			a.Status.Conditions[i] = expectedCondition
-			return
-		}
-	}
-	a.Status.Conditions = append(a.Status.Conditions, expectedCondition)
-}
-
 func (a *Auth) SetReady() {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeReady,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
@@ -97,7 +82,7 @@ func (a *Auth) SetReady() {
 }
 
 func (a *Auth) SetDeploymentCreated() {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeDeploymentCreated,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
@@ -106,7 +91,7 @@ func (a *Auth) SetDeploymentCreated() {
 }
 
 func (a *Auth) SetDeploymentFailure(err error) {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeDeploymentCreated,
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: a.Generation,
@@ -115,7 +100,7 @@ func (a *Auth) SetDeploymentFailure(err error) {
 }
 
 func (a *Auth) SetServiceCreated() {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeServiceCreated,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
@@ -124,7 +109,7 @@ func (a *Auth) SetServiceCreated() {
 }
 
 func (a *Auth) SetServiceFailure(err error) {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeServiceCreated,
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: a.Generation,
@@ -133,7 +118,7 @@ func (a *Auth) SetServiceFailure(err error) {
 }
 
 func (a *Auth) SetIngressCreated() {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeIngressCreated,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
@@ -142,7 +127,7 @@ func (a *Auth) SetIngressCreated() {
 }
 
 func (a *Auth) SetIngressFailure(err error) {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeIngressCreated,
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: a.Generation,
@@ -151,15 +136,7 @@ func (a *Auth) SetIngressFailure(err error) {
 }
 
 func (in *Auth) RemoveIngressStatus() {
-	in.Status.Conditions = Filter(in.Status.Conditions, func(c Condition) bool {
-		return c.Type != ConditionTypeIngressCreated
-	})
-}
-
-func (in *Auth) Condition(conditionType string) *Condition {
-	return First(in.Status.Conditions, func(c Condition) bool {
-		return c.Type == conditionType
-	})
+	in.Status.RemoveCondition(ConditionTypeIngressCreated)
 }
 
 //+kubebuilder:object:root=true

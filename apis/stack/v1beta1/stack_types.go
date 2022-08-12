@@ -21,7 +21,6 @@ import (
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -92,16 +91,10 @@ const (
 
 // StackStatus defines the observed state of Stack
 type StackStatus struct {
-	// Progress is the progress of this Stack object.
-	// +kubebuilder:validation:Enum=Pending;Deploying;Configuring;Running
-	// +optional
-	Progress StackProgress `json:"progress,omitempty"`
+	Status `json:",inline"`
 
 	// +optional
 	DeployedServices []string `json:"deployedServices,omitempty"`
-
-	// +optional
-	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -124,33 +117,6 @@ func (in *Stack) GetConditions() []Condition {
 	return in.Status.Conditions
 }
 
-func (in *Stack) Condition(conditionType string) *Condition {
-	if in != nil {
-		for _, condition := range in.Status.Conditions {
-			if condition.Type == conditionType {
-				return &condition
-			}
-		}
-	}
-	return nil
-}
-
-func (in *Stack) setCondition(condition Condition) {
-	for i, c := range in.Status.Conditions {
-		if c.Type == condition.Type {
-			in.Status.Conditions[i] = condition
-			return
-		}
-	}
-	in.Status.Conditions = append(in.Status.Conditions, condition)
-}
-
-func (in *Stack) removeCondition(v string) {
-	in.Status.Conditions = Filter(in.Status.Conditions, func(stack Condition) bool {
-		return stack.Type != v
-	})
-}
-
 func (in *Stack) Scheme() string {
 	if in.Spec.Scheme != "" {
 		return in.Spec.Scheme
@@ -159,13 +125,13 @@ func (in *Stack) Scheme() string {
 }
 
 func (in *Stack) Progress() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStackProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: in.Generation,
 	})
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStackReady,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
@@ -174,7 +140,7 @@ func (in *Stack) Progress() {
 }
 
 func (in *Stack) IsReady() bool {
-	condition := in.Condition(ConditionTypeStackReady)
+	condition := in.Status.GetCondition(ConditionTypeStackReady)
 	if condition == nil {
 		return false
 	}
@@ -182,8 +148,8 @@ func (in *Stack) IsReady() bool {
 }
 
 func (in *Stack) SetReady() {
-	in.removeCondition(ConditionTypeStackProgressing)
-	in.setCondition(Condition{
+	in.Status.RemoveCondition(ConditionTypeStackProgressing)
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStackReady,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -192,7 +158,7 @@ func (in *Stack) SetReady() {
 }
 
 func (in *Stack) SetNamespaceCreated() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStackNamespaceCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -201,7 +167,7 @@ func (in *Stack) SetNamespaceCreated() {
 }
 
 func (in *Stack) SetAuthCreated() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStackAuthCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -210,7 +176,7 @@ func (in *Stack) SetAuthCreated() {
 }
 
 func (in *Stack) SetLedgerCreated() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStackLedgerCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -219,7 +185,7 @@ func (in *Stack) SetLedgerCreated() {
 }
 
 func (in *Stack) RemoveAuthStatus() {
-	in.removeCondition(ConditionTypeStackAuthCreated)
+	in.Status.RemoveCondition(ConditionTypeStackAuthCreated)
 }
 
 func (s *Stack) ServiceName(v string) string {

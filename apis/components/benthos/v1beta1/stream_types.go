@@ -18,7 +18,6 @@ package v1beta1
 
 import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -35,11 +34,7 @@ type StreamSpec struct {
 
 // StreamStatus defines the observed state of Stream
 type StreamStatus struct {
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=type
-	Conditions []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Status `json:",inline"`
 }
 
 //+kubebuilder:object:root=true
@@ -58,25 +53,9 @@ func (in *Stream) GetConditions() []Condition {
 	return in.Status.Conditions
 }
 
-func (in *Stream) setCondition(c Condition) {
-	for ind, condition := range in.Status.Conditions {
-		if condition.Type == c.Type {
-			in.Status.Conditions[ind] = c
-			return
-		}
-	}
-	in.Status.Conditions = append(in.Status.Conditions, c)
-}
-
-func (in *Stream) removeCondition(v string) {
-	in.Status.Conditions = Filter(in.Status.Conditions, func(stack Condition) bool {
-		return stack.Type != v
-	})
-}
-
 func (in *Stream) SetProgressing() {
-	in.removeCondition(ConditionTypeStreamReady)
-	in.setCondition(Condition{
+	in.Status.RemoveCondition(ConditionTypeStreamReady)
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStreamProgressing,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: in.Generation,
@@ -85,8 +64,8 @@ func (in *Stream) SetProgressing() {
 }
 
 func (in *Stream) SetReady() {
-	in.removeCondition(ConditionTypeStreamProgressing)
-	in.setCondition(Condition{
+	in.Status.RemoveCondition(ConditionTypeStreamProgressing)
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeStreamReady,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: in.Generation,

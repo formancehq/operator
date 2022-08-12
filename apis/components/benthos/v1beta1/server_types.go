@@ -37,12 +37,8 @@ type ServerSpec struct {
 
 // ServerStatus defines the observed state of Server
 type ServerStatus struct {
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=type
-	Conditions []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
-	Ready      bool        `json:"ready"`
+	Status `json:",inline"`
+	Ready  bool `json:"ready"`
 }
 
 //+kubebuilder:object:root=true
@@ -61,24 +57,14 @@ func (in *Server) GetConditions() []Condition {
 	return in.Status.Conditions
 }
 
-func (in *Server) setCondition(c Condition) {
-	for ind, condition := range in.Status.Conditions {
-		if condition.Type == c.Type {
-			in.Status.Conditions[ind] = c
-			return
-		}
-	}
-	in.Status.Conditions = append(in.Status.Conditions, c)
-}
-
 func (in *Server) Progress() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeServerProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: in.Generation,
 	})
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeServerReady,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
@@ -95,7 +81,7 @@ func (in *Server) removeCondition(v string) {
 
 func (in *Server) SetReady() {
 	in.removeCondition(ConditionTypeServerProgressing)
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeServerReady,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -105,7 +91,7 @@ func (in *Server) SetReady() {
 }
 
 func (a *Server) SetDeploymentCreated() {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeServerDeploymentCreated,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
@@ -114,7 +100,7 @@ func (a *Server) SetDeploymentCreated() {
 }
 
 func (a *Server) SetDeploymentFailure(err error) {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeServerDeploymentCreated,
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: a.Generation,
@@ -123,7 +109,7 @@ func (a *Server) SetDeploymentFailure(err error) {
 }
 
 func (a *Server) SetServiceCreated() {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeServerServiceCreated,
 		Status:             metav1.ConditionTrue,
 		ObservedGeneration: a.Generation,
@@ -132,7 +118,7 @@ func (a *Server) SetServiceCreated() {
 }
 
 func (a *Server) SetServiceFailure(err error) {
-	a.setCondition(Condition{
+	a.Status.SetCondition(Condition{
 		Type:               ConditionTypeServerServiceCreated,
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: a.Generation,

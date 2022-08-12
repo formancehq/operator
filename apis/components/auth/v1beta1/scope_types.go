@@ -45,11 +45,7 @@ type TransientScopeStatus struct {
 
 // ScopeStatus defines the observed state of Scope
 type ScopeStatus struct {
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=type
-	Conditions   []Condition                     `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Status       `json:",inline"`
 	AuthServerID string                          `json:"authServerID,omitempty"`
 	Transient    map[string]TransientScopeStatus `json:"transient,omitempty"`
 }
@@ -71,40 +67,25 @@ func (in *Scope) GetConditions() []Condition {
 	return in.Status.Conditions
 }
 
-func (in *Scope) Condition(conditionType string) *Condition {
-	return First(in.Status.Conditions, func(c Condition) bool {
-		return c.Type == conditionType
-	})
-}
-
 func (s *Scope) AuthServerReference() string {
 	return s.Spec.AuthServerReference
 }
 
-func (s *Scope) setCondition(c Condition) {
-	c.ObservedGeneration = s.Generation
-	for ind, condition := range s.Status.Conditions {
-		if condition.Type == c.Type {
-			s.Status.Conditions[ind] = c
-			return
-		}
-	}
-	s.Status.Conditions = append(s.Status.Conditions, c)
-}
-
 func (s *Scope) Progress() {
-	s.setCondition(Condition{
+	s.Status.SetCondition(Condition{
 		Type:               ConditionTypeScopesProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: s.Generation,
 	})
 }
 
 func (s *Scope) StopProgression() {
-	s.setCondition(Condition{
+	s.Status.SetCondition(Condition{
 		Type:               ConditionTypeScopesProgressing,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
+		ObservedGeneration: s.Generation,
 	})
 }
 

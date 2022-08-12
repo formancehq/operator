@@ -22,7 +22,6 @@ import (
 
 	"github.com/numary/auth/authclient"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -50,13 +49,9 @@ const (
 
 // ClientStatus defines the observed state of Client
 type ClientStatus struct {
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=type
-	Conditions   []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
-	Ready        bool        `json:"ready"`
-	AuthServerID string      `json:"authServerID,omitempty"`
+	Status       `json:",inline"`
+	Ready        bool   `json:"ready"`
+	AuthServerID string `json:"authServerID,omitempty"`
 	// +optional
 	Scopes map[string]string `json:"scopes"`
 }
@@ -75,13 +70,7 @@ type Client struct {
 }
 
 func (in *Client) GetConditions() []Condition {
-	return in.Status.Conditions
-}
-
-func (in *Client) Condition(v string) *Condition {
-	return First(in.Status.Conditions, func(c Condition) bool {
-		return c.Type == v
-	})
+	return in.Status.GetConditions()
 }
 
 func (in *Client) AuthServerReference() string {
@@ -134,18 +123,8 @@ func (in *Client) Match(client *authclient.Client) bool {
 	return true
 }
 
-func (in *Client) setCondition(c Condition) {
-	for ind, condition := range in.Status.Conditions {
-		if condition.Type == c.Type {
-			in.Status.Conditions[ind] = c
-			return
-		}
-	}
-	in.Status.Conditions = append(in.Status.Conditions, c)
-}
-
 func (in *Client) Progress() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeClientProgressing,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -155,7 +134,7 @@ func (in *Client) Progress() {
 }
 
 func (in *Client) StopProgression() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeClientProgressing,
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: metav1.Now(),
@@ -165,7 +144,7 @@ func (in *Client) StopProgression() {
 }
 
 func (in *Client) SetClientCreated(id string) {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeClientCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -175,7 +154,7 @@ func (in *Client) SetClientCreated(id string) {
 }
 
 func (in *Client) SetClientUpdated() {
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeClientUpdated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -186,7 +165,7 @@ func (in *Client) SetClientUpdated() {
 func (in *Client) checkScopesSynchronized() {
 
 	notSynchronized := func() {
-		in.setCondition(Condition{
+		in.Status.SetCondition(Condition{
 			Type:               ConditionTypeScopesSynchronized,
 			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
@@ -205,7 +184,7 @@ func (in *Client) checkScopesSynchronized() {
 		}
 	}
 	// Scopes synchronized
-	in.setCondition(Condition{
+	in.Status.SetCondition(Condition{
 		Type:               ConditionTypeScopesSynchronized,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
