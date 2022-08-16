@@ -69,9 +69,10 @@ type ServicesSpec struct {
 }
 
 const (
-	ConditionTypeStackNamespaceCreated = "NamespaceCreated"
-	ConditionTypeStackAuthCreated      = "AuthCreated"
-	ConditionTypeStackLedgerCreated    = "LedgerCreated"
+	ConditionTypeStackNamespaceReady = "NamespaceReady"
+	ConditionTypeStackAuthReady      = "AuthReady"
+	ConditionTypeStackLedgerReady    = "LedgerReady"
+	ConditionTypeStackSearchReady    = "SearchReady"
 )
 
 // StackStatus defines the observed state of Stack
@@ -107,35 +108,27 @@ func (in *Stack) Scheme() string {
 }
 
 func (in *Stack) SetNamespaceCreated() {
-	SetCondition(in, ConditionTypeDeploymentReady, metav1.ConditionTrue)
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStackNamespaceCreated,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
+	SetCondition(in, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) SetAuthCreated() {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStackAuthCreated,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
+func (in *Stack) SetAuthReady() {
+	SetCondition(in, ConditionTypeStackAuthReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) SetLedgerCreated() {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeStackLedgerCreated,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		ObservedGeneration: in.Generation,
-	})
+func (in *Stack) SetLedgerReady() {
+	SetCondition(in, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
+}
+
+func (in *Stack) SetSearchReady() {
+	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionTrue)
 }
 
 func (in *Stack) RemoveAuthStatus() {
-	in.Status.RemoveCondition(ConditionTypeStackAuthCreated)
+	in.Status.RemoveCondition(ConditionTypeStackAuthReady)
+}
+
+func (in *Stack) RemoveSearchStatus() {
+	in.Status.RemoveCondition(ConditionTypeStackSearchReady)
 }
 
 func (s *Stack) ServiceName(v string) string {

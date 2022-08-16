@@ -17,25 +17,34 @@ limitations under the License.
 package v1beta1
 
 import (
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type ElasticSearchConfig struct {
+	Host   string `json:"host"`
+	Scheme string `json:"scheme"`
+	Port   uint16 `json:"port"`
+}
 
 // SearchSpec defines the desired state of Search
 type SearchSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Search. Edit search_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +optional
+	Ingress *IngressSpec `json:"ingress"`
+	// +optional
+	Debug bool `json:"debug"`
+	// +optional
+	Auth *AuthConfigSpec `json:"auth"`
+	// +optional
+	Monitoring *MonitoringSpec `json:"monitoring"`
+	// +optional
+	Image         string               `json:"image"`
+	ElasticSearch *ElasticSearchConfig `json:"elasticsearch"`
 }
 
 // SearchStatus defines the observed state of Search
 type SearchStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Status `json:",inline"`
 }
 
 //+kubebuilder:object:root=true
@@ -48,6 +57,10 @@ type Search struct {
 
 	Spec   SearchSpec   `json:"spec,omitempty"`
 	Status SearchStatus `json:"status,omitempty"`
+}
+
+func (in *Search) GetConditions() *Conditions {
+	return &in.Status.Conditions
 }
 
 //+kubebuilder:object:root=true

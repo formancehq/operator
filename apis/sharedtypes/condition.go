@@ -39,7 +39,7 @@ type Condition struct {
 	// +required
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxLength=32768
-	Message string `json:"message" protobuf:"bytes,6,opt,name=message"`
+	Message string `json:"message,omitempty" protobuf:"bytes,6,opt,name=message"`
 }
 
 func SetCondition(object Object, conditionType string, status metav1.ConditionStatus, msg ...string) {

@@ -359,18 +359,22 @@ spec:
                     type: object
                   search:
                     properties:
-                      databases:
-                        items:
-                          properties:
-                            type:
-                              type: string
-                            url:
-                              type: string
-                          type: object
-                        type: array
-                      enabled:
+                      debug:
                         type: boolean
-                      name:
+                      elasticSearch:
+                        properties:
+                          host:
+                            type: string
+                          port:
+                            type: integer
+                          scheme:
+                            type: string
+                        required:
+                        - host
+                        - port
+                        - scheme
+                        type: object
+                      image:
                         type: string
                       scaling:
                         properties:
@@ -383,6 +387,8 @@ spec:
                           minReplica:
                             type: integer
                         type: object
+                    required:
+                    - elasticSearch
                     type: object
                 type: object
               version:

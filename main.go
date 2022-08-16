@@ -22,6 +22,7 @@ import (
 
 	benthoscomponentsformancecomv1beta1 "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	"github.com/numary/formance-operator/controllers/components/benthos"
+	"github.com/numary/formance-operator/controllers/components/search"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -126,13 +127,11 @@ func main() {
 	//	setupLog.Error(err, "unable to create controller", "controller", "Payments")
 	//	os.Exit(1)
 	//}
-	//if err = (&componentscontrollers.SearchReconciler{
-	//	Client: mgr.GetClient(),
-	//	Scheme: mgr.GetScheme(),
-	//}).SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Search")
-	//	os.Exit(1)
-	//}
+	searchMutator := search.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Search")
+		os.Exit(1)
+	}
 	//if err = (&componentscontrollers.ControlReconciler{
 	//	Client: mgr.GetClient(),
 	//	Scheme: mgr.GetScheme(),

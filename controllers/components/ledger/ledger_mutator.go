@@ -17,10 +17,15 @@ limitations under the License.
 package ledger
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"fmt"
+	"strings"
+	"text/template"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	"github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
@@ -34,12 +39,25 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+//go:embed benthos-config.yml
+var benthosConfigDir embed.FS
+
+var benthosConfigTpl = template.
+	Must(
+		template.New("benthos-config.yml").
+			Funcs(template.FuncMap{
+				"join": strings.Join,
+			}).
+			ParseFS(benthosConfigDir, "benthos-config.yml"),
+	)
 
 const (
 	defaultImage = "ghcr.io/numary/ledger:latest"
@@ -54,9 +72,9 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=auths/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.formance.com,resources=auths/finalizers,verbs=update
+// +kubebuilder:rbac:groups=components.formance.com,resources=ledgers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.formance.com,resources=ledgers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.formance.com,resources=ledgers/finalizers,verbs=update
 
 func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) (*ctrl.Result, error) {
 	deployment, err := r.reconcileDeployment(ctx, ledger)
@@ -66,6 +84,10 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 
 	service, err := r.reconcileService(ctx, ledger, deployment)
 	if err != nil {
+		return nil, pkgError.Wrap(err, "Reconciling service")
+	}
+
+	if err := r.reconcileIngestionStream(ctx, ledger); err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling service")
 	}
 
@@ -175,6 +197,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	switch {
 	case err != nil:
 		SetDeploymentError(ledger, err.Error())
+		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		SetDeploymentReady(ledger)
@@ -199,6 +222,7 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	switch {
 	case err != nil:
 		SetServiceError(auth, err.Error())
+		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		SetServiceReady(auth)
@@ -240,11 +264,52 @@ func (r *Mutator) reconcileIngress(ctx context.Context, ledger *componentsv1beta
 	switch {
 	case err != nil:
 		SetIngressError(ledger, err.Error())
+		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		SetIngressReady(ledger)
 	}
 	return ret, nil
+}
+
+// TODO: Add an abstraction layer on search. Object of kind SearchIngester ?
+func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componentsv1beta1.Ledger) error {
+	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+		Namespace: ledger.Namespace,
+		Name:      ledger.Name + "-ingestion-stream",
+	}, ledger, func(t *v1beta1.Stream) error {
+		buf := bytes.NewBufferString("")
+		if err := benthosConfigTpl.Execute(buf, map[string]any{
+			"KafkaAddresses":     ledger.Spec.Collector.KafkaConfig.Brokers,
+			"KafkaTopics":        []string{"ledger"},
+			"KafkaConsumerGroup": "ledger",
+			"KafkaTargetVersion": "",
+			"ElasticSearchEndpoint": fmt.Sprintf("%s://%s:%d",
+				ledger.Spec.ElasticSearchConfig.Scheme,
+				ledger.Spec.ElasticSearchConfig.Host,
+				ledger.Spec.ElasticSearchConfig.Port),
+			"ElasticSearchTLSEnabled":        false,
+			"ElasticSearchTLSSkipCertVerify": false,
+			"ElasticSearchBasicAuthEnabled":  true,
+			"ElasticSearchBasicAuthUsername": "admin",
+			"ElasticSearchBasicAuthPassword": "admin",
+			"ElasticSearchIndex":             "documents",
+		}); err != nil {
+			return err
+		}
+		t.Spec.Config = buf.String()
+		t.Spec.Reference = fmt.Sprintf("%s-search-benthos", ledger.Namespace)
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetCondition(ledger, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
+		return err
+	case ret == controllerutil.OperationResultNone:
+	default:
+		SetCondition(ledger, "IngestionStreamReady", metav1.ConditionTrue)
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

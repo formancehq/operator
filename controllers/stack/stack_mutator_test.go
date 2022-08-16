@@ -52,7 +52,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					},
 				}
 				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackLedgerCreated)).
+				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackLedgerReady)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			It("Should create a ledger on a new namespace", func() {
@@ -83,7 +83,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					},
 				}
 				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthCreated)).
+				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthReady)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			It("Should create a auth server on a new namespace", func() {
@@ -98,7 +98,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 				BeforeEach(func() {
 					stack.Spec.Auth = nil
 					Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-					Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthCreated)).Should(Equal(metav1.ConditionUnknown))
+					Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthReady)).Should(Equal(metav1.ConditionUnknown))
 				})
 				It("Should remove Auth deployment", func() {
 					Expect(Exists(k8sClient, &componentsv1beta1.Auth{

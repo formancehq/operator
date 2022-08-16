@@ -23,8 +23,10 @@ import (
 
 // StreamSpec defines the desired state of Stream
 type StreamSpec struct {
+	// TODO: Add validations pattern
 	Reference string `json:"ref"`
-	Config    string `json:"config"`
+	// TODO: Accept map[string]any instead of string
+	Config string `json:"config"`
 }
 
 // StreamStatus defines the observed state of Stream

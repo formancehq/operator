@@ -36,8 +36,10 @@ spec:
             description: StreamSpec defines the desired state of Stream
             properties:
               config:
+                description: 'TODO: Accept map[string]any instead of string'
                 type: string
               ref:
+                description: 'TODO: Add validations pattern'
                 type: string
             required:
             - config

@@ -39,6 +39,7 @@ func (m *ServerMutator) SetupWithBuilder(builder *ctrl.Builder) {
 		Owns(&corev1.Service{})
 }
 
+//TODO: the stream controller should listten for server restart to be able to reconfigure benthos server
 func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Result, error) {
 
 	SetProgressing(server)

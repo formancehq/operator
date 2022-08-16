@@ -12,8 +12,13 @@ includes:
     dir: .
   otel:
     taskfile: ./resources/otel.yaml
+    dir: .
   redpanda:
     taskfile: ./resources/redpanda.yaml
+    dir: .
+  elasticsearch:
+    taskfile: ./resources/elasticsearch.yaml
+    dir: .
 
 tasks:
   install:

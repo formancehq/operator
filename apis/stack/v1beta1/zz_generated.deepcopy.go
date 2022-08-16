@@ -253,10 +253,10 @@ func (in *ScalingSpec) DeepCopy() *ScalingSpec {
 func (in *SearchSpec) DeepCopyInto(out *SearchSpec) {
 	*out = *in
 	out.Scaling = in.Scaling
-	if in.Databases != nil {
-		in, out := &in.Databases, &out.Databases
-		*out = make([]DatabaseSpec, len(*in))
-		copy(*out, *in)
+	if in.ElasticSearchConfig != nil {
+		in, out := &in.ElasticSearchConfig, &out.ElasticSearchConfig
+		*out = new(componentsv1beta1.ElasticSearchConfig)
+		**out = **in
 	}
 }
 
