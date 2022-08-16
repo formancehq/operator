@@ -1,4 +1,33 @@
 ---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-all
+spec:
+  headers:
+    accessControlAllowOriginList:
+    - "*"
+    accessControlAllowHeaders:
+    - "Authorization"
+    - "content-type"
+    accessControlAllowMethods:
+    - "*"
+    accessControlAllowCredentials: true
+    accessControlMaxAge: 100
+    addVaryHeader: true
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: stripprefix
+spec:
+  stripPrefix:
+    prefixes:
+    - /auth
+    - /dex
+    - /jaeger
+    - /ledger
+---
 apiVersion: stack.formance.com/v1beta1
 kind: Stack
 metadata:
@@ -11,7 +40,7 @@ spec:
   debug: true
   ingress:
     annotations:
-      traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd
+      traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
   auth:
     image: ghcr.io/numary/auth:a2d200a8d89fcab9e294f58b361443571ee7e7aa
     delegatedOIDCServer:
@@ -85,7 +114,9 @@ spec:
         host: elasticsearch-master.default.svc.cluster.local
         port: 9200
         scheme: http
-
+    control:
+      debug: true
+      image: "ghcr.io/numary/control:cdbeb8e9bd10d388674da80622a113519f1147ce"
 ---
 apiVersion: auth.components.formance.com/v1beta1
 kind: Client
@@ -97,55 +128,3 @@ spec:
   authServerReference: auth
   redirectUris:
   - https://oauth.pstmn.io/v1/callback
-#---
-#apiVersion: benthos.components.formance.com/v1beta1
-#kind: Server
-#metadata:
-#  name: benthos-test
-#  namespace: stack1
-#spec: {}
-#---
-#apiVersion: benthos.components.formance.com/v1beta1
-#kind: Stream
-#metadata:
-#  name: benthos-test-stream
-#  namespace: stack1
-#spec:
-#  ref: benthos-test
-#  config: |
-#    input:
-#      stdin: {}
-#
-#    pipeline:
-#      processors: []
-#
-#    output:
-#      stdout: {}
-
-
-#  services:
-#    control:
-#      scaling:
-#        enabled: true
-#        minReplica: 1
-#        maxReplica: 10
-#        cpuLimit: 60
-#    ledger:
-#      port: 3068
-#      scaling:
-#        enabled: true
-#        minReplica: 1
-#        maxReplica: 10
-#        cpuLimit: 60
-#      databases:
-#        - type: postgresql
-#          url: postgresql://formance:formance@localhost:5432/formance
-#        - type: redis
-#          url: redis://localhost:6379/0
-#---
-#apiVersion: stack.formance.com/v1beta1
-#kind: License
-#metadata:
-#  name: maxence
-#spec:
-#  licenceId: maxence

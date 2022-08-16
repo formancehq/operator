@@ -73,6 +73,7 @@ const (
 	ConditionTypeStackAuthReady      = "AuthReady"
 	ConditionTypeStackLedgerReady    = "LedgerReady"
 	ConditionTypeStackSearchReady    = "SearchReady"
+	ConditionTypeStackControlReady   = "ControlReady"
 )
 
 // StackStatus defines the observed state of Stack
@@ -123,12 +124,20 @@ func (in *Stack) SetSearchReady() {
 	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionTrue)
 }
 
+func (in *Stack) SetControlReady() {
+	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionTrue)
+}
+
 func (in *Stack) RemoveAuthStatus() {
 	in.Status.RemoveCondition(ConditionTypeStackAuthReady)
 }
 
 func (in *Stack) RemoveSearchStatus() {
 	in.Status.RemoveCondition(ConditionTypeStackSearchReady)
+}
+
+func (in *Stack) RemoveControlStatus() {
+	in.Status.RemoveCondition(ConditionTypeStackControlReady)
 }
 
 func (s *Stack) ServiceName(v string) string {

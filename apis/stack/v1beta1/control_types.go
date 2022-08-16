@@ -2,12 +2,10 @@ package v1beta1
 
 // +kubebuilder:object:generate=true
 type ControlSpec struct {
-	// +required
-	Name string `json:"name,omitempty"`
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional
-	Databases []DatabaseSpec `json:"databases,omitempty"`
+	Debug bool `json:"debug"`
+	// +optional
+	Image string `json:"image"`
 }
