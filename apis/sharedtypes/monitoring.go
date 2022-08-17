@@ -4,7 +4,7 @@ package sharedtypes
 import (
 	"fmt"
 
-	"github.com/numary/formance-operator/pkg/envutil"
+	"github.com/numary/formance-operator/internal/envutil"
 	v1 "k8s.io/api/core/v1"
 )
 

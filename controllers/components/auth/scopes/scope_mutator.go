@@ -9,7 +9,7 @@ import (
 	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
 	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/pkg/finalizerutil"
+	"github.com/numary/formance-operator/internal/finalizerutil"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

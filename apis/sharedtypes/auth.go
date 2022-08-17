@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/numary/formance-operator/pkg/envutil"
+	"github.com/numary/formance-operator/internal/envutil"
 	corev1 "k8s.io/api/core/v1"
 )
 

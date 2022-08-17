@@ -9,7 +9,7 @@ import (
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
-	"github.com/numary/formance-operator/pkg/finalizerutil"
+	"github.com/numary/formance-operator/internal/finalizerutil"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
