@@ -3,6 +3,7 @@ package clients
 import (
 	"github.com/google/uuid"
 	. "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -21,7 +22,7 @@ var _ = Describe("Client reconciler", func() {
 		BeforeEach(func() {
 			actualClient = newClient()
 			Expect(nsClient.Create(ctx, actualClient)).To(BeNil())
-			Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientCreated)).
+			Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeClientCreated)).
 				Should(Equal(metav1.ConditionTrue))
 		})
 		AfterEach(func() {
@@ -51,19 +52,19 @@ var _ = Describe("Client reconciler", func() {
 				Expect(nsClient.Update(ctx, actualClient)).To(BeNil())
 			})
 			It("Should set the client to not ready state", func() {
-				Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
+				Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeProgressing)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			Context("Then creating the scope", func() {
 				BeforeEach(func() {
-					Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
+					Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeProgressing)).
 						Should(Equal(metav1.ConditionTrue))
 					Expect(nsClient.Create(ctx, scope)).To(BeNil())
 					scope.Status.AuthServerID = "XXX"
 					Expect(nsClient.Status().Update(ctx, scope)).To(BeNil())
 
-					Eventually(ConditionStatus[ClientCondition](nsClient, actualClient, ConditionTypeClientProgressing)).
-						Should(Equal(metav1.ConditionFalse))
+					Eventually(ConditionStatus(nsClient, actualClient, ConditionTypeReady)).
+						Should(Equal(metav1.ConditionTrue))
 					Expect(actualClient.Status.Scopes).To(Equal(map[string]string{
 						scope.Name: scope.Status.AuthServerID,
 					}))

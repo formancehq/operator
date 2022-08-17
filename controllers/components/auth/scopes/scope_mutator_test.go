@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/numary/auth/authclient"
 	. "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -19,8 +20,8 @@ var _ = Describe("Scope reconciler", func() {
 		BeforeEach(func() {
 			firstScope = newScope()
 			Expect(nsClient.Create(ctx, firstScope)).To(BeNil())
-			Eventually(ConditionStatus[ScopeCondition](nsClient, firstScope, ConditionTypeScopesProgressing)).
-				Should(Equal(metav1.ConditionFalse))
+			Eventually(ConditionStatus(nsClient, firstScope, ConditionTypeReady)).
+				Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a new scope on auth server", func() {
 			Expect(api.Scopes()).To(HaveLen(1))
@@ -55,8 +56,8 @@ var _ = Describe("Scope reconciler", func() {
 			BeforeEach(func() {
 				secondScope = newScope(firstScope.Name)
 				Expect(nsClient.Create(ctx, secondScope)).To(BeNil())
-				Eventually(ConditionStatus[ScopeCondition](nsClient, secondScope, ConditionTypeScopesProgressing)).
-					Should(Equal(metav1.ConditionFalse))
+				Eventually(ConditionStatus(nsClient, secondScope, ConditionTypeReady)).
+					Should(Equal(metav1.ConditionTrue))
 			})
 			It("Should create scope with transient on auth server", func() {
 				Expect(api.Scopes()).To(HaveLen(2))

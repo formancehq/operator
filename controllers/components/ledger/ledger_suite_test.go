@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	"github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	"github.com/numary/formance-operator/internal"
 	. "github.com/onsi/ginkgo"
@@ -56,6 +57,7 @@ var _ = BeforeSuite(func() {
 	err = componentsv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(authcomponentsv1beta1.AddToScheme(scheme.Scheme)).To(BeNil())
+	Expect(v1beta1.AddToScheme(scheme.Scheme)).To(BeNil())
 
 	//+kubebuilder:scaffold:scheme
 

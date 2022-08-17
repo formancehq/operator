@@ -20,6 +20,7 @@ import (
 	"context"
 
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/pkg/containerutil"
@@ -58,6 +59,9 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=auths/finalizers,verbs=update
 
 func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ctrl.Result, error) {
+
+	SetProgressing(auth)
+
 	deployment, err := r.reconcileDeployment(ctx, auth)
 	if err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
@@ -83,14 +87,10 @@ func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ct
 		if err != nil && !errors.IsNotFound(err) {
 			return nil, pkgError.Wrap(err, "Deleting ingress")
 		}
-		auth.RemoveIngressStatus()
+		RemoveIngressCondition(auth)
 	}
 
-	auth.SetReady()
-
-	if err := r.Client.Status().Update(ctx, auth); err != nil {
-		return nil, pkgError.Wrap(err, "Updating status")
-	}
+	SetReady(auth)
 
 	return nil, nil
 }
@@ -147,10 +147,10 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		auth.SetDeploymentFailure(err)
+		SetDeploymentError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetDeploymentCreated()
+		SetDeploymentReady(auth)
 	}
 	return ret, err
 }
@@ -171,10 +171,10 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		auth.SetServiceFailure(err)
+		SetServiceError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetServiceCreated()
+		SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -212,10 +212,10 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		auth.SetIngressFailure(err)
+		SetIngressError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetIngressCreated()
+		SetIngressReady(auth)
 	}
 	return ret, nil
 }
@@ -228,8 +228,7 @@ func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 		Owns(&networkingv1.Ingress{})
 }
 
-func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[
-	componentsv1beta1.AuthCondition, *componentsv1beta1.Auth] {
+func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*componentsv1beta1.Auth] {
 	return &Mutator{
 		Client: client,
 		Scheme: scheme,

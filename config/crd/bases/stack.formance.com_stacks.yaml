@@ -359,18 +359,22 @@ spec:
                     type: object
                   search:
                     properties:
-                      databases:
-                        items:
-                          properties:
-                            type:
-                              type: string
-                            url:
-                              type: string
-                          type: object
-                        type: array
-                      enabled:
+                      debug:
                         type: boolean
-                      name:
+                      elasticSearch:
+                        properties:
+                          host:
+                            type: string
+                          port:
+                            type: integer
+                          scheme:
+                            type: string
+                        required:
+                        - host
+                        - port
+                        - scheme
+                        type: object
+                      image:
                         type: string
                       scaling:
                         properties:
@@ -383,6 +387,8 @@ spec:
                           minReplica:
                             type: integer
                         type: object
+                    required:
+                    - elasticSearch
                     type: object
                 type: object
               version:
@@ -400,6 +406,11 @@ spec:
                         the underlying condition changed.  If that is not known, then
                         using the time when the API field changed is acceptable.
                       format: date-time
+                      type: string
+                    message:
+                      description: message is a human readable message indicating
+                        details about the transition. This may be an empty string.
+                      maxLength: 32768
                       type: string
                     observedGeneration:
                       description: observedGeneration represents the .metadata.generation
@@ -432,18 +443,6 @@ spec:
                   - type
                   type: object
                 type: array
-              deployedServices:
-                items:
-                  type: string
-                type: array
-              progress:
-                description: Progress is the progress of this Stack object.
-                enum:
-                - Pending
-                - Deploying
-                - Configuring
-                - Running
-                type: string
             type: object
         type: object
     served: true

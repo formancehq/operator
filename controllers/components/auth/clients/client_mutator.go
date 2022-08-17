@@ -5,6 +5,7 @@ import (
 
 	"github.com/numary/auth/authclient"
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
 	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/collectionutil"
@@ -35,7 +36,7 @@ func (c Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
 func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1beta1.Client) (*ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	actualK8SClient.Progress()
+	SetProgressing(actualK8SClient)
 
 	api := r.factory.Create(actualK8SClient)
 
@@ -165,7 +166,7 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 	}
 
 	if !needRequeue {
-		actualK8SClient.StopProgression()
+		SetReady(actualK8SClient)
 	}
 
 	return &ctrl.Result{
@@ -173,13 +174,13 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 	}, nil
 }
 
-var _ internal.Mutator[authcomponentsv1beta1.ClientCondition, *authcomponentsv1beta1.Client] = &Mutator{}
+var _ internal.Mutator[*authcomponentsv1beta1.Client] = &Mutator{}
 
 func NewMutator(
 	client client.Client,
 	scheme *runtime.Scheme,
 	factory pkgInternal.APIFactory,
-) internal.Mutator[authcomponentsv1beta1.ClientCondition, *authcomponentsv1beta1.Client] {
+) internal.Mutator[*authcomponentsv1beta1.Client] {
 	return &Mutator{
 		client:  client,
 		scheme:  scheme,

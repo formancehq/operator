@@ -2,7 +2,7 @@ package ledger
 
 import (
 	. "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,8 +35,8 @@ var _ = Describe("Ledger controller", func() {
 					Name: "ledger",
 				},
 				Spec: LedgerSpec{
-					Postgres: PostgresConfig{
-						PostgresConfig: sharedtypes.PostgresConfig{
+					Postgres: PostgresConfigCreateDatabase{
+						PostgresConfig: PostgresConfig{
 							Database: "ledger",
 							Port:     5432,
 							Host:     "postgres",
@@ -45,13 +45,26 @@ var _ = Describe("Ledger controller", func() {
 						},
 						CreateDatabase: true,
 					},
+					ElasticSearchConfig: &ElasticSearchConfig{
+						Host:   "XXX",
+						Scheme: "XXX",
+						Port:   9200,
+					},
+					Collector: &CollectorConfigSpec{
+						Kind: "kafka",
+						KafkaConfig: &KafkaConfig{
+							Brokers: []string{"http://kafka"},
+							TLS:     false,
+							SASL:    nil,
+						},
+					},
 				},
 			}
 			Expect(nsClient.Create(ctx, ledger)).To(BeNil())
-			Eventually(ConditionStatus[LedgerCondition](nsClient, ledger, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, ledger, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a deployment", func() {
-			Eventually(ConditionStatus[LedgerCondition](nsClient, ledger, ConditionTypeDeploymentCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, ledger, ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 			deployment := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      ledger.Name,
@@ -63,7 +76,7 @@ var _ = Describe("Ledger controller", func() {
 			Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(ledger)))
 		})
 		It("Should create a service", func() {
-			Eventually(ConditionStatus[LedgerCondition](nsClient, ledger, ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, ledger, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 			service := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      ledger.Name,
@@ -76,15 +89,14 @@ var _ = Describe("Ledger controller", func() {
 		})
 		Context("Then enable ingress", func() {
 			BeforeEach(func() {
-				Eventually(ConditionStatus[LedgerCondition](nsClient, ledger, ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
-				ledger.Spec.Ingress = &sharedtypes.IngressSpec{
+				ledger.Spec.Ingress = &IngressSpec{
 					Path: "/ledger",
 					Host: "localhost",
 				}
 				Expect(nsClient.Update(ctx, ledger)).To(BeNil())
 			})
 			It("Should create a ingress", func() {
-				Eventually(ConditionStatus[LedgerCondition](nsClient, ledger, ConditionTypeIngressCreated)).Should(Equal(metav1.ConditionTrue))
+				Eventually(ConditionStatus(nsClient, ledger, ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 				ingress := &networkingv1.Ingress{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      ledger.Name,
@@ -97,11 +109,11 @@ var _ = Describe("Ledger controller", func() {
 			})
 			Context("Then disabling ingress support", func() {
 				BeforeEach(func() {
-					Eventually(ConditionStatus[LedgerCondition](nsClient, ledger, ConditionTypeIngressCreated)).
+					Eventually(ConditionStatus(nsClient, ledger, ConditionTypeIngressReady)).
 						Should(Equal(metav1.ConditionTrue))
 					ledger.Spec.Ingress = nil
 					Expect(nsClient.Update(ctx, ledger)).To(BeNil())
-					Eventually(ConditionStatus[LedgerCondition](nsClient, ledger, ConditionTypeIngressCreated)).
+					Eventually(ConditionStatus(nsClient, ledger, ConditionTypeIngressReady)).
 						Should(Equal(metav1.ConditionUnknown))
 				})
 				It("Should remove the ingress", func() {

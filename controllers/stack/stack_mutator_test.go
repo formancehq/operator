@@ -3,7 +3,7 @@ package stack
 import (
 	"github.com/google/uuid"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/apis/stack/v1beta1"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
@@ -30,7 +30,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 			}
 
 			Expect(k8sClient.Create(ctx, stack)).To(Succeed())
-			Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackReady)).
+			Eventually(ConditionStatus(k8sClient, stack, ConditionTypeReady)).
 				Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a new namespace", func() {
@@ -41,8 +41,8 @@ var _ = Describe("Stack controller (Auth)", func() {
 		Context("With ledger service", func() {
 			BeforeEach(func() {
 				stack.Spec.Services.Ledger = &LedgerSpec{
-					Postgres: componentsv1beta1.PostgresConfig{
-						PostgresConfig: sharedtypes.PostgresConfig{
+					Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+						PostgresConfig: PostgresConfig{
 							Database: "XXX",
 							Port:     1234,
 							Host:     "XXX",
@@ -51,8 +51,17 @@ var _ = Describe("Stack controller (Auth)", func() {
 						},
 					},
 				}
+				// TODO: Actually, Ledger depends on elasticsearch config and take it from search service
+				// TODO: Remove when the abstraction will be in place
+				stack.Spec.Services.Search = &SearchSpec{
+					ElasticSearchConfig: &componentsv1beta1.ElasticSearchConfig{
+						Host:   "XXX",
+						Scheme: "XXX",
+						Port:   9200,
+					},
+				}
 				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-				Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackLedgerCreated)).
+				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackLedgerReady)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			It("Should create a ledger on a new namespace", func() {
@@ -68,7 +77,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 		Context("With auth configuration", func() {
 			BeforeEach(func() {
 				stack.Spec.Auth = &AuthSpec{
-					PostgresConfig: sharedtypes.PostgresConfig{
+					PostgresConfig: PostgresConfig{
 						Database: "test",
 						Port:     5432,
 						Host:     "postgres",
@@ -83,7 +92,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					},
 				}
 				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-				Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackAuthCreated)).
+				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthReady)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			It("Should create a auth server on a new namespace", func() {
@@ -98,7 +107,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 				BeforeEach(func() {
 					stack.Spec.Auth = nil
 					Expect(k8sClient.Update(ctx, stack)).To(BeNil())
-					Eventually(ConditionStatus[StackCondition](k8sClient, stack, ConditionTypeStackAuthCreated)).Should(Equal(metav1.ConditionUnknown))
+					Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackAuthReady)).Should(Equal(metav1.ConditionUnknown))
 				})
 				It("Should remove Auth deployment", func() {
 					Expect(Exists(k8sClient, &componentsv1beta1.Auth{

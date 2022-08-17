@@ -91,4 +91,22 @@ resources:
   kind: Scope
   path: github.com/numary/formance-operator/apis/components/auth/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: benthos.components.formance.com
+  kind: Server
+  path: github.com/numary/formance-operator/apis/benthos.components.formance.com/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: benthos.components.formance.com
+  kind: Stream
+  path: github.com/numary/formance-operator/apis/benthos.components.formance.com/v1beta1
+  version: v1beta1
 version: "3"

@@ -17,11 +17,17 @@ limitations under the License.
 package ledger
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"fmt"
+	"strings"
+	"text/template"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	"github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/pkg/envutil"
@@ -33,12 +39,25 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+//go:embed benthos-config.yml
+var benthosConfigDir embed.FS
+
+var benthosConfigTpl = template.
+	Must(
+		template.New("benthos-config.yml").
+			Funcs(template.FuncMap{
+				"join": strings.Join,
+			}).
+			ParseFS(benthosConfigDir, "benthos-config.yml"),
+	)
 
 const (
 	defaultImage = "ghcr.io/numary/ledger:latest"
@@ -53,9 +72,9 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=auths/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.formance.com,resources=auths/finalizers,verbs=update
+// +kubebuilder:rbac:groups=components.formance.com,resources=ledgers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.formance.com,resources=ledgers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.formance.com,resources=ledgers/finalizers,verbs=update
 
 func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) (*ctrl.Result, error) {
 	deployment, err := r.reconcileDeployment(ctx, ledger)
@@ -65,6 +84,10 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 
 	service, err := r.reconcileService(ctx, ledger, deployment)
 	if err != nil {
+		return nil, pkgError.Wrap(err, "Reconciling service")
+	}
+
+	if err := r.reconcileIngestionStream(ctx, ledger); err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling service")
 	}
 
@@ -83,54 +106,50 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 		if err != nil && !errors.IsNotFound(err) {
 			return nil, pkgError.Wrap(err, "Deleting ingress")
 		}
-		ledger.RemoveIngressStatus()
+		RemoveIngressCondition(ledger)
 	}
 
-	ledger.SetReady()
-
-	if err := r.Client.Status().Update(ctx, ledger); err != nil {
-		return nil, pkgError.Wrap(err, "Updating status")
-	}
+	SetReady(ledger)
 
 	return nil, nil
 }
 
-func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.Ledger) (*appsv1.Deployment, error) {
+func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1beta1.Ledger) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.Create("app.kubernetes.io/name", "ledger")
 
 	env := []corev1.EnvVar{
 		envutil.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
 		envutil.Env("NUMARY_STORAGE_DRIVER", "postgres"),
-		envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", m.Spec.Postgres.URI()),
+		envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", ledger.Spec.Postgres.URI()),
 	}
-	if m.Spec.Debug {
+	if ledger.Spec.Debug {
 		env = append(env, envutil.Env("NUMARY_DEBUG", "true"))
 	}
-	if m.Spec.Redis != nil {
+	if ledger.Spec.Redis != nil {
 		env = append(env, envutil.Env("NUMARY_REDIS_ENABLED", "true"))
-		env = append(env, envutil.Env("NUMARY_REDIS_ADDR", m.Spec.Redis.Uri))
-		if !m.Spec.Redis.TLS {
+		env = append(env, envutil.Env("NUMARY_REDIS_ADDR", ledger.Spec.Redis.Uri))
+		if !ledger.Spec.Redis.TLS {
 			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "false"))
 		} else {
 			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "true"))
 		}
 	}
-	if m.Spec.Auth != nil {
-		env = append(env, m.Spec.Auth.Env("NUMARY_")...)
+	if ledger.Spec.Auth != nil {
+		env = append(env, ledger.Spec.Auth.Env("NUMARY_")...)
 	}
-	if m.Spec.Monitoring != nil {
-		env = append(env, m.Spec.Monitoring.Env("NUMARY_")...)
+	if ledger.Spec.Monitoring != nil {
+		env = append(env, ledger.Spec.Monitoring.Env("NUMARY_")...)
 	}
-	if m.Spec.Collector != nil {
-		env = append(env, m.Spec.Collector.Env("NUMARY_")...)
+	if ledger.Spec.Collector != nil {
+		env = append(env, ledger.Spec.Collector.Env("NUMARY_")...)
 	}
 
-	image := m.Spec.Image
+	image := ledger.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
 
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(m), m, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -153,7 +172,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.
 				},
 			},
 		}
-		if m.Spec.Postgres.CreateDatabase {
+		if ledger.Spec.Postgres.CreateDatabase {
 			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
 				Name:            "init-create-db-user",
 				Image:           "postgres:13",
@@ -162,14 +181,14 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.
 					"sh",
 					"-c",
 					fmt.Sprintf(`psql -Atx %s -c "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 && echo "Base already exists" || psql -Atx %s -c "CREATE DATABASE \"%s\""`,
-						m.Spec.Postgres.URIWithoutDatabase(),
-						m.Spec.Postgres.Database,
-						m.Spec.Postgres.URIWithoutDatabase(),
-						m.Spec.Postgres.Database,
+						ledger.Spec.Postgres.URIWithoutDatabase(),
+						ledger.Spec.Postgres.Database,
+						ledger.Spec.Postgres.URIWithoutDatabase(),
+						ledger.Spec.Postgres.Database,
 					),
 				},
 				Env: []corev1.EnvVar{
-					envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", m.Spec.Postgres.URI()),
+					envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", ledger.Spec.Postgres.URI()),
 				},
 			}}
 		}
@@ -177,10 +196,11 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, m *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		m.SetDeploymentFailure(err)
+		SetDeploymentError(ledger, err.Error())
+		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		m.SetDeploymentCreated()
+		SetDeploymentReady(ledger)
 	}
 	return ret, err
 }
@@ -201,27 +221,28 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		auth.SetServiceFailure(err)
+		SetServiceError(auth, err.Error())
+		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetServiceCreated()
+		SetServiceReady(auth)
 	}
 	return ret, err
 }
 
-func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.Ledger, service *corev1.Service) (*networkingv1.Ingress, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(ingress *networkingv1.Ingress) error {
+func (r *Mutator) reconcileIngress(ctx context.Context, ledger *componentsv1beta1.Ledger, service *corev1.Service) (*networkingv1.Ingress, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = auth.Spec.Ingress.Annotations
+		ingress.ObjectMeta.Annotations = ledger.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: auth.Spec.Ingress.Host,
+					Host: ledger.Spec.Ingress.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path:     auth.Spec.Ingress.Path,
+									Path:     ledger.Spec.Ingress.Path,
 									PathType: &pathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
@@ -242,12 +263,53 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		auth.SetIngressFailure(err)
+		SetIngressError(ledger, err.Error())
+		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		auth.SetIngressCreated()
+		SetIngressReady(ledger)
 	}
 	return ret, nil
+}
+
+// TODO: Add an abstraction layer on search. Object of kind SearchIngester ?
+func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componentsv1beta1.Ledger) error {
+	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+		Namespace: ledger.Namespace,
+		Name:      ledger.Name + "-ingestion-stream",
+	}, ledger, func(t *v1beta1.Stream) error {
+		buf := bytes.NewBufferString("")
+		if err := benthosConfigTpl.Execute(buf, map[string]any{
+			"KafkaAddresses":     ledger.Spec.Collector.KafkaConfig.Brokers,
+			"KafkaTopics":        []string{"ledger"},
+			"KafkaConsumerGroup": "ledger",
+			"KafkaTargetVersion": "",
+			"ElasticSearchEndpoint": fmt.Sprintf("%s://%s:%d",
+				ledger.Spec.ElasticSearchConfig.Scheme,
+				ledger.Spec.ElasticSearchConfig.Host,
+				ledger.Spec.ElasticSearchConfig.Port),
+			"ElasticSearchTLSEnabled":        false,
+			"ElasticSearchTLSSkipCertVerify": false,
+			"ElasticSearchBasicAuthEnabled":  true,
+			"ElasticSearchBasicAuthUsername": "admin",
+			"ElasticSearchBasicAuthPassword": "admin",
+			"ElasticSearchIndex":             "documents",
+		}); err != nil {
+			return err
+		}
+		t.Spec.Config = buf.String()
+		t.Spec.Reference = fmt.Sprintf("%s-search-benthos", ledger.Namespace)
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetCondition(ledger, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
+		return err
+	case ret == controllerutil.OperationResultNone:
+	default:
+		SetCondition(ledger, "IngestionStreamReady", metav1.ConditionTrue)
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -259,8 +321,7 @@ func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 		Owns(&authcomponentsv1beta1.Scope{})
 }
 
-func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[
-	componentsv1beta1.LedgerCondition, *componentsv1beta1.Ledger] {
+func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*componentsv1beta1.Ledger] {
 	return &Mutator{
 		Client: client,
 		Scheme: scheme,

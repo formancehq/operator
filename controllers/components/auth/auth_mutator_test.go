@@ -2,7 +2,7 @@ package auth
 
 import (
 	. "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,12 +35,15 @@ var _ = Describe("Auth controller", func() {
 					Name: "auth",
 				},
 				Spec: AuthSpec{
-					Postgres: sharedtypes.PostgresConfig{
-						Database: "auth",
-						Port:     5432,
-						Host:     "postgres",
-						Username: "auth",
-						Password: "auth",
+					Postgres: PostgresConfigCreateDatabase{
+						PostgresConfig: PostgresConfig{
+							Database: "auth",
+							Port:     5432,
+							Host:     "postgres",
+							Username: "auth",
+							Password: "auth",
+						},
+						CreateDatabase: false,
 					},
 					BaseURL:    "http://localhost/auth",
 					SigningKey: "XXXXX",
@@ -52,10 +55,10 @@ var _ = Describe("Auth controller", func() {
 				},
 			}
 			Expect(nsClient.Create(ctx, auth)).To(BeNil())
-			Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, auth, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a deployment", func() {
-			Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeDeploymentCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, auth, ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 			deployment := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      auth.Name,
@@ -67,7 +70,7 @@ var _ = Describe("Auth controller", func() {
 			Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(auth)))
 		})
 		It("Should create a service", func() {
-			Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, auth, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 			service := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      auth.Name,
@@ -80,15 +83,15 @@ var _ = Describe("Auth controller", func() {
 		})
 		Context("Then enable ingress", func() {
 			BeforeEach(func() {
-				Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeServiceCreated)).Should(Equal(metav1.ConditionTrue))
-				auth.Spec.Ingress = &sharedtypes.IngressSpec{
+				Eventually(ConditionStatus(nsClient, auth, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+				auth.Spec.Ingress = &IngressSpec{
 					Path: "/auth",
 					Host: "localhost",
 				}
 				Expect(nsClient.Update(ctx, auth)).To(BeNil())
 			})
 			It("Should create a ingress", func() {
-				Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeIngressCreated)).Should(Equal(metav1.ConditionTrue))
+				Eventually(ConditionStatus(nsClient, auth, ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 				ingress := &networkingv1.Ingress{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      auth.Name,
@@ -101,11 +104,11 @@ var _ = Describe("Auth controller", func() {
 			})
 			Context("Then disabling ingress support", func() {
 				BeforeEach(func() {
-					Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeIngressCreated)).
+					Eventually(ConditionStatus(nsClient, auth, ConditionTypeIngressReady)).
 						Should(Equal(metav1.ConditionTrue))
 					auth.Spec.Ingress = nil
 					Expect(nsClient.Update(ctx, auth)).To(BeNil())
-					Eventually(ConditionStatus[AuthCondition](nsClient, auth, ConditionTypeIngressCreated)).
+					Eventually(ConditionStatus(nsClient, auth, ConditionTypeIngressReady)).
 						Should(Equal(metav1.ConditionUnknown))
 				})
 				It("Should remove the ingress", func() {

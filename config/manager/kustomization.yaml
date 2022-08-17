@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: localhost:30100/numary/operator
-  newTag: "88223"
+  newTag: "94360"

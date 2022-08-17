@@ -9,8 +9,8 @@ type LedgerSpec struct {
 	// +optional
 	Debug bool `json:"debug,omitempty"`
 	// +optional
-	Scaling  ScalingSpec                          `json:"scaling,omitempty"`
-	Postgres authcomponentsv1beta1.PostgresConfig `json:"postgres"`
+	Scaling  ScalingSpec                                        `json:"scaling,omitempty"`
+	Postgres authcomponentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
 	Redis *authcomponentsv1beta1.RedisConfig `json:"redis"`
 	// +optional

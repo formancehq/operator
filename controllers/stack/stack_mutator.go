@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/apis/stack/v1beta1"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/pkg/resourceutil"
@@ -38,7 +38,7 @@ func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
 }
 
 func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
-	actual.Progress()
+	SetProgressing(actual)
 
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling namespace")
@@ -49,8 +49,11 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	if err := m.reconcileLedger(ctx, actual); err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling Ledger")
 	}
+	if err := m.reconcileSearch(ctx, actual); err != nil {
+		return nil, pkgError.Wrap(err, "Reconciling Search")
+	}
 
-	actual.SetReady()
+	SetReady(actual)
 	return nil, nil
 }
 
@@ -100,17 +103,20 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
 	}, stack, func(ns *authcomponentsv1beta1.Auth) error {
-		var ingress *sharedtypes.IngressSpec
+		var ingress *IngressSpec
 		if stack.Spec.Ingress != nil {
-			ingress = &sharedtypes.IngressSpec{
+			ingress = &IngressSpec{
 				Path:        "/auth",
 				Host:        stack.Spec.Host,
 				Annotations: stack.Spec.Ingress.Annotations,
 			}
 		}
 		ns.Spec = authcomponentsv1beta1.AuthSpec{
-			Image:               stack.Spec.Auth.Image,
-			Postgres:            stack.Spec.Auth.PostgresConfig,
+			Image: stack.Spec.Auth.Image,
+			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfig: stack.Spec.Auth.PostgresConfig,
+			},
 			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Scheme(), stack.Spec.Host),
 			SigningKey:          stack.Spec.Auth.SigningKey,
 			DevMode:             stack.Spec.Debug,
@@ -125,7 +131,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		stack.SetAuthCreated()
+		stack.SetAuthReady()
 	}
 
 	log.FromContext(ctx).Info("Auth ready")
@@ -157,15 +163,15 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("ledger"),
 	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
-		var ingress *sharedtypes.IngressSpec
+		var ingress *IngressSpec
 		if stack.Spec.Ingress != nil {
-			ingress = &sharedtypes.IngressSpec{
+			ingress = &IngressSpec{
 				Path:        "/ledger",
 				Host:        stack.Spec.Host,
 				Annotations: stack.Spec.Ingress.Annotations,
 			}
 		}
-		var authConfig *sharedtypes.AuthConfigSpec
+		var authConfig *AuthConfigSpec
 		// TODO: Reconfigure properly when the gateway will be in place
 		//if stack.Spec.Auth != nil {
 		//	authConfig = &sharedtypes.AuthConfigSpec{
@@ -181,14 +187,15 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		//	}
 		//}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Ingress:    ingress,
-			Debug:      stack.Spec.Services.Ledger.Debug,
-			Redis:      stack.Spec.Services.Ledger.Redis,
-			Postgres:   stack.Spec.Services.Ledger.Postgres,
-			Auth:       authConfig,
-			Monitoring: stack.Spec.Monitoring,
-			Image:      stack.Spec.Services.Ledger.Image,
-			Collector:  stack.Spec.Collector,
+			Ingress:             ingress,
+			Debug:               stack.Spec.Services.Ledger.Debug,
+			Redis:               stack.Spec.Services.Ledger.Redis,
+			Postgres:            stack.Spec.Services.Ledger.Postgres,
+			Auth:                authConfig,
+			Monitoring:          stack.Spec.Monitoring,
+			Image:               stack.Spec.Services.Ledger.Image,
+			Collector:           stack.Spec.Collector,
+			ElasticSearchConfig: stack.Spec.Services.Search.ElasticSearchConfig,
 		}
 		return nil
 	})
@@ -197,19 +204,74 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		stack.SetLedgerCreated()
+		stack.SetLedgerReady()
 	}
 
 	log.FromContext(ctx).Info("Ledger ready")
 	return nil
 }
 
-var _ internal.Mutator[v1beta1.StackCondition, *v1beta1.Stack] = &Mutator{}
+func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) error {
+	log.FromContext(ctx).Info("Reconciling Search")
+
+	if stack.Spec.Services.Search == nil {
+		log.FromContext(ctx).Info("Deleting Search")
+		err := r.client.Delete(ctx, &authcomponentsv1beta1.Search{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: stack.Spec.Namespace,
+				Name:      stack.ServiceName("search"),
+			},
+		})
+		switch {
+		case errors.IsNotFound(err):
+		case err != nil:
+			return pkgError.Wrap(err, "Deleting Search")
+		default:
+			stack.RemoveSearchStatus()
+		}
+		return nil
+	}
+
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      stack.ServiceName("search"),
+	}, stack, func(search *authcomponentsv1beta1.Search) error {
+		var ingress *IngressSpec
+		if stack.Spec.Ingress != nil {
+			ingress = &IngressSpec{
+				Path:        "/search",
+				Host:        stack.Spec.Host,
+				Annotations: stack.Spec.Ingress.Annotations,
+			}
+		}
+		search.Spec = authcomponentsv1beta1.SearchSpec{
+			Ingress:       ingress,
+			Debug:         stack.Spec.Services.Search.Debug,
+			Auth:          nil,
+			Monitoring:    stack.Spec.Monitoring,
+			Image:         stack.Spec.Services.Search.Image,
+			ElasticSearch: stack.Spec.Services.Search.ElasticSearchConfig,
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetSearchReady()
+	}
+
+	log.FromContext(ctx).Info("Search ready")
+	return nil
+}
+
+var _ internal.Mutator[*v1beta1.Stack] = &Mutator{}
 
 func NewMutator(
 	client client.Client,
 	scheme *runtime.Scheme,
-) internal.Mutator[v1beta1.StackCondition, *v1beta1.Stack] {
+) internal.Mutator[*v1beta1.Stack] {
 	return &Mutator{
 		client: client,
 		scheme: scheme,
