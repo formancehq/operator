@@ -1,4 +1,4 @@
-package benthos
+package streams
 
 import (
 	"context"
@@ -9,11 +9,14 @@ import (
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
+	"github.com/numary/formance-operator/pkg/finalizerutil"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+var streamFinalizer = finalizerutil.New("streams.benthos.components.formance.com/finalizer")
 
 //+kubebuilder:rbac:groups=benthos.components.formance.com,resources=streams,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=benthos.components.formance.com,resources=streams/status,verbs=get;update;patch
@@ -27,12 +30,21 @@ type StreamMutator struct {
 
 func (s *StreamMutator) SetupWithBuilder(builder *ctrl.Builder) {}
 
-// TODO: Add finalizer
 func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Result, error) {
 
-	SetProgressing(stream)
-
 	address := fmt.Sprintf("http://%s.%s.svc.cluster.local:4195", stream.Spec.Reference, stream.Namespace)
+
+	// Handle finalizer
+	if isHandledByFinalizer, err := streamFinalizer.Handle(ctx, s.client, stream, func() error {
+		if err := s.api.DeleteStream(ctx, address, stream.Name); err != nil && err != ErrNotFound {
+			return err
+		}
+		return nil
+	}); err != nil || isHandledByFinalizer {
+		return nil, err
+	}
+
+	SetProgressing(stream)
 
 	configAsMap := make(map[string]any)
 	if err := json.Unmarshal(stream.Spec.Config, &configAsMap); err != nil {
@@ -68,9 +80,10 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 
 var _ internal.Mutator[*Stream] = &StreamMutator{}
 
-func NewStreamMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*Stream] {
+func NewStreamMutator(client client.Client, scheme *runtime.Scheme, api Api) internal.Mutator[*Stream] {
 	return &StreamMutator{
 		client: client,
 		scheme: scheme,
+		api:    api,
 	}
 }

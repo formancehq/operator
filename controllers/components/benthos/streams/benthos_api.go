@@ -1,4 +1,4 @@
-package benthos
+package streams
 
 import (
 	"bytes"
@@ -28,10 +28,17 @@ type ErrorResponse struct {
 	LintErrors []string `json:"lint_errors,omitempty"`
 }
 
-type Api struct {
+type Api interface {
+	CreateStream(ctx context.Context, address string, id string, config string) error
+	GetStream(ctx context.Context, address, id string) (*BenthosStream, error)
+	UpdateStream(ctx context.Context, address string, id string, config string) error
+	DeleteStream(ctx context.Context, address string, id string) error
 }
 
-func (a *Api) request(ctx context.Context, address, method, path string, body io.Reader) (*http.Response, error) {
+type DefaultApi struct {
+}
+
+func (a *DefaultApi) request(ctx context.Context, address, method, path string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method,
 		fmt.Sprintf("%s%s", address, path),
 		body)
@@ -54,7 +61,7 @@ func (a *Api) request(ctx context.Context, address, method, path string, body io
 	return rsp, err
 }
 
-func (a *Api) CreateStream(ctx context.Context, address string, id string, config string) error {
+func (a *DefaultApi) CreateStream(ctx context.Context, address string, id string, config string) error {
 
 	rsp, err := a.request(ctx, address, http.MethodPost, fmt.Sprintf("/streams/%s", id), bytes.NewBufferString(config))
 	if err != nil {
@@ -93,7 +100,7 @@ func NewErrLintError(lintErrors []string) error {
 	return errLintError(lintErrors)
 }
 
-func (a *Api) GetStream(ctx context.Context, address, id string) (*BenthosStream, error) {
+func (a *DefaultApi) GetStream(ctx context.Context, address, id string) (*BenthosStream, error) {
 	rsp, err := a.request(ctx, address, http.MethodGet, fmt.Sprintf("/streams/%s", id), nil)
 	if err != nil {
 		return nil, err
@@ -117,7 +124,7 @@ func (a *Api) GetStream(ctx context.Context, address, id string) (*BenthosStream
 	}
 }
 
-func (a *Api) UpdateStream(ctx context.Context, address string, id string, config string) error {
+func (a *DefaultApi) UpdateStream(ctx context.Context, address string, id string, config string) error {
 	rsp, err := a.request(ctx, address, http.MethodPut, fmt.Sprintf("/streams/%s", id), bytes.NewBufferString(config))
 	if err != nil {
 		return err
@@ -134,3 +141,74 @@ func (a *Api) UpdateStream(ctx context.Context, address string, id string, confi
 		return fmt.Errorf("unexpected status code %d: %s", rsp.StatusCode, string(data))
 	}
 }
+
+func (a *DefaultApi) DeleteStream(ctx context.Context, address string, id string) error {
+	rsp, err := a.request(ctx, address, http.MethodDelete, fmt.Sprintf("/streams/%s", id), nil)
+	if err != nil {
+		return err
+	}
+
+	switch rsp.StatusCode {
+	case http.StatusOK:
+		return nil
+	default:
+		data, err := io.ReadAll(rsp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("unexpected status code %d: %s", rsp.StatusCode, string(data))
+	}
+}
+
+func NewDefaultApi() *DefaultApi {
+	return &DefaultApi{}
+}
+
+type inMemoryApi struct {
+	configs map[string]string
+}
+
+func (i *inMemoryApi) CreateStream(ctx context.Context, address string, id string, config string) error {
+	i.configs[id] = config
+	return nil
+}
+
+func (i *inMemoryApi) GetStream(ctx context.Context, address, id string) (*BenthosStream, error) {
+	_, ok := i.configs[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return &BenthosStream{
+		Active: true,
+	}, nil
+}
+
+func (i *inMemoryApi) UpdateStream(ctx context.Context, address string, id string, config string) error {
+	_, ok := i.configs[id]
+	if !ok {
+		return ErrNotFound
+	}
+	i.configs[id] = config
+	return nil
+}
+
+func (i *inMemoryApi) DeleteStream(ctx context.Context, address string, id string) error {
+	_, ok := i.configs[id]
+	if !ok {
+		return ErrNotFound
+	}
+	delete(i.configs, id)
+	return nil
+}
+
+func (i *inMemoryApi) reset() {
+	i.configs = map[string]string{}
+}
+
+func newInMemoryApi() *inMemoryApi {
+	return &inMemoryApi{
+		configs: map[string]string{},
+	}
+}
+
+var _ Api = &inMemoryApi{}

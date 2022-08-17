@@ -49,11 +49,6 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 
 	SetProgressing(actualK8SScope)
 
-	// Assert finalizer is properly installed on the object
-	if err := scopeFinalizer.AssertIsInstalled(ctx, s.client, actualK8SScope); err != nil {
-		return nil, err
-	}
-
 	var (
 		err                             error
 		actualAuthServerScope           *authclient.Scope

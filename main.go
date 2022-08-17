@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/numary/formance-operator/controllers/components/benthos/streams"
 	"github.com/numary/formance-operator/controllers/components/search/searchingester"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -157,7 +158,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Server")
 		os.Exit(1)
 	}
-	streamMutator := benthos.NewStreamMutator(mgr.GetClient(), mgr.GetScheme())
+	streamMutator := streams.NewStreamMutator(mgr.GetClient(), mgr.GetScheme(), streams.NewDefaultApi())
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), streamMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stream")
 		os.Exit(1)

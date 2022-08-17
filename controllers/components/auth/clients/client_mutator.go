@@ -52,11 +52,6 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 		return nil, err
 	}
 
-	// Assert finalizer is properly installed on the object
-	if err := clientFinalizer.AssertIsInstalled(ctx, r.client, actualK8SClient); err != nil {
-		return nil, err
-	}
-
 	var (
 		actualAuthServerClient           *authclient.Client
 		err                              error
