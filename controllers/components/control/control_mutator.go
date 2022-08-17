@@ -36,7 +36,9 @@ type Mutator struct {
 	Scheme *runtime.Scheme
 }
 
-func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
+func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
+	return nil
+}
 
 func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) {
 	SetProgressing(t)

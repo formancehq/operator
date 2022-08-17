@@ -6,7 +6,6 @@ import (
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -40,17 +39,17 @@ var _ = Describe("Server controller", func() {
 					Expect(Create(server)).To(BeNil())
 					Eventually(ConditionStatus(server, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
-				It("Should create a deployment", func() {
+				It("Should create a pod", func() {
 					Eventually(ConditionStatus(server, ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
-					deployment := &appsv1.Deployment{
+					pod := &corev1.Pod{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      server.Name,
 							Namespace: server.Namespace,
 						},
 					}
-					Expect(Exists(deployment)()).To(BeTrue())
-					Expect(deployment.OwnerReferences).To(HaveLen(1))
-					Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(server)))
+					Expect(Exists(pod)()).To(BeTrue())
+					Expect(pod.OwnerReferences).To(HaveLen(1))
+					Expect(pod.OwnerReferences).To(ContainElement(ownerReference(server)))
 				})
 				It("Should create a service", func() {
 					Eventually(ConditionStatus(server, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))

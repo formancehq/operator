@@ -62,43 +62,6 @@ spec:
                     - introspectUrl
                     type: object
                 type: object
-              collector:
-                description: 'TODO: Support only kafka'
-                properties:
-                  kafka:
-                    properties:
-                      brokers:
-                        items:
-                          type: string
-                        type: array
-                      sasl:
-                        properties:
-                          mechanism:
-                            type: string
-                          password:
-                            type: string
-                          scramSHASize:
-                            type: string
-                          username:
-                            type: string
-                        required:
-                        - mechanism
-                        - password
-                        - scramSHASize
-                        - username
-                        type: object
-                      tls:
-                        type: boolean
-                    required:
-                    - brokers
-                    type: object
-                  kind:
-                    type: string
-                  topicMapping:
-                    additionalProperties:
-                      type: string
-                    type: object
-                type: object
               debug:
                 type: boolean
               image:
@@ -116,6 +79,33 @@ spec:
                 required:
                 - host
                 - path
+                type: object
+              kafka:
+                properties:
+                  brokers:
+                    items:
+                      type: string
+                    type: array
+                  sasl:
+                    properties:
+                      mechanism:
+                        type: string
+                      password:
+                        type: string
+                      scramSHASize:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - mechanism
+                    - password
+                    - scramSHASize
+                    - username
+                    type: object
+                  tls:
+                    type: boolean
+                required:
+                - brokers
                 type: object
               monitoring:
                 properties:

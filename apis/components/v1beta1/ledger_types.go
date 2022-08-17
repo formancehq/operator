@@ -47,9 +47,8 @@ type LedgerSpec struct {
 	Monitoring *MonitoringSpec `json:"monitoring"`
 	// +optional
 	Image string `json:"image"`
-	// TODO: Support only kafka
 	// +optional
-	Collector *CollectorConfigSpec `json:"collector"`
+	Kafka *KafkaConfig `json:"kafka"`
 }
 
 // LedgerStatus defines the observed state of Ledger

@@ -31,7 +31,7 @@ type Mutator struct {
 	factory pkgInternal.APIFactory
 }
 
-func (c Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
+func (c Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error { return nil }
 
 func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1beta1.Client) (*ctrl.Result, error) {
 	logger := log.FromContext(ctx)

@@ -251,7 +251,7 @@ func (in *SearchSpec) DeepCopyInto(out *SearchSpec) {
 	if in.ElasticSearchConfig != nil {
 		in, out := &in.ElasticSearchConfig, &out.ElasticSearchConfig
 		*out = new(componentsv1beta1.ElasticSearchConfig)
-		**out = **in
+		(*in).DeepCopyInto(*out)
 	}
 }
 
@@ -378,9 +378,9 @@ func (in *StackSpec) DeepCopyInto(out *StackSpec) {
 		*out = new(IngressStack)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.Collector != nil {
-		in, out := &in.Collector, &out.Collector
-		*out = new(sharedtypes.CollectorConfigSpec)
+	if in.Kafka != nil {
+		in, out := &in.Kafka, &out.Kafka
+		*out = new(sharedtypes.KafkaConfig)
 		(*in).DeepCopyInto(*out)
 	}
 }

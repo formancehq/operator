@@ -221,11 +221,12 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{})
+	return nil
 }
 
 func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*componentsv1beta1.Auth] {

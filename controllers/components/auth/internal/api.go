@@ -447,6 +447,5 @@ var DefaultApiFactory = ApiFactoryFn(func(referencer AuthServerReferencer) API {
 			referencer.AuthServerReference(),
 			referencer.GetNamespace()),
 	}}
-	configuration.Debug = true
 	return NewDefaultServerApi(authclient.NewAPIClient(configuration))
 })

@@ -27,6 +27,7 @@ import (
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/envutil"
+	"github.com/numary/formance-operator/internal/probeutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -139,6 +140,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 							Name:          "http",
 							ContainerPort: 8080,
 						}},
+						LivenessProbe: probeutil.DefaultLiveness(),
 					}},
 				},
 			},
@@ -238,12 +240,13 @@ func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1be
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta1.Scope{})
+	return nil
 }
 
 func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*v1beta1.Search] {

@@ -50,7 +50,7 @@ type StackSpec struct {
 	// +optional
 	Ingress *IngressStack `json:"ingress"`
 	// +optional
-	Collector *CollectorConfigSpec `json:"collector"`
+	Kafka *KafkaConfig `json:"kafka"`
 }
 
 type AuthSpec struct {
@@ -112,20 +112,40 @@ func (in *Stack) SetNamespaceCreated() {
 	SetCondition(in, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
 }
 
+func (in *Stack) SetNamespaceError(msg string) {
+	SetCondition(in, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
+}
+
 func (in *Stack) SetAuthReady() {
 	SetCondition(in, ConditionTypeStackAuthReady, metav1.ConditionTrue)
+}
+
+func (in *Stack) SetAuthError(msg string) {
+	SetCondition(in, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
 }
 
 func (in *Stack) SetLedgerReady() {
 	SetCondition(in, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
 }
 
+func (in *Stack) SetLedgerError(msg string) {
+	SetCondition(in, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
+}
+
 func (in *Stack) SetSearchReady() {
 	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionTrue)
 }
 
+func (in *Stack) SetSearchError(msg string) {
+	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
+}
+
 func (in *Stack) SetControlReady() {
 	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionTrue)
+}
+
+func (in *Stack) SetControlError(msg string) {
+	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
 }
 
 func (in *Stack) RemoveAuthStatus() {

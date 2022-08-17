@@ -2,6 +2,9 @@ package benthos
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
+	"time"
 
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
@@ -9,47 +12,65 @@ import (
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
 	defaultImage = "jeffail/benthos:latest"
 )
 
-//+kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers/finalizers,verbs=update
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz")
+
+func randPodIdentifier() string {
+	b := make([]rune, 10)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers/finalizers,verbs=update
 
 type ServerMutator struct {
 	client client.Client
 	scheme *runtime.Scheme
 }
 
-func (m *ServerMutator) SetupWithBuilder(builder *ctrl.Builder) {
-	builder.
-		Owns(&appsv1.Deployment{}).
+func (m *ServerMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) error {
+	blder.
+		Owns(&corev1.Pod{}).
 		Owns(&corev1.Service{})
+	return nil
 }
 
-// TODO: the stream controller should listten for server restart to be able to reconfigure benthos server
+// TODO: the stream controller should listen for server restart to be able to reconfigure benthos server
 func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Result, error) {
 
 	SetProgressing(server)
 
-	deployment, err := m.reconcileDeployment(ctx, server)
+	pod, err := m.reconcilePod(ctx, server)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling deployment")
+		return nil, pkgError.Wrap(err, "Reconciling pod")
 	}
 
-	_, err = m.reconcileService(ctx, server, deployment)
+	_, err = m.reconcileService(ctx, server, pod)
 	if err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling service")
 	}
@@ -59,59 +80,92 @@ func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Resul
 	return nil, nil
 }
 
-func (r *ServerMutator) reconcileDeployment(ctx context.Context, m *Server) (*appsv1.Deployment, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, client.ObjectKeyFromObject(m), m, func(deployment *appsv1.Deployment) error {
+func (r *ServerMutator) reconcilePod(ctx context.Context, m *Server) (*corev1.Pod, error) {
+
+	SetProgressing(m)
+
+	image := m.Spec.Image
+	if image == "" {
+		image = defaultImage
+	}
+	expectedContainer := corev1.Container{
+		Name:            "benthos",
+		Image:           image,
+		ImagePullPolicy: corev1.PullAlways, // TODO: Maybe set to pull always if debug is enabled
+		Command:         []string{"/benthos", "streams"},
+		Ports: []corev1.ContainerPort{{
+			Name:          "benthos",
+			ContainerPort: 4195,
+		}},
+	}
+
+	pods := &corev1.PodList{}
+	err := r.client.List(ctx, pods, &client.ListOptions{
+		Namespace:     m.Namespace,
+		FieldSelector: fields.OneTermEqualSelector(".metadata.ownerReferences[*].uid", string(m.UID)),
+	})
+	if err != nil {
+		return nil, pkgError.Wrap(err, "listing pods with owner reference set to server")
+	}
+	if len(pods.Items) > 1 {
+		return nil, pkgError.New("unexpected number of pods")
+	}
+
+	if len(pods.Items) == 1 {
+		pod := pods.Items[0]
+		if equality.Semantic.DeepDerivative(expectedContainer, pod.Spec.Containers[0]) {
+			log.FromContext(ctx).Info("Pod up to date, skip")
+			return &pod, nil
+		}
+		if err := r.client.Delete(ctx, &pod); err != nil {
+			return nil, err
+		}
+	}
+
+	RemovePodCondition(m)
+
+	name := fmt.Sprintf("%s-%s", m.Name, randPodIdentifier())
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: m.Namespace,
+		Name:      name,
+	}, m, func(pod *corev1.Pod) error {
 		matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "benthos")
 
 		image := m.Spec.Image
 		if image == "" {
 			image = defaultImage
 		}
-		deployment.Spec = appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            "benthos",
-						Image:           image,
-						ImagePullPolicy: corev1.PullAlways,
-						Command:         []string{"/benthos", "streams"},
-						Ports: []corev1.ContainerPort{{
-							Name:          "benthos",
-							ContainerPort: 4195,
-						}},
-					}},
-				},
-			},
-		}
+		pod.Labels = matchLabels
+		pod.Spec.Containers = []corev1.Container{expectedContainer}
 		return nil
 	})
 	switch {
 	case err != nil:
-		SetDeploymentError(m, err.Error())
+		SetPodError(m, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetDeploymentReady(m)
+		if err = r.client.Get(ctx, client.ObjectKeyFromObject(ret), ret); err != nil {
+			return nil, pkgError.Wrap(err, "retrieving pod after creation")
+		}
+
+		log.FromContext(ctx).Info("Register pod ip", "ip", ret.Status.PodIP)
+		m.Status.PodIP = ret.Status.PodIP
+		SetPodReady(m)
 	}
 	return ret, err
 }
 
-func (r *ServerMutator) reconcileService(ctx context.Context, srv *Server, deployment *appsv1.Deployment) (*corev1.Service, error) {
+func (r *ServerMutator) reconcileService(ctx context.Context, srv *Server, pod *corev1.Pod) (*corev1.Service, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, client.ObjectKeyFromObject(srv), srv, func(service *corev1.Service) error {
 		service.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
 				Name:        "http",
-				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
+				Port:        pod.Spec.Containers[0].Ports[0].ContainerPort,
 				Protocol:    "TCP",
 				AppProtocol: pointer.String("http"),
-				TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
+				TargetPort:  intstr.FromString(pod.Spec.Containers[0].Ports[0].Name),
 			}},
-			Selector: deployment.Spec.Template.Labels,
+			Selector: pod.Labels,
 		}
 		return nil
 	})

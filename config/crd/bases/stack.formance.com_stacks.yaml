@@ -90,42 +90,6 @@ spec:
                 - postgres
                 - signingKey
                 type: object
-              collector:
-                properties:
-                  kafka:
-                    properties:
-                      brokers:
-                        items:
-                          type: string
-                        type: array
-                      sasl:
-                        properties:
-                          mechanism:
-                            type: string
-                          password:
-                            type: string
-                          scramSHASize:
-                            type: string
-                          username:
-                            type: string
-                        required:
-                        - mechanism
-                        - password
-                        - scramSHASize
-                        - username
-                        type: object
-                      tls:
-                        type: boolean
-                    required:
-                    - brokers
-                    type: object
-                  kind:
-                    type: string
-                  topicMapping:
-                    additionalProperties:
-                      type: string
-                    type: object
-                type: object
               debug:
                 type: boolean
               host:
@@ -136,6 +100,33 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                type: object
+              kafka:
+                properties:
+                  brokers:
+                    items:
+                      type: string
+                    type: array
+                  sasl:
+                    properties:
+                      mechanism:
+                        type: string
+                      password:
+                        type: string
+                      scramSHASize:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - mechanism
+                    - password
+                    - scramSHASize
+                    - username
+                    type: object
+                  tls:
+                    type: boolean
+                required:
+                - brokers
                 type: object
               monitoring:
                 properties:
@@ -354,13 +345,31 @@ spec:
                         type: boolean
                       elasticSearch:
                         properties:
+                          basicAuth:
+                            properties:
+                              password:
+                                type: string
+                              username:
+                                type: string
+                            required:
+                            - password
+                            - username
+                            type: object
                           host:
                             type: string
                           port:
                             type: integer
                           scheme:
                             type: string
+                          tls:
+                            properties:
+                              enabled:
+                                type: boolean
+                              skipCertVerify:
+                                type: boolean
+                            type: object
                         required:
+                        - basicAuth
                         - host
                         - port
                         - scheme

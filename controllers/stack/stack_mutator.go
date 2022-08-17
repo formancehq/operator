@@ -31,10 +31,11 @@ type Mutator struct {
 	scheme *runtime.Scheme
 }
 
-func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&authcomponentsv1beta1.Auth{}).
 		Owns(&corev1.Namespace{})
+	return nil
 }
 
 func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
@@ -71,6 +72,7 @@ func (r *Mutator) reconcileNamespace(ctx context.Context, stack *v1beta1.Stack) 
 	})
 	switch {
 	case err != nil:
+		stack.SetNamespaceError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -131,6 +133,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	})
 	switch {
 	case err != nil:
+		stack.SetAuthError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -197,12 +200,13 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			Auth:       authConfig,
 			Monitoring: stack.Spec.Monitoring,
 			Image:      stack.Spec.Services.Ledger.Image,
-			Collector:  stack.Spec.Collector,
+			Kafka:      stack.Spec.Kafka,
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
+		stack.SetLedgerError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -255,7 +259,7 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 	})
 	switch {
 	case err != nil:
-		// TODO: Miss condition
+		stack.SetControlError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -287,7 +291,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 		return nil
 	}
 
-	if stack.Spec.Collector == nil {
+	if stack.Spec.Kafka == nil {
 		return pkgError.New("collector must be configured to use search service")
 	}
 
@@ -310,12 +314,13 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 			Monitoring:    stack.Spec.Monitoring,
 			Image:         stack.Spec.Services.Search.Image,
 			ElasticSearch: *stack.Spec.Services.Search.ElasticSearchConfig,
-			KafkaConfig:   *stack.Spec.Collector.KafkaConfig,
+			KafkaConfig:   *stack.Spec.Kafka,
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
+		stack.SetSearchError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:

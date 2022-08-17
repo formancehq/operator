@@ -31,6 +31,7 @@ import (
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/envutil"
+	"github.com/numary/formance-operator/internal/probeutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -144,8 +145,8 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	if ledger.Spec.Monitoring != nil {
 		env = append(env, ledger.Spec.Monitoring.Env("NUMARY_")...)
 	}
-	if ledger.Spec.Collector != nil {
-		env = append(env, ledger.Spec.Collector.Env("NUMARY_")...)
+	if ledger.Spec.Kafka != nil {
+		env = append(env, ledger.Spec.Kafka.Env("NUMARY_", "ledger")...)
 	}
 
 	image := ledger.Spec.Image
@@ -172,6 +173,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 							Name:          "ledger",
 							ContainerPort: 8080,
 						}},
+						LivenessProbe: probeutil.DefaultLiveness(),
 					}},
 				},
 			},
@@ -316,12 +318,13 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componen
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta1.Scope{})
+	return nil
 }
 
 func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*componentsv1beta1.Ledger] {

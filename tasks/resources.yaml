@@ -28,3 +28,5 @@ tasks:
     - task: dex:install
     - task: traefik:install
     - task: otel:install
+    - task: elasticsearch:install
+    - task: redpanda:install

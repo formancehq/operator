@@ -18,8 +18,26 @@ var _ = Describe("Stream Controller", func() {
 	AfterEach(func() {
 		api.reset()
 	})
+
 	WithMutator(mutator, func() {
 		WithNewNamespace(func() {
+			var server *Server
+			BeforeEach(func() {
+				server = &Server{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "foo",
+					},
+					Status: ServerStatus{
+						Pod:   "xxx",
+						PodIP: "10.0.0.1",
+					},
+				}
+				Expect(Create(server)).To(Succeed())
+			})
+			AfterEach(func() {
+				Expect(Delete(server)).To(Succeed())
+				Eventually(Exists(server)).Should(BeFalse())
+			})
 			Context("When creating a new stream", func() {
 				var stream *Stream
 				BeforeEach(func() {
@@ -28,14 +46,14 @@ var _ = Describe("Stream Controller", func() {
 							Name: uuid.NewString(),
 						},
 						Spec: StreamSpec{
-							Reference: "foo",
+							Reference: server.Name,
 							Config:    json.RawMessage(`{}`),
 						},
 					}
 					Expect(Create(stream)).To(Succeed())
 					Eventually(ConditionStatus(stream, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
-				It("Should create a stream benthos side", func() {
+				FIt("Should create a stream benthos side", func() {
 					Eventually(func() int {
 						return len(api.configs)
 					}).Should(Equal(1))

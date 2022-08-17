@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"strings"
 )
 
@@ -47,18 +46,7 @@ func (a *DefaultApi) request(ctx context.Context, address, method, path string, 
 	}
 	req = req.WithContext(ctx)
 
-	data, _ := httputil.DumpRequest(req, true)
-	fmt.Println(string(data))
-
-	rsp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	data, _ = httputil.DumpResponse(rsp, true)
-	fmt.Println(string(data))
-
-	return rsp, err
+	return http.DefaultClient.Do(req)
 }
 
 func (a *DefaultApi) CreateStream(ctx context.Context, address string, id string, config string) error {

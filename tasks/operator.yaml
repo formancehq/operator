@@ -1,20 +1,16 @@
 version: '3'
 
-vars:
-  RANDOM:
-    sh: echo $$
-
 tasks:
   build:
     desc: Build the docker image operator
     cmds:
-    - make docker-build IMG=localhost:5005/numary/operator:{{.RANDOM}}
+    - make docker-build IMG=localhost:5005/numary/operator:latest
   push:
     desc: Push the docker image to the local registry
     deps:
     - build
     cmds:
-    - make docker-push IMG=localhost:5005/numary/operator:{{.RANDOM}}
+    - make docker-push IMG=localhost:5005/numary/operator:latest
   crd:
     desc: Install CRD in the cluster
     cmds:
@@ -27,7 +23,12 @@ tasks:
     - push
     - crd
     cmds:
-    - make deploy IMG=localhost:30100/numary/operator:{{.RANDOM}}
+    - make deploy IMG=localhost:30100/numary/operator:latest
+    - kubectl --namespace formance-operator-system rollout restart deployments/formance-operator-controller-manager
+  logs:
+    desc: Logs of the running operation cluster side
+    cmds:
+    - kubectl logs --namespace formance-operator-system -f deployments/formance-operator-controller-manager
   run:
     desc: Run the operator locally
     deps:

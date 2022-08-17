@@ -31,7 +31,7 @@ type Mutator struct {
 	factory pkgInternal.APIFactory
 }
 
-func (s Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
+func (s Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error { return nil }
 
 func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1beta1.Scope) (*ctrl.Result, error) {
 	api := s.factory.Create(actualK8SScope)

@@ -24,12 +24,13 @@ import (
 // ServerSpec defines the desired state of Server
 type ServerSpec struct {
 	// +optional
-	Image string `json:"image"`
+	Image string `json:"image,omitempty"`
 }
 
 // ServerStatus defines the observed state of Server
 type ServerStatus struct {
 	Status `json:",inline"`
+	PodIP  string `json:"podIP,omitempty"`
 }
 
 //+kubebuilder:object:root=true

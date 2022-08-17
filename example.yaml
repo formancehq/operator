@@ -89,16 +89,9 @@ spec:
         insecure: true
         mode: grpc
         port: 4317
-  collector:
-    kind: kafka
-    kafka:
-      brokers:
-      - redpanda.default.svc.cluster.local:9092
-    topicMapping:
-      COMMITTED_TRANSACTIONS: ledger
-      SAVED_METADATA: ledger
-      UPDATED_MAPPING: ledger
-      REVERTED_TRANSACTION: ledger
+  kafka:
+    brokers:
+    - redpanda.default.svc.cluster.local:9092
   services:
     ledger:
       postgres:
@@ -114,6 +107,9 @@ spec:
         host: elasticsearch-master.default.svc.cluster.local
         port: 9200
         scheme: http
+        basicAuth:
+          username: admin
+          password: admin
     control:
       debug: true
       image: "ghcr.io/numary/control:cdbeb8e9bd10d388674da80622a113519f1147ce"

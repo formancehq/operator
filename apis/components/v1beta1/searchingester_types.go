@@ -31,6 +31,8 @@ type SearchIngesterSpec struct {
 	//+kubebuilder:validation:Type=object
 	//+kubebuilder:validation:Schemaless
 	Pipeline json.RawMessage `json:"pipeline"` // Should be a map[string]any but controller-gen does not support it
+	// +optional
+	Debug bool `json:"debug,omitempty"`
 }
 
 // SearchIngesterStatus defines the observed state of SearchIngester

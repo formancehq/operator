@@ -9,11 +9,18 @@ import (
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/finalizerutil"
+	pkgError "github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var streamFinalizer = finalizerutil.New("streams.benthos.components.formance.com/finalizer")
@@ -28,11 +35,53 @@ type StreamMutator struct {
 	api    Api
 }
 
-func (s *StreamMutator) SetupWithBuilder(builder *ctrl.Builder) {}
+func (s *StreamMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) error {
+	if err := mgr.
+		GetFieldIndexer().
+		IndexField(context.Background(), &Stream{}, ".spec.ref", func(rawObj client.Object) []string {
+			return []string{rawObj.(*Stream).Spec.Reference}
+		}); err != nil {
+		return err
+	}
+	blder.Watches(
+		&source.Kind{Type: &Server{}},
+		handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
+			list := &StreamList{}
+			if err := s.client.List(context.Background(), list,
+				&client.ListOptions{
+					Namespace:     object.GetNamespace(),
+					FieldSelector: fields.OneTermEqualSelector(".spec.ref", object.(*Server).Name),
+				}); err != nil {
+				mgr.GetLogger().Error(err, "Retrieving streams which reference server", "name", object.(*Server).Name)
+				return nil
+			}
+			return Map(list.Items, func(t1 Stream) reconcile.Request {
+				mgr.GetLogger().Info("Trigger reconcile", "namespace",
+					object.GetNamespace(), "name", object.GetName())
+				return reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: object.GetNamespace(),
+						Name:      object.GetName(),
+					},
+				}
+			})
+		}),
+	)
+	return nil
+}
 
+//TODO: We have to handle the case where the server is removed before the streams
 func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Result, error) {
 
-	address := fmt.Sprintf("http://%s.%s.svc.cluster.local:4195", stream.Spec.Reference, stream.Namespace)
+	server := &Server{}
+	if err := s.client.Get(ctx, types.NamespacedName{
+		Namespace: stream.Namespace,
+		Name:      stream.Spec.Reference,
+	}, server); err != nil {
+		return nil, pkgError.Wrap(err, "Finding benthos server")
+	}
+
+	address := fmt.Sprintf("http://%s:4195", server.Status.PodIP)
 
 	// Handle finalizer
 	if isHandledByFinalizer, err := streamFinalizer.Handle(ctx, s.client, stream, func() error {

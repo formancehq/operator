@@ -21,10 +21,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type ElasticSearchTLSConfig struct {
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
+	SkipCertVerify bool `json:"skipCertVerify,omitempty"`
+}
+
+type ElasticSearchBasicAuthConfig struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type ElasticSearchConfig struct {
 	Host   string `json:"host"`
 	Scheme string `json:"scheme"`
 	Port   uint16 `json:"port"`
+	// +optional
+	TLS       ElasticSearchTLSConfig        `json:"tls""`
+	BasicAuth *ElasticSearchBasicAuthConfig `json:"basicAuth"`
 }
 
 // SearchSpec defines the desired state of Search

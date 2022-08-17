@@ -10,3 +10,11 @@ func CreateMap(args ...string) map[string]string {
 	}
 	return ret
 }
+
+func Map[T1 any, T2 any](v1 []T1, transformer func(T1) T2) []T2 {
+	ret := make([]T2, 0)
+	for _, v := range v1 {
+		ret = append(ret, transformer(v))
+	}
+	return ret
+}
