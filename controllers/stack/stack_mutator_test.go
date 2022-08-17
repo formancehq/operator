@@ -51,6 +51,15 @@ var _ = Describe("Stack controller (Auth)", func() {
 						},
 					},
 				}
+				// TODO: Actually, Ledger depends on elasticsearch config and take it from search service
+				// TODO: Remove when the abstraction will be in place
+				stack.Spec.Services.Search = &SearchSpec{
+					ElasticSearchConfig: &componentsv1beta1.ElasticSearchConfig{
+						Host:   "XXX",
+						Scheme: "XXX",
+						Port:   9200,
+					},
+				}
 				Expect(k8sClient.Update(ctx, stack)).To(BeNil())
 				Eventually(ConditionStatus(k8sClient, stack, ConditionTypeStackLedgerReady)).
 					Should(Equal(metav1.ConditionTrue))

@@ -13,101 +13,96 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func ownerReference(ledger *Ledger) metav1.OwnerReference {
+func ownerReference(search *Search) metav1.OwnerReference {
 	return metav1.OwnerReference{
-		Kind:               "Ledger",
+		Kind:               "Search",
 		APIVersion:         "components.formance.com/v1beta1",
-		Name:               "ledger",
-		UID:                ledger.UID,
+		Name:               "search",
+		UID:                search.UID,
 		BlockOwnerDeletion: pointer.Bool(true),
 		Controller:         pointer.Bool(true),
 	}
 }
 
-var _ = Describe("Ledger controller", func() {
-	Context("When creating a ledger server", func() {
+var _ = Describe("Search controller", func() {
+	Context("When creating a search server", func() {
 		var (
-			ledger *Ledger
+			search *Search
 		)
 		BeforeEach(func() {
-			ledger = &Ledger{
+			search = &Search{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "ledger",
+					Name: "search",
 				},
-				Spec: LedgerSpec{
-					Postgres: PostgresConfigCreateDatabase{
-						PostgresConfig: PostgresConfig{
-							Database: "ledger",
-							Port:     5432,
-							Host:     "postgres",
-							Username: "ledger",
-							Password: "ledger",
-						},
-						CreateDatabase: true,
+				Spec: SearchSpec{
+					ElasticSearch: &ElasticSearchConfig{
+						Host:   "XXX",
+						Scheme: "XXX",
+						Port:   9200,
 					},
 				},
 			}
-			Expect(nsClient.Create(ctx, ledger)).To(BeNil())
-			Eventually(ConditionStatus(nsClient, ledger, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+			Expect(nsClient.Create(ctx, search)).To(BeNil())
+			Eventually(ConditionStatus(nsClient, search, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 		})
 		It("Should create a deployment", func() {
-			Eventually(ConditionStatus(nsClient, ledger, ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, search, ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 			deployment := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      ledger.Name,
-					Namespace: ledger.Namespace,
+					Name:      search.Name,
+					Namespace: search.Namespace,
 				},
 			}
 			Expect(Exists(nsClient, deployment)()).To(BeTrue())
 			Expect(deployment.OwnerReferences).To(HaveLen(1))
-			Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(ledger)))
+			Expect(deployment.OwnerReferences).To(ContainElement(ownerReference(search)))
 		})
 		It("Should create a service", func() {
-			Eventually(ConditionStatus(nsClient, ledger, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+			Eventually(ConditionStatus(nsClient, search, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 			service := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      ledger.Name,
-					Namespace: ledger.Namespace,
+					Name:      search.Name,
+					Namespace: search.Namespace,
 				},
 			}
 			Expect(Exists(nsClient, service)()).To(BeTrue())
 			Expect(service.OwnerReferences).To(HaveLen(1))
-			Expect(service.OwnerReferences).To(ContainElement(ownerReference(ledger)))
+			Expect(service.OwnerReferences).To(ContainElement(ownerReference(search)))
 		})
 		Context("Then enable ingress", func() {
 			BeforeEach(func() {
-				ledger.Spec.Ingress = &IngressSpec{
-					Path: "/ledger",
+				search.Spec.Ingress = &IngressSpec{
+					Path: "/search",
 					Host: "localhost",
 				}
-				Expect(nsClient.Update(ctx, ledger)).To(BeNil())
+				Expect(nsClient.Update(ctx, search)).To(BeNil())
 			})
 			It("Should create a ingress", func() {
-				Eventually(ConditionStatus(nsClient, ledger, ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+				Eventually(ConditionStatus(nsClient, search, ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 				ingress := &networkingv1.Ingress{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      ledger.Name,
-						Namespace: ledger.Namespace,
+						Name:      search.Name,
+						Namespace: search.Namespace,
 					},
 				}
 				Expect(Exists(nsClient, ingress)()).To(BeTrue())
 				Expect(ingress.OwnerReferences).To(HaveLen(1))
-				Expect(ingress.OwnerReferences).To(ContainElement(ownerReference(ledger)))
+				Expect(ingress.OwnerReferences).To(ContainElement(ownerReference(search)))
 			})
 			Context("Then disabling ingress support", func() {
 				BeforeEach(func() {
-					Eventually(ConditionStatus(nsClient, ledger, ConditionTypeIngressReady)).
+					Eventually(ConditionStatus(nsClient, search, ConditionTypeIngressReady)).
 						Should(Equal(metav1.ConditionTrue))
-					ledger.Spec.Ingress = nil
-					Expect(nsClient.Update(ctx, ledger)).To(BeNil())
-					Eventually(ConditionStatus(nsClient, ledger, ConditionTypeIngressReady)).
+					search.Spec.Ingress = nil
+					Expect(nsClient.Update(ctx, search)).To(BeNil())
+					Eventually(ConditionStatus(nsClient, search, ConditionTypeIngressReady)).
 						Should(Equal(metav1.ConditionUnknown))
 				})
 				It("Should remove the ingress", func() {
 					Eventually(NotFound(nsClient, &networkingv1.Ingress{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      ledger.Name,
-							Namespace: ledger.Namespace,
+							Name:      search.Name,
+							Namespace: search.Namespace,
 						},
 					})).Should(BeTrue())
 				})
