@@ -1,0 +1,20 @@
+# permissions for end users to view searchingesters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: searchingester-viewer-role
+rules:
+- apiGroups:
+  - components.formance.com
+  resources:
+  - searchingesters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - components.formance.com
+  resources:
+  - searchingesters/status
+  verbs:
+  - get

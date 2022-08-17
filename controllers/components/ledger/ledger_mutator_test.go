@@ -45,11 +45,6 @@ var _ = Describe("Ledger controller", func() {
 						},
 						CreateDatabase: true,
 					},
-					ElasticSearchConfig: &ElasticSearchConfig{
-						Host:   "XXX",
-						Scheme: "XXX",
-						Port:   9200,
-					},
 					Collector: &CollectorConfigSpec{
 						Kind: "kafka",
 						KafkaConfig: &KafkaConfig{

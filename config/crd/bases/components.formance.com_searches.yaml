@@ -93,6 +93,33 @@ spec:
                 - host
                 - path
                 type: object
+              kafka:
+                properties:
+                  brokers:
+                    items:
+                      type: string
+                    type: array
+                  sasl:
+                    properties:
+                      mechanism:
+                        type: string
+                      password:
+                        type: string
+                      scramSHASize:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - mechanism
+                    - password
+                    - scramSHASize
+                    - username
+                    type: object
+                  tls:
+                    type: boolean
+                required:
+                - brokers
+                type: object
               monitoring:
                 properties:
                   traces:
@@ -204,6 +231,7 @@ spec:
                 type: object
             required:
             - elasticsearch
+            - kafka
             type: object
           status:
             description: SearchStatus defines the observed state of Search

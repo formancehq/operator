@@ -252,6 +252,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - components.formance.com
+  resources:
+  - searchingesters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.formance.com
+  resources:
+  - searchingesters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - searchingesters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - ""
   resources:
   - namespaces
