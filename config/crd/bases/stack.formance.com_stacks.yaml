@@ -254,18 +254,9 @@ spec:
                 properties:
                   control:
                     properties:
-                      databases:
-                        items:
-                          properties:
-                            type:
-                              type: string
-                            url:
-                              type: string
-                          type: object
-                        type: array
-                      enabled:
+                      debug:
                         type: boolean
-                      name:
+                      image:
                         type: string
                       scaling:
                         properties:

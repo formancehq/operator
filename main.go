@@ -22,6 +22,7 @@ import (
 
 	benthoscomponentsformancecomv1beta1 "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	"github.com/numary/formance-operator/controllers/components/benthos"
+	"github.com/numary/formance-operator/controllers/components/control"
 	"github.com/numary/formance-operator/controllers/components/search"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -132,13 +133,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Search")
 		os.Exit(1)
 	}
-	//if err = (&componentscontrollers.ControlReconciler{
-	//	Client: mgr.GetClient(),
-	//	Scheme: mgr.GetScheme(),
-	//}).SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Control")
-	//	os.Exit(1)
-	//}
+	controlMutator := control.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), controlMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Control")
+		os.Exit(1)
+	}
 	clientMutator := clients.NewMutator(mgr.GetClient(), mgr.GetScheme(), clients.DefaultApiFactory)
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clientMutator).
 		SetupWithManager(mgr); err != nil {

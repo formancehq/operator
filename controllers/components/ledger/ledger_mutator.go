@@ -77,6 +77,9 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=ledgers/finalizers,verbs=update
 
 func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) (*ctrl.Result, error) {
+
+	SetProgressing(ledger)
+
 	deployment, err := r.reconcileDeployment(ctx, ledger)
 	if err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
