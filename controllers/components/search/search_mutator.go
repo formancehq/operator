@@ -102,7 +102,7 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 }
 
 func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Search) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "search")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "search")
 
 	env := []corev1.EnvVar{}
 	if search.Spec.Monitoring != nil {

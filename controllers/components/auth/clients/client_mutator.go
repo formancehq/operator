@@ -44,8 +44,11 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 	if isHandledByFinalizer, err := clientFinalizer.Handle(ctx, r.client, actualK8SClient, func() error {
 		// If the scope was created auth server side, we have to remove it
 		if actualK8SClient.IsCreatedOnAuthServer() {
-			return pkgError.Wrap(api.DeleteClient(ctx, actualK8SClient.Status.AuthServerID),
-				"Deleting client auth server side")
+			err := api.DeleteClient(ctx, actualK8SClient.Status.AuthServerID)
+			if err == pkgInternal.ErrNotFound {
+				return nil
+			}
+			return pkgError.Wrap(err, "Deleting client auth server side")
 		}
 		return nil
 	}); err != nil || isHandledByFinalizer {

@@ -96,7 +96,7 @@ func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ct
 }
 
 func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1beta1.Auth) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "auth")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "auth")
 	port := int32(8080)
 
 	env := []corev1.EnvVar{

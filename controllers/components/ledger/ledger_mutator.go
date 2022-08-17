@@ -119,7 +119,7 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 }
 
 func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1beta1.Ledger) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "ledger")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "ledger")
 
 	env := []corev1.EnvVar{
 		envutil.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),

@@ -1,8 +1,6 @@
 package testing
 
 import (
-	"context"
-
 	"github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -10,9 +8,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ConditionStatus(c client.Client, object sharedtypes.Object, conditionType string) func() v1.ConditionStatus {
+func ConditionStatus(object sharedtypes.Object, conditionType string) func() v1.ConditionStatus {
 	return func() v1.ConditionStatus {
-		c := GetCondition(c, object, conditionType)()
+		c := GetCondition(object, conditionType)()
 		if c == nil {
 			return v1.ConditionUnknown
 		}
@@ -20,9 +18,9 @@ func ConditionStatus(c client.Client, object sharedtypes.Object, conditionType s
 	}
 }
 
-func GetCondition(c client.Client, object sharedtypes.Object, conditionType string) func() *sharedtypes.Condition {
+func GetCondition(object sharedtypes.Object, conditionType string) func() *sharedtypes.Condition {
 	return func() *sharedtypes.Condition {
-		err := c.Get(context.Background(), client.ObjectKeyFromObject(object), object)
+		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil
 		}
@@ -32,9 +30,9 @@ func GetCondition(c client.Client, object sharedtypes.Object, conditionType stri
 	}
 }
 
-func NotFound(c client.Client, object client.Object) func() bool {
+func NotFound(object client.Object) func() bool {
 	return func() bool {
-		err := c.Get(context.Background(), client.ObjectKeyFromObject(object), object)
+		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		switch {
 		case errors.IsNotFound(err):
 			return true
@@ -46,8 +44,8 @@ func NotFound(c client.Client, object client.Object) func() bool {
 	}
 }
 
-func Exists(c client.Client, object client.Object) func() bool {
+func Exists(object client.Object) func() bool {
 	return func() bool {
-		return c.Get(context.Background(), client.ObjectKeyFromObject(object), object) == nil
+		return k8sClient.Get(ctx, client.ObjectKeyFromObject(object), object) == nil
 	}
 }

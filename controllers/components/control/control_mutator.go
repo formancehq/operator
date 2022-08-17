@@ -75,7 +75,7 @@ func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) 
 }
 
 func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "control")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "control")
 
 	env := []corev1.EnvVar{
 		envutil.Env("API_URL_BACK", "http://kubernetes.docker.internal"),

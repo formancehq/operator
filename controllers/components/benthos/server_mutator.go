@@ -61,7 +61,7 @@ func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Resul
 
 func (r *ServerMutator) reconcileDeployment(ctx context.Context, m *Server) (*appsv1.Deployment, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, client.ObjectKeyFromObject(m), m, func(deployment *appsv1.Deployment) error {
-		matchLabels := collectionutil.Create("app.kubernetes.io/name", "benthos")
+		matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "benthos")
 
 		image := m.Spec.Image
 		if image == "" {
