@@ -20,14 +20,16 @@ import (
 	"flag"
 	"os"
 
-	benthoscomponentsformancecomv1beta1 "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
-	"github.com/numary/formance-operator/controllers/components/benthos"
-	"github.com/numary/formance-operator/controllers/components/control"
-	"github.com/numary/formance-operator/controllers/components/search"
+	"github.com/numary/formance-operator/controllers/components/search/searchingester"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
+	benthoscomponentsformancecomv1beta1 "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
+	"github.com/numary/formance-operator/controllers/components/benthos"
+	"github.com/numary/formance-operator/controllers/components/control"
+	"github.com/numary/formance-operator/controllers/components/search"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
@@ -158,6 +160,11 @@ func main() {
 	streamMutator := benthos.NewStreamMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), streamMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stream")
+		os.Exit(1)
+	}
+	searchIngesterMutator := searchingester.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchIngesterMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "SearchIngester")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

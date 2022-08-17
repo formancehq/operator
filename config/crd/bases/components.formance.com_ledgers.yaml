@@ -101,22 +101,6 @@ spec:
                 type: object
               debug:
                 type: boolean
-              elastic:
-                description: 'TODO: By introducing an abstraction between benthos
-                  stream and search iongestion streams, we will be able to remove
-                  this dependency'
-                properties:
-                  host:
-                    type: string
-                  port:
-                    type: integer
-                  scheme:
-                    type: string
-                required:
-                - host
-                - port
-                - scheme
-                type: object
               image:
                 type: string
               ingress:
@@ -274,7 +258,6 @@ spec:
                 - uri
                 type: object
             required:
-            - elastic
             - postgres
             type: object
           status:

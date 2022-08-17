@@ -20,12 +20,12 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"text/template"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
-	"github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
@@ -33,6 +33,7 @@ import (
 	"github.com/numary/formance-operator/pkg/envutil"
 	"github.com/numary/formance-operator/pkg/resourceutil"
 	pkgError "github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -275,33 +276,32 @@ func (r *Mutator) reconcileIngress(ctx context.Context, ledger *componentsv1beta
 	return ret, nil
 }
 
-// TODO: Add an abstraction layer on search. Object of kind SearchIngester ?
 func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componentsv1beta1.Ledger) error {
 	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: ledger.Namespace,
 		Name:      ledger.Name + "-ingestion-stream",
-	}, ledger, func(t *v1beta1.Stream) error {
+	}, ledger, func(t *componentsv1beta1.SearchIngester) error {
 		buf := bytes.NewBufferString("")
 		if err := benthosConfigTpl.Execute(buf, map[string]any{
-			"KafkaAddresses":     ledger.Spec.Collector.KafkaConfig.Brokers,
-			"KafkaTopics":        []string{"ledger"},
-			"KafkaConsumerGroup": "ledger",
-			"KafkaTargetVersion": "",
-			"ElasticSearchEndpoint": fmt.Sprintf("%s://%s:%d",
-				ledger.Spec.ElasticSearchConfig.Scheme,
-				ledger.Spec.ElasticSearchConfig.Host,
-				ledger.Spec.ElasticSearchConfig.Port),
-			"ElasticSearchTLSEnabled":        false,
-			"ElasticSearchTLSSkipCertVerify": false,
-			"ElasticSearchBasicAuthEnabled":  true,
-			"ElasticSearchBasicAuthUsername": "admin",
-			"ElasticSearchBasicAuthPassword": "admin",
-			"ElasticSearchIndex":             "documents",
+			// TODO: Should not be a consideration of the ledger
+			"ElasticSearchIndex": "documents",
 		}); err != nil {
 			return err
 		}
-		t.Spec.Config = buf.String()
-		t.Spec.Reference = fmt.Sprintf("%s-search-benthos", ledger.Namespace)
+
+		pipeline := map[string]any{}
+		if err := yaml.Unmarshal(buf.Bytes(), &pipeline); err != nil {
+			return err
+		}
+
+		data, err := json.Marshal(pipeline)
+		if err != nil {
+			return err
+		}
+
+		t.Spec.Pipeline = data
+		t.Spec.Topic = "ledger" // TODO: Should be corollated with the topic mapping
+		t.Spec.Reference = fmt.Sprintf("%s-search", ledger.Namespace)
 		return nil
 	})
 	switch {

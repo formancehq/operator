@@ -50,8 +50,6 @@ type LedgerSpec struct {
 	// TODO: Support only kafka
 	// +optional
 	Collector *CollectorConfigSpec `json:"collector"`
-	// TODO: By introducing an abstraction between benthos stream and search iongestion streams, we will be able to remove this dependency
-	ElasticSearchConfig *ElasticSearchConfig `json:"elastic"`
 }
 
 // LedgerStatus defines the observed state of Ledger

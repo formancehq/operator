@@ -35,10 +35,15 @@ var _ = Describe("Search controller", func() {
 					Name: "search",
 				},
 				Spec: SearchSpec{
-					ElasticSearch: &ElasticSearchConfig{
+					ElasticSearch: ElasticSearchConfig{
 						Host:   "XXX",
 						Scheme: "XXX",
 						Port:   9200,
+					},
+					KafkaConfig: KafkaConfig{
+						Brokers: []string{""},
+						TLS:     false,
+						SASL:    nil,
 					},
 				},
 			}

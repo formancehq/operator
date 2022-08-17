@@ -2,13 +2,13 @@ package benthos
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
-	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,9 +34,8 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 
 	address := fmt.Sprintf("http://%s.%s.svc.cluster.local:4195", stream.Spec.Reference, stream.Namespace)
 
-	// TODO: Should be a map on the stream object
 	configAsMap := make(map[string]any)
-	if err := yaml.Unmarshal([]byte(stream.Spec.Config), &configAsMap); err != nil {
+	if err := json.Unmarshal(stream.Spec.Config, &configAsMap); err != nil {
 		return nil, err
 	}
 
@@ -47,14 +46,17 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 	switch {
 	case benthosStream != nil && !reflect.DeepEqual(configAsMap, benthosStream.Config):
 		log.FromContext(ctx).Info("Detect config stream changed, updating benthos side")
-		err = s.api.UpdateStream(ctx, address, stream.Name, stream.Spec.Config)
+		err = s.api.UpdateStream(ctx, address, stream.Name, string(stream.Spec.Config))
 	case benthosStream == nil:
 		log.FromContext(ctx).Info("Detect stream not existing benthos side, creating it")
-		err = s.api.CreateStream(ctx, address, stream.Name, stream.Spec.Config)
+		err = s.api.CreateStream(ctx, address, stream.Name, string(stream.Spec.Config))
 	default:
 		log.FromContext(ctx).Info("No modification done")
 		err = nil
 	}
+	// TODO: Handle Lint error, retrying will not work anyway
+	// TODO: More generally we have to split errors between errors which can be recovered (trigger a new reconciliation)
+	// and errors which will not change even after a new reconciliation (lint errors are)
 	if err != nil {
 		return nil, err
 	}

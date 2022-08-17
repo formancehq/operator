@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"encoding/json"
+
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,8 +27,10 @@ import (
 type StreamSpec struct {
 	// TODO: Add validations pattern
 	Reference string `json:"ref"`
-	// TODO: Accept map[string]any instead of string
-	Config string `json:"config"`
+	//+kubebuilder:pruning:PreserveUnknownFields
+	//+kubebuilder:validation:Type=object
+	//+kubebuilder:validation:Schemaless
+	Config json.RawMessage `json:"config"`
 }
 
 // StreamStatus defines the observed state of Stream

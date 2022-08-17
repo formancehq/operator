@@ -17,62 +17,52 @@ limitations under the License.
 package v1beta1
 
 import (
+	"encoding/json"
+
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ElasticSearchConfig struct {
-	Host   string `json:"host"`
-	Scheme string `json:"scheme"`
-	Port   uint16 `json:"port"`
+// SearchIngesterSpec defines the desired state of SearchIngester
+type SearchIngesterSpec struct {
+	Reference string `json:"reference"`
+	Topic     string `json:"topic"`
+	//+kubebuilder:pruning:PreserveUnknownFields
+	//+kubebuilder:validation:Type=object
+	//+kubebuilder:validation:Schemaless
+	Pipeline json.RawMessage `json:"pipeline"` // Should be a map[string]any but controller-gen does not support it
 }
 
-// SearchSpec defines the desired state of Search
-type SearchSpec struct {
-	// +optional
-	Ingress *IngressSpec `json:"ingress"`
-	// +optional
-	Debug bool `json:"debug"`
-	// +optional
-	Auth *AuthConfigSpec `json:"auth"`
-	// +optional
-	Monitoring *MonitoringSpec `json:"monitoring"`
-	// +optional
-	Image         string              `json:"image"`
-	ElasticSearch ElasticSearchConfig `json:"elasticsearch"`
-	KafkaConfig   KafkaConfig         `json:"kafka"`
-}
-
-// SearchStatus defines the observed state of Search
-type SearchStatus struct {
+// SearchIngesterStatus defines the observed state of SearchIngester
+type SearchIngesterStatus struct {
 	Status `json:",inline"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Search is the Schema for the searches API
-type Search struct {
+// SearchIngester is the Schema for the searchingesters API
+type SearchIngester struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SearchSpec   `json:"spec,omitempty"`
-	Status SearchStatus `json:"status,omitempty"`
+	Spec   SearchIngesterSpec   `json:"spec,omitempty"`
+	Status SearchIngesterStatus `json:"status,omitempty"`
 }
 
-func (in *Search) GetConditions() *Conditions {
+func (in *SearchIngester) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
 //+kubebuilder:object:root=true
 
-// SearchList contains a list of Search
-type SearchList struct {
+// SearchIngesterList contains a list of SearchIngester
+type SearchIngesterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Search `json:"items"`
+	Items           []SearchIngester `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Search{}, &SearchList{})
+	SchemeBuilder.Register(&SearchIngester{}, &SearchIngesterList{})
 }

@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.0
   creationTimestamp: null
-  name: streams.benthos.components.formance.com
+  name: searchingesters.components.formance.com
 spec:
-  group: benthos.components.formance.com
+  group: components.formance.com
   names:
-    kind: Stream
-    listKind: StreamList
-    plural: streams
-    singular: stream
+    kind: SearchIngester
+    listKind: SearchIngesterList
+    plural: searchingesters
+    singular: searchingester
   scope: Namespaced
   versions:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: Stream is the Schema for the streams API
+        description: SearchIngester is the Schema for the searchingesters API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,20 +33,22 @@ spec:
           metadata:
             type: object
           spec:
-            description: StreamSpec defines the desired state of Stream
+            description: SearchIngesterSpec defines the desired state of SearchIngester
             properties:
-              config:
+              pipeline:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
-              ref:
-                description: 'TODO: Add validations pattern'
+              reference:
+                type: string
+              topic:
                 type: string
             required:
-            - config
-            - ref
+            - pipeline
+            - reference
+            - topic
             type: object
           status:
-            description: StreamStatus defines the observed state of Stream
+            description: SearchIngesterStatus defines the observed state of SearchIngester
             properties:
               conditions:
                 items:
