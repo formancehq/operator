@@ -245,7 +245,8 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta1.Scope{})
+		Owns(&authcomponentsv1beta1.Scope{}).
+		Owns(&Server{})
 	return nil
 }
 

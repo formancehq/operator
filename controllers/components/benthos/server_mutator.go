@@ -14,8 +14,10 @@ import (
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/fields"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
@@ -27,6 +29,7 @@ import (
 
 const (
 	defaultImage = "jeffail/benthos:latest"
+	serverLabel  = "server.benthos.components.formance.com"
 )
 
 func init() {
@@ -80,11 +83,11 @@ func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Resul
 	return nil, nil
 }
 
-func (r *ServerMutator) reconcilePod(ctx context.Context, m *Server) (*corev1.Pod, error) {
+func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*corev1.Pod, error) {
 
-	SetProgressing(m)
+	SetProgressing(server)
 
-	image := m.Spec.Image
+	image := server.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
@@ -100,9 +103,13 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, m *Server) (*corev1.Po
 	}
 
 	pods := &corev1.PodList{}
-	err := r.client.List(ctx, pods, &client.ListOptions{
-		Namespace:     m.Namespace,
-		FieldSelector: fields.OneTermEqualSelector(".metadata.ownerReferences[*].uid", string(m.UID)),
+	requirement, err := labels.NewRequirement(serverLabel, selection.Equals, []string{server.Name})
+	if err != nil {
+		return nil, err
+	}
+	err = r.client.List(ctx, pods, &client.ListOptions{
+		Namespace:     server.Namespace,
+		LabelSelector: labels.NewSelector().Add(*requirement),
 	})
 	if err != nil {
 		return nil, pkgError.Wrap(err, "listing pods with owner reference set to server")
@@ -115,6 +122,10 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, m *Server) (*corev1.Po
 		pod := pods.Items[0]
 		if equality.Semantic.DeepDerivative(expectedContainer, pod.Spec.Containers[0]) {
 			log.FromContext(ctx).Info("Pod up to date, skip")
+			if pod.Status.PodIP != "" {
+				server.Status.PodIP = pod.Status.PodIP
+				SetCondition(server, "AssignedIP", metav1.ConditionTrue)
+			}
 			return &pod, nil
 		}
 		if err := r.client.Delete(ctx, &pod); err != nil {
@@ -122,16 +133,19 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, m *Server) (*corev1.Po
 		}
 	}
 
-	RemovePodCondition(m)
+	RemovePodCondition(server)
 
-	name := fmt.Sprintf("%s-%s", m.Name, randPodIdentifier())
+	name := fmt.Sprintf("%s-%s", server.Name, randPodIdentifier())
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
-		Namespace: m.Namespace,
+		Namespace: server.Namespace,
 		Name:      name,
-	}, m, func(pod *corev1.Pod) error {
-		matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "benthos")
+	}, server, func(pod *corev1.Pod) error {
+		matchLabels := collectionutil.CreateMap(
+			"app.kubernetes.io/name", "benthos",
+			serverLabel, server.Name,
+		)
 
-		image := m.Spec.Image
+		image := server.Spec.Image
 		if image == "" {
 			image = defaultImage
 		}
@@ -141,7 +155,7 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, m *Server) (*corev1.Po
 	})
 	switch {
 	case err != nil:
-		SetPodError(m, err.Error())
+		SetPodError(server, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		if err = r.client.Get(ctx, client.ObjectKeyFromObject(ret), ret); err != nil {
@@ -149,8 +163,8 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, m *Server) (*corev1.Po
 		}
 
 		log.FromContext(ctx).Info("Register pod ip", "ip", ret.Status.PodIP)
-		m.Status.PodIP = ret.Status.PodIP
-		SetPodReady(m)
+		server.Status.PodIP = ret.Status.PodIP
+		SetPodReady(server)
 	}
 	return ret, err
 }

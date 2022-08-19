@@ -31,7 +31,6 @@ import (
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/envutil"
-	"github.com/numary/formance-operator/internal/probeutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -173,7 +172,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 							Name:          "ledger",
 							ContainerPort: 8080,
 						}},
-						LivenessProbe: probeutil.DefaultLiveness(),
+						//LivenessProbe: probeutil.DefaultLiveness(),
 					}},
 				},
 			},
