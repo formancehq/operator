@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kClient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Scope reconciler", func() {
@@ -34,6 +35,11 @@ var _ = Describe("Scope reconciler", func() {
 					Expect(Create(firstScope)).To(BeNil())
 					Eventually(ConditionStatus(firstScope, ConditionTypeReady)).
 						Should(Equal(metav1.ConditionTrue))
+				})
+				AfterEach(func() {
+					Expect(kClient.IgnoreNotFound(Delete(firstScope))).To(Succeed())
+					Eventually(Exists(firstScope)).Should(BeFalse())
+					Expect(api.Scopes()).To(HaveLen(0))
 				})
 				It("Should create a new scope on auth server", func() {
 					Expect(api.Scopes()).To(HaveLen(1))
@@ -71,6 +77,11 @@ var _ = Describe("Scope reconciler", func() {
 						Expect(Create(secondScope)).To(BeNil())
 						Eventually(ConditionStatus(secondScope, ConditionTypeReady)).
 							Should(Equal(metav1.ConditionTrue))
+					})
+					AfterEach(func() {
+						Expect(kClient.IgnoreNotFound(Delete(secondScope))).To(Succeed())
+						Eventually(Exists(secondScope)).Should(BeFalse())
+						Expect(api.Scopes()).To(HaveLen(1))
 					})
 					It("Should create scope with transient on auth server", func() {
 						Expect(api.Scopes()).To(HaveLen(2))

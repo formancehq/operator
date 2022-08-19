@@ -8,7 +8,10 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/utils/pointer"
+	kClient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func ownerReference(server *Server) metav1.OwnerReference {
@@ -40,14 +43,18 @@ var _ = Describe("Server controller", func() {
 					Eventually(ConditionStatus(server, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a pod", func() {
-					Eventually(ConditionStatus(server, ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
-					pod := &corev1.Pod{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      server.Name,
-							Namespace: server.Namespace,
-						},
-					}
-					Expect(Exists(pod)()).To(BeTrue())
+					Eventually(ConditionStatus(server, ConditionTypePodReady)).Should(Equal(metav1.ConditionTrue))
+
+					pods := &corev1.PodList{}
+					requirement, err := labels.NewRequirement(serverLabel, selection.Equals, []string{server.Name})
+					Expect(err).To(BeNil())
+					Expect(GetClient().List(ActualContext(), pods, &kClient.ListOptions{
+						Namespace:     server.Namespace,
+						LabelSelector: labels.NewSelector().Add(*requirement),
+					})).To(BeNil())
+					Expect(pods.Items).To(HaveLen(1))
+
+					pod := pods.Items[0]
 					Expect(pod.OwnerReferences).To(HaveLen(1))
 					Expect(pod.OwnerReferences).To(ContainElement(ownerReference(server)))
 				})

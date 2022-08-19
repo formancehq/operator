@@ -20,6 +20,8 @@ import (
 	"flag"
 	"os"
 
+	"github.com/numary/formance-operator/controllers/components/auth/clients"
+	"github.com/numary/formance-operator/controllers/components/auth/scopes"
 	"github.com/numary/formance-operator/controllers/components/benthos/streams"
 	"github.com/numary/formance-operator/controllers/components/search/searchingester"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
@@ -139,18 +141,18 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Control")
 		os.Exit(1)
 	}
-	//clientMutator := clients.NewMutator(mgr.GetClient(), mgr.GetScheme(), clients.DefaultApiFactory)
-	//if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clientMutator).
-	//	SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Client")
-	//	os.Exit(1)
-	//}
-	//scopeMutator := scopes.NewMutator(mgr.GetClient(), mgr.GetScheme(), scopes.DefaultApiFactory)
-	//if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopeMutator).
-	//	SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Scope")
-	//	os.Exit(1)
-	//}
+	clientMutator := clients.NewMutator(mgr.GetClient(), mgr.GetScheme(), clients.DefaultApiFactory)
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clientMutator).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Client")
+		os.Exit(1)
+	}
+	scopeMutator := scopes.NewMutator(mgr.GetClient(), mgr.GetScheme(), scopes.DefaultApiFactory)
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopeMutator).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Scope")
+		os.Exit(1)
+	}
 	serverMutator := benthos.NewServerMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), serverMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Server")

@@ -48,13 +48,10 @@ var _ = Describe("Ledger controller", func() {
 								},
 								CreateDatabase: true,
 							},
-							Kafka: &CollectorConfigSpec{
-								Kind: "kafka",
-								KafkaConfig: &KafkaConfig{
-									Brokers: []string{"http://kafka"},
-									TLS:     false,
-									SASL:    nil,
-								},
+							Kafka: &KafkaConfig{
+								Brokers: []string{"http://kafka"},
+								TLS:     false,
+								SASL:    nil,
 							},
 						},
 					}

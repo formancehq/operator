@@ -38,7 +38,8 @@ type ElasticSearchConfig struct {
 	Scheme string `json:"scheme"`
 	Port   uint16 `json:"port"`
 	// +optional
-	TLS       ElasticSearchTLSConfig        `json:"tls""`
+	TLS ElasticSearchTLSConfig `json:"tls"`
+	// +optional
 	BasicAuth *ElasticSearchBasicAuthConfig `json:"basicAuth"`
 }
 

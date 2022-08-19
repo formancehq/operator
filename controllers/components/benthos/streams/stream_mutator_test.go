@@ -28,7 +28,6 @@ var _ = Describe("Stream Controller", func() {
 						Name: "foo",
 					},
 					Status: ServerStatus{
-						Pod:   "xxx",
 						PodIP: "10.0.0.1",
 					},
 				}
@@ -53,7 +52,7 @@ var _ = Describe("Stream Controller", func() {
 					Expect(Create(stream)).To(Succeed())
 					Eventually(ConditionStatus(stream, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
-				FIt("Should create a stream benthos side", func() {
+				It("Should create a stream benthos side", func() {
 					Eventually(func() int {
 						return len(api.configs)
 					}).Should(Equal(1))

@@ -369,7 +369,6 @@ spec:
                                 type: boolean
                             type: object
                         required:
-                        - basicAuth
                         - host
                         - port
                         - scheme

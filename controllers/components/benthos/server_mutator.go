@@ -63,7 +63,6 @@ func (m *ServerMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 	return nil
 }
 
-// TODO: the stream controller should listen for server restart to be able to reconfigure benthos server
 func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Result, error) {
 
 	SetProgressing(server)
