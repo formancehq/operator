@@ -166,12 +166,13 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 					Containers: []corev1.Container{{
 						Name:            "ledger",
 						Image:           image,
-						ImagePullPolicy: corev1.PullAlways,
+						ImagePullPolicy: ImagePullPolicy(image),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "ledger",
 							ContainerPort: 8080,
 						}},
+						// TODO: Check 404
 						//LivenessProbe: probeutil.DefaultLiveness(),
 					}},
 				},

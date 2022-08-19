@@ -102,7 +102,7 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 					Containers: []corev1.Container{{
 						Name:            "control",
 						Image:           image,
-						ImagePullPolicy: corev1.PullAlways,
+						ImagePullPolicy: ImagePullPolicy(image),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",

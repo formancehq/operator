@@ -90,10 +90,11 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 	if image == "" {
 		image = defaultImage
 	}
+
 	expectedContainer := corev1.Container{
 		Name:            "benthos",
 		Image:           image,
-		ImagePullPolicy: corev1.PullAlways, // TODO: Maybe set to pull always if debug is enabled
+		ImagePullPolicy: ImagePullPolicy(image),
 		Command:         []string{"/benthos", "streams"},
 		Ports: []corev1.ContainerPort{{
 			Name:          "benthos",
