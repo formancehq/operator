@@ -126,7 +126,6 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 		}, scope)
 		if err != nil && !errors.IsNotFound(err) {
 			logger.Error(err, "Scope not found locally")
-			// TODO: Maybe watch scopes creation instead of requeue
 			return Requeue(), pkgError.Wrap(err, "Reading local scope")
 		}
 		if err != nil {

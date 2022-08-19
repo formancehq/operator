@@ -6,10 +6,12 @@ import (
 	"github.com/google/uuid"
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kClient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Stream Controller", func() {
@@ -34,7 +36,7 @@ var _ = Describe("Stream Controller", func() {
 				Expect(Create(server)).To(Succeed())
 			})
 			AfterEach(func() {
-				Expect(Delete(server)).To(Succeed())
+				Expect(kClient.IgnoreNotFound(Delete(server))).To(Succeed())
 				Eventually(Exists(server)).Should(BeFalse())
 			})
 			Context("When creating a new stream", func() {
@@ -64,6 +66,23 @@ var _ = Describe("Stream Controller", func() {
 					})
 					It("Should remove benthos side", func() {
 						Eventually(api.configs).Should(BeEmpty())
+					})
+				})
+				Context("then removing the server", func() {
+					BeforeEach(func() {
+						Expect(Delete(server)).To(Succeed())
+						Eventually(Exists(server)).Should(BeFalse())
+					})
+					It("Should set stream to error state", func() {
+						Eventually(ConditionStatus(stream, internal.ConditionTypeError)).Should(Equal(metav1.ConditionTrue))
+					})
+					Context("Then removing the stream", func() {
+						BeforeEach(func() {
+							Expect(Delete(stream)).To(Succeed())
+						})
+						It("Should be ok", func() {
+							Eventually(Exists(stream)).Should(BeFalse())
+						})
 					})
 				})
 			})

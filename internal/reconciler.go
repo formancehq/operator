@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	ConditionError = "Error"
+	ConditionTypeError = "Error"
 )
 
 type Mutator[T sharedtypes.Object] interface {
@@ -58,10 +58,10 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	log.FromContext(ctx).Info("Call mutator")
 	result, reconcileError := r.Mutator.Mutate(ctx, updated)
 	if reconcileError != nil {
-		sharedtypes.SetCondition(updated, ConditionError, metav1.ConditionTrue, reconcileError.Error())
+		sharedtypes.SetCondition(updated, ConditionTypeError, metav1.ConditionTrue, reconcileError.Error())
 		log.FromContext(ctx).Error(reconcileError, "Reconciling")
 	} else {
-		updated.GetConditions().Remove(ConditionError)
+		updated.GetConditions().Remove(ConditionTypeError)
 	}
 
 	conditionsChanged := len(*actual.GetConditions()) != len(*updated.GetConditions())

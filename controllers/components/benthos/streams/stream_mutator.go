@@ -47,7 +47,7 @@ func (s *StreamMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 		&source.Kind{Type: &Server{}},
 		handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
 			list := &StreamList{}
-			if err := s.client.List(context.Background(), list,
+			if err := mgr.GetClient().List(context.Background(), list,
 				&client.ListOptions{
 					Namespace:     object.GetNamespace(),
 					FieldSelector: fields.OneTermEqualSelector(".spec.ref", object.(*Server).Name),
@@ -55,13 +55,14 @@ func (s *StreamMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 				mgr.GetLogger().Error(err, "Retrieving streams which reference server", "name", object.(*Server).Name)
 				return nil
 			}
-			return Map(list.Items, func(t1 Stream) reconcile.Request {
+			mgr.GetLogger().Info(fmt.Sprintf("Found %d items to reconcile", len(list.Items)))
+			return Map(list.Items, func(stream Stream) reconcile.Request {
 				mgr.GetLogger().Info("Trigger reconcile", "namespace",
 					object.GetNamespace(), "name", object.GetName())
 				return reconcile.Request{
 					NamespacedName: types.NamespacedName{
-						Namespace: object.GetNamespace(),
-						Name:      object.GetName(),
+						Namespace: stream.GetNamespace(),
+						Name:      stream.GetName(),
 					},
 				}
 			})
@@ -70,14 +71,13 @@ func (s *StreamMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 	return nil
 }
 
-//TODO: We have to handle the case where the server is removed before the streams
 func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Result, error) {
 
 	server := &Server{}
-	if err := s.client.Get(ctx, types.NamespacedName{
+	if err := client.IgnoreNotFound(s.client.Get(ctx, types.NamespacedName{
 		Namespace: stream.Namespace,
 		Name:      stream.Spec.Reference,
-	}, server); err != nil {
+	}, server)); err != nil {
 		return nil, pkgError.Wrap(err, "Finding benthos server")
 	}
 
@@ -85,12 +85,19 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 
 	// Handle finalizer
 	if isHandledByFinalizer, err := streamFinalizer.Handle(ctx, s.client, stream, func() error {
+		if server.UID == "" { // Server not found, consider the stream implicitely removed
+			return nil
+		}
 		if err := s.api.DeleteStream(ctx, address, stream.Name); err != nil && err != ErrNotFound {
 			return err
 		}
 		return nil
 	}); err != nil || isHandledByFinalizer {
 		return nil, err
+	}
+
+	if server.UID == "" {
+		return Requeue(), pkgError.New("Server not found")
 	}
 
 	SetProgressing(stream)
