@@ -48,7 +48,8 @@ type LedgerSpec struct {
 	// +optional
 	Image string `json:"image"`
 	// +optional
-	Kafka *KafkaConfig `json:"kafka"`
+	Kafka              *KafkaConfig `json:"kafka"`
+	ElasticSearchIndex string       `json:"elasticSearchIndex"`
 }
 
 // LedgerStatus defines the observed state of Ledger

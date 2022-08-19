@@ -64,6 +64,8 @@ spec:
                 type: object
               debug:
                 type: boolean
+              elasticSearchIndex:
+                type: string
               image:
                 type: string
               ingress:
@@ -248,6 +250,7 @@ spec:
                 - uri
                 type: object
             required:
+            - elasticSearchIndex
             - postgres
             type: object
           status:

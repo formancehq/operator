@@ -34,6 +34,7 @@ var _ = Describe("Test Search Ingester", func() {
 							Brokers: []string{"kafka"},
 							TLS:     false,
 						},
+						Index: "documents",
 					},
 				}
 				Expect(Create(search)).To(Succeed())

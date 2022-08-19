@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/numary/auth/authclient"
@@ -223,25 +224,36 @@ func NewDefaultServerApi(api *authclient.APIClient) *defaultApi {
 type InMemoryApi struct {
 	scopes  map[string]*authclient.Scope
 	clients map[string]*authclient.Client
+	lock    sync.Mutex
 }
 
 func (i *InMemoryApi) Clients() map[string]*authclient.Client {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	return i.clients
 }
 
 func (i *InMemoryApi) Scopes() map[string]*authclient.Scope {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	return i.scopes
 }
 
 func (i *InMemoryApi) Client(name string) *authclient.Client {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	return i.clients[name]
 }
 
 func (i *InMemoryApi) Scope(name string) *authclient.Scope {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	return i.scopes[name]
 }
 
 func (i *InMemoryApi) AddTransientScope(ctx context.Context, scope, transientScope string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	firstScope, ok := i.scopes[scope]
 	if !ok {
 		return ErrNotFound
@@ -255,6 +267,8 @@ func (i *InMemoryApi) AddTransientScope(ctx context.Context, scope, transientSco
 }
 
 func (i *InMemoryApi) RemoveTransientScope(ctx context.Context, scope, transientScope string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	firstScope, ok := i.scopes[scope]
 	if !ok {
 		return ErrNotFound
@@ -270,6 +284,8 @@ func (i *InMemoryApi) RemoveTransientScope(ctx context.Context, scope, transient
 }
 
 func (i *InMemoryApi) ReadScope(ctx context.Context, id string) (*authclient.Scope, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	s, ok := i.scopes[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -299,6 +315,8 @@ l:
 }
 
 func (i *InMemoryApi) DeleteScope(ctx context.Context, id string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	_, ok := i.scopes[id]
 	if !ok {
 		return ErrNotFound
@@ -308,6 +326,8 @@ func (i *InMemoryApi) DeleteScope(ctx context.Context, id string) error {
 }
 
 func (i *InMemoryApi) CreateScope(ctx context.Context, label string, metadata map[string]string) (*authclient.Scope, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	id := uuid.NewString()
 	i.scopes[id] = &authclient.Scope{
 		Label:    label,
@@ -318,12 +338,16 @@ func (i *InMemoryApi) CreateScope(ctx context.Context, label string, metadata ma
 }
 
 func (i *InMemoryApi) UpdateScope(ctx context.Context, id string, label string, metadata map[string]string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	i.scopes[id].Label = label
 	i.scopes[id].Metadata = &metadata
 	return nil
 }
 
 func (i *InMemoryApi) ListScopes(ctx context.Context) (Array[authclient.Scope], error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	ret := Array[authclient.Scope]{}
 	for _, scope := range i.scopes {
 		ret = append(ret, *scope)
@@ -332,6 +356,8 @@ func (i *InMemoryApi) ListScopes(ctx context.Context) (Array[authclient.Scope], 
 }
 
 func (i *InMemoryApi) CreateClient(ctx context.Context, options authclient.ClientOptions) (*authclient.Client, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	id := uuid.NewString()
 	i.clients[id] = &authclient.Client{
 		Public:                 options.Public,
@@ -347,6 +373,8 @@ func (i *InMemoryApi) CreateClient(ctx context.Context, options authclient.Clien
 }
 
 func (i *InMemoryApi) UpdateClient(ctx context.Context, id string, options authclient.ClientOptions) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	_, ok := i.clients[id]
 	if !ok {
 		return ErrNotFound
@@ -361,6 +389,8 @@ func (i *InMemoryApi) UpdateClient(ctx context.Context, id string, options authc
 }
 
 func (i *InMemoryApi) DeleteClient(ctx context.Context, id string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	_, ok := i.clients[id]
 	if !ok {
 		return ErrNotFound
@@ -370,6 +400,8 @@ func (i *InMemoryApi) DeleteClient(ctx context.Context, id string) error {
 }
 
 func (i *InMemoryApi) ReadClient(ctx context.Context, id string) (*authclient.Client, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	v, ok := i.clients[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -378,6 +410,8 @@ func (i *InMemoryApi) ReadClient(ctx context.Context, id string) (*authclient.Cl
 }
 
 func (i *InMemoryApi) ReadClientByMetadata(ctx context.Context, metadata map[string]string) (*authclient.Client, error) {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 l:
 	for _, client := range i.clients {
 		if client.Metadata == nil {
@@ -394,6 +428,8 @@ l:
 }
 
 func (i *InMemoryApi) AddScopeToClient(ctx context.Context, clientId, scopeId string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	v, ok := i.clients[clientId]
 	if !ok {
 		return ErrNotFound
@@ -403,6 +439,8 @@ func (i *InMemoryApi) AddScopeToClient(ctx context.Context, clientId, scopeId st
 }
 
 func (i *InMemoryApi) DeleteScopeFromClient(ctx context.Context, clientId, scopeId string) error {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	v, ok := i.clients[clientId]
 	if !ok {
 		return ErrNotFound
@@ -412,6 +450,8 @@ func (i *InMemoryApi) DeleteScopeFromClient(ctx context.Context, clientId, scope
 }
 
 func (i *InMemoryApi) Reset() {
+	i.lock.Lock()
+	defer i.lock.Unlock()
 	i.clients = map[string]*authclient.Client{}
 	i.scopes = map[string]*authclient.Scope{}
 }

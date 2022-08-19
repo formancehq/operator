@@ -53,6 +53,7 @@ var _ = Describe("Ledger controller", func() {
 								TLS:     false,
 								SASL:    nil,
 							},
+							ElasticSearchIndex: "foo",
 						},
 					}
 					Expect(Create(ledger)).To(BeNil())

@@ -193,14 +193,15 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		//	}
 		//}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Ingress:    ingress,
-			Debug:      stack.Spec.Services.Ledger.Debug,
-			Redis:      stack.Spec.Services.Ledger.Redis,
-			Postgres:   stack.Spec.Services.Ledger.Postgres,
-			Auth:       authConfig,
-			Monitoring: stack.Spec.Monitoring,
-			Image:      stack.Spec.Services.Ledger.Image,
-			Kafka:      stack.Spec.Kafka,
+			Ingress:            ingress,
+			Debug:              stack.Spec.Services.Ledger.Debug,
+			Redis:              stack.Spec.Services.Ledger.Redis,
+			Postgres:           stack.Spec.Services.Ledger.Postgres,
+			Auth:               authConfig,
+			Monitoring:         stack.Spec.Monitoring,
+			Image:              stack.Spec.Services.Ledger.Image,
+			Kafka:              stack.Spec.Kafka,
+			ElasticSearchIndex: stack.Name,
 		}
 		return nil
 	})
@@ -315,6 +316,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 			Image:         stack.Spec.Services.Search.Image,
 			ElasticSearch: *stack.Spec.Services.Search.ElasticSearchConfig,
 			KafkaConfig:   *stack.Spec.Kafka,
+			Index:         stack.Name,
 		}
 		return nil
 	})

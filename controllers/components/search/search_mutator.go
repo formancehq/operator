@@ -112,8 +112,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	env = append(env,
 		envutil.Env("OPEN_SEARCH_SERVICE", fmt.Sprintf("%s:%d", search.Spec.ElasticSearch.Host, search.Spec.ElasticSearch.Port)),
 		envutil.Env("OPEN_SEARCH_SCHEME", search.Spec.ElasticSearch.Scheme),
-		// TODO: Elastic is the kind of service which we mutualised, so we have to have an index for each stack
-		envutil.Env("ES_INDICES", "documents"),
+		envutil.Env("ES_INDICES", search.Spec.Index),
 	)
 
 	image := search.Spec.Image

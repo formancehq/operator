@@ -57,6 +57,7 @@ type SearchSpec struct {
 	Image         string              `json:"image"`
 	ElasticSearch ElasticSearchConfig `json:"elasticsearch"`
 	KafkaConfig   KafkaConfig         `json:"kafka"`
+	Index         string              `json:"index"`
 }
 
 // SearchStatus defines the observed state of Search

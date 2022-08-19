@@ -47,6 +47,7 @@ var _ = Describe("Search controller", func() {
 								TLS:     false,
 								SASL:    nil,
 							},
+							Index: "documents",
 						},
 					}
 					Expect(Create(search)).To(BeNil())

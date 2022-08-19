@@ -284,8 +284,7 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componen
 	}, ledger, func(t *componentsv1beta1.SearchIngester) error {
 		buf := bytes.NewBufferString("")
 		if err := benthosConfigTpl.Execute(buf, map[string]any{
-			// TODO: Should not be a consideration of the ledger
-			"ElasticSearchIndex": "documents",
+			"ElasticSearchIndex": ledger.Spec.ElasticSearchIndex,
 		}); err != nil {
 			return err
 		}
@@ -301,7 +300,7 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componen
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = "ledger" // TODO: Should be corollated with the topic mapping
+		t.Spec.Topic = "ledger"
 		t.Spec.Reference = fmt.Sprintf("%s-search", ledger.Namespace)
 		return nil
 	})

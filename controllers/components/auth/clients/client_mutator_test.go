@@ -37,6 +37,7 @@ var _ = Describe("Client reconciler", func() {
 				AfterEach(func() {
 					Expect(client.IgnoreNotFound(Delete(actualClient))).To(BeNil())
 					Eventually(Exists(actualClient)).Should(BeFalse())
+					Expect(api.Clients()).To(HaveLen(0))
 				})
 				It("Should create a new client on auth server", func() {
 					Expect(api.Clients()).To(HaveLen(1))
@@ -82,6 +83,7 @@ var _ = Describe("Client reconciler", func() {
 						AfterEach(func() {
 							Expect(Delete(scope)).To(BeNil())
 							Eventually(Exists(scope)).Should(BeFalse())
+							Expect(api.Scopes()).To(HaveLen(0))
 						})
 						It("Should add scopes to the auth server client", func() {
 							Expect(api.Clients()).To(HaveLen(1))

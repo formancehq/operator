@@ -96,6 +96,8 @@ spec:
                 type: object
               image:
                 type: string
+              index:
+                type: string
               ingress:
                 properties:
                   annotations:
@@ -248,6 +250,7 @@ spec:
                 type: object
             required:
             - elasticsearch
+            - index
             - kafka
             type: object
           status:
