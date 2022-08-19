@@ -15,4 +15,6 @@ type LedgerSpec struct {
 	Redis *authcomponentsv1beta1.RedisConfig `json:"redis"`
 	// +optional
 	Image string `json:"image"`
+	// +optional
+	Ingress *IngressConfig `json:"ingress"`
 }

@@ -108,14 +108,6 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
 	}, stack, func(ns *authcomponentsv1beta1.Auth) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/auth",
-				Host:        stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
-			}
-		}
 		ns.Spec = authcomponentsv1beta1.AuthSpec{
 			Image: stack.Spec.Auth.Image,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
@@ -125,7 +117,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Scheme(), stack.Spec.Host),
 			SigningKey:          stack.Spec.Auth.SigningKey,
 			DevMode:             stack.Spec.Debug,
-			Ingress:             ingress,
+			Ingress:             stack.Spec.Auth.Ingress.Compute(stack, "/auth"),
 			DelegatedOIDCServer: stack.Spec.Auth.DelegatedOIDCServer,
 			Monitoring:          stack.Spec.Monitoring,
 		}
@@ -169,14 +161,6 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("ledger"),
 	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/ledger",
-				Host:        stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
-			}
-		}
 		var authConfig *AuthConfigSpec
 		// TODO: Reconfigure properly when the gateway will be in place
 		//if stack.Spec.Auth != nil {
@@ -193,7 +177,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		//	}
 		//}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Ingress:            ingress,
+			Ingress:            stack.Spec.Services.Ledger.Ingress.Compute(stack, "/ledger"),
 			Debug:              stack.Spec.Services.Ledger.Debug,
 			Redis:              stack.Spec.Services.Ledger.Redis,
 			Postgres:           stack.Spec.Services.Ledger.Postgres,
@@ -243,16 +227,8 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("control"),
 	}, stack, func(control *authcomponentsv1beta1.Control) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/",
-				Host:        "localhost", //stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
-			}
-		}
 		control.Spec = authcomponentsv1beta1.ControlSpec{
-			Ingress: ingress,
+			Ingress: stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
 			Debug:   stack.Spec.Services.Control.Debug,
 			Image:   stack.Spec.Services.Control.Image,
 		}
@@ -300,16 +276,8 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("search"),
 	}, stack, func(search *authcomponentsv1beta1.Search) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/search",
-				Host:        stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
-			}
-		}
 		search.Spec = authcomponentsv1beta1.SearchSpec{
-			Ingress:       ingress,
+			Ingress:       stack.Spec.Services.Search.Ingress.Compute(stack, "/search"),
 			Debug:         stack.Spec.Services.Search.Debug,
 			Auth:          nil,
 			Monitoring:    stack.Spec.Monitoring,

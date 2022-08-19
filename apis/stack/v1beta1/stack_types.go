@@ -24,9 +24,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type IngressStack struct {
+type IngressGlobalConfig struct {
 	// +optional
-	Annotations map[string]string `json:"annotations"`
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // StackSpec defines the desired state of Stack
@@ -48,7 +50,7 @@ type StackSpec struct {
 	// +optional
 	Auth *AuthSpec `json:"auth,omitempty"`
 	// +optional
-	Ingress *IngressStack `json:"ingress"`
+	Ingress IngressGlobalConfig `json:"ingress"`
 	// +optional
 	Kafka *KafkaConfig `json:"kafka"`
 }
@@ -59,6 +61,8 @@ type AuthSpec struct {
 	PostgresConfig      PostgresConfig                                         `json:"postgres"`
 	SigningKey          string                                                 `json:"signingKey"`
 	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+	// +optional
+	Ingress *IngressConfig `json:"ingress"`
 }
 
 type ServicesSpec struct {

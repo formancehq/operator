@@ -39,6 +39,7 @@ spec:
   scheme: http
   debug: true
   ingress:
+    enabled: true
     annotations:
       traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
   auth:
@@ -102,7 +103,6 @@ spec:
         database: ledger
         createDatabase: true
     search:
-      debug: true
       elasticSearch:
         host: elasticsearch-master.default.svc.cluster.local
         port: 9200
@@ -111,8 +111,13 @@ spec:
           username: admin
           password: admin
     control:
-      debug: true
       image: "ghcr.io/numary/control:cdbeb8e9bd10d388674da80622a113519f1147ce"
+      ingress:
+        host: localhost
+        annotations:
+          # Force disable middlewares
+          traefik.ingress.kubernetes.io/router.middlewares: ""
+
 ---
 apiVersion: auth.components.formance.com/v1beta1
 kind: Client

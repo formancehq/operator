@@ -18,3 +18,16 @@ func Map[T1 any, T2 any](v1 []T1, transformer func(T1) T2) []T2 {
 	}
 	return ret
 }
+
+func MergeMaps[K comparable, V any](maps ...map[K]V) map[K]V {
+	ret := make(map[K]V)
+	for _, aMap := range maps {
+		if aMap == nil {
+			continue
+		}
+		for k, v := range aMap {
+			ret[k] = v
+		}
+	}
+	return ret
+}
