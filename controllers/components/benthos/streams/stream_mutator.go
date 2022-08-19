@@ -102,7 +102,7 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 
 	benthosStream, err := s.api.GetStream(ctx, address, stream.Name)
 	if err != nil && err != ErrNotFound {
-		return nil, err
+		return Requeue(), err
 	}
 	switch {
 	case benthosStream != nil && !reflect.DeepEqual(configAsMap, benthosStream.Config):
@@ -115,11 +115,11 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 		log.FromContext(ctx).Info("No modification done")
 		err = nil
 	}
-	// TODO: Handle Lint error, retrying will not work anyway
-	// TODO: More generally we have to split errors between errors which can be recovered (trigger a new reconciliation)
-	// and errors which will not change even after a new reconciliation (lint errors are)
 	if err != nil {
-		return nil, err
+		if IsLintError(err) {
+			return nil, err // No requeue as it will not change anything
+		}
+		return Requeue(), err
 	}
 
 	SetReady(stream)

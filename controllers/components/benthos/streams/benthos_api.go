@@ -80,12 +80,21 @@ func (a *DefaultApi) CreateStream(ctx context.Context, address string, id string
 
 type errLintError []string
 
+func (errLintError) Is(e error) bool {
+	_, ok := e.(errLintError)
+	return ok
+}
+
 func (e errLintError) Error() string {
 	return strings.Join(e, ", ")
 }
 
 func NewErrLintError(lintErrors []string) error {
 	return errLintError(lintErrors)
+}
+
+func IsLintError(e error) bool {
+	return errors.Is(e, errLintError{})
 }
 
 func (a *DefaultApi) GetStream(ctx context.Context, address, id string) (*BenthosStream, error) {

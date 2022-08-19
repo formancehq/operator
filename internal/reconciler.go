@@ -97,9 +97,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return *result, nil
 	}
 
-	return ctrl.Result{
-		Requeue: reconcileError != nil,
-	}, nil
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

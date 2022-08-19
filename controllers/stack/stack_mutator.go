@@ -42,19 +42,19 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	SetProgressing(actual)
 
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling namespace")
+		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
 	if err := m.reconcileAuth(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Auth")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
 	if err := m.reconcileLedger(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Ledger")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
 	if err := m.reconcileSearch(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Search")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
 	if err := m.reconcileControl(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Control")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
 
 	SetReady(actual)

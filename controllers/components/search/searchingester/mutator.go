@@ -41,7 +41,7 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 		Namespace: ingester.Namespace,
 		Name:      ingester.Spec.Reference,
 	}, search); err != nil {
-		return nil, err
+		return Requeue(), err
 	}
 
 	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, m.client, m.scheme, types.NamespacedName{
@@ -111,7 +111,7 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 	switch {
 	case err != nil:
 		SetCondition(ingester, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
-		return nil, err
+		return Requeue(), err
 	case ret == controllerutil.OperationResultNone:
 	default:
 		SetCondition(ingester, "IngestionStreamReady", metav1.ConditionTrue)

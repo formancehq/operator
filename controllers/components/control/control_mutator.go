@@ -45,18 +45,18 @@ func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) 
 
 	deployment, err := m.reconcileDeployment(ctx, t)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling deployment")
+		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
 	service, err := m.reconcileService(ctx, t, deployment)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	if t.Spec.Ingress != nil {
 		_, err = m.reconcileIngress(ctx, t, service)
 		if err != nil {
-			return nil, pkgError.Wrap(err, "Reconciling service")
+			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = m.Client.Delete(ctx, &networkingv1.Ingress{
@@ -66,7 +66,7 @@ func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) 
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
-			return nil, pkgError.Wrap(err, "Deleting ingress")
+			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(t)
 	}

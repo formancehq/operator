@@ -83,22 +83,22 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 
 	deployment, err := r.reconcileDeployment(ctx, ledger)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling deployment")
+		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
 	service, err := r.reconcileService(ctx, ledger, deployment)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	if err := r.reconcileIngestionStream(ctx, ledger); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	if ledger.Spec.Ingress != nil {
 		_, err = r.reconcileIngress(ctx, ledger, service)
 		if err != nil {
-			return nil, pkgError.Wrap(err, "Reconciling service")
+			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
@@ -108,7 +108,7 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
-			return nil, pkgError.Wrap(err, "Deleting ingress")
+			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(ledger)
 	}

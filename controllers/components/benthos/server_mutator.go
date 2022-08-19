@@ -69,12 +69,12 @@ func (m *ServerMutator) Mutate(ctx context.Context, server *Server) (*ctrl.Resul
 
 	pod, err := m.reconcilePod(ctx, server)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling pod")
+		return Requeue(), pkgError.Wrap(err, "Reconciling pod")
 	}
 
 	_, err = m.reconcileService(ctx, server, pod)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	SetReady(server)

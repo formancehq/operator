@@ -52,7 +52,7 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 		}
 		return nil
 	}); err != nil || isHandledByFinalizer {
-		return nil, err
+		return Requeue(), err
 	}
 
 	var (
@@ -75,13 +75,13 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 	if actualK8SClient.IsCreatedOnAuthServer() {
 		// Client can have been manually deleted
 		if actualAuthServerClient, err = api.ReadClient(ctx, actualK8SClient.Status.AuthServerID); err != nil && err != pkgInternal.ErrNotFound {
-			return nil, pkgError.Wrap(err, "Reading client auth server side")
+			return Requeue(), pkgError.Wrap(err, "Reading client auth server side")
 		}
 		if actualAuthServerClient != nil {
 			if !actualK8SClient.Match(actualAuthServerClient) {
 				logger.Info("Detect divergence between auth server and k8s information, update auth server resource")
 				if err := api.UpdateClient(ctx, actualAuthServerClient.Id, expectedClientOptions); err != nil {
-					return nil, pkgError.Wrap(err, "Updating client auth server side")
+					return Requeue(), pkgError.Wrap(err, "Updating client auth server side")
 				}
 			}
 		} else {
@@ -98,14 +98,14 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 		// the client can exist auth server side, so try to find it
 		if actualAuthServerClient, err = api.
 			ReadClientByMetadata(ctx, authServerClientExpectedMetadata); err != nil && err != pkgInternal.ErrNotFound {
-			return nil, pkgError.Wrap(err, "Reading client by metadata")
+			return Requeue(), pkgError.Wrap(err, "Reading client by metadata")
 		}
 
 		// If the client is not found auth server side, we can create it
 		if actualAuthServerClient == nil {
 			logger.Info("Create auth server client")
 			if actualAuthServerClient, err = api.CreateClient(ctx, expectedClientOptions); err != nil {
-				return nil, pkgError.Wrap(err, "Creating client")
+				return Requeue(), pkgError.Wrap(err, "Creating client")
 			}
 		} else {
 			logger.Info("Found auth server client using metadata, use it", "id", actualAuthServerClient.Id)
@@ -126,7 +126,8 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 		}, scope)
 		if err != nil && !errors.IsNotFound(err) {
 			logger.Error(err, "Scope not found locally")
-			return nil, pkgError.Wrap(err, "Reading local scope")
+			// TODO: Maybe watch scopes creation instead of requeue
+			return Requeue(), pkgError.Wrap(err, "Reading local scope")
 		}
 		if err != nil {
 			logger.Info("Scope used by client not found, requeue")
@@ -165,11 +166,10 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 
 	if !needRequeue {
 		SetReady(actualK8SClient)
+		return nil, nil
 	}
 
-	return &ctrl.Result{
-		Requeue: needRequeue,
-	}, nil
+	return Requeue(), nil
 }
 
 var _ internal.Mutator[*authcomponentsv1beta1.Client] = &Mutator{}

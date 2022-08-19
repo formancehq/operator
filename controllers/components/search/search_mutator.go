@@ -71,18 +71,18 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 	// We can do the job inside this operator, or maybe we could modify search service in a way or other
 
 	if _, err = r.reconcileBenthosStreamServer(ctx, search); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling benthos stream server")
+		return Requeue(), pkgError.Wrap(err, "Reconciling benthos stream server")
 	}
 
 	service, err := r.reconcileService(ctx, search, deployment)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	if search.Spec.Ingress != nil {
 		_, err = r.reconcileIngress(ctx, search, service)
 		if err != nil {
-			return nil, pkgError.Wrap(err, "Reconciling service")
+			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
@@ -92,7 +92,7 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
-			return nil, pkgError.Wrap(err, "Deleting ingress")
+			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(search)
 	}
