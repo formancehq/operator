@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -41,6 +43,10 @@ type ElasticSearchConfig struct {
 	TLS ElasticSearchTLSConfig `json:"tls"`
 	// +optional
 	BasicAuth *ElasticSearchBasicAuthConfig `json:"basicAuth"`
+}
+
+func (in *ElasticSearchConfig) Endpoint() string {
+	return fmt.Sprintf("%s://%s:%d", in.Scheme, in.Host, in.Port)
 }
 
 // SearchSpec defines the desired state of Search

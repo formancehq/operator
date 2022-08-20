@@ -29,6 +29,7 @@ import (
 	"github.com/numary/formance-operator/internal/envutil"
 	"github.com/numary/formance-operator/internal/probeutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
+	"github.com/opensearch-project/opensearch-go"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -42,6 +43,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -222,6 +224,26 @@ func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, 
 }
 
 func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1beta1.Search) (controllerutil.OperationResult, error) {
+
+	cfg := opensearch.Config{
+		Addresses: []string{search.Spec.ElasticSearch.Endpoint()},
+	}
+	if search.Spec.ElasticSearch.BasicAuth != nil {
+		cfg.Username = search.Spec.ElasticSearch.BasicAuth.Username
+		cfg.Password = search.Spec.ElasticSearch.BasicAuth.Password
+	}
+
+	client, err := opensearch.NewClient(cfg)
+	if err != nil {
+		return controllerutil.OperationResultNone, err
+	}
+
+	if err := LoadMapping(ctx, client, DefaultMapping(search.Spec.Index)); err != nil {
+		return controllerutil.OperationResultNone, err
+	}
+
+	log.FromContext(ctx).Info("Mapping created es side")
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: search.Namespace,
 		Name:      search.Name + "-benthos",

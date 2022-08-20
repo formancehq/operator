@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,6 +26,8 @@ import (
 type ServerSpec struct {
 	// +optional
 	Image string `json:"image,omitempty"`
+	// +optional
+	InitContainers []corev1.Container `json:"containers,omitempty"`
 }
 
 // ServerStatus defines the observed state of Server

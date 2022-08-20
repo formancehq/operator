@@ -120,7 +120,8 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 
 	if len(pods.Items) == 1 {
 		pod := pods.Items[0]
-		if equality.Semantic.DeepDerivative(expectedContainer, pod.Spec.Containers[0]) {
+		if equality.Semantic.DeepDerivative(expectedContainer, pod.Spec.Containers[0]) &&
+			equality.Semantic.DeepDerivative(server.Spec.InitContainers, pod.Spec.InitContainers) {
 			log.FromContext(ctx).Info("Pod up to date, skip update")
 			if pod.Status.PodIP != "" {
 				log.FromContext(ctx).Info("Detect pod ip, assign to server object", "ip", pod.Status.PodIP)
@@ -132,6 +133,8 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 		if err := r.client.Delete(ctx, &pod); err != nil {
 			return nil, err
 		}
+		RemoveCondition(server, "AssignedIP")
+		server.Status.PodIP = ""
 	}
 
 	RemovePodCondition(server)
@@ -151,6 +154,7 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 			image = defaultImage
 		}
 		pod.Labels = matchLabels
+		pod.Spec.InitContainers = server.Spec.InitContainers
 		pod.Spec.Containers = []corev1.Container{expectedContainer}
 		return nil
 	})
