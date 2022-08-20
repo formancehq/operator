@@ -172,8 +172,23 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 							Name:          "ledger",
 							ContainerPort: 8080,
 						}},
-						// TODO: Check 404
-						//LivenessProbe: probeutil.DefaultLiveness(),
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/_health",
+									Port: intstr.IntOrString{
+										IntVal: 8080,
+									},
+									Scheme: "HTTP",
+								},
+							},
+							InitialDelaySeconds:           1,
+							TimeoutSeconds:                30,
+							PeriodSeconds:                 2,
+							SuccessThreshold:              1,
+							FailureThreshold:              10,
+							TerminationGracePeriodSeconds: pointer.Int64(10),
+						},
 					}},
 				},
 			},
