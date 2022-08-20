@@ -153,8 +153,7 @@ func (m *Mutator) reconcileService(ctx context.Context, auth *Control, deploymen
 func (m *Mutator) reconcileIngress(ctx context.Context, control *Control, service *corev1.Service) (*networkingv1.Ingress, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(control), control, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		// TODO: Disable because when testing, the path /ledgers of the front trigger the middleware which strip /ledger
-		// ingress.ObjectMeta.Annotations = control.Spec.Ingress.Annotations
+		ingress.ObjectMeta.Annotations = control.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{

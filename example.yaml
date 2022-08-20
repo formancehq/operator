@@ -103,6 +103,7 @@ spec:
         database: ledger
         createDatabase: true
     search:
+      debug: true
       elasticSearch:
         host: elasticsearch-master.default.svc.cluster.local
         port: 9200

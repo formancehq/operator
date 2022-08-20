@@ -69,9 +69,6 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	// TODO: We need to wait for es indices to be created before accept incoming document
-	// We can do the job inside this operator, or maybe we could modify search service in a way or other
-
 	if _, err = r.reconcileBenthosStreamServer(ctx, search); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling benthos stream server")
 	}
