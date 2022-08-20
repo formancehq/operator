@@ -1,6 +1,11 @@
 package search
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+
 	. "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/testing"
@@ -25,6 +30,20 @@ func ownerReference(search *Search) metav1.OwnerReference {
 }
 
 var _ = Describe("Search controller", func() {
+
+	var (
+		addr         *url.URL
+		fakeEsServer *httptest.Server
+	)
+	BeforeEach(func() {
+		var err error
+		fakeEsServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		addr, err = url.Parse(fakeEsServer.URL)
+		Expect(err).To(BeNil())
+	})
+	AfterEach(func() {
+		fakeEsServer.Close()
+	})
 	WithMutator(NewMutator(GetClient(), GetScheme()), func() {
 		WithNewNamespace(func() {
 			Context("When creating a search server", func() {
@@ -38,9 +57,15 @@ var _ = Describe("Search controller", func() {
 						},
 						Spec: SearchSpec{
 							ElasticSearch: ElasticSearchConfig{
-								Host:   "XXX",
-								Scheme: "XXX",
-								Port:   9200,
+								Host:   addr.Hostname(),
+								Scheme: addr.Scheme,
+								Port: func() uint16 {
+									port, err := strconv.ParseUint(addr.Port(), 10, 16)
+									if err != nil {
+										panic(err)
+									}
+									return uint16(port)
+								}(),
 							},
 							KafkaConfig: KafkaConfig{
 								Brokers: []string{""},
