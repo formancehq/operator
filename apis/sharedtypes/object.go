@@ -8,4 +8,5 @@ import (
 type Object interface {
 	client.Object
 	GetConditions() *Conditions
+	IsDirty(t Object) bool
 }

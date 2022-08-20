@@ -80,11 +80,6 @@ const (
 	ConditionTypeStackControlReady   = "ControlReady"
 )
 
-// StackStatus defines the observed state of Stack
-type StackStatus struct {
-	Status `json:",inline"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
@@ -97,8 +92,12 @@ type Stack struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StackSpec   `json:"spec,omitempty"`
-	Status StackStatus `json:"status,omitempty"`
+	Spec   StackSpec `json:"spec,omitempty"`
+	Status Status    `json:"status,omitempty"`
+}
+
+func (in *Stack) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
 }
 
 func (in *Stack) GetConditions() *Conditions {

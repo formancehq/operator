@@ -52,11 +52,6 @@ type LedgerSpec struct {
 	ElasticSearchIndex string       `json:"elasticSearchIndex"`
 }
 
-// LedgerStatus defines the observed state of Ledger
-type LedgerStatus struct {
-	Status `json:",inline"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -65,8 +60,12 @@ type Ledger struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   LedgerSpec   `json:"spec,omitempty"`
-	Status LedgerStatus `json:"status,omitempty"`
+	Spec   LedgerSpec `json:"spec,omitempty"`
+	Status Status     `json:"status,omitempty"`
+}
+
+func (a *Ledger) IsDirty(t Object) bool {
+	return a.Status.IsDirty(t)
 }
 
 func (a *Ledger) GetConditions() *Conditions {

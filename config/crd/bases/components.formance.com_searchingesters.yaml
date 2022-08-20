@@ -50,7 +50,6 @@ spec:
             - topic
             type: object
           status:
-            description: SearchIngesterStatus defines the observed state of SearchIngester
             properties:
               conditions:
                 items:

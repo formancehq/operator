@@ -148,6 +148,8 @@ func (a *DefaultApi) DeleteStream(ctx context.Context, address string, id string
 	switch rsp.StatusCode {
 	case http.StatusOK:
 		return nil
+	case http.StatusNotFound:
+		return ErrNotFound
 	default:
 		data, err := io.ReadAll(rsp.Body)
 		if err != nil {

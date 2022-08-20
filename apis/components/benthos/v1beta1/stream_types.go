@@ -33,11 +33,6 @@ type StreamSpec struct {
 	Config json.RawMessage `json:"config"`
 }
 
-// StreamStatus defines the observed state of Stream
-type StreamStatus struct {
-	Status `json:",inline"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -46,8 +41,12 @@ type Stream struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StreamSpec   `json:"spec,omitempty"`
-	Status StreamStatus `json:"status,omitempty"`
+	Spec   StreamSpec `json:"spec,omitempty"`
+	Status Status     `json:"status,omitempty"`
+}
+
+func (in *Stream) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
 }
 
 func (in *Stream) GetConditions() *Conditions {

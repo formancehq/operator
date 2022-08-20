@@ -43,6 +43,10 @@ type Control struct {
 	Status Status      `json:"status,omitempty"`
 }
 
+func (in *Control) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
+}
+
 func (in *Control) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }

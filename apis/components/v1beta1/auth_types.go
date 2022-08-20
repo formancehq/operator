@@ -44,11 +44,6 @@ type AuthSpec struct {
 	Monitoring *MonitoringSpec `json:"monitoring"`
 }
 
-// AuthStatus defines the observed state of Auth
-type AuthStatus struct {
-	Status `json:",inline"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -57,8 +52,12 @@ type Auth struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AuthSpec   `json:"spec,omitempty"`
-	Status AuthStatus `json:"status,omitempty"`
+	Spec   AuthSpec `json:"spec,omitempty"`
+	Status Status   `json:"status,omitempty"`
+}
+
+func (a *Auth) IsDirty(t Object) bool {
+	return a.Status.IsDirty(t)
 }
 
 func (a *Auth) GetConditions() *Conditions {

@@ -6,8 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,13 +23,13 @@ const (
 	ConditionTypeError = "Error"
 )
 
-type Mutator[T sharedtypes.Object] interface {
+type Mutator[T Object] interface {
 	SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error
 	Mutate(ctx context.Context, t T) (*ctrl.Result, error)
 }
 
 // Reconciler reconciles a Stack object
-type Reconciler[T sharedtypes.Object] struct {
+type Reconciler[T Object] struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	Mutator Mutator[T]
@@ -58,35 +57,14 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	log.FromContext(ctx).Info("Call mutator")
 	result, reconcileError := r.Mutator.Mutate(ctx, updated)
 	if reconcileError != nil {
-		sharedtypes.SetCondition(updated, ConditionTypeError, metav1.ConditionTrue, reconcileError.Error())
+		SetCondition(updated, ConditionTypeError, metav1.ConditionTrue, reconcileError.Error())
 		log.FromContext(ctx).Error(reconcileError, "Reconciling")
 	} else {
-		updated.GetConditions().Remove(ConditionTypeError)
+		RemoveCondition(updated, ConditionTypeError)
 	}
 
-	conditionsChanged := len(*actual.GetConditions()) != len(*updated.GetConditions())
-	if !conditionsChanged {
-		for _, condition := range *actual.GetConditions() {
-			v := First(*updated.GetConditions(), func(c sharedtypes.Condition) bool {
-				return c.Type == condition.Type
-			})
-			if v == nil {
-				conditionsChanged = true
-				break
-			}
-			if (*v).Status != condition.Status {
-				conditionsChanged = true
-				break
-			}
-			if (*v).ObservedGeneration != condition.ObservedGeneration {
-				conditionsChanged = true
-				break
-			}
-		}
-	}
-
-	if conditionsChanged {
-		log.FromContext(ctx).Info("Conditions changed, updating status")
+	if updated.IsDirty(actual) {
+		log.FromContext(ctx).Info("Object dirty, updating status")
 		if patchErr := r.Status().Update(ctx, updated); patchErr != nil {
 			log.FromContext(ctx).Error(patchErr, "Updating status")
 			return ctrl.Result{}, patchErr
@@ -137,7 +115,7 @@ func (r *Reconciler[T]) SetupWithManager(mgr ctrl.Manager) error {
 	return builder.Complete(r)
 }
 
-func NewReconciler[T sharedtypes.Object](client client.Client, scheme *runtime.Scheme, mutator Mutator[T]) *Reconciler[T] {
+func NewReconciler[T Object](client client.Client, scheme *runtime.Scheme, mutator Mutator[T]) *Reconciler[T] {
 	return &Reconciler[T]{
 		Client:  client,
 		Scheme:  scheme,

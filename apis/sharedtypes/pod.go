@@ -16,6 +16,6 @@ func SetPodError(object Object, msg ...string) {
 	SetCondition(object, ConditionTypePodReady, metav1.ConditionFalse, msg...)
 }
 
-func RemovePodCondition(object Object, msg ...string) {
+func RemovePodCondition(object Object) {
 	object.GetConditions().Remove(ConditionTypePodReady)
 }

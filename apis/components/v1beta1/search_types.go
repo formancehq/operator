@@ -60,11 +60,6 @@ type SearchSpec struct {
 	Index         string              `json:"index"`
 }
 
-// SearchStatus defines the observed state of Search
-type SearchStatus struct {
-	Status `json:",inline"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -73,8 +68,12 @@ type Search struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SearchSpec   `json:"spec,omitempty"`
-	Status SearchStatus `json:"status,omitempty"`
+	Spec   SearchSpec `json:"spec,omitempty"`
+	Status Status     `json:"status,omitempty"`
+}
+
+func (in *Search) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
 }
 
 func (in *Search) GetConditions() *Conditions {

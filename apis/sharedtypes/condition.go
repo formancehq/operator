@@ -60,6 +60,10 @@ func SetCondition(object Object, conditionType string, status metav1.ConditionSt
 	})
 }
 
+func RemoveCondition(object Object, conditionType string) {
+	object.GetConditions().Remove(conditionType)
+}
+
 type Conditions []Condition
 
 func (conditions *Conditions) Set(condition Condition) {

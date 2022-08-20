@@ -121,8 +121,9 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 	if len(pods.Items) == 1 {
 		pod := pods.Items[0]
 		if equality.Semantic.DeepDerivative(expectedContainer, pod.Spec.Containers[0]) {
-			log.FromContext(ctx).Info("Pod up to date, skip")
+			log.FromContext(ctx).Info("Pod up to date, skip update")
 			if pod.Status.PodIP != "" {
+				log.FromContext(ctx).Info("Detect pod ip, assign to server object", "ip", pod.Status.PodIP)
 				server.Status.PodIP = pod.Status.PodIP
 				SetCondition(server, "AssignedIP", metav1.ConditionTrue)
 			}

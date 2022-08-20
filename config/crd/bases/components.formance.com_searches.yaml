@@ -254,7 +254,6 @@ spec:
             - kafka
             type: object
           status:
-            description: SearchStatus defines the observed state of Search
             properties:
               conditions:
                 items:

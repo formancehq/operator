@@ -254,7 +254,6 @@ spec:
             - postgres
             type: object
           status:
-            description: LedgerStatus defines the observed state of Ledger
             properties:
               conditions:
                 items:

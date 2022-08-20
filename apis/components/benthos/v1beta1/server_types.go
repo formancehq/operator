@@ -45,6 +45,17 @@ type Server struct {
 	Status ServerStatus `json:"status,omitempty"`
 }
 
+func (in *Server) IsDirty(t Object) bool {
+	if in.Status.IsDirty(t) {
+		return true
+	}
+	server := t.(*Server)
+	if in.Status.PodIP != server.Status.PodIP {
+		return true
+	}
+	return false
+}
+
 func (in *Server) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }

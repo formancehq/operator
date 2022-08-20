@@ -14,6 +14,30 @@ func (in *Status) GetConditions() []Condition {
 	return in.Conditions
 }
 
+func (in *Status) IsDirty(reference Object) bool {
+	conditionsChanged := len(in.Conditions) != len(*reference.GetConditions())
+	if !conditionsChanged {
+		for _, condition := range *reference.GetConditions() {
+			v := First(in.Conditions, func(c Condition) bool {
+				return c.Type == condition.Type
+			})
+			if v == nil {
+				conditionsChanged = true
+				break
+			}
+			if (*v).Status != condition.Status {
+				conditionsChanged = true
+				break
+			}
+			if (*v).ObservedGeneration != condition.ObservedGeneration {
+				conditionsChanged = true
+				break
+			}
+		}
+	}
+	return conditionsChanged
+}
+
 func (in *Status) GetCondition(conditionType string) *Condition {
 	if in != nil {
 		for _, condition := range in.Conditions {
