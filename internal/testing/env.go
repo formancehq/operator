@@ -95,7 +95,14 @@ var _ = SynchronizedAfterSuite(func() {
 }, func() {})
 
 func WithMutator[T Object](mutator internal.Mutator[T], fn func()) {
+	var (
+		ctx    context.Context
+		cancel func()
+		done   chan struct{}
+	)
 	BeforeEach(func() {
+		ctx, cancel = context.WithCancel(ActualContext())
+		done = make(chan struct{})
 		mgr, err := ctrl.NewManager(ClusterConfig(), ctrl.Options{
 			Scheme:             scheme.Scheme,
 			MetricsBindAddress: "0",
@@ -107,9 +114,17 @@ func WithMutator[T Object](mutator internal.Mutator[T], fn func()) {
 
 		go func() {
 			defer GinkgoRecover()
-			err := mgr.Start(ActualContext())
+			err := mgr.Start(ctx)
 			Expect(err).ToNot(HaveOccurred(), "failed to run manager")
+			close(done)
 		}()
+	})
+	AfterEach(func() {
+		cancel()
+		select {
+		case <-ActualContext().Done():
+		case <-done:
+		}
 	})
 	fn()
 }
