@@ -1,7 +1,7 @@
 # Build the manager binary
 FROM golang:1.18 as builder
 # 1. Precompile the entire go standard library into the first Docker cache layer: useful for other projects too!
-RUN CGO_ENABLED=1 GOOS=linux go install -v -installsuffix cgo -a std
+RUN CGO_ENABLED=0 GOOS=linux go install -v -installsuffix cgo -a std
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
