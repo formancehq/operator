@@ -33,7 +33,6 @@ kind: Stack
 metadata:
   name: stack1
 spec:
-  version: v1.8.0
   namespace: stack1
   debug: true
   # Define global ingress configuration

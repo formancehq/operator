@@ -37,8 +37,6 @@ type StackSpec struct {
 	// +optional
 	Debug bool `json:"debug"`
 	// +required
-	Version string `json:"version,omitempty"`
-	// +required
 	Namespace string `json:"namespace,omitempty"`
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring,omitempty"`

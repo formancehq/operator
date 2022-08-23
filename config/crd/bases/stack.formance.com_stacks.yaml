@@ -459,8 +459,6 @@ spec:
                     - elasticSearch
                     type: object
                 type: object
-              version:
-                type: string
             type: object
           status:
             properties:
