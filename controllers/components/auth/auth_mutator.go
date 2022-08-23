@@ -17,7 +17,13 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
 
 	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
@@ -34,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -51,6 +58,7 @@ type Mutator struct {
 	Scheme *runtime.Scheme
 }
 
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
@@ -99,13 +107,25 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "auth")
 	port := int32(8080)
 
+	secret, err := r.reconcileSigningKeySecret(ctx, auth)
+	if err != nil {
+		return nil, err
+	}
+
 	env := []corev1.EnvVar{
 		envutil.Env("POSTGRES_URI", auth.Spec.Postgres.URI()),
 		envutil.Env("DELEGATED_CLIENT_SECRET", auth.Spec.DelegatedOIDCServer.ClientSecret),
 		envutil.Env("DELEGATED_CLIENT_ID", auth.Spec.DelegatedOIDCServer.ClientID),
 		envutil.Env("DELEGATED_ISSUER", auth.Spec.DelegatedOIDCServer.Issuer),
 		envutil.Env("BASE_URL", auth.Spec.BaseURL),
-		envutil.Env("SIGNING_KEY", auth.Spec.SigningKey),
+		envutil.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secret.Name,
+				},
+				Key: "signingKey",
+			},
+		}),
 	}
 	if auth.Spec.DevMode {
 		env = append(env,
@@ -176,6 +196,47 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		SetServiceReady(auth)
+	}
+	return ret, err
+}
+
+func (r *Mutator) reconcileSigningKeySecret(ctx context.Context, auth *componentsv1beta1.Auth) (*corev1.Secret, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+		Namespace: auth.Namespace,
+		Name:      fmt.Sprintf("%s-signing-key", auth.Name),
+	}, auth, func(t *corev1.Secret) error {
+		signingKey := auth.Spec.SigningKey
+		if signingKey == "" {
+			if _, ok := t.StringData["signingKey"]; ok {
+				return nil
+			}
+			privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			if err != nil {
+				return err
+			}
+			var privateKeyBytes = x509.MarshalPKCS1PrivateKey(privateKey)
+			privateKeyBlock := &pem.Block{
+				Type:  "RSA PRIVATE KEY",
+				Bytes: privateKeyBytes,
+			}
+			buf := bytes.NewBufferString("")
+			err = pem.Encode(buf, privateKeyBlock)
+			if err != nil {
+				return err
+			}
+			signingKey = buf.String()
+		}
+		t.StringData = map[string]string{
+			"signingKey": signingKey,
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetSecretError(auth, err.Error())
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetSecretReady(auth)
 	}
 	return ret, err
 }

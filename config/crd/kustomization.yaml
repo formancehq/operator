@@ -6,7 +6,7 @@ resources:
 - bases/stack.formance.com_stacks.yaml
 - bases/components.formance.com_auths.yaml
 - bases/components.formance.com_ledgers.yaml
-#- bases/components.formance.com_payments.yaml
+- bases/components.formance.com_payments.yaml
 - bases/components.formance.com_searches.yaml
 - bases/components.formance.com_controls.yaml
 - bases/auth.components.formance.com_clients.yaml

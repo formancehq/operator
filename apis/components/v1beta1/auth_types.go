@@ -30,11 +30,12 @@ type DelegatedOIDCServerConfiguration struct {
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
 	// +kubebuilder:validation:Optional
-	Image      string                       `json:"image,omitempty"`
-	Postgres   PostgresConfigCreateDatabase `json:"postgres"`
-	BaseURL    string                       `json:"baseURL"`
-	SigningKey string                       `json:"signingKey"`
-	DevMode    bool                         `json:"devMode"`
+	Image    string                       `json:"image,omitempty"`
+	Postgres PostgresConfigCreateDatabase `json:"postgres"`
+	BaseURL  string                       `json:"baseURL"`
+	// +optional
+	SigningKey string `json:"signingKey"`
+	DevMode    bool   `json:"devMode"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 

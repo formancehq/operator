@@ -35,13 +35,260 @@ spec:
           spec:
             description: PaymentsSpec defines the desired state of Payments
             properties:
-              foo:
-                description: Foo is an example field of Payments. Edit payments_types.go
-                  to remove/update
+              auth:
+                properties:
+                  basic:
+                    properties:
+                      credentials:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      enabled:
+                        type: boolean
+                    type: object
+                  oauth2:
+                    properties:
+                      ProtectedByScopes:
+                        type: boolean
+                      audienceWildcard:
+                        type: boolean
+                      audiences:
+                        items:
+                          type: string
+                        type: array
+                      introspectUrl:
+                        type: string
+                    required:
+                    - introspectUrl
+                    type: object
+                type: object
+              debug:
+                type: boolean
+              elasticSearchIndex:
                 type: string
+              image:
+                type: string
+              ingress:
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  host:
+                    type: string
+                  path:
+                    type: string
+                required:
+                - host
+                - path
+                type: object
+              kafka:
+                properties:
+                  brokers:
+                    items:
+                      type: string
+                    type: array
+                  sasl:
+                    properties:
+                      mechanism:
+                        type: string
+                      password:
+                        type: string
+                      scramSHASize:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - mechanism
+                    - password
+                    - scramSHASize
+                    - username
+                    type: object
+                  tls:
+                    type: boolean
+                required:
+                - brokers
+                type: object
+              mongoDB:
+                properties:
+                  database:
+                    type: string
+                  host:
+                    type: string
+                  password:
+                    type: string
+                  port:
+                    type: integer
+                  username:
+                    type: string
+                required:
+                - database
+                - host
+                - password
+                - port
+                - username
+                type: object
+              monitoring:
+                properties:
+                  traces:
+                    properties:
+                      otlp:
+                        properties:
+                          endpoint:
+                            properties:
+                              value:
+                                type: string
+                              valueFrom:
+                                description: EnvVarSource represents a source for
+                                  the value of an EnvVar.
+                                properties:
+                                  configMapKeyRef:
+                                    description: Selects a key of a ConfigMap.
+                                    properties:
+                                      key:
+                                        description: The key to select.
+                                        type: string
+                                      name:
+                                        description: 'Name of the referent. More info:
+                                          https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          TODO: Add other useful fields. apiVersion,
+                                          kind, uid?'
+                                        type: string
+                                      optional:
+                                        description: Specify whether the ConfigMap
+                                          or its key must be defined
+                                        type: boolean
+                                    required:
+                                    - key
+                                    type: object
+                                  fieldRef:
+                                    description: 'Selects a field of the pod: supports
+                                      metadata.name, metadata.namespace, `metadata.labels[''<KEY>'']`,
+                                      `metadata.annotations[''<KEY>'']`, spec.nodeName,
+                                      spec.serviceAccountName, status.hostIP, status.podIP,
+                                      status.podIPs.'
+                                    properties:
+                                      apiVersion:
+                                        description: Version of the schema the FieldPath
+                                          is written in terms of, defaults to "v1".
+                                        type: string
+                                      fieldPath:
+                                        description: Path of the field to select in
+                                          the specified API version.
+                                        type: string
+                                    required:
+                                    - fieldPath
+                                    type: object
+                                  resourceFieldRef:
+                                    description: 'Selects a resource of the container:
+                                      only resources limits and requests (limits.cpu,
+                                      limits.memory, limits.ephemeral-storage, requests.cpu,
+                                      requests.memory and requests.ephemeral-storage)
+                                      are currently supported.'
+                                    properties:
+                                      containerName:
+                                        description: 'Container name: required for
+                                          volumes, optional for env vars'
+                                        type: string
+                                      divisor:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        description: Specifies the output format of
+                                          the exposed resources, defaults to "1"
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      resource:
+                                        description: 'Required: resource to select'
+                                        type: string
+                                    required:
+                                    - resource
+                                    type: object
+                                  secretKeyRef:
+                                    description: Selects a key of a secret in the
+                                      pod's namespace
+                                    properties:
+                                      key:
+                                        description: The key of the secret to select
+                                          from.  Must be a valid secret key.
+                                        type: string
+                                      name:
+                                        description: 'Name of the referent. More info:
+                                          https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          TODO: Add other useful fields. apiVersion,
+                                          kind, uid?'
+                                        type: string
+                                      optional:
+                                        description: Specify whether the Secret or
+                                          its key must be defined
+                                        type: boolean
+                                    required:
+                                    - key
+                                    type: object
+                                type: object
+                            type: object
+                          insecure:
+                            type: boolean
+                          mode:
+                            type: string
+                          port:
+                            format: int32
+                            type: integer
+                        type: object
+                    type: object
+                type: object
+            required:
+            - elasticSearchIndex
+            - mongoDB
             type: object
           status:
-            description: PaymentsStatus defines the observed state of Payments
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: lastTransitionTime is the last time the condition
+                        transitioned from one status to another. This should be when
+                        the underlying condition changed.  If that is not known, then
+                        using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: message is a human readable message indicating
+                        details about the transition. This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: observedGeneration represents the .metadata.generation
+                        that the condition was set based upon. For instance, if .metadata.generation
+                        is currently 12, but the .status.conditions[x].observedGeneration
+                        is 9, the condition is out of date with respect to the current
+                        state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        --- Many .condition.type values are consistent across resources
+                        like Available, but because arbitrary conditions can be useful
+                        (see .node.status.conditions), the ability to deconflict is
+                        important. The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
             type: object
         type: object
     served: true

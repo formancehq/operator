@@ -23,6 +23,7 @@ import (
 	"github.com/numary/formance-operator/controllers/components/auth/clients"
 	"github.com/numary/formance-operator/controllers/components/auth/scopes"
 	"github.com/numary/formance-operator/controllers/components/benthos/streams"
+	"github.com/numary/formance-operator/controllers/components/payments"
 	"github.com/numary/formance-operator/controllers/components/search/searchingester"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -58,12 +59,10 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(stackv1beta1.AddToScheme(scheme))
 	utilruntime.Must(componentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(traefik.AddToScheme(scheme))
-
 	utilruntime.Must(benthoscomponentsformancecomv1beta1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -124,13 +123,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Ledger")
 		os.Exit(1)
 	}
-	//if err = (&componentscontrollers.PaymentsReconciler{
-	//	Client: mgr.GetClient(),
-	//	Scheme: mgr.GetScheme(),
-	//}).SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "Payments")
-	//	os.Exit(1)
-	//}
+	paymentsMutator := payments.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), paymentsMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Payments")
+		os.Exit(1)
+	}
 	searchMutator := search.NewMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Search")

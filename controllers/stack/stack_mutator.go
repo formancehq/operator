@@ -34,6 +34,9 @@ type Mutator struct {
 func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&authcomponentsv1beta1.Auth{}).
+		Owns(&authcomponentsv1beta1.Ledger{}).
+		Owns(&authcomponentsv1beta1.Search{}).
+		Owns(&authcomponentsv1beta1.Payments{}).
 		Owns(&corev1.Namespace{})
 	return nil
 }
@@ -49,6 +52,9 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	}
 	if err := m.reconcileLedger(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
+	}
+	if err := m.reconcilePayment(ctx, actual); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
 	if err := m.reconcileSearch(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
@@ -107,14 +113,14 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
-	}, stack, func(ns *authcomponentsv1beta1.Auth) error {
-		ns.Spec = authcomponentsv1beta1.AuthSpec{
+	}, stack, func(auth *authcomponentsv1beta1.Auth) error {
+		auth.Spec = authcomponentsv1beta1.AuthSpec{
 			Image: stack.Spec.Auth.Image,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfig: stack.Spec.Auth.PostgresConfig,
 			},
-			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Scheme(), stack.Spec.Host),
+			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Spec.Auth.GetScheme(), stack.Spec.Auth.Host),
 			SigningKey:          stack.Spec.Auth.SigningKey,
 			DevMode:             stack.Spec.Debug,
 			Ingress:             stack.Spec.Auth.Ingress.Compute(stack, "/auth"),
@@ -183,6 +189,61 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 	}
 
 	log.FromContext(ctx).Info("Ledger ready")
+	return nil
+}
+
+func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) error {
+	log.FromContext(ctx).Info("Reconciling Payment")
+
+	if stack.Spec.Services.Payments == nil {
+		log.FromContext(ctx).Info("Deleting Payments")
+		err := r.client.Delete(ctx, &authcomponentsv1beta1.Payments{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: stack.Spec.Namespace,
+				Name:      stack.ServiceName("payments"),
+			},
+		})
+		switch {
+		case errors.IsNotFound(err):
+		case err != nil:
+			return pkgError.Wrap(err, "Deleting Payments")
+		default:
+			stack.RemoveAuthStatus()
+		}
+		return nil
+	}
+
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      stack.ServiceName("payment"),
+	}, stack, func(payment *authcomponentsv1beta1.Payments) error {
+		payment.Spec = authcomponentsv1beta1.PaymentsSpec{
+			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/payments"),
+			Debug:              stack.Spec.Services.Payments.Debug,
+			Monitoring:         stack.Spec.Monitoring,
+			Image:              stack.Spec.Services.Payments.Image,
+			Kafka:              stack.Spec.Kafka,
+			ElasticSearchIndex: stack.Name,
+			MongoDB: authcomponentsv1beta1.MongoDBConfig{
+				Host:     stack.Spec.Services.Payments.MongoDB.Host,
+				Port:     stack.Spec.Services.Payments.MongoDB.Port,
+				Database: stack.Name,
+				Username: stack.Spec.Services.Payments.MongoDB.Username,
+				Password: stack.Spec.Services.Payments.MongoDB.Password,
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetPaymentError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetPaymentReady()
+	}
+
+	log.FromContext(ctx).Info("Payment ready")
 	return nil
 }
 

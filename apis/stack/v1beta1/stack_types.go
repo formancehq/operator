@@ -29,6 +29,8 @@ type IngressGlobalConfig struct {
 	Enabled bool `json:"enabled,omitempty"`
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
+	// +required
+	Host string `json:"host"`
 }
 
 // StackSpec defines the desired state of Stack
@@ -39,10 +41,6 @@ type StackSpec struct {
 	Version string `json:"version,omitempty"`
 	// +required
 	Namespace string `json:"namespace,omitempty"`
-	// +required
-	Host string `json:"host,omitempty"`
-	// +optional
-	Scheme string `json:"scheme,omitempty"`
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
@@ -63,6 +61,17 @@ type AuthSpec struct {
 	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
+	// +required
+	Host string `json:"host,omitempty"`
+	// +optional
+	Scheme string `json:"scheme,omitempty"`
+}
+
+func (in *AuthSpec) GetScheme() string {
+	if in.Scheme != "" {
+		return in.Scheme
+	}
+	return "https"
 }
 
 type ServicesSpec struct {
@@ -78,6 +87,7 @@ const (
 	ConditionTypeStackLedgerReady    = "LedgerReady"
 	ConditionTypeStackSearchReady    = "SearchReady"
 	ConditionTypeStackControlReady   = "ControlReady"
+	ConditionTypeStackPaymentsReady  = "PaymentsReady"
 )
 
 //+kubebuilder:object:root=true
@@ -102,13 +112,6 @@ func (in *Stack) IsDirty(t Object) bool {
 
 func (in *Stack) GetConditions() *Conditions {
 	return &in.Status.Conditions
-}
-
-func (in *Stack) Scheme() string {
-	if in.Spec.Scheme != "" {
-		return in.Spec.Scheme
-	}
-	return "https"
 }
 
 func (in *Stack) SetNamespaceCreated() {
@@ -149,6 +152,14 @@ func (in *Stack) SetControlReady() {
 
 func (in *Stack) SetControlError(msg string) {
 	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
+}
+
+func (in *Stack) SetPaymentError(msg string) {
+	SetCondition(in, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
+}
+
+func (in *Stack) SetPaymentReady() {
+	SetCondition(in, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
 }
 
 func (in *Stack) RemoveAuthStatus() {

@@ -17,25 +17,57 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type MongoDBConfig struct {
+	// +required
+	Host string `json:"host"`
+	// +required
+	Port uint16 `json:"port"`
+	// +required
+	Database string `json:"database"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (cfg MongoDBConfig) Uri() string {
+	if cfg.Username != "" {
+		return fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
+			cfg.Username,
+			cfg.Password,
+			cfg.Host,
+			cfg.Port,
+			"admin", //cfg.Database,
+		)
+	}
+	return fmt.Sprintf("mongodb://%s:%d/%s",
+		cfg.Host,
+		cfg.Port,
+		cfg.Database,
+	)
+}
 
 // PaymentsSpec defines the desired state of Payments
 type PaymentsSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +optional
+	Ingress *IngressSpec `json:"ingress"`
+	// +optional
+	Debug bool `json:"debug"`
+	// +optional
+	Auth *AuthConfigSpec `json:"auth"`
+	// +optional
+	Monitoring *MonitoringSpec `json:"monitoring"`
+	// +optional
+	Image string `json:"image"`
+	// +optional
+	Kafka              *KafkaConfig `json:"kafka"`
+	ElasticSearchIndex string       `json:"elasticSearchIndex"`
 
-	// Foo is an example field of Payments. Edit payments_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
-
-// PaymentsStatus defines the observed state of Payments
-type PaymentsStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	MongoDB MongoDBConfig `json:"mongoDB"`
 }
 
 //+kubebuilder:object:root=true
@@ -46,8 +78,16 @@ type Payments struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PaymentsSpec   `json:"spec,omitempty"`
-	Status PaymentsStatus `json:"status,omitempty"`
+	Spec   PaymentsSpec `json:"spec,omitempty"`
+	Status Status       `json:"status,omitempty"`
+}
+
+func (in *Payments) GetConditions() *Conditions {
+	return &in.Status.Conditions
+}
+
+func (in *Payments) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
 }
 
 //+kubebuilder:object:root=true

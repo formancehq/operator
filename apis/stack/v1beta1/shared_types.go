@@ -48,7 +48,7 @@ func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
 		host = cfg.Host
 	}
 	if host == "" {
-		host = stack.Spec.Host
+		host = stack.Spec.Ingress.Host
 	}
 
 	annotations := stack.Spec.Ingress.Annotations
