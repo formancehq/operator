@@ -32,8 +32,8 @@ processors:
           }
                         
           root = this.apply("savedPayment")
-- processors:
-      - bloblang: |
-          root = deleted()
+  - processors:
+    - bloblang: |
+        root = deleted()
 - catch:
   - bloblang: root = deleted()

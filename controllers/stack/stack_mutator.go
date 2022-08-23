@@ -215,7 +215,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
-		Name:      stack.ServiceName("payment"),
+		Name:      stack.ServiceName("payments"),
 	}, stack, func(payment *authcomponentsv1beta1.Payments) error {
 		payment.Spec = authcomponentsv1beta1.PaymentsSpec{
 			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/payments"),

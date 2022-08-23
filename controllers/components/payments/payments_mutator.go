@@ -285,7 +285,7 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, payment *compone
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = "payment"
+		t.Spec.Topic = "payments"
 		t.Spec.Reference = fmt.Sprintf("%s-search", payment.Namespace)
 		return nil
 	})
@@ -306,7 +306,8 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta1.Scope{})
+		Owns(&authcomponentsv1beta1.Scope{}).
+		Owns(&componentsv1beta1.SearchIngester{})
 	return nil
 }
 

@@ -103,7 +103,6 @@ spec:
                 required:
                 - delegatedOIDCServer
                 - postgres
-                - signingKey
                 type: object
               debug:
                 type: boolean

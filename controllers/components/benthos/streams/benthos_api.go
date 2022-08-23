@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 )
 
@@ -46,6 +48,12 @@ func (a *DefaultApi) request(ctx context.Context, address, method, path string, 
 	}
 	req = req.WithContext(ctx)
 
+	data, err := httputil.DumpRequest(req, true)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(data))
+
 	return http.DefaultClient.Do(req)
 }
 
@@ -56,18 +64,28 @@ func (a *DefaultApi) CreateStream(ctx context.Context, address string, id string
 		return err
 	}
 
+	data, err := httputil.DumpResponse(rsp, true)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(data))
+
 	switch rsp.StatusCode {
 	case http.StatusOK:
 		return nil
-	case http.StatusBadRequest: // Benthos responds with 400 if stream already exists
+	case http.StatusBadRequest:
+		data, err := ioutil.ReadAll(rsp.Body)
+		if err != nil {
+			panic(err)
+		}
 		errorResponse := ErrorResponse{}
-		if err := json.NewDecoder(rsp.Body).Decode(&errorResponse); err != nil {
-			return err
+		if err := json.Unmarshal(data, &errorResponse); err == nil {
+			if len(errorResponse.LintErrors) > 0 {
+				return NewErrLintError(errorResponse.LintErrors)
+			}
 		}
-		if len(errorResponse.LintErrors) > 0 {
-			return NewErrLintError(errorResponse.LintErrors)
-		}
-		return ErrAlreadyExists
+
+		return fmt.Errorf("unexpected status code 400: %s", string(data))
 	default:
 		data, err := io.ReadAll(rsp.Body)
 		if err != nil {

@@ -19,7 +19,6 @@ package v1beta1
 import (
 	"fmt"
 
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -51,27 +50,6 @@ type StackSpec struct {
 	Ingress IngressGlobalConfig `json:"ingress"`
 	// +optional
 	Kafka *KafkaConfig `json:"kafka"`
-}
-
-type AuthSpec struct {
-	// +optional
-	Image               string                                                 `json:"image"`
-	PostgresConfig      PostgresConfig                                         `json:"postgres"`
-	SigningKey          string                                                 `json:"signingKey"`
-	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
-	// +optional
-	Ingress *IngressConfig `json:"ingress"`
-	// +required
-	Host string `json:"host,omitempty"`
-	// +optional
-	Scheme string `json:"scheme,omitempty"`
-}
-
-func (in *AuthSpec) GetScheme() string {
-	if in.Scheme != "" {
-		return in.Scheme
-	}
-	return "https"
 }
 
 type ServicesSpec struct {
