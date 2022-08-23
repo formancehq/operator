@@ -53,10 +53,7 @@ func (in *Server) IsDirty(t Object) bool {
 		return true
 	}
 	server := t.(*Server)
-	if in.Status.PodIP != server.Status.PodIP {
-		return true
-	}
-	return false
+	return in.Status.PodIP != server.Status.PodIP
 }
 
 func (in *Server) GetConditions() *Conditions {

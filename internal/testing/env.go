@@ -36,8 +36,7 @@ var (
 	cfg       *rest.Config
 	k8sClient client.Client
 
-	ns       *corev1.Namespace
-	nsClient client.Client
+	ns *corev1.Namespace
 
 	once sync.Once
 )
@@ -91,7 +90,7 @@ func GetScheme() *runtime.Scheme {
 
 var _ = SynchronizedAfterSuite(func() {
 	cancel()
-	testEnv.Stop()
+	Expect(testEnv.Stop()).To(BeNil())
 }, func() {})
 
 func WithMutator[T Object](mutator internal.Mutator[T], fn func()) {

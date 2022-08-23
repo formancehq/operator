@@ -149,10 +149,6 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 			serverLabel, server.Name,
 		)
 
-		image := server.Spec.Image
-		if image == "" {
-			image = defaultImage
-		}
 		pod.Labels = matchLabels
 		pod.Spec.InitContainers = server.Spec.InitContainers
 		pod.Spec.Containers = []corev1.Container{expectedContainer}

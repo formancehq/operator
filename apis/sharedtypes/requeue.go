@@ -1,7 +1,7 @@
 package sharedtypes
 
 import (
-	"sigs.k8s.io/controller-runtime"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 )
 
 func Requeue() *controllerruntime.Result {

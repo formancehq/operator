@@ -21,4 +21,7 @@ includes:
 tasks:
   tests:
     cmds:
-      - make test
+    - make test
+  lint:
+    cmds:
+    - golangci-lint run --fix
