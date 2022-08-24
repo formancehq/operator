@@ -167,6 +167,13 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("ledger"),
 	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
+		var collector *authcomponentsv1beta1.CollectorConfig
+		if stack.Spec.Kafka != nil {
+			collector = &authcomponentsv1beta1.CollectorConfig{
+				KafkaConfig: *stack.Spec.Kafka,
+				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
+			}
+		}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
 			Ingress:            stack.Spec.Services.Ledger.Ingress.Compute(stack, "/ledger"),
 			Debug:              stack.Spec.Services.Ledger.Debug,
@@ -174,7 +181,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			Postgres:           stack.Spec.Services.Ledger.Postgres,
 			Monitoring:         stack.Spec.Monitoring,
 			Image:              stack.Spec.Services.Ledger.Image,
-			Kafka:              stack.Spec.Kafka,
+			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 		}
 		return nil
@@ -217,12 +224,19 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("payments"),
 	}, stack, func(payment *authcomponentsv1beta1.Payments) error {
+		var collector *authcomponentsv1beta1.CollectorConfig
+		if stack.Spec.Kafka != nil {
+			collector = &authcomponentsv1beta1.CollectorConfig{
+				KafkaConfig: *stack.Spec.Kafka,
+				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
+			}
+		}
 		payment.Spec = authcomponentsv1beta1.PaymentsSpec{
 			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/payments"),
 			Debug:              stack.Spec.Services.Payments.Debug,
 			Monitoring:         stack.Spec.Monitoring,
 			Image:              stack.Spec.Services.Payments.Image,
-			Kafka:              stack.Spec.Kafka,
+			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 			MongoDB: authcomponentsv1beta1.MongoDBConfig{
 				Host:     stack.Spec.Services.Payments.MongoDB.Host,

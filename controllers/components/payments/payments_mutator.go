@@ -133,8 +133,8 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1
 	if payment.Spec.Monitoring != nil {
 		env = append(env, payment.Spec.Monitoring.Env("")...)
 	}
-	if payment.Spec.Kafka != nil {
-		env = append(env, payment.Spec.Kafka.Env("", "payment")...)
+	if payment.Spec.Collector != nil {
+		env = append(env, payment.Spec.Collector.Env("")...)
 	}
 
 	image := payment.Spec.Image

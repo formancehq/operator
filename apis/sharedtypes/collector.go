@@ -22,7 +22,7 @@ type KafkaConfig struct {
 	SASL *KafkaSASLConfig `json:"sasl,omitempty"`
 }
 
-func (s *KafkaConfig) Env(prefix, serviceName string) []corev1.EnvVar {
+func (s *KafkaConfig) Env(prefix string) []corev1.EnvVar {
 
 	ret := make([]corev1.EnvVar, 0)
 	ret = append(ret,
@@ -41,8 +41,6 @@ func (s *KafkaConfig) Env(prefix, serviceName string) []corev1.EnvVar {
 	if s.TLS {
 		ret = append(ret, envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_TLS_ENABLED", "true"))
 	}
-
-	ret = append(ret, envutil.EnvWithPrefix(prefix, "PUBLISHER_TOPIC_MAPPING", "*:"+serviceName))
 
 	return ret
 }

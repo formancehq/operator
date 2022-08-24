@@ -62,27 +62,7 @@ spec:
                     - introspectUrl
                     type: object
                 type: object
-              debug:
-                type: boolean
-              elasticSearchIndex:
-                type: string
-              image:
-                type: string
-              ingress:
-                properties:
-                  annotations:
-                    additionalProperties:
-                      type: string
-                    type: object
-                  host:
-                    type: string
-                  path:
-                    type: string
-                required:
-                - host
-                - path
-                type: object
-              kafka:
+              collector:
                 properties:
                   brokers:
                     items:
@@ -106,8 +86,31 @@ spec:
                     type: object
                   tls:
                     type: boolean
+                  topic:
+                    type: string
                 required:
                 - brokers
+                - topic
+                type: object
+              debug:
+                type: boolean
+              elasticSearchIndex:
+                type: string
+              image:
+                type: string
+              ingress:
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  host:
+                    type: string
+                  path:
+                    type: string
+                required:
+                - host
+                - path
                 type: object
               monitoring:
                 properties:

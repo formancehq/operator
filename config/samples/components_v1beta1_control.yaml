@@ -1,6 +1,0 @@
-apiVersion: components.formance.com/v1beta1
-kind: Control
-metadata:
-  name: control-sample
-spec:
-  # TODO(user): Add fields here

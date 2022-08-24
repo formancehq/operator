@@ -64,8 +64,8 @@ type PaymentsSpec struct {
 	// +optional
 	Image string `json:"image"`
 	// +optional
-	Kafka              *KafkaConfig `json:"kafka"`
-	ElasticSearchIndex string       `json:"elasticSearchIndex"`
+	Collector          *CollectorConfig `json:"collector"`
+	ElasticSearchIndex string           `json:"elasticSearchIndex"`
 
 	MongoDB MongoDBConfig `json:"mongoDB"`
 }

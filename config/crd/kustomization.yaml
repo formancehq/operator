@@ -27,7 +27,7 @@ patchesStrategicMerge:
 #- patches/webhook_in_scopes.yaml
 #- patches/webhook_in_auth.components_clients.yaml
 #- patches/webhook_in_auth.components_scopes.yaml
-- patches/webhook_in_components_auths.yaml
+#- patches/webhook_in_components_auths.yaml
 #- patches/webhook_in_servers.yaml
 #- patches/webhook_in_streams.yaml
 #- patches/webhook_in_searchingesters.yaml

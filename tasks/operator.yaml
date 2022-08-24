@@ -35,3 +35,11 @@ tasks:
     - crd
     cmds:
     - make run
+  uninstall:
+    desc: Uninstall the CRDs
+    cmds:
+    - make uninstall
+  undeploy:
+    desc: Undeploy the controller
+    cmds:
+    - make undeploy

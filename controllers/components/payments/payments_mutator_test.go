@@ -38,10 +38,13 @@ var _ = Describe("Payments controller", func() {
 							Name: "payments",
 						},
 						Spec: PaymentsSpec{
-							Kafka: &KafkaConfig{
-								Brokers: []string{"http://kafka"},
-								TLS:     false,
-								SASL:    nil,
+							Collector: &CollectorConfig{
+								KafkaConfig: KafkaConfig{
+									Brokers: []string{"http://kafka"},
+									TLS:     false,
+									SASL:    nil,
+								},
+								Topic: "xxx",
 							},
 							ElasticSearchIndex: "foo",
 						},

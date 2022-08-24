@@ -91,7 +91,7 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if err := r.reconcileIngestionStream(ctx, ledger); err != nil {
+	if err := r.reconcileSearchIngester(ctx, ledger); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
@@ -144,8 +144,8 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	if ledger.Spec.Monitoring != nil {
 		env = append(env, ledger.Spec.Monitoring.Env("NUMARY_")...)
 	}
-	if ledger.Spec.Kafka != nil {
-		env = append(env, ledger.Spec.Kafka.Env("NUMARY_", "ledger")...)
+	if ledger.Spec.Collector != nil {
+		env = append(env, ledger.Spec.Collector.Env("NUMARY_")...)
 	}
 
 	image := ledger.Spec.Image
@@ -293,10 +293,10 @@ func (r *Mutator) reconcileIngress(ctx context.Context, ledger *componentsv1beta
 	return ret, nil
 }
 
-func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componentsv1beta1.Ledger) error {
+func (r *Mutator) reconcileSearchIngester(ctx context.Context, ledger *componentsv1beta1.Ledger) error {
 	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: ledger.Namespace,
-		Name:      ledger.Name + "-ingestion-stream",
+		Name:      ledger.Name + "-search-ingester",
 	}, ledger, func(t *componentsv1beta1.SearchIngester) error {
 		buf := bytes.NewBufferString("")
 		if err := benthosConfigTpl.Execute(buf, map[string]any{
