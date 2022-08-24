@@ -207,7 +207,7 @@ func (r *Mutator) reconcileSigningKeySecret(ctx context.Context, auth *component
 	}, auth, func(t *corev1.Secret) error {
 		signingKey := auth.Spec.SigningKey
 		if signingKey == "" {
-			if _, ok := t.StringData["signingKey"]; ok {
+			if _, ok := t.Data["signingKey"]; ok {
 				return nil
 			}
 			privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
