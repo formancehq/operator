@@ -36,18 +36,16 @@ type MongoDBConfig struct {
 
 func (cfg MongoDBConfig) Uri() string {
 	if cfg.Username != "" {
-		return fmt.Sprintf("mongodb://%s:%s@%s:%d/%s",
+		return fmt.Sprintf("mongodb://%s:%s@%s:%d",
 			cfg.Username,
 			cfg.Password,
 			cfg.Host,
 			cfg.Port,
-			"admin", //cfg.Database,
 		)
 	}
-	return fmt.Sprintf("mongodb://%s:%d/%s",
+	return fmt.Sprintf("mongodb://%s:%d",
 		cfg.Host,
 		cfg.Port,
-		cfg.Database,
 	)
 }
 

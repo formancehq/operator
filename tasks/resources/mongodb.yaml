@@ -31,8 +31,8 @@ tasks:
                     db: admin
                   - name: userAdminAnyDatabase
                     db: admin
-                  - name: dbAdminAnyDatabase
-                    db: admin
+                  - name: readWriteAnyDatabase
+                    db: "*"
                 scramCredentialsSecretName: my-scram
             additionalMongodConfig:
               storage.wiredTiger.engineConfig.journalCompressor: zlib

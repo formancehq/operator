@@ -123,6 +123,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1
 
 	env := []corev1.EnvVar{
 		envutil.Env("MONGODB_URI", payment.Spec.MongoDB.Uri()),
+		envutil.Env("MONGODB_DATABASE", payment.Spec.MongoDB.Database),
 	}
 	if payment.Spec.Debug {
 		env = append(env, envutil.Env("DEBUG", "true"))
