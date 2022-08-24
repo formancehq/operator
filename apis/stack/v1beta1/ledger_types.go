@@ -7,6 +7,7 @@ import (
 
 // +kubebuilder:object:generate=true
 type LedgerSpec struct {
+	ImageHolder `json:",inline"`
 	// +optional
 	Debug bool `json:"debug,omitempty"`
 	// +optional
@@ -14,8 +15,6 @@ type LedgerSpec struct {
 	Postgres PostgresConfig `json:"postgres"`
 	// +optional
 	Redis *authcomponentsv1beta1.RedisConfig `json:"redis"`
-	// +optional
-	Image string `json:"image"`
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
 }

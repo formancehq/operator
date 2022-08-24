@@ -6,9 +6,8 @@ import (
 )
 
 type AuthSpec struct {
-	// +optional
-	Image          string                     `json:"image"`
-	PostgresConfig sharedtypes.PostgresConfig `json:"postgres"`
+	sharedtypes.ImageHolder `json:",inline"`
+	PostgresConfig          sharedtypes.PostgresConfig `json:"postgres"`
 	// +optional
 	SigningKey          string                                   `json:"signingKey"`
 	DelegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`

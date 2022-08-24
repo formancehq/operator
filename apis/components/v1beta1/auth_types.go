@@ -29,10 +29,15 @@ type DelegatedOIDCServerConfiguration struct {
 
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
-	// +kubebuilder:validation:Optional
-	Image    string                       `json:"image,omitempty"`
-	Postgres PostgresConfigCreateDatabase `json:"postgres"`
-	BaseURL  string                       `json:"baseURL"`
+	ImageHolder `json:",inline"`
+	Postgres    PostgresConfigCreateDatabase `json:"postgres"`
+	BaseURL     string                       `json:"baseURL"`
+
+	// SigningKey is a private key
+	// The signing key is used by the server to sign JWT tokens
+	// The value of this config will be copied to a secret and injected inside
+	// the env vars of the server using secret mapping.
+	// If not specified, a key will be automatically generated.
 	// +optional
 	SigningKey string `json:"signingKey"`
 	DevMode    bool   `json:"devMode"`

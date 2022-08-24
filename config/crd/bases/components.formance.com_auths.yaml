@@ -54,6 +54,22 @@ spec:
                 type: boolean
               image:
                 type: string
+              imagePullSecrets:
+                description: 'ImagePullSecrets is an optional list of references to
+                  secrets in the same namespace to use for pulling any of the images
+                  used by this PodSpec. If specified, these secrets will be passed
+                  to individual puller implementations for them to use. More info:
+                  https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod'
+                items:
+                  description: LocalObjectReference contains enough information to
+                    let you locate the referenced object inside the same namespace.
+                  properties:
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                  type: object
+                type: array
               ingress:
                 properties:
                   annotations:
@@ -200,6 +216,10 @@ spec:
                 - username
                 type: object
               signingKey:
+                description: SigningKey is a private key The signing key is used by
+                  the server to sign JWT tokens The value of this config will be copied
+                  to a secret and injected inside the env vars of the server using
+                  secret mapping. If not specified, a key will be automatically generated.
                 type: string
             required:
             - baseURL
