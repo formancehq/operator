@@ -124,8 +124,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	env := []corev1.EnvVar{
 		envutil.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
 		envutil.Env("NUMARY_STORAGE_DRIVER", "postgres"),
-		envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", ledger.Spec.Postgres.URI()),
 	}
+	env = append(env, ledger.Spec.Postgres.Env("NUMARY_")...)
+	env = append(env, envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_DATABASE_URI)"))
 	if ledger.Spec.Debug {
 		env = append(env, envutil.Env("NUMARY_DEBUG", "true"))
 	}
@@ -202,16 +203,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 				Command: []string{
 					"sh",
 					"-c",
-					fmt.Sprintf(`psql -Atx %s -c "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 && echo "Base already exists" || psql -Atx %s -c "CREATE DATABASE \"%s\""`,
-						ledger.Spec.Postgres.URIWithoutDatabase(),
-						ledger.Spec.Postgres.Database,
-						ledger.Spec.Postgres.URIWithoutDatabase(),
-						ledger.Spec.Postgres.Database,
-					),
+					fmt.Sprintf(`psql -Atx ${POSTGRES_URI} -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI} -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`),
 				},
-				Env: []corev1.EnvVar{
-					envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", ledger.Spec.Postgres.URI()),
-				},
+				Env: ledger.Spec.Postgres.Env(""),
 			}}
 		}
 		return nil
