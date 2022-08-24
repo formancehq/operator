@@ -30,11 +30,12 @@ type DelegatedOIDCServerConfiguration struct {
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
 	// +kubebuilder:validation:Optional
-	Image      string                       `json:"image,omitempty"`
-	Postgres   PostgresConfigCreateDatabase `json:"postgres"`
-	BaseURL    string                       `json:"baseURL"`
-	SigningKey string                       `json:"signingKey"`
-	DevMode    bool                         `json:"devMode"`
+	Image    string                       `json:"image,omitempty"`
+	Postgres PostgresConfigCreateDatabase `json:"postgres"`
+	BaseURL  string                       `json:"baseURL"`
+	// +optional
+	SigningKey string `json:"signingKey"`
+	DevMode    bool   `json:"devMode"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 
@@ -42,11 +43,6 @@ type AuthSpec struct {
 
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
-}
-
-// AuthStatus defines the observed state of Auth
-type AuthStatus struct {
-	Status `json:",inline"`
 }
 
 //+kubebuilder:object:root=true
@@ -57,8 +53,12 @@ type Auth struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AuthSpec   `json:"spec,omitempty"`
-	Status AuthStatus `json:"status,omitempty"`
+	Spec   AuthSpec `json:"spec,omitempty"`
+	Status Status   `json:"status,omitempty"`
+}
+
+func (a *Auth) IsDirty(t Object) bool {
+	return a.Status.IsDirty(t)
 }
 
 func (a *Auth) GetConditions() *Conditions {

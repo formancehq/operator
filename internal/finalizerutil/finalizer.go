@@ -51,6 +51,11 @@ func (f *Finalizer) Handle(ctx context.Context, client client.Client, ob client.
 		}
 		f.logger(ctx).Info("Resource deleted, callback was called and finalizer removed")
 		return true, nil
+	} else {
+		// Assert finalizer is properly installed on the object
+		if err := f.AssertIsInstalled(ctx, client, ob); err != nil {
+			return false, err
+		}
 	}
 	return false, nil
 }

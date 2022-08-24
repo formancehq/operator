@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"reflect"
 	"time"
 
 	"github.com/numary/auth/authclient"
@@ -57,6 +58,20 @@ type Scope struct {
 
 	Spec   ScopeSpec   `json:"spec,omitempty"`
 	Status ScopeStatus `json:"status,omitempty"`
+}
+
+func (in *Scope) IsDirty(t Object) bool {
+	if in.Status.IsDirty(t) {
+		return true
+	}
+	scope := t.(*Scope)
+	if in.Status.AuthServerID != scope.Status.AuthServerID {
+		return true
+	}
+	if !reflect.DeepEqual(in.Status.Transient, scope.Status.Transient) {
+		return true
+	}
+	return false
 }
 
 func (in *Scope) GetConditions() *Conditions {

@@ -35,6 +35,8 @@ spec:
           spec:
             description: SearchIngesterSpec defines the desired state of SearchIngester
             properties:
+              debug:
+                type: boolean
               pipeline:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
@@ -48,7 +50,6 @@ spec:
             - topic
             type: object
           status:
-            description: SearchIngesterStatus defines the observed state of SearchIngester
             properties:
               conditions:
                 items:

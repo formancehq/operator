@@ -67,6 +67,20 @@ type Client struct {
 	Status ClientStatus `json:"status,omitempty"`
 }
 
+func (in *Client) IsDirty(t Object) bool {
+	if in.Status.IsDirty(t) {
+		return true
+	}
+	client := t.(*Client)
+	if !reflect.DeepEqual(in.Status.Scopes, client.Status.Scopes) {
+		return true
+	}
+	if in.Status.AuthServerID != client.Status.AuthServerID {
+		return true
+	}
+	return false
+}
+
 func (in *Client) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }

@@ -19,6 +19,9 @@ includes:
   elasticsearch:
     taskfile: ./resources/elasticsearch.yaml
     dir: .
+  mongodb:
+    taskfile: ./resources/mongodb.yaml
+    dir: .
 
 tasks:
   install:
@@ -28,3 +31,5 @@ tasks:
     - task: dex:install
     - task: traefik:install
     - task: otel:install
+    - task: elasticsearch:install
+    - task: redpanda:install

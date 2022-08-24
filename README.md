@@ -1,92 +1,66 @@
 # formance-operator
-// TODO(user): Add simple overview of use/purpose
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
-
-## How to work reconciliation
-```mermaid
-graph TD
-    A[Reconcilier] -->|Start| B(Watch Formance Stack is exist)
-    B --> |True| D[Create or Update Stack]
-    B --> |False| E[Check Stack is a same md5]
-    E --> |True| F[Finish]
-    E --> |False| D
-    D --> |Generate Manifests| I[Apply Manifests]
-    I --> F
-```
+This operator is in charge of deploying a full or partial Formance OSS Stack.
+It aims to simplify deployment and releases management of different parts of the Formance ecosystem.
 
 ## Getting Started
-You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
-**Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
+
+You’ll need a Kubernetes cluster to run against. 
+Scripts of this repository are using [KIND](https://sigs.k8s.io/kind). You have to install it.
 
 ### Running on the cluster
-1. Install Instances of Custom Resources:
+1. Create the cluster:
 
 ```sh
-kubectl apply -f config/samples/
+task cluster:create
 ```
 
-2. Build and push your image to the location specified by `IMG`:
+2. Deploy required resources:
 	
 ```sh
-make docker-build docker-push IMG=<some-registry>/formance-operator:tag
+task resources:install
 ```
+
+This will automatically install all the required services by the stack :
+* ElasticSearch
+* MongoDB
+* PostgreSQL
+* RedPanda
+* Traefik
+* ...
 	
-3. Deploy the controller to the cluster with the image specified by `IMG`:
+3. Deploy the controller to the cluster:
 
 ```sh
-make deploy IMG=<some-registry>/formance-operator:tag
+task operator:deploy
 ```
 
 ### Uninstall CRDs
 To delete the CRDs from the cluster:
 
 ```sh
-make uninstall
+task operator:uninstall
 ```
 
 ### Undeploy controller
 UnDeploy the controller to the cluster:
 
 ```sh
-make undeploy
+task operator:undeploy
 ```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
 ### How it works
 This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)
 
 It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) 
-which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster 
+which provides a reconcile function responsible for synchronizing resources until the desired state is reached on the cluster 
 
 ### Test It Out
-1. Install the CRDs into the cluster:
 
+You can install a full stack using the command:
 ```sh
-make install
+kubectl apply -f example.yaml
 ```
-
-2. Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
-
-```sh
-make run
-```
-
-**NOTE:** You can also run this in one step by running: `make install run`
-
-### Modifying the API definitions
-If you are editing the API definitions, generate the manifests such as CRs or CRDs using:
-
-```sh
-make manifests
-```
-
-**NOTE:** Run `make --help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## License
 

@@ -14,4 +14,6 @@ type SearchSpec struct {
 	Debug bool `json:"debug"`
 
 	ElasticSearchConfig *v1beta1.ElasticSearchConfig `json:"elasticSearch"`
+	//+optional
+	Ingress *IngressConfig `json:"ingress"`
 }

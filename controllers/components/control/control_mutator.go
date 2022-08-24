@@ -7,8 +7,8 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/pkg/envutil"
-	"github.com/numary/formance-operator/pkg/resourceutil"
+	"github.com/numary/formance-operator/internal/envutil"
+	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,25 +36,27 @@ type Mutator struct {
 	Scheme *runtime.Scheme
 }
 
-func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
+func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
+	return nil
+}
 
 func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) {
 	SetProgressing(t)
 
 	deployment, err := m.reconcileDeployment(ctx, t)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling deployment")
+		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
 	service, err := m.reconcileService(ctx, t, deployment)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	if t.Spec.Ingress != nil {
 		_, err = m.reconcileIngress(ctx, t, service)
 		if err != nil {
-			return nil, pkgError.Wrap(err, "Reconciling service")
+			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = m.Client.Delete(ctx, &networkingv1.Ingress{
@@ -64,7 +66,7 @@ func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) 
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
-			return nil, pkgError.Wrap(err, "Deleting ingress")
+			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(t)
 	}
@@ -75,7 +77,7 @@ func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) 
 }
 
 func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "control")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "control")
 
 	env := []corev1.EnvVar{
 		envutil.Env("API_URL_BACK", "http://kubernetes.docker.internal"),
@@ -100,7 +102,7 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 					Containers: []corev1.Container{{
 						Name:            "control",
 						Image:           image,
-						ImagePullPolicy: corev1.PullAlways,
+						ImagePullPolicy: ImagePullPolicy(image),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
@@ -151,8 +153,7 @@ func (m *Mutator) reconcileService(ctx context.Context, auth *Control, deploymen
 func (m *Mutator) reconcileIngress(ctx context.Context, control *Control, service *corev1.Service) (*networkingv1.Ingress, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(control), control, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		// TODO: Disable because when testing, the path /ledgers of the front trigger the middleware which strip /ledger
-		// ingress.ObjectMeta.Annotations = control.Spec.Ingress.Annotations
+		ingress.ObjectMeta.Annotations = control.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{

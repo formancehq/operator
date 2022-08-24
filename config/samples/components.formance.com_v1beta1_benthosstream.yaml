@@ -1,6 +1,0 @@
-apiVersion: components.formance.com.formance.com/v1beta1
-kind: BenthosStream
-metadata:
-  name: benthosstream-sample
-spec:
-  # TODO(user): Add fields here

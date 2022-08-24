@@ -19,14 +19,17 @@ package v1beta1
 import (
 	"fmt"
 
-	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type IngressStack struct {
+type IngressGlobalConfig struct {
 	// +optional
-	Annotations map[string]string `json:"annotations"`
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+	// +required
+	Host string `json:"host"`
 }
 
 // StackSpec defines the desired state of Stack
@@ -34,13 +37,7 @@ type StackSpec struct {
 	// +optional
 	Debug bool `json:"debug"`
 	// +required
-	Version string `json:"version,omitempty"`
-	// +required
 	Namespace string `json:"namespace,omitempty"`
-	// +required
-	Host string `json:"host,omitempty"`
-	// +optional
-	Scheme string `json:"scheme,omitempty"`
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
@@ -48,17 +45,9 @@ type StackSpec struct {
 	// +optional
 	Auth *AuthSpec `json:"auth,omitempty"`
 	// +optional
-	Ingress *IngressStack `json:"ingress"`
+	Ingress IngressGlobalConfig `json:"ingress"`
 	// +optional
-	Collector *CollectorConfigSpec `json:"collector"`
-}
-
-type AuthSpec struct {
-	// +optional
-	Image               string                                                 `json:"image"`
-	PostgresConfig      PostgresConfig                                         `json:"postgres"`
-	SigningKey          string                                                 `json:"signingKey"`
-	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+	Kafka *KafkaConfig `json:"kafka"`
 }
 
 type ServicesSpec struct {
@@ -74,12 +63,8 @@ const (
 	ConditionTypeStackLedgerReady    = "LedgerReady"
 	ConditionTypeStackSearchReady    = "SearchReady"
 	ConditionTypeStackControlReady   = "ControlReady"
+	ConditionTypeStackPaymentsReady  = "PaymentsReady"
 )
-
-// StackStatus defines the observed state of Stack
-type StackStatus struct {
-	Status `json:",inline"`
-}
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
@@ -93,39 +78,64 @@ type Stack struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StackSpec   `json:"spec,omitempty"`
-	Status StackStatus `json:"status,omitempty"`
+	Spec   StackSpec `json:"spec,omitempty"`
+	Status Status    `json:"status,omitempty"`
+}
+
+func (in *Stack) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
 }
 
 func (in *Stack) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
-func (in *Stack) Scheme() string {
-	if in.Spec.Scheme != "" {
-		return in.Spec.Scheme
-	}
-	return "https"
-}
-
 func (in *Stack) SetNamespaceCreated() {
 	SetCondition(in, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
+}
+
+func (in *Stack) SetNamespaceError(msg string) {
+	SetCondition(in, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
 }
 
 func (in *Stack) SetAuthReady() {
 	SetCondition(in, ConditionTypeStackAuthReady, metav1.ConditionTrue)
 }
 
+func (in *Stack) SetAuthError(msg string) {
+	SetCondition(in, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
+}
+
 func (in *Stack) SetLedgerReady() {
 	SetCondition(in, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
+}
+
+func (in *Stack) SetLedgerError(msg string) {
+	SetCondition(in, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
 }
 
 func (in *Stack) SetSearchReady() {
 	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionTrue)
 }
 
+func (in *Stack) SetSearchError(msg string) {
+	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
+}
+
 func (in *Stack) SetControlReady() {
 	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionTrue)
+}
+
+func (in *Stack) SetControlError(msg string) {
+	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
+}
+
+func (in *Stack) SetPaymentError(msg string) {
+	SetCondition(in, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
+}
+
+func (in *Stack) SetPaymentReady() {
+	SetCondition(in, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
 }
 
 func (in *Stack) RemoveAuthStatus() {

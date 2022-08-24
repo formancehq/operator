@@ -8,4 +8,6 @@ type ControlSpec struct {
 	Debug bool `json:"debug"`
 	// +optional
 	Image string `json:"image"`
+	// +optional
+	Ingress *IngressConfig `json:"ingress"`
 }

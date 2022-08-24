@@ -31,11 +31,8 @@ type SearchIngesterSpec struct {
 	//+kubebuilder:validation:Type=object
 	//+kubebuilder:validation:Schemaless
 	Pipeline json.RawMessage `json:"pipeline"` // Should be a map[string]any but controller-gen does not support it
-}
-
-// SearchIngesterStatus defines the observed state of SearchIngester
-type SearchIngesterStatus struct {
-	Status `json:",inline"`
+	// +optional
+	Debug bool `json:"debug,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -46,8 +43,12 @@ type SearchIngester struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SearchIngesterSpec   `json:"spec,omitempty"`
-	Status SearchIngesterStatus `json:"status,omitempty"`
+	Spec   SearchIngesterSpec `json:"spec,omitempty"`
+	Status Status             `json:"status,omitempty"`
+}
+
+func (in *SearchIngester) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
 }
 
 func (in *SearchIngester) GetConditions() *Conditions {

@@ -63,44 +63,39 @@ spec:
                     type: object
                 type: object
               collector:
-                description: 'TODO: Support only kafka'
                 properties:
-                  kafka:
-                    properties:
-                      brokers:
-                        items:
-                          type: string
-                        type: array
-                      sasl:
-                        properties:
-                          mechanism:
-                            type: string
-                          password:
-                            type: string
-                          scramSHASize:
-                            type: string
-                          username:
-                            type: string
-                        required:
-                        - mechanism
-                        - password
-                        - scramSHASize
-                        - username
-                        type: object
-                      tls:
-                        type: boolean
-                    required:
-                    - brokers
-                    type: object
-                  kind:
-                    type: string
-                  topicMapping:
-                    additionalProperties:
+                  brokers:
+                    items:
                       type: string
+                    type: array
+                  sasl:
+                    properties:
+                      mechanism:
+                        type: string
+                      password:
+                        type: string
+                      scramSHASize:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - mechanism
+                    - password
+                    - scramSHASize
+                    - username
                     type: object
+                  tls:
+                    type: boolean
+                  topic:
+                    type: string
+                required:
+                - brokers
+                - topic
                 type: object
               debug:
                 type: boolean
+              elasticSearchIndex:
+                type: string
               image:
                 type: string
               ingress:
@@ -258,10 +253,10 @@ spec:
                 - uri
                 type: object
             required:
+            - elasticSearchIndex
             - postgres
             type: object
           status:
-            description: LedgerStatus defines the observed state of Ledger
             properties:
               conditions:
                 items:

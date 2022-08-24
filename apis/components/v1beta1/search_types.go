@@ -17,14 +17,36 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type ElasticSearchTLSConfig struct {
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
+	SkipCertVerify bool `json:"skipCertVerify,omitempty"`
+}
+
+type ElasticSearchBasicAuthConfig struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
 
 type ElasticSearchConfig struct {
 	Host   string `json:"host"`
 	Scheme string `json:"scheme"`
 	Port   uint16 `json:"port"`
+	// +optional
+	TLS ElasticSearchTLSConfig `json:"tls"`
+	// +optional
+	BasicAuth *ElasticSearchBasicAuthConfig `json:"basicAuth"`
+}
+
+func (in *ElasticSearchConfig) Endpoint() string {
+	return fmt.Sprintf("%s://%s:%d", in.Scheme, in.Host, in.Port)
 }
 
 // SearchSpec defines the desired state of Search
@@ -41,11 +63,7 @@ type SearchSpec struct {
 	Image         string              `json:"image"`
 	ElasticSearch ElasticSearchConfig `json:"elasticsearch"`
 	KafkaConfig   KafkaConfig         `json:"kafka"`
-}
-
-// SearchStatus defines the observed state of Search
-type SearchStatus struct {
-	Status `json:",inline"`
+	Index         string              `json:"index"`
 }
 
 //+kubebuilder:object:root=true
@@ -56,8 +74,12 @@ type Search struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SearchSpec   `json:"spec,omitempty"`
-	Status SearchStatus `json:"status,omitempty"`
+	Spec   SearchSpec `json:"spec,omitempty"`
+	Status Status     `json:"status,omitempty"`
+}
+
+func (in *Search) IsDirty(t Object) bool {
+	return in.Status.IsDirty(t)
 }
 
 func (in *Search) GetConditions() *Conditions {

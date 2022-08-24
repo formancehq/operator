@@ -8,7 +8,7 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/apis/stack/v1beta1"
 	"github.com/numary/formance-operator/internal"
-	"github.com/numary/formance-operator/pkg/resourceutil"
+	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -31,29 +31,36 @@ type Mutator struct {
 	scheme *runtime.Scheme
 }
 
-func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&authcomponentsv1beta1.Auth{}).
+		Owns(&authcomponentsv1beta1.Ledger{}).
+		Owns(&authcomponentsv1beta1.Search{}).
+		Owns(&authcomponentsv1beta1.Payments{}).
 		Owns(&corev1.Namespace{})
+	return nil
 }
 
 func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
 	SetProgressing(actual)
 
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling namespace")
+		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
 	if err := m.reconcileAuth(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Auth")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
 	if err := m.reconcileLedger(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Ledger")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
+	}
+	if err := m.reconcilePayment(ctx, actual); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
 	if err := m.reconcileSearch(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Search")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
 	if err := m.reconcileControl(ctx, actual); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling Control")
+		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
 
 	SetReady(actual)
@@ -71,6 +78,7 @@ func (r *Mutator) reconcileNamespace(ctx context.Context, stack *v1beta1.Stack) 
 	})
 	switch {
 	case err != nil:
+		stack.SetNamespaceError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -105,25 +113,17 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
-	}, stack, func(ns *authcomponentsv1beta1.Auth) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/auth",
-				Host:        stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
-			}
-		}
-		ns.Spec = authcomponentsv1beta1.AuthSpec{
+	}, stack, func(auth *authcomponentsv1beta1.Auth) error {
+		auth.Spec = authcomponentsv1beta1.AuthSpec{
 			Image: stack.Spec.Auth.Image,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfig: stack.Spec.Auth.PostgresConfig,
 			},
-			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Scheme(), stack.Spec.Host),
+			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Spec.Auth.GetScheme(), stack.Spec.Auth.Host),
 			SigningKey:          stack.Spec.Auth.SigningKey,
 			DevMode:             stack.Spec.Debug,
-			Ingress:             ingress,
+			Ingress:             stack.Spec.Auth.Ingress.Compute(stack, "/auth"),
 			DelegatedOIDCServer: stack.Spec.Auth.DelegatedOIDCServer,
 			Monitoring:          stack.Spec.Monitoring,
 		}
@@ -131,6 +131,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	})
 	switch {
 	case err != nil:
+		stack.SetAuthError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -166,43 +167,28 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("ledger"),
 	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/ledger",
-				Host:        stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
+		var collector *authcomponentsv1beta1.CollectorConfig
+		if stack.Spec.Kafka != nil {
+			collector = &authcomponentsv1beta1.CollectorConfig{
+				KafkaConfig: *stack.Spec.Kafka,
+				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
 			}
 		}
-		var authConfig *AuthConfigSpec
-		// TODO: Reconfigure properly when the gateway will be in place
-		//if stack.Spec.Auth != nil {
-		//	authConfig = &sharedtypes.AuthConfigSpec{
-		//		OAuth2: &sharedtypes.OAuth2ConfigSpec{
-		//			//TODO: Not hardcode port
-		//			// TODO: Discover on operator, or discover on ledger
-		//			IntrospectUrl: fmt.Sprintf("http://%s.%s.svc.cluster.local:8080/oauth/introspect", stack.ServiceName("auth"), stack.Spec.Namespace),
-		//			Audiences: []string{
-		//				fmt.Sprintf("%s://%s", stack.Spec.Scheme, stack.Spec.Host),
-		//			},
-		//			ProtectedByScopes: false, // TODO: Maybe later...
-		//		},
-		//	}
-		//}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Ingress:    ingress,
-			Debug:      stack.Spec.Services.Ledger.Debug,
-			Redis:      stack.Spec.Services.Ledger.Redis,
-			Postgres:   stack.Spec.Services.Ledger.Postgres,
-			Auth:       authConfig,
-			Monitoring: stack.Spec.Monitoring,
-			Image:      stack.Spec.Services.Ledger.Image,
-			Collector:  stack.Spec.Collector,
+			Ingress:            stack.Spec.Services.Ledger.Ingress.Compute(stack, "/ledger"),
+			Debug:              stack.Spec.Services.Ledger.Debug,
+			Redis:              stack.Spec.Services.Ledger.Redis,
+			Postgres:           stack.Spec.Services.Ledger.Postgres,
+			Monitoring:         stack.Spec.Monitoring,
+			Image:              stack.Spec.Services.Ledger.Image,
+			Collector:          collector,
+			ElasticSearchIndex: stack.Name,
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
+		stack.SetLedgerError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -210,6 +196,68 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 	}
 
 	log.FromContext(ctx).Info("Ledger ready")
+	return nil
+}
+
+func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) error {
+	log.FromContext(ctx).Info("Reconciling Payment")
+
+	if stack.Spec.Services.Payments == nil {
+		log.FromContext(ctx).Info("Deleting Payments")
+		err := r.client.Delete(ctx, &authcomponentsv1beta1.Payments{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: stack.Spec.Namespace,
+				Name:      stack.ServiceName("payments"),
+			},
+		})
+		switch {
+		case errors.IsNotFound(err):
+		case err != nil:
+			return pkgError.Wrap(err, "Deleting Payments")
+		default:
+			stack.RemoveAuthStatus()
+		}
+		return nil
+	}
+
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      stack.ServiceName("payments"),
+	}, stack, func(payment *authcomponentsv1beta1.Payments) error {
+		var collector *authcomponentsv1beta1.CollectorConfig
+		if stack.Spec.Kafka != nil {
+			collector = &authcomponentsv1beta1.CollectorConfig{
+				KafkaConfig: *stack.Spec.Kafka,
+				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
+			}
+		}
+		payment.Spec = authcomponentsv1beta1.PaymentsSpec{
+			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/payments"),
+			Debug:              stack.Spec.Services.Payments.Debug,
+			Monitoring:         stack.Spec.Monitoring,
+			Image:              stack.Spec.Services.Payments.Image,
+			Collector:          collector,
+			ElasticSearchIndex: stack.Name,
+			MongoDB: authcomponentsv1beta1.MongoDBConfig{
+				Host:     stack.Spec.Services.Payments.MongoDB.Host,
+				Port:     stack.Spec.Services.Payments.MongoDB.Port,
+				Database: stack.Name,
+				Username: stack.Spec.Services.Payments.MongoDB.Username,
+				Password: stack.Spec.Services.Payments.MongoDB.Password,
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetPaymentError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetPaymentReady()
+	}
+
+	log.FromContext(ctx).Info("Payment ready")
 	return nil
 }
 
@@ -238,16 +286,8 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("control"),
 	}, stack, func(control *authcomponentsv1beta1.Control) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/",
-				Host:        "localhost", //stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
-			}
-		}
 		control.Spec = authcomponentsv1beta1.ControlSpec{
-			Ingress: ingress,
+			Ingress: stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
 			Debug:   stack.Spec.Services.Control.Debug,
 			Image:   stack.Spec.Services.Control.Image,
 		}
@@ -255,7 +295,7 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 	})
 	switch {
 	case err != nil:
-		// TODO: Miss condition
+		stack.SetControlError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
@@ -287,7 +327,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 		return nil
 	}
 
-	if stack.Spec.Collector == nil {
+	if stack.Spec.Kafka == nil {
 		return pkgError.New("collector must be configured to use search service")
 	}
 
@@ -295,27 +335,21 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("search"),
 	}, stack, func(search *authcomponentsv1beta1.Search) error {
-		var ingress *IngressSpec
-		if stack.Spec.Ingress != nil {
-			ingress = &IngressSpec{
-				Path:        "/search",
-				Host:        stack.Spec.Host,
-				Annotations: stack.Spec.Ingress.Annotations,
-			}
-		}
 		search.Spec = authcomponentsv1beta1.SearchSpec{
-			Ingress:       ingress,
+			Ingress:       stack.Spec.Services.Search.Ingress.Compute(stack, "/search"),
 			Debug:         stack.Spec.Services.Search.Debug,
 			Auth:          nil,
 			Monitoring:    stack.Spec.Monitoring,
 			Image:         stack.Spec.Services.Search.Image,
 			ElasticSearch: *stack.Spec.Services.Search.ElasticSearchConfig,
-			KafkaConfig:   *stack.Spec.Collector.KafkaConfig,
+			KafkaConfig:   *stack.Spec.Kafka,
+			Index:         stack.Name,
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
+		stack.SetSearchError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:

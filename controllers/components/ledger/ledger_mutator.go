@@ -30,8 +30,8 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/pkg/envutil"
-	"github.com/numary/formance-operator/pkg/resourceutil"
+	"github.com/numary/formance-operator/internal/envutil"
+	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
@@ -83,22 +83,22 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 
 	deployment, err := r.reconcileDeployment(ctx, ledger)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling deployment")
+		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
 	service, err := r.reconcileService(ctx, ledger, deployment)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if err := r.reconcileIngestionStream(ctx, ledger); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+	if err := r.reconcileSearchIngester(ctx, ledger); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	if ledger.Spec.Ingress != nil {
 		_, err = r.reconcileIngress(ctx, ledger, service)
 		if err != nil {
-			return nil, pkgError.Wrap(err, "Reconciling service")
+			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
@@ -108,7 +108,7 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
-			return nil, pkgError.Wrap(err, "Deleting ingress")
+			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(ledger)
 	}
@@ -119,7 +119,7 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 }
 
 func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1beta1.Ledger) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "ledger")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "ledger")
 
 	env := []corev1.EnvVar{
 		envutil.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
@@ -166,12 +166,29 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 					Containers: []corev1.Container{{
 						Name:            "ledger",
 						Image:           image,
-						ImagePullPolicy: corev1.PullAlways,
+						ImagePullPolicy: ImagePullPolicy(image),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "ledger",
 							ContainerPort: 8080,
 						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/_health",
+									Port: intstr.IntOrString{
+										IntVal: 8080,
+									},
+									Scheme: "HTTP",
+								},
+							},
+							InitialDelaySeconds:           1,
+							TimeoutSeconds:                30,
+							PeriodSeconds:                 2,
+							SuccessThreshold:              1,
+							FailureThreshold:              10,
+							TerminationGracePeriodSeconds: pointer.Int64(10),
+						},
 					}},
 				},
 			},
@@ -276,15 +293,14 @@ func (r *Mutator) reconcileIngress(ctx context.Context, ledger *componentsv1beta
 	return ret, nil
 }
 
-func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componentsv1beta1.Ledger) error {
+func (r *Mutator) reconcileSearchIngester(ctx context.Context, ledger *componentsv1beta1.Ledger) error {
 	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: ledger.Namespace,
-		Name:      ledger.Name + "-ingestion-stream",
+		Name:      ledger.Name + "-search-ingester",
 	}, ledger, func(t *componentsv1beta1.SearchIngester) error {
 		buf := bytes.NewBufferString("")
 		if err := benthosConfigTpl.Execute(buf, map[string]any{
-			// TODO: Should not be a consideration of the ledger
-			"ElasticSearchIndex": "documents",
+			"ElasticSearchIndex": ledger.Spec.ElasticSearchIndex,
 		}); err != nil {
 			return err
 		}
@@ -300,7 +316,7 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componen
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = "ledger" // TODO: Should be corollated with the topic mapping
+		t.Spec.Topic = "ledger"
 		t.Spec.Reference = fmt.Sprintf("%s-search", ledger.Namespace)
 		return nil
 	})
@@ -316,12 +332,14 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, ledger *componen
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta1.Scope{})
+		Owns(&authcomponentsv1beta1.Scope{}).
+		Owns(&componentsv1beta1.SearchIngester{})
+	return nil
 }
 
 func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*componentsv1beta1.Ledger] {

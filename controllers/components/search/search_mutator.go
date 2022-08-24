@@ -26,8 +26,10 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/pkg/envutil"
-	"github.com/numary/formance-operator/pkg/resourceutil"
+	"github.com/numary/formance-operator/internal/envutil"
+	"github.com/numary/formance-operator/internal/probeutil"
+	"github.com/numary/formance-operator/internal/resourceutil"
+	"github.com/opensearch-project/opensearch-go"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,6 +43,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -66,22 +69,19 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	// TODO: We need to wait for es indices to be created before accept incoming document
-	// We can do the job inside this operator, or maybe we could modify search service in a way or other
-
 	if _, err = r.reconcileBenthosStreamServer(ctx, search); err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling benthos stream server")
+		return Requeue(), pkgError.Wrap(err, "Reconciling benthos stream server")
 	}
 
 	service, err := r.reconcileService(ctx, search, deployment)
 	if err != nil {
-		return nil, pkgError.Wrap(err, "Reconciling service")
+		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
 	if search.Spec.Ingress != nil {
 		_, err = r.reconcileIngress(ctx, search, service)
 		if err != nil {
-			return nil, pkgError.Wrap(err, "Reconciling service")
+			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
@@ -91,7 +91,7 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
-			return nil, pkgError.Wrap(err, "Deleting ingress")
+			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(search)
 	}
@@ -102,7 +102,7 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 }
 
 func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Search) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.Create("app.kubernetes.io/name", "search")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "search")
 
 	env := []corev1.EnvVar{}
 	if search.Spec.Monitoring != nil {
@@ -111,8 +111,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	env = append(env,
 		envutil.Env("OPEN_SEARCH_SERVICE", fmt.Sprintf("%s:%d", search.Spec.ElasticSearch.Host, search.Spec.ElasticSearch.Port)),
 		envutil.Env("OPEN_SEARCH_SCHEME", search.Spec.ElasticSearch.Scheme),
-		// TODO: Elastic is the kind of service which we mutualised, so we have to have an index for each stack
-		envutil.Env("ES_INDICES", "documents"),
+		envutil.Env("ES_INDICES", search.Spec.Index),
 	)
 
 	image := search.Spec.Image
@@ -133,12 +132,13 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 					Containers: []corev1.Container{{
 						Name:            "search",
 						Image:           image,
-						ImagePullPolicy: corev1.PullAlways,
+						ImagePullPolicy: ImagePullPolicy(image),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
 							ContainerPort: 8080,
 						}},
+						LivenessProbe: probeutil.DefaultLiveness(),
 					}},
 				},
 			},
@@ -221,6 +221,26 @@ func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, 
 }
 
 func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1beta1.Search) (controllerutil.OperationResult, error) {
+
+	cfg := opensearch.Config{
+		Addresses: []string{search.Spec.ElasticSearch.Endpoint()},
+	}
+	if search.Spec.ElasticSearch.BasicAuth != nil {
+		cfg.Username = search.Spec.ElasticSearch.BasicAuth.Username
+		cfg.Password = search.Spec.ElasticSearch.BasicAuth.Password
+	}
+
+	client, err := opensearch.NewClient(cfg)
+	if err != nil {
+		return controllerutil.OperationResultNone, err
+	}
+
+	if err := LoadMapping(ctx, client, DefaultMapping(search.Spec.Index)); err != nil {
+		return controllerutil.OperationResultNone, err
+	}
+
+	log.FromContext(ctx).Info("Mapping created es side")
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: search.Namespace,
 		Name:      search.Name + "-benthos",
@@ -238,12 +258,14 @@ func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1be
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *Mutator) SetupWithBuilder(builder *ctrl.Builder) {
+func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta1.Scope{})
+		Owns(&authcomponentsv1beta1.Scope{}).
+		Owns(&Server{})
+	return nil
 }
 
 func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*v1beta1.Search] {

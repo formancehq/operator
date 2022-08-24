@@ -18,18 +18,22 @@ package v1beta1
 
 import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ServerSpec defines the desired state of Server
 type ServerSpec struct {
 	// +optional
-	Image string `json:"image"`
+	Image string `json:"image,omitempty"`
+	// +optional
+	InitContainers []corev1.Container `json:"containers,omitempty"`
 }
 
 // ServerStatus defines the observed state of Server
 type ServerStatus struct {
 	Status `json:",inline"`
+	PodIP  string `json:"podIP,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -42,6 +46,14 @@ type Server struct {
 
 	Spec   ServerSpec   `json:"spec,omitempty"`
 	Status ServerStatus `json:"status,omitempty"`
+}
+
+func (in *Server) IsDirty(t Object) bool {
+	if in.Status.IsDirty(t) {
+		return true
+	}
+	server := t.(*Server)
+	return in.Status.PodIP != server.Status.PodIP
 }
 
 func (in *Server) GetConditions() *Conditions {

@@ -6,10 +6,10 @@ import (
 )
 
 type IngressSpec struct {
-	Path string `json:"path"`
-	Host string `json:"host"`
 	// +optional
 	Annotations map[string]string `json:"annotations"`
+	Path        string            `json:"path"`
+	Host        string            `json:"host"`
 }
 
 const (

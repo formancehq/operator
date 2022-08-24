@@ -18,6 +18,8 @@ package v1beta1
 
 import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	"github.com/numary/formance-operator/internal/envutil"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,6 +32,16 @@ type RedisConfig struct {
 type PostgresConfigCreateDatabase struct {
 	PostgresConfig `json:",inline"`
 	CreateDatabase bool `json:"createDatabase"`
+}
+
+type CollectorConfig struct {
+	KafkaConfig `json:",inline"`
+	Topic       string `json:"topic"`
+}
+
+func (c CollectorConfig) Env(prefix string) []corev1.EnvVar {
+	ret := c.KafkaConfig.Env(prefix)
+	return append(ret, envutil.EnvWithPrefix(prefix, "PUBLISHER_TOPIC_MAPPING", "*:"+c.Topic))
 }
 
 // LedgerSpec defines the desired state of Ledger
@@ -47,14 +59,9 @@ type LedgerSpec struct {
 	Monitoring *MonitoringSpec `json:"monitoring"`
 	// +optional
 	Image string `json:"image"`
-	// TODO: Support only kafka
 	// +optional
-	Collector *CollectorConfigSpec `json:"collector"`
-}
-
-// LedgerStatus defines the observed state of Ledger
-type LedgerStatus struct {
-	Status `json:",inline"`
+	Collector          *CollectorConfig `json:"collector"`
+	ElasticSearchIndex string           `json:"elasticSearchIndex"`
 }
 
 //+kubebuilder:object:root=true
@@ -65,8 +72,12 @@ type Ledger struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   LedgerSpec   `json:"spec,omitempty"`
-	Status LedgerStatus `json:"status,omitempty"`
+	Spec   LedgerSpec `json:"spec,omitempty"`
+	Status Status     `json:"status,omitempty"`
+}
+
+func (a *Ledger) IsDirty(t Object) bool {
+	return a.Status.IsDirty(t)
 }
 
 func (a *Ledger) GetConditions() *Conditions {

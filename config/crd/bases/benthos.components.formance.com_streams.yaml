@@ -46,7 +46,6 @@ spec:
             - ref
             type: object
           status:
-            description: StreamStatus defines the observed state of Stream
             properties:
               conditions:
                 items:

@@ -62,8 +62,21 @@ spec:
                     - clientSecret
                     - issuer
                     type: object
+                  host:
+                    type: string
                   image:
                     type: string
+                  ingress:
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      enabled:
+                        type: boolean
+                      host:
+                        type: string
+                    type: object
                   postgres:
                     properties:
                       database:
@@ -83,59 +96,55 @@ spec:
                     - port
                     - username
                     type: object
+                  scheme:
+                    type: string
                   signingKey:
                     type: string
                 required:
                 - delegatedOIDCServer
                 - postgres
-                - signingKey
-                type: object
-              collector:
-                properties:
-                  kafka:
-                    properties:
-                      brokers:
-                        items:
-                          type: string
-                        type: array
-                      sasl:
-                        properties:
-                          mechanism:
-                            type: string
-                          password:
-                            type: string
-                          scramSHASize:
-                            type: string
-                          username:
-                            type: string
-                        required:
-                        - mechanism
-                        - password
-                        - scramSHASize
-                        - username
-                        type: object
-                      tls:
-                        type: boolean
-                    required:
-                    - brokers
-                    type: object
-                  kind:
-                    type: string
-                  topicMapping:
-                    additionalProperties:
-                      type: string
-                    type: object
                 type: object
               debug:
                 type: boolean
-              host:
-                type: string
               ingress:
                 properties:
                   annotations:
                     additionalProperties:
                       type: string
                     type: object
+                  enabled:
+                    type: boolean
+                  host:
+                    type: string
+                required:
+                - host
+                type: object
+              kafka:
+                properties:
+                  brokers:
+                    items:
+                      type: string
+                    type: array
+                  sasl:
+                    properties:
+                      mechanism:
+                        type: string
+                      password:
+                        type: string
+                      scramSHASize:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - mechanism
+                    - password
+                    - scramSHASize
+                    - username
+                    type: object
+                  tls:
+                    type: boolean
+                required:
+                - brokers
                 type: object
               monitoring:
                 properties:
@@ -248,8 +257,6 @@ spec:
                 type: object
               namespace:
                 type: string
-              scheme:
-                type: string
               services:
                 properties:
                   control:
@@ -258,6 +265,17 @@ spec:
                         type: boolean
                       image:
                         type: string
+                      ingress:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          enabled:
+                            type: boolean
+                          host:
+                            type: string
+                        type: object
                       scaling:
                         properties:
                           cpuLimit:
@@ -276,6 +294,17 @@ spec:
                         type: boolean
                       image:
                         type: string
+                      ingress:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          enabled:
+                            type: boolean
+                          host:
+                            type: string
+                        type: object
                       postgres:
                         properties:
                           createDatabase:
@@ -323,19 +352,37 @@ spec:
                     type: object
                   payments:
                     properties:
-                      databases:
-                        items:
-                          properties:
-                            type:
-                              type: string
-                            url:
-                              type: string
-                          type: object
-                        type: array
-                      enabled:
+                      debug:
                         type: boolean
-                      name:
+                      image:
                         type: string
+                      ingress:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          enabled:
+                            type: boolean
+                          host:
+                            type: string
+                        type: object
+                      mongoDB:
+                        properties:
+                          host:
+                            type: string
+                          password:
+                            type: string
+                          port:
+                            type: integer
+                          username:
+                            type: string
+                        required:
+                        - host
+                        - password
+                        - port
+                        - username
+                        type: object
                       scaling:
                         properties:
                           cpuLimit:
@@ -347,6 +394,8 @@ spec:
                           minReplica:
                             type: integer
                         type: object
+                    required:
+                    - mongoDB
                     type: object
                   search:
                     properties:
@@ -354,12 +403,29 @@ spec:
                         type: boolean
                       elasticSearch:
                         properties:
+                          basicAuth:
+                            properties:
+                              password:
+                                type: string
+                              username:
+                                type: string
+                            required:
+                            - password
+                            - username
+                            type: object
                           host:
                             type: string
                           port:
                             type: integer
                           scheme:
                             type: string
+                          tls:
+                            properties:
+                              enabled:
+                                type: boolean
+                              skipCertVerify:
+                                type: boolean
+                            type: object
                         required:
                         - host
                         - port
@@ -367,6 +433,17 @@ spec:
                         type: object
                       image:
                         type: string
+                      ingress:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          enabled:
+                            type: boolean
+                          host:
+                            type: string
+                        type: object
                       scaling:
                         properties:
                           cpuLimit:
@@ -382,11 +459,8 @@ spec:
                     - elasticSearch
                     type: object
                 type: object
-              version:
-                type: string
             type: object
           status:
-            description: StackStatus defines the observed state of Stack
             properties:
               conditions:
                 items:

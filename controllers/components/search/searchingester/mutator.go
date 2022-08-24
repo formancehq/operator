@@ -9,7 +9,7 @@ import (
 	. "github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
-	"github.com/numary/formance-operator/pkg/resourceutil"
+	"github.com/numary/formance-operator/internal/resourceutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,7 +27,10 @@ type Mutator struct {
 	scheme *runtime.Scheme
 }
 
-func (m *Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
+func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
+	builder.Owns(&v1beta1.Stream{})
+	return nil
+}
 
 func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.Result, error) {
 
@@ -38,21 +41,49 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 		Namespace: ingester.Namespace,
 		Name:      ingester.Spec.Reference,
 	}, search); err != nil {
-		return nil, err
+		return Requeue(), err
 	}
 
 	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, m.client, m.scheme, types.NamespacedName{
 		Namespace: ingester.Namespace,
 		Name:      ingester.Name + "-ingestion-stream",
 	}, ingester, func(t *v1beta1.Stream) error {
+		httpClientOutput := map[string]any{
+			"url": fmt.Sprintf("%s://%s:%d/_bulk",
+				search.Spec.ElasticSearch.Scheme,
+				search.Spec.ElasticSearch.Host,
+				search.Spec.ElasticSearch.Port),
+			"verb": "POST",
+			"headers": map[string]any{
+				"Content-Type": "application/x-ndjson",
+			},
+			"tls": map[string]any{
+				"enabled":          search.Spec.ElasticSearch.TLS.Enabled,
+				"skip_cert_verify": search.Spec.ElasticSearch.TLS.SkipCertVerify,
+			},
+		}
+		if search.Spec.ElasticSearch.BasicAuth != nil {
+			httpClientOutput["basic_auth"] = map[string]any{
+				"enabled":  true,
+				"username": search.Spec.ElasticSearch.BasicAuth.Username,
+				"password": search.Spec.ElasticSearch.BasicAuth.Password,
+			}
+		}
+		outputs := []map[string]any{{
+			"http_client": httpClientOutput,
+		}}
+		if ingester.Spec.Debug {
+			outputs = append(outputs, map[string]any{
+				"stdout": map[string]any{},
+			})
+		}
 		config := map[string]interface{}{
 			"input": map[string]any{
 				"kafka": map[string]any{
-					"addresses": search.Spec.KafkaConfig.Brokers,
-					"topics":    []string{ingester.Spec.Topic},
-					//"target_version":   "",       //TODO
-					"consumer_group":   "search", // TODO
-					"checkpoint_limit": 1024,     // TODO ?
+					"addresses":        search.Spec.KafkaConfig.Brokers,
+					"topics":           []string{ingester.Spec.Topic},
+					"consumer_group":   ingester.Name,
+					"checkpoint_limit": 1024,
 				},
 			},
 			"pipeline": ingester.Spec.Pipeline,
@@ -63,30 +94,7 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 					},
 				},
 				"broker": map[string]any{
-					"outputs": []map[string]any{
-						{"stdout": map[string]any{}}, //TODO: Only in dev mode
-						{
-							"http_client": map[string]any{
-								"url": fmt.Sprintf("%s://%s:%d/_bulk",
-									search.Spec.ElasticSearch.Scheme,
-									search.Spec.ElasticSearch.Host,
-									search.Spec.ElasticSearch.Port),
-								"verb": "POST",
-								"headers": map[string]any{
-									"Content-Type": "application/x-ndjson",
-								},
-								"tls": map[string]any{ // TODO: Make configurable
-									"enabled":          false,
-									"skip_cert_verify": false,
-								},
-								"basic_auth": map[string]any{ //TODO: Make configurable
-									"enabled":  true,
-									"username": "admin",
-									"password": "admin",
-								},
-							},
-						},
-					},
+					"outputs": outputs,
 				},
 			},
 		}
@@ -103,7 +111,7 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 	switch {
 	case err != nil:
 		SetCondition(ingester, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
-		return nil, err
+		return Requeue(), err
 	case ret == controllerutil.OperationResultNone:
 	default:
 		SetCondition(ingester, "IngestionStreamReady", metav1.ConditionTrue)

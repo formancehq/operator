@@ -206,10 +206,8 @@ spec:
             - delegatedOIDCServer
             - devMode
             - postgres
-            - signingKey
             type: object
           status:
-            description: AuthStatus defines the observed state of Auth
             properties:
               conditions:
                 items:

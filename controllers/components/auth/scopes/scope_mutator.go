@@ -9,7 +9,7 @@ import (
 	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
 	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/pkg/finalizerutil"
+	"github.com/numary/formance-operator/internal/finalizerutil"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,7 +31,7 @@ type Mutator struct {
 	factory pkgInternal.APIFactory
 }
 
-func (s Mutator) SetupWithBuilder(builder *ctrl.Builder) {}
+func (s Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error { return nil }
 
 func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1beta1.Scope) (*ctrl.Result, error) {
 	api := s.factory.Create(actualK8SScope)
@@ -40,19 +40,18 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 	if isHandledByFinalizer, err := scopeFinalizer.Handle(ctx, s.client, actualK8SScope, func() error {
 		// If the scope was created auth server side, we have to remove it
 		if actualK8SScope.IsCreatedOnAuthServer() {
-			return pkgError.Wrap(api.DeleteScope(ctx, actualK8SScope.Status.AuthServerID), "Deleting scope")
+			err := api.DeleteScope(ctx, actualK8SScope.Status.AuthServerID)
+			if err == pkgInternal.ErrNotFound {
+				return nil
+			}
+			return pkgError.Wrap(err, "Deleting scope")
 		}
 		return nil
 	}); err != nil || isHandledByFinalizer {
-		return nil, err
+		return Requeue(), err
 	}
 
 	SetProgressing(actualK8SScope)
-
-	// Assert finalizer is properly installed on the object
-	if err := scopeFinalizer.AssertIsInstalled(ctx, s.client, actualK8SScope); err != nil {
-		return nil, err
-	}
 
 	var (
 		err                             error
@@ -67,13 +66,13 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 	if actualK8SScope.IsCreatedOnAuthServer() {
 		// Scope can have been manually deleted
 		if actualAuthServerScope, err = api.ReadScope(ctx, actualK8SScope.Status.AuthServerID); err != nil && err != pkgInternal.ErrNotFound {
-			return nil, pkgError.Wrap(err, "Reading scope auth server side")
+			return Requeue(), pkgError.Wrap(err, "Reading scope auth server side")
 		}
 		if actualAuthServerScope != nil { // If found, check the label and update if required
 			if actualAuthServerScope.Label != actualK8SScope.Spec.Label {
 				if err := api.UpdateScope(ctx, actualAuthServerScope.Id, actualK8SScope.Spec.Label,
 					authServerScopeExpectedMetadata); err != nil {
-					return nil, pkgError.Wrap(err, "Updating scope auth server side")
+					return Requeue(), pkgError.Wrap(err, "Updating scope auth server side")
 				}
 			}
 		} else {
@@ -88,13 +87,13 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 		// the scope can exist auth server side, so try to find it using metadata
 		if actualAuthServerScope, err = api.
 			ReadScopeByMetadata(ctx, authServerScopeExpectedMetadata); err != nil && err != pkgInternal.ErrNotFound {
-			return nil, pkgError.Wrap(err, "Reading scope by metadata")
+			return Requeue(), pkgError.Wrap(err, "Reading scope by metadata")
 		}
 
 		// If the scope is not found auth server side, we can create the scope
 		if actualAuthServerScope == nil {
 			if actualAuthServerScope, err = api.CreateScope(ctx, actualK8SScope.Spec.Label, authServerScopeExpectedMetadata); err != nil {
-				return nil, pkgError.Wrap(err, "Creating scope auth server side")
+				return Requeue(), pkgError.Wrap(err, "Creating scope auth server side")
 			}
 		}
 		actualK8SScope.Status.AuthServerID = actualAuthServerScope.Id
@@ -119,7 +118,7 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 
 		if !transientK8SScope.IsInTransient(actualAuthServerScope) { // Transient scope not found auth server side
 			if err = api.AddTransientScope(ctx, actualK8SScope.Status.AuthServerID, transientK8SScope.Status.AuthServerID); err != nil {
-				return nil, pkgError.Wrap(err, "Adding transient scope auth server side")
+				return Requeue(), pkgError.Wrap(err, "Adding transient scope auth server side")
 			}
 			actualK8SScope.SetRegisteredTransientScope(transientK8SScope)
 		}
@@ -129,17 +128,16 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 	extraTransientScopes := Filter(actualAuthServerScope.Transient, NotIn(transientScopeIds...))
 	for _, extraScope := range extraTransientScopes {
 		if err = api.RemoveTransientScope(ctx, actualAuthServerScope.Id, extraScope); err != nil {
-			return nil, pkgError.Wrap(err, "Removing transient scope auth server side")
+			return Requeue(), pkgError.Wrap(err, "Removing transient scope auth server side")
 		}
 	}
 
 	if !needRequeue {
 		SetReady(actualK8SScope)
+		return nil, nil
 	}
 
-	return &ctrl.Result{
-		Requeue: needRequeue,
-	}, nil
+	return Requeue(), nil
 }
 
 var _ internal.Mutator[*authcomponentsv1beta1.Scope] = &Mutator{}

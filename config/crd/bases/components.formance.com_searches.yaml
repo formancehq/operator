@@ -66,18 +66,37 @@ spec:
                 type: boolean
               elasticsearch:
                 properties:
+                  basicAuth:
+                    properties:
+                      password:
+                        type: string
+                      username:
+                        type: string
+                    required:
+                    - password
+                    - username
+                    type: object
                   host:
                     type: string
                   port:
                     type: integer
                   scheme:
                     type: string
+                  tls:
+                    properties:
+                      enabled:
+                        type: boolean
+                      skipCertVerify:
+                        type: boolean
+                    type: object
                 required:
                 - host
                 - port
                 - scheme
                 type: object
               image:
+                type: string
+              index:
                 type: string
               ingress:
                 properties:
@@ -231,10 +250,10 @@ spec:
                 type: object
             required:
             - elasticsearch
+            - index
             - kafka
             type: object
           status:
-            description: SearchStatus defines the observed state of Search
             properties:
               conditions:
                 items:
