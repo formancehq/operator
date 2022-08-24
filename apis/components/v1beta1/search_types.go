@@ -51,6 +51,7 @@ func (in *ElasticSearchConfig) Endpoint() string {
 
 // SearchSpec defines the desired state of Search
 type SearchSpec struct {
+	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
@@ -58,9 +59,7 @@ type SearchSpec struct {
 	// +optional
 	Auth *AuthConfigSpec `json:"auth"`
 	// +optional
-	Monitoring *MonitoringSpec `json:"monitoring"`
-	// +optional
-	Image         string              `json:"image"`
+	Monitoring    *MonitoringSpec     `json:"monitoring"`
 	ElasticSearch ElasticSearchConfig `json:"elasticsearch"`
 	KafkaConfig   KafkaConfig         `json:"kafka"`
 	Index         string              `json:"index"`

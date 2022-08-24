@@ -115,7 +115,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 		Name:      stack.ServiceName("auth"),
 	}, stack, func(auth *authcomponentsv1beta1.Auth) error {
 		auth.Spec = authcomponentsv1beta1.AuthSpec{
-			Image: stack.Spec.Auth.Image,
+			ImageHolder: stack.Spec.Auth.ImageHolder,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
@@ -189,7 +189,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 				CreateDatabase: true,
 			},
 			Monitoring:         stack.Spec.Monitoring,
-			Image:              stack.Spec.Services.Ledger.Image,
+			ImageHolder:        stack.Spec.Services.Ledger.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 		}
@@ -244,7 +244,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/payments"),
 			Debug:              stack.Spec.Services.Payments.Debug,
 			Monitoring:         stack.Spec.Monitoring,
-			Image:              stack.Spec.Services.Payments.Image,
+			ImageHolder:        stack.Spec.Services.Payments.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 			MongoDB: authcomponentsv1beta1.MongoDBConfig{
@@ -296,9 +296,9 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 		Name:      stack.ServiceName("control"),
 	}, stack, func(control *authcomponentsv1beta1.Control) error {
 		control.Spec = authcomponentsv1beta1.ControlSpec{
-			Ingress: stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
-			Debug:   stack.Spec.Services.Control.Debug,
-			Image:   stack.Spec.Services.Control.Image,
+			Ingress:     stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
+			Debug:       stack.Spec.Services.Control.Debug,
+			ImageHolder: stack.Spec.Services.Control.ImageHolder,
 		}
 		return nil
 	})
@@ -349,7 +349,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 			Debug:         stack.Spec.Services.Search.Debug,
 			Auth:          nil,
 			Monitoring:    stack.Spec.Monitoring,
-			Image:         stack.Spec.Services.Search.Image,
+			ImageHolder:   stack.Spec.Services.Search.ImageHolder,
 			ElasticSearch: *stack.Spec.Services.Search.ElasticSearchConfig,
 			KafkaConfig:   *stack.Spec.Kafka,
 			Index:         stack.Name,

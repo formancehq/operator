@@ -129,6 +129,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: search.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "search",
 						Image:           image,

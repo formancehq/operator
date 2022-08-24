@@ -46,6 +46,7 @@ func (c CollectorConfig) Env(prefix string) []corev1.EnvVar {
 
 // LedgerSpec defines the desired state of Ledger
 type LedgerSpec struct {
+	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
@@ -57,8 +58,6 @@ type LedgerSpec struct {
 	Auth *AuthConfigSpec `json:"auth"`
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
-	// +optional
-	Image string `json:"image"`
 	// +optional
 	Collector          *CollectorConfig `json:"collector"`
 	ElasticSearchIndex string           `json:"elasticSearchIndex"`

@@ -152,6 +152,7 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 		pod.Labels = matchLabels
 		pod.Spec.InitContainers = server.Spec.InitContainers
 		pod.Spec.Containers = []corev1.Container{expectedContainer}
+		pod.Spec.ImagePullSecrets = server.Spec.ImagePullSecrets
 		return nil
 	})
 	switch {

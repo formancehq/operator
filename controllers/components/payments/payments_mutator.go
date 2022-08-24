@@ -153,6 +153,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: payment.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "payment",
 						Image:           image,

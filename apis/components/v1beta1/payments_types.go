@@ -51,6 +51,7 @@ func (cfg MongoDBConfig) Uri() string {
 
 // PaymentsSpec defines the desired state of Payments
 type PaymentsSpec struct {
+	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
@@ -59,8 +60,6 @@ type PaymentsSpec struct {
 	Auth *AuthConfigSpec `json:"auth"`
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
-	// +optional
-	Image string `json:"image"`
 	// +optional
 	Collector          *CollectorConfig `json:"collector"`
 	ElasticSearchIndex string           `json:"elasticSearchIndex"`

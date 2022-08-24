@@ -2,14 +2,14 @@ package v1beta1
 
 import (
 	"github.com/numary/formance-operator/apis/components/v1beta1"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 )
 
 // +kubebuilder:object:generate=true
 type SearchSpec struct {
+	ImageHolder `json:",inline"`
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
-	// +optional
-	Image string `json:"image"`
 	// +optional
 	Debug bool `json:"debug"`
 

@@ -99,6 +99,7 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: control.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "control",
 						Image:           image,
