@@ -112,8 +112,10 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 		return nil, err
 	}
 
-	env := []corev1.EnvVar{
-		envutil.Env("POSTGRES_URI", auth.Spec.Postgres.URI()),
+	env := make([]corev1.EnvVar, 0)
+	env = append(env, auth.Spec.Postgres.Env("PG_")...)
+	env = append(env,
+		envutil.Env("POSTGRES_URI", "$(PG_POSTGRES_DATABASE_URI)"),
 		envutil.Env("DELEGATED_CLIENT_SECRET", auth.Spec.DelegatedOIDCServer.ClientSecret),
 		envutil.Env("DELEGATED_CLIENT_ID", auth.Spec.DelegatedOIDCServer.ClientID),
 		envutil.Env("DELEGATED_ISSUER", auth.Spec.DelegatedOIDCServer.Issuer),
@@ -126,7 +128,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 				Key: "signingKey",
 			},
 		}),
-	}
+	)
 	if auth.Spec.DevMode {
 		env = append(env,
 			envutil.Env("DEBUG", "1"),
@@ -173,13 +175,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 				Command: []string{
 					"sh",
 					"-c",
-					fmt.Sprintf(`psql -Atx %s -c "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 && echo "Base already exists" || psql -Atx %s -c "CREATE DATABASE \"%s\""`,
-						auth.Spec.Postgres.URIWithoutDatabase(),
-						auth.Spec.Postgres.Database,
-						auth.Spec.Postgres.URIWithoutDatabase(),
-						auth.Spec.Postgres.Database,
-					),
+					fmt.Sprintf(`psql -Atx ${POSTGRES_URI} -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI} -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`),
 				},
+				Env: auth.Spec.Postgres.Env(""),
 			}}
 		}
 		return nil

@@ -31,7 +31,7 @@ import (
 func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	*out = *in
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
-	out.PostgresConfig = in.PostgresConfig
+	in.PostgresConfig.DeepCopyInto(&out.PostgresConfig)
 	out.DelegatedOIDCServer = in.DelegatedOIDCServer
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
@@ -146,7 +146,7 @@ func (in *LedgerSpec) DeepCopyInto(out *LedgerSpec) {
 	*out = *in
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	out.Scaling = in.Scaling
-	out.Postgres = in.Postgres
+	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Redis != nil {
 		in, out := &in.Redis, &out.Redis
 		*out = new(componentsv1beta1.RedisConfig)
