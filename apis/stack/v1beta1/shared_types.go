@@ -25,7 +25,7 @@ type DatabaseSpec struct {
 
 type IngressConfig struct {
 	// +optional
-	Enabled bool `json:"enabled"`
+	Enabled *bool `json:"enabled"`
 	// +optional
 	Annotations map[string]string `json:"annotations"`
 	// +optional
@@ -33,10 +33,10 @@ type IngressConfig struct {
 }
 
 func (cfg *IngressConfig) IsEnabled(stack *Stack) bool {
-	if cfg != nil && cfg.Enabled {
-		return true
+	if cfg == nil || cfg.Enabled == nil {
+		return stack.Spec.Ingress.Enabled
 	}
-	return stack.Spec.Ingress.Enabled
+	return *cfg.Enabled
 }
 
 func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
@@ -48,7 +48,7 @@ func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
 		host = cfg.Host
 	}
 	if host == "" {
-		host = stack.Spec.Ingress.Host
+		host = stack.Spec.Host
 	}
 
 	annotations := stack.Spec.Ingress.Annotations
@@ -60,5 +60,6 @@ func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
 		Path:        path,
 		Host:        host,
 		Annotations: annotations,
+		TLS:         stack.Spec.Ingress.TLS,
 	}
 }

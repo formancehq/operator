@@ -32,25 +32,27 @@ type MongoDBConfig struct {
 	Database string `json:"database"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+	UseSrv   bool   `json:"useSrv"`
 }
 
 func (cfg MongoDBConfig) Uri() string {
+	var credentialsPart string
 	if cfg.Username != "" {
-		return fmt.Sprintf("mongodb://%s:%s@%s:%d",
-			cfg.Username,
-			cfg.Password,
-			cfg.Host,
-			cfg.Port,
-		)
+		credentialsPart = fmt.Sprintf("%s:%s@", cfg.Username, cfg.Password)
 	}
-	return fmt.Sprintf("mongodb://%s:%d",
-		cfg.Host,
-		cfg.Port,
-	)
+	var portPart string
+	scheme := "mongodb"
+	if cfg.UseSrv {
+		scheme = scheme + "+srv"
+	} else {
+		portPart = fmt.Sprintf(":%d", cfg.Port)
+	}
+	return fmt.Sprintf("%s://%s%s%s", scheme, credentialsPart, cfg.Host, portPart)
 }
 
 // PaymentsSpec defines the desired state of Payments
 type PaymentsSpec struct {
+	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
@@ -59,8 +61,6 @@ type PaymentsSpec struct {
 	Auth *AuthConfigSpec `json:"auth"`
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
-	// +optional
-	Image string `json:"image"`
 	// +optional
 	Collector          *CollectorConfig `json:"collector"`
 	ElasticSearchIndex string           `json:"elasticSearchIndex"`

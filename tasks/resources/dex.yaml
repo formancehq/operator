@@ -31,8 +31,8 @@ tasks:
       --set config.staticClients[0].id=dexclient
       --set config.staticClients[0].secret=dexclient
       --set config.staticClients[0].name=dexclient
-      --set config.staticClients[0].redirectURIs[0]=http://kubernetes.docker.internal/auth/delegatedoidc/callback
+      --set config.staticClients[0].redirectURIs[0]=http://kubernetes.docker.internal/api/auth/delegatedoidc/callback
       --set ingress.enabled=true
       --set ingress.hosts[0].host=kubernetes.docker.internal
-      --set ingress.hosts[0].paths[0].path=/dex
+      --set ingress.hosts[0].paths[0].path=/api/dex
       --set ingress.hosts[0].paths[0].pathType=Prefix

@@ -23,12 +23,13 @@ import (
 
 // ControlSpec defines the desired state of Control
 type ControlSpec struct {
+	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
-	Debug bool `json:"debug"`
-	// +optional
-	Image string `json:"image"`
+	Debug       bool   `json:"debug"`
+	ApiURLFront string `json:"apiURLFront"`
+	ApiURLBack  string `json:"apiURLBack"`
 }
 
 //+kubebuilder:object:root=true

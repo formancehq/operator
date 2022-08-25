@@ -153,6 +153,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: payment.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "payment",
 						Image:           image,
@@ -226,6 +227,7 @@ func (r *Mutator) reconcileIngress(ctx context.Context, payment *componentsv1bet
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = payment.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
+			TLS: payment.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: payment.Spec.Ingress.Host,
@@ -286,7 +288,7 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, payment *compone
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = "payments"
+		t.Spec.Topic = payment.Spec.Collector.Topic
 		t.Spec.Reference = fmt.Sprintf("%s-search", payment.Namespace)
 		return nil
 	})

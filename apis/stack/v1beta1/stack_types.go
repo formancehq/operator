@@ -25,11 +25,11 @@ import (
 
 type IngressGlobalConfig struct {
 	// +optional
+	TLS *IngressTLS `json:"tls"`
+	// +optional
 	Enabled bool `json:"enabled,omitempty"`
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// +required
-	Host string `json:"host"`
 }
 
 // StackSpec defines the desired state of Stack
@@ -48,6 +48,10 @@ type StackSpec struct {
 	Ingress IngressGlobalConfig `json:"ingress"`
 	// +optional
 	Kafka *KafkaConfig `json:"kafka"`
+	// +required
+	Host string `json:"host"`
+	// +optional
+	Scheme string `json:"scheme"`
 }
 
 type ServicesSpec struct {
@@ -80,6 +84,13 @@ type Stack struct {
 
 	Spec   StackSpec `json:"spec,omitempty"`
 	Status Status    `json:"status,omitempty"`
+}
+
+func (in *Stack) GetScheme() string {
+	if in.Spec.Scheme != "" {
+		return in.Spec.Scheme
+	}
+	return "https"
 }
 
 func (in *Stack) IsDirty(t Object) bool {

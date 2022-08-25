@@ -98,6 +98,22 @@ spec:
                 type: string
               image:
                 type: string
+              imagePullSecrets:
+                description: 'ImagePullSecrets is an optional list of references to
+                  secrets in the same namespace to use for pulling any of the images
+                  used by this PodSpec. If specified, these secrets will be passed
+                  to individual puller implementations for them to use. More info:
+                  https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod'
+                items:
+                  description: LocalObjectReference contains enough information to
+                    let you locate the referenced object inside the same namespace.
+                  properties:
+                    name:
+                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                  type: object
+                type: array
               ingress:
                 properties:
                   annotations:
@@ -108,6 +124,17 @@ spec:
                     type: string
                   path:
                     type: string
+                  tls:
+                    properties:
+                      secretName:
+                        description: SecretName is the name of the secret used to
+                          terminate TLS traffic on port 443. Field is left optional
+                          to allow TLS routing based on SNI hostname alone. If the
+                          SNI host in a listener conflicts with the "Host" header
+                          field used by an IngressRule, the SNI host is used for termination
+                          and value of the Host header is used for routing.
+                        type: string
+                    type: object
                 required:
                 - host
                 - path
@@ -122,6 +149,8 @@ spec:
                     type: string
                   port:
                     type: integer
+                  useSrv:
+                    type: boolean
                   username:
                     type: string
                 required:
@@ -129,6 +158,7 @@ spec:
                 - host
                 - password
                 - port
+                - useSrv
                 - username
                 type: object
               monitoring:

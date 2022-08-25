@@ -39,12 +39,14 @@ var _ = Describe("Auth controller", func() {
 						},
 						Spec: AuthSpec{
 							Postgres: PostgresConfigCreateDatabase{
-								PostgresConfig: PostgresConfig{
+								PostgresConfigWithDatabase: PostgresConfigWithDatabase{
 									Database: "auth",
-									Port:     5432,
-									Host:     "postgres",
-									Username: "auth",
-									Password: "auth",
+									PostgresConfig: PostgresConfig{
+										Port:     5432,
+										Host:     "postgres",
+										Username: "auth",
+										Password: "auth",
+									},
 								},
 								CreateDatabase: false,
 							},

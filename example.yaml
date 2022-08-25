@@ -23,10 +23,10 @@ metadata:
 spec:
   stripPrefix:
     prefixes:
-    - /auth
-    - /dex
-    - /jaeger
-    - /ledger
+    - /api/auth
+    - /api/dex
+    - /api/jaeger
+    - /api/ledger
 ---
 apiVersion: stack.formance.com/v1beta1
 kind: Stack
@@ -35,9 +35,10 @@ metadata:
 spec:
   namespace: stack1
   debug: true
+  scheme: http
+  host: kubernetes.docker.internal
   # Define global ingress configuration
   ingress:
-    host: kubernetes.docker.internal
     enabled: true
     annotations:
       traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
@@ -121,11 +122,11 @@ spec:
           password: admin
     control:
       image: ghcr.io/numary/control:cdbeb8e9bd10d388674da80622a113519f1147ce
-      ingress:
-        host: localhost
-        annotations:
-          # Force disable global middlewares
-          traefik.ingress.kubernetes.io/router.middlewares: ""
+#      ingress:
+#        host: localhost
+#        annotations:
+#          # Force disable global middlewares
+#          traefik.ingress.kubernetes.io/router.middlewares: ""
 
 ---
 apiVersion: auth.components.formance.com/v1beta1

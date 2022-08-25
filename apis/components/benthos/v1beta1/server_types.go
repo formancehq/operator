@@ -24,8 +24,7 @@ import (
 
 // ServerSpec defines the desired state of Server
 type ServerSpec struct {
-	// +optional
-	Image string `json:"image,omitempty"`
+	ImageHolder `json:",inline"`
 	// +optional
 	InitContainers []corev1.Container `json:"containers,omitempty"`
 }
