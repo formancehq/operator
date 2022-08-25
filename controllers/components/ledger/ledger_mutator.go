@@ -318,7 +318,7 @@ func (r *Mutator) reconcileSearchIngester(ctx context.Context, ledger *component
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = "ledger"
+		t.Spec.Topic = ledger.Spec.Collector.Topic
 		t.Spec.Reference = fmt.Sprintf("%s-search", ledger.Namespace)
 		return nil
 	})

@@ -237,7 +237,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 		if stack.Spec.Kafka != nil {
 			collector = &authcomponentsv1beta1.CollectorConfig{
 				KafkaConfig: *stack.Spec.Kafka,
-				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
+				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			}
 		}
 		payment.Spec = authcomponentsv1beta1.PaymentsSpec{

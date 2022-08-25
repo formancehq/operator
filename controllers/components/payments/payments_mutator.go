@@ -288,7 +288,7 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, payment *compone
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = "payments"
+		t.Spec.Topic = payment.Spec.Collector.Topic
 		t.Spec.Reference = fmt.Sprintf("%s-search", payment.Namespace)
 		return nil
 	})
