@@ -185,6 +185,7 @@ func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, 
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = search.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
+			TLS: search.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: search.Spec.Ingress.Host,

@@ -257,6 +257,7 @@ func (r *Mutator) reconcileIngress(ctx context.Context, ledger *componentsv1beta
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = ledger.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
+			TLS: ledger.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: ledger.Spec.Ingress.Host,

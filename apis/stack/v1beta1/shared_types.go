@@ -60,5 +60,6 @@ func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
 		Path:        path,
 		Host:        host,
 		Annotations: annotations,
+		TLS:         stack.Spec.Ingress.TLS,
 	}
 }

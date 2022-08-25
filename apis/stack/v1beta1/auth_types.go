@@ -2,12 +2,12 @@ package v1beta1
 
 import (
 	"github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/apis/sharedtypes"
 )
 
 type AuthSpec struct {
-	sharedtypes.ImageHolder `json:",inline"`
-	PostgresConfig          sharedtypes.PostgresConfig `json:"postgres"`
+	ImageHolder    `json:",inline"`
+	PostgresConfig PostgresConfig `json:"postgres"`
 	// +optional
 	SigningKey          string                                   `json:"signingKey"`
 	DelegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
@@ -17,6 +17,8 @@ type AuthSpec struct {
 	Host string `json:"host,omitempty"`
 	// +optional
 	Scheme string `json:"scheme,omitempty"`
+	// +optional
+	Debug bool `json:"debug"`
 }
 
 func (in *AuthSpec) GetScheme() string {

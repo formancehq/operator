@@ -80,8 +80,8 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "control")
 
 	env := []corev1.EnvVar{
-		envutil.Env("API_URL_BACK", "http://kubernetes.docker.internal"),
-		envutil.Env("API_URL_FRONT", "http://kubernetes.docker.internal"),
+		envutil.Env("API_URL_BACK", control.Spec.ApiURLBack),
+		envutil.Env("API_URL_FRONT", control.Spec.ApiURLFront),
 	}
 
 	image := control.Spec.Image
@@ -156,6 +156,7 @@ func (m *Mutator) reconcileIngress(ctx context.Context, control *Control, servic
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = control.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
+			TLS: control.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: control.Spec.Ingress.Host,
