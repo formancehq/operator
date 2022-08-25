@@ -6,22 +6,10 @@ import (
 )
 
 type PostgresConfig struct {
-	Database string `json:"database"`
 	Port     int    `json:"port"`
 	Host     string `json:"host"`
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-func (c PostgresConfig) URI() string {
-	return fmt.Sprintf(
-		"postgresql://%s:%s@%s:%d/%s",
-		c.Username,
-		c.Password,
-		c.Host,
-		c.Port,
-		c.Database,
-	)
 }
 
 func (c PostgresConfig) URIWithoutDatabase() string {
@@ -31,5 +19,21 @@ func (c PostgresConfig) URIWithoutDatabase() string {
 		c.Password,
 		c.Host,
 		c.Port,
+	)
+}
+
+type PostgresConfigWithDatabase struct {
+	PostgresConfig `json:",inline"`
+	Database       string `json:"database"`
+}
+
+func (c PostgresConfigWithDatabase) URI() string {
+	return fmt.Sprintf(
+		"postgresql://%s:%s@%s:%d/%s",
+		c.Username,
+		c.Password,
+		c.Host,
+		c.Port,
+		c.Database,
 	)
 }

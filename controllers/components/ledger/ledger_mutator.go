@@ -195,7 +195,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 		}
 		if ledger.Spec.Postgres.CreateDatabase {
 			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-db-user",
+				Name:            "init-create-ledger-db",
 				Image:           "postgres:13",
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Command: []string{

@@ -32,7 +32,7 @@ tasks:
                   - name: userAdminAnyDatabase
                     db: admin
                   - name: readWriteAnyDatabase
-                    db: "*"
+                    db: admin
                 scramCredentialsSecretName: my-scram
             additionalMongodConfig:
               storage.wiredTiger.engineConfig.journalCompressor: zlib

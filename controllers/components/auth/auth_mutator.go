@@ -164,6 +164,23 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 				},
 			},
 		}
+		if auth.Spec.Postgres.CreateDatabase {
+			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+				Name:            "init-create-auth-db",
+				Image:           "postgres:13",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{
+					"sh",
+					"-c",
+					fmt.Sprintf(`psql -Atx %s -c "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 && echo "Base already exists" || psql -Atx %s -c "CREATE DATABASE \"%s\""`,
+						auth.Spec.Postgres.URIWithoutDatabase(),
+						auth.Spec.Postgres.Database,
+						auth.Spec.Postgres.URIWithoutDatabase(),
+						auth.Spec.Postgres.Database,
+					),
+				},
+			}}
+		}
 		return nil
 	})
 	switch {

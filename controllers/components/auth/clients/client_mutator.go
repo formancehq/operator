@@ -25,6 +25,7 @@ var clientFinalizer = finalizerutil.New("clients.auth.components.formance.com/fi
 // +kubebuilder:rbac:groups=auth.components.formance.com,resources=clients/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=auth.components.formance.com,resources=clients/finalizers,verbs=update
 
+// TODO: Make auth server deletion blocked by client deletion
 type Mutator struct {
 	client  client.Client
 	scheme  *runtime.Scheme
