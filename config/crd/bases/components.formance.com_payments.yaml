@@ -138,7 +138,6 @@ spec:
                 required:
                 - host
                 - path
-                - tls
                 type: object
               mongoDB:
                 properties:

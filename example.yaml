@@ -36,9 +36,9 @@ spec:
   namespace: stack1
   debug: true
   scheme: http
+  host: kubernetes.docker.internal
   # Define global ingress configuration
   ingress:
-    host: kubernetes.docker.internal
     enabled: true
     annotations:
       traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd

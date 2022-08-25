@@ -43,14 +43,11 @@ var _ = Describe("Stack controller (Auth)", func() {
 			Context("With ledger service", func() {
 				BeforeEach(func() {
 					stack.Spec.Services.Ledger = &LedgerSpec{
-						Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-							PostgresConfig: PostgresConfig{
-								Database: "XXX",
-								Port:     1234,
-								Host:     "XXX",
-								Username: "XXX",
-								Password: "XXX",
-							},
+						Postgres: PostgresConfig{
+							Port:     1234,
+							Host:     "XXX",
+							Username: "XXX",
+							Password: "XXX",
 						},
 					}
 					Expect(Update(stack)).To(BeNil())
@@ -71,7 +68,6 @@ var _ = Describe("Stack controller (Auth)", func() {
 				BeforeEach(func() {
 					stack.Spec.Auth = &AuthSpec{
 						PostgresConfig: PostgresConfig{
-							Database: "test",
 							Port:     5432,
 							Host:     "postgres",
 							Username: "admin",

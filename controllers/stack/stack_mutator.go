@@ -300,8 +300,8 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 			Ingress:     stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
 			Debug:       stack.Spec.Debug || stack.Spec.Services.Control.Debug,
 			ImageHolder: stack.Spec.Services.Control.ImageHolder,
-			ApiURLFront: fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Ingress.Host),
-			ApiURLBack:  fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Ingress.Host),
+			ApiURLFront: fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
+			ApiURLBack:  fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
 		}
 		return nil
 	})

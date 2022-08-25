@@ -39,12 +39,14 @@ var _ = Describe("Ledger controller", func() {
 						},
 						Spec: LedgerSpec{
 							Postgres: PostgresConfigCreateDatabase{
-								PostgresConfig: PostgresConfig{
+								PostgresConfigWithDatabase: PostgresConfigWithDatabase{
 									Database: "ledger",
-									Port:     5432,
-									Host:     "postgres",
-									Username: "ledger",
-									Password: "ledger",
+									PostgresConfig: PostgresConfig{
+										Port:     5432,
+										Host:     "postgres",
+										Username: "ledger",
+										Password: "ledger",
+									},
 								},
 								CreateDatabase: true,
 							},

@@ -30,8 +30,6 @@ type IngressGlobalConfig struct {
 	Enabled bool `json:"enabled,omitempty"`
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// +required
-	Host string `json:"host"` // TODO: Even without ingress, the host could be required, move it outside this structure
 }
 
 // StackSpec defines the desired state of Stack
@@ -50,6 +48,8 @@ type StackSpec struct {
 	Ingress IngressGlobalConfig `json:"ingress"`
 	// +optional
 	Kafka *KafkaConfig `json:"kafka"`
+	// +required
+	Host string `json:"host"`
 	// +optional
 	Scheme string `json:"scheme"`
 }

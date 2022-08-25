@@ -121,6 +121,8 @@ spec:
                 type: object
               debug:
                 type: boolean
+              host:
+                type: string
               ingress:
                 properties:
                   annotations:
@@ -129,8 +131,6 @@ spec:
                     type: object
                   enabled:
                     type: boolean
-                  host:
-                    type: string
                   tls:
                     properties:
                       secretName:
@@ -142,8 +142,6 @@ spec:
                           and value of the Host header is used for routing.
                         type: string
                     type: object
-                required:
-                - host
                 type: object
               kafka:
                 properties:
@@ -551,6 +549,8 @@ spec:
                     - elasticSearch
                     type: object
                 type: object
+            required:
+            - host
             type: object
           status:
             properties:

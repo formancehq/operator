@@ -83,7 +83,6 @@ spec:
                 required:
                 - host
                 - path
-                - tls
                 type: object
             required:
             - apiURLBack

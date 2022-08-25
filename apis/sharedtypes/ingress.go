@@ -11,7 +11,8 @@ type IngressSpec struct {
 	Annotations map[string]string `json:"annotations"`
 	Path        string            `json:"path"`
 	Host        string            `json:"host"`
-	TLS         *IngressTLS       `json:"tls"`
+	// +optional
+	TLS *IngressTLS `json:"tls"`
 }
 
 const (
