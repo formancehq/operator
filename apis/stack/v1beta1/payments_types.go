@@ -5,6 +5,8 @@ import (
 )
 
 type MongoDBConfig struct {
+	// +optional
+	UseSrv   bool   `json:"useSrv"`
 	Host     string `json:"host"`
 	Port     uint16 `json:"port"`
 	Username string `json:"username"`

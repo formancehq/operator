@@ -77,14 +77,27 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 				"stdout": map[string]any{},
 			})
 		}
+		kafkaInput := map[string]any{
+			"addresses":        search.Spec.KafkaConfig.Brokers,
+			"topics":           []string{ingester.Spec.Topic},
+			"consumer_group":   ingester.Name,
+			"checkpoint_limit": 1024,
+		}
+		if search.Spec.KafkaConfig.TLS {
+			kafkaInput["tls"] = map[string]any{
+				"enabled": true,
+			}
+		}
+		if search.Spec.KafkaConfig.SASL != nil {
+			kafkaInput["sasl"] = map[string]any{
+				"mechanism": search.Spec.KafkaConfig.SASL.Mechanism,
+				"user":      search.Spec.KafkaConfig.SASL.Username,
+				"password":  search.Spec.KafkaConfig.SASL.Password,
+			}
+		}
 		config := map[string]interface{}{
 			"input": map[string]any{
-				"kafka": map[string]any{
-					"addresses":        search.Spec.KafkaConfig.Brokers,
-					"topics":           []string{ingester.Spec.Topic},
-					"consumer_group":   ingester.Name,
-					"checkpoint_limit": 1024,
-				},
+				"kafka": kafkaInput,
 			},
 			"pipeline": ingester.Spec.Pipeline,
 			"output": map[string]any{

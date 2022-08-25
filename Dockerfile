@@ -1,7 +1,7 @@
 # Build the manager binary
 FROM golang:1.18 as builder
 # 1. Precompile the entire go standard library into the first Docker cache layer: useful for other projects too!
-RUN CGO_ENABLED=0 GOOS=linux go install -v -installsuffix cgo -a std
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go install -v -installsuffix cgo -a std
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -16,7 +16,7 @@ RUN go mod download
 COPY . .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -v -a -o manager main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details

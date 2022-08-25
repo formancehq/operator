@@ -138,6 +138,8 @@ spec:
                     type: string
                   port:
                     type: integer
+                  useSrv:
+                    type: boolean
                   username:
                     type: string
                 required:
@@ -145,6 +147,7 @@ spec:
                 - host
                 - password
                 - port
+                - useSrv
                 - username
                 type: object
               monitoring:
