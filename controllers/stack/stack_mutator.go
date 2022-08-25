@@ -123,10 +123,10 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 					Database:       fmt.Sprintf("%s-auth", stack.Name),
 				},
 			},
-			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Spec.Auth.GetScheme(), stack.Spec.Auth.Host),
+			BaseURL:             fmt.Sprintf("%s://%s/api/auth", stack.Spec.Auth.GetScheme(), stack.Spec.Auth.Host),
 			SigningKey:          stack.Spec.Auth.SigningKey,
-			DevMode:             stack.Spec.Debug,
-			Ingress:             stack.Spec.Auth.Ingress.Compute(stack, "/auth"),
+			DevMode:             stack.Spec.Debug || stack.Spec.Auth.Debug,
+			Ingress:             stack.Spec.Auth.Ingress.Compute(stack, "/api/auth"),
 			DelegatedOIDCServer: stack.Spec.Auth.DelegatedOIDCServer,
 			Monitoring:          stack.Spec.Monitoring,
 		}
@@ -178,8 +178,8 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			}
 		}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Ingress: stack.Spec.Services.Ledger.Ingress.Compute(stack, "/ledger"),
-			Debug:   stack.Spec.Services.Ledger.Debug,
+			Ingress: stack.Spec.Services.Ledger.Ingress.Compute(stack, "/api/ledger"),
+			Debug:   stack.Spec.Debug || stack.Spec.Services.Ledger.Debug,
 			Redis:   stack.Spec.Services.Ledger.Redis,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
@@ -237,17 +237,18 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 		if stack.Spec.Kafka != nil {
 			collector = &authcomponentsv1beta1.CollectorConfig{
 				KafkaConfig: *stack.Spec.Kafka,
-				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
+				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			}
 		}
 		payment.Spec = authcomponentsv1beta1.PaymentsSpec{
-			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/payments"),
-			Debug:              stack.Spec.Services.Payments.Debug,
+			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/api/payments"),
+			Debug:              stack.Spec.Debug || stack.Spec.Services.Payments.Debug,
 			Monitoring:         stack.Spec.Monitoring,
 			ImageHolder:        stack.Spec.Services.Payments.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 			MongoDB: authcomponentsv1beta1.MongoDBConfig{
+				UseSrv:   stack.Spec.Services.Payments.MongoDB.UseSrv,
 				Host:     stack.Spec.Services.Payments.MongoDB.Host,
 				Port:     stack.Spec.Services.Payments.MongoDB.Port,
 				Database: stack.Name,
@@ -297,8 +298,10 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 	}, stack, func(control *authcomponentsv1beta1.Control) error {
 		control.Spec = authcomponentsv1beta1.ControlSpec{
 			Ingress:     stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
-			Debug:       stack.Spec.Services.Control.Debug,
+			Debug:       stack.Spec.Debug || stack.Spec.Services.Control.Debug,
 			ImageHolder: stack.Spec.Services.Control.ImageHolder,
+			ApiURLFront: fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
+			ApiURLBack:  fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
 		}
 		return nil
 	})
@@ -345,8 +348,8 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 		Name:      stack.ServiceName("search"),
 	}, stack, func(search *authcomponentsv1beta1.Search) error {
 		search.Spec = authcomponentsv1beta1.SearchSpec{
-			Ingress:       stack.Spec.Services.Search.Ingress.Compute(stack, "/search"),
-			Debug:         stack.Spec.Services.Search.Debug,
+			Ingress:       stack.Spec.Services.Search.Ingress.Compute(stack, "/api/search"),
+			Debug:         stack.Spec.Debug || stack.Spec.Services.Search.Debug,
 			Auth:          nil,
 			Monitoring:    stack.Spec.Monitoring,
 			ImageHolder:   stack.Spec.Services.Search.ImageHolder,

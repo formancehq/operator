@@ -27,7 +27,9 @@ type ControlSpec struct {
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
-	Debug bool `json:"debug"`
+	Debug       bool   `json:"debug"`
+	ApiURLFront string `json:"apiURLFront"`
+	ApiURLBack  string `json:"apiURLBack"`
 }
 
 //+kubebuilder:object:root=true
