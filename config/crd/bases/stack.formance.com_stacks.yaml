@@ -79,8 +79,6 @@ spec:
                     type: object
                   postgres:
                     properties:
-                      database:
-                        type: string
                       host:
                         type: string
                       password:
@@ -90,7 +88,6 @@ spec:
                       username:
                         type: string
                     required:
-                    - database
                     - host
                     - password
                     - port
@@ -307,10 +304,6 @@ spec:
                         type: object
                       postgres:
                         properties:
-                          createDatabase:
-                            type: boolean
-                          database:
-                            type: string
                           host:
                             type: string
                           password:
@@ -320,8 +313,6 @@ spec:
                           username:
                             type: string
                         required:
-                        - createDatabase
-                        - database
                         - host
                         - password
                         - port

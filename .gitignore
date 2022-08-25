@@ -83,3 +83,5 @@ operator-sdk-*
 tmp
 ./bin/manager
 vendor
+
+example-staging.yaml

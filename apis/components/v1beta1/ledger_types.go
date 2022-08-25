@@ -30,8 +30,8 @@ type RedisConfig struct {
 }
 
 type PostgresConfigCreateDatabase struct {
-	PostgresConfig `json:",inline"`
-	CreateDatabase bool `json:"createDatabase"`
+	PostgresConfigWithDatabase `json:",inline"`
+	CreateDatabase             bool `json:"createDatabase"`
 }
 
 type CollectorConfig struct {

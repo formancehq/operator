@@ -118,7 +118,10 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 			Image: stack.Spec.Auth.Image,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
-				PostgresConfig: stack.Spec.Auth.PostgresConfig,
+				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
+					PostgresConfig: stack.Spec.Auth.PostgresConfig,
+					Database:       fmt.Sprintf("%s-auth", stack.Name),
+				},
 			},
 			BaseURL:             fmt.Sprintf("%s://%s/auth", stack.Spec.Auth.GetScheme(), stack.Spec.Auth.Host),
 			SigningKey:          stack.Spec.Auth.SigningKey,
@@ -175,10 +178,16 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			}
 		}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Ingress:            stack.Spec.Services.Ledger.Ingress.Compute(stack, "/ledger"),
-			Debug:              stack.Spec.Services.Ledger.Debug,
-			Redis:              stack.Spec.Services.Ledger.Redis,
-			Postgres:           stack.Spec.Services.Ledger.Postgres,
+			Ingress: stack.Spec.Services.Ledger.Ingress.Compute(stack, "/ledger"),
+			Debug:   stack.Spec.Services.Ledger.Debug,
+			Redis:   stack.Spec.Services.Ledger.Redis,
+			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
+				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
+					Database:       fmt.Sprintf("%s-ledger", stack.Name),
+					PostgresConfig: stack.Spec.Services.Ledger.Postgres,
+				},
+				CreateDatabase: true,
+			},
 			Monitoring:         stack.Spec.Monitoring,
 			Image:              stack.Spec.Services.Ledger.Image,
 			Collector:          collector,
