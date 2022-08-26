@@ -4,9 +4,10 @@ package sharedtypes
 import (
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/numary/formance-operator/internal/envutil"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type ConfigSource struct {
@@ -62,49 +63,50 @@ func (c *PostgresConfigWithDatabase) Env(prefix string) []corev1.EnvVar {
 	return append(ret, c.PostgresConfig.Env(prefix)...)
 }
 
-func (c *PostgresConfigWithDatabase) Validate() error {
-	if err := c.PostgresConfig.Validate(); err != nil {
-		return err
-	}
-	if err := validate(c.Database, c.DatabaseFrom); err != nil {
-		return errors.Wrap(err, "validation 'database' config")
-	}
-	return nil
+func (c *PostgresConfigWithDatabase) Validate() field.ErrorList {
+	ret := field.ErrorList{}
+	ret = append(ret, c.PostgresConfig.Validate()...)
+	return append(ret, validate("database", c.Database, c.DatabaseFrom)...)
 }
 
-func validateOneOf[T comparable](v T, source *ConfigSource) bool {
+func validateOneOf[T comparable](key string, v T, source *ConfigSource) field.ErrorList {
 	var zeroValue T
-	return v == zeroValue || source == nil
+	ret := field.ErrorList{}
+	if !(v == zeroValue || source == nil) {
+		ret = append(ret, &field.Error{
+			Type:     field.ErrorTypeDuplicate,
+			Field:    key,
+			BadValue: v,
+			Detail:   fmt.Sprintf("Only '%s' OR '%sFrom' can be specified", key, key),
+		})
+	}
+	return ret
 }
 
-func validate[T comparable](v T, source *ConfigSource) error {
+func validate[T comparable](key string, v T, source *ConfigSource) field.ErrorList {
 	var zeroValue T
+	ret := field.ErrorList{}
 	if v == zeroValue && source == nil {
-		return errors.New("missing config")
+		ret = append(ret, field.Invalid(
+			field.NewPath(key),
+			nil,
+			fmt.Sprintf("Either '%s' or '%sFrom' must be specified", key, key),
+		))
 	}
-	if !validateOneOf(v, source) {
-		return errors.New("invalid config")
-	}
-	return nil
+	return append(ret, validateOneOf(key, v, source)...)
 }
 
-func (c *PostgresConfig) Validate() error {
-	if err := validate(c.Host, c.HostFrom); err != nil {
-		return errors.Wrap(err, "validation 'host' config")
-	}
-	if err := validate(c.Port, c.PortFrom); err != nil {
-		return errors.Wrap(err, "validation 'port' config")
-	}
-	if !validateOneOf(c.Username, c.UsernameFrom) {
-		return fmt.Errorf("validation 'username' config")
-	}
+func (c *PostgresConfig) Validate() field.ErrorList {
+	ret := field.ErrorList{}
+	ret = append(ret, validate("host", c.Host, c.HostFrom)...)
+	ret = append(ret, validate("port", c.Port, c.PortFrom)...)
+	ret = append(ret, validateOneOf("username", c.Username, c.UsernameFrom)...)
 
 	if c.Username != "" || c.UsernameFrom != nil {
-		if err := validate(c.Password, c.PasswordFrom); err != nil {
-			return errors.New("missing 'password' config as 'username' is defined")
-		}
+		ret = append(ret, validate("password", c.Password, c.PasswordFrom)...)
 	}
-	return nil
+	spew.Dump(ret)
+	return ret
 }
 
 func (c *PostgresConfig) Env(prefix string) []corev1.EnvVar {

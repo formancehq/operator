@@ -20,7 +20,9 @@ import (
 	"fmt"
 
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type IngressGlobalConfig struct {
@@ -52,6 +54,19 @@ type StackSpec struct {
 	Host string `json:"host"`
 	// +optional
 	Scheme string `json:"scheme"`
+}
+
+func (in *StackSpec) Validate() field.ErrorList {
+	ret := field.ErrorList{}
+	ret = append(ret, Map(in.Services.Ledger.Validate(), func(t1 *field.Error) *field.Error {
+		t1.Field = fmt.Sprintf("services.ledger.%s", t1.Field)
+		return t1
+	})...)
+	ret = append(ret, Map(in.Auth.Validate(), func(t1 *field.Error) *field.Error {
+		t1.Field = fmt.Sprintf("auth.%s", t1.Field)
+		return t1
+	})...)
+	return ret
 }
 
 type ServicesSpec struct {

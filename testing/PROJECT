@@ -1,6 +1,0 @@
-domain: my.domain
-layout:
-- go.kubebuilder.io/v3
-projectName: testing
-repo: github.com/numary/formance-operator
-version: "3"

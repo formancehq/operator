@@ -55,11 +55,6 @@ spec:
       port: 5432
       username: formance
       password: formance
-      # Optional signing key
-      # The signing key is used by the server to sign JWT tokens
-      # The value of this config will be copied to a secret and injected inside
-      # the env vars of the server using secret mapping.
-      # If not specified, a key will be automatically generated.
   monitoring:
     traces:
       otlp:

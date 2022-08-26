@@ -67,7 +67,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 			Context("With auth configuration", func() {
 				BeforeEach(func() {
 					stack.Spec.Auth = &AuthSpec{
-						PostgresConfig: PostgresConfig{
+						Postgres: PostgresConfig{
 							Port:     5432,
 							Host:     "postgres",
 							Username: "admin",

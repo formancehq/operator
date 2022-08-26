@@ -119,7 +119,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
-					PostgresConfig: stack.Spec.Auth.PostgresConfig,
+					PostgresConfig: stack.Spec.Auth.Postgres,
 					Database:       fmt.Sprintf("%s-auth", stack.Name),
 				},
 			},

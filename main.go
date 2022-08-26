@@ -20,15 +20,16 @@ import (
 	"flag"
 	"os"
 
+	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	"github.com/numary/formance-operator/controllers/components/auth/clients"
 	"github.com/numary/formance-operator/controllers/components/auth/scopes"
 	"github.com/numary/formance-operator/controllers/components/benthos/streams"
 	"github.com/numary/formance-operator/controllers/components/payments"
 	"github.com/numary/formance-operator/controllers/components/search/searchingester"
-	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	benthoscomponentsformancecomv1beta1 "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	"github.com/numary/formance-operator/controllers/components/benthos"
@@ -163,6 +164,10 @@ func main() {
 	searchIngesterMutator := searchingester.NewMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchIngesterMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SearchIngester")
+		os.Exit(1)
+	}
+	if err = (&stackv1beta1.Stack{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Stack")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
