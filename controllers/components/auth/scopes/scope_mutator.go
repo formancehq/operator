@@ -53,6 +53,10 @@ func (s Mutator) Mutate(ctx context.Context, actualK8SScope *authcomponentsv1bet
 
 	SetProgressing(actualK8SScope)
 
+	if err := pkgInternal.DefineOwner(ctx, s.client, s.scheme, actualK8SScope, actualK8SScope.Spec.AuthServerReference); err != nil {
+		return Requeue(), err
+	}
+
 	var (
 		err                             error
 		actualAuthServerScope           *authclient.Scope

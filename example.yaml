@@ -94,20 +94,23 @@ spec:
           password: admin
     control:
       image: ghcr.io/numary/control:cdbeb8e9bd10d388674da80622a113519f1147ce
-#      ingress:
-#        host: localhost
-#        annotations:
-#          # Force disable global middlewares
-#          traefik.ingress.kubernetes.io/router.middlewares: ""
-
 ---
 apiVersion: auth.components.formance.com/v1beta1
-kind: Client
+kind: Scope
 metadata:
-  name: postman
+  name: scope1
   namespace: stack1
 spec:
-  public: true
+  label: scope1
   authServerReference: auth
-  redirectUris:
-  - https://oauth.pstmn.io/v1/callback
+#---
+#apiVersion: auth.components.formance.com/v1beta1
+#kind: Client
+#metadata:
+#  name: postman
+#  namespace: stack1
+#spec:
+#  public: true
+#  authServerReference: auth
+#  redirectUris:
+#  - https://oauth.pstmn.io/v1/callback

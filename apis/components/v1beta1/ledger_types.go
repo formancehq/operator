@@ -75,8 +75,12 @@ type Ledger struct {
 	Status Status     `json:"status,omitempty"`
 }
 
+func (a *Ledger) GetStatus() Dirty {
+	return &a.Status
+}
+
 func (a *Ledger) IsDirty(t Object) bool {
-	return a.Status.IsDirty(t)
+	return false
 }
 
 func (a *Ledger) GetConditions() *Conditions {

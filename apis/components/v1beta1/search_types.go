@@ -77,8 +77,12 @@ type Search struct {
 	Status Status     `json:"status,omitempty"`
 }
 
+func (in *Search) GetStatus() Dirty {
+	return &in.Status
+}
+
 func (in *Search) IsDirty(t Object) bool {
-	return in.Status.IsDirty(t)
+	return false
 }
 
 func (in *Search) GetConditions() *Conditions {

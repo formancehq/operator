@@ -1,14 +1,18 @@
 package clients
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 	. "github.com/numary/formance-operator/apis/components/auth/v1beta1"
+	"github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	pkgInternal "github.com/numary/formance-operator/controllers/components/auth/internal"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -22,8 +26,40 @@ var _ = Describe("Client reconciler", func() {
 	})
 	WithMutator(mutator, func() {
 		WithNewNamespace(func() {
+			var (
+				authServerReference = uuid.NewString()
+				auth                *v1beta1.Auth
+			)
+			BeforeEach(func() {
+				auth = &v1beta1.Auth{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: fmt.Sprintf("%s-%s", ActualNamespace().Name, authServerReference),
+					},
+					Spec: v1beta1.AuthSpec{
+						Postgres: v1beta1.PostgresConfigCreateDatabase{
+							PostgresConfigWithDatabase: PostgresConfigWithDatabase{
+								PostgresConfig: PostgresConfig{
+									Port:     8080,
+									Host:     "foo",
+									Username: "xxx",
+									Password: "xxx",
+								},
+								Database: "xxx",
+							},
+						},
+						BaseURL:    "http://localhost:8080",
+						SigningKey: "XXX",
+						DelegatedOIDCServer: v1beta1.DelegatedOIDCServerConfiguration{
+							Issuer:       "http://issuer",
+							ClientID:     "xxx",
+							ClientSecret: "xxx",
+						},
+					},
+				}
+				Expect(Create(auth)).To(BeNil())
+			})
 			newClient := func() *Client {
-				return NewClient(uuid.NewString())
+				return NewClient(uuid.NewString(), authServerReference)
 			}
 
 			When("Creating a new client object", func() {
@@ -45,6 +81,15 @@ var _ = Describe("Client reconciler", func() {
 					Expect(api.Client(actualClient.Status.AuthServerID)).NotTo(BeNil())
 					Expect(api.Client(actualClient.Status.AuthServerID).Name).To(Equal(actualClient.Name))
 				})
+				It("Should apply correct ownership", func() {
+					Expect(actualClient.GetOwnerReferences()).To(Equal([]metav1.OwnerReference{{
+						APIVersion:         "components.formance.com/v1beta1",
+						Kind:               "Auth",
+						Name:               auth.Name,
+						UID:                auth.UID,
+						BlockOwnerDeletion: pointer.Bool(true),
+					}}))
+				})
 				Context("Then deleting it", func() {
 					BeforeEach(func() {
 						Expect(Delete(actualClient)).To(BeNil())
@@ -57,7 +102,7 @@ var _ = Describe("Client reconciler", func() {
 				Context("Then adding an unknown scope without creating it", func() {
 					var scope *Scope
 					BeforeEach(func() {
-						scope = NewScope(uuid.NewString(), uuid.NewString())
+						scope = NewScope(uuid.NewString(), uuid.NewString(), auth.Name)
 
 						actualClient.AddScopeSpec(scope)
 						Expect(Update(actualClient)).To(BeNil())

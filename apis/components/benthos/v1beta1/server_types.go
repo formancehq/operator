@@ -35,6 +35,14 @@ type ServerStatus struct {
 	PodIP  string `json:"podIP,omitempty"`
 }
 
+func (in *ServerStatus) IsDirty(t Object) bool {
+	if in.Status.IsDirty(t) {
+		return true
+	}
+	server := t.(*Server)
+	return in.PodIP != server.Status.PodIP
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -47,12 +55,12 @@ type Server struct {
 	Status ServerStatus `json:"status,omitempty"`
 }
 
+func (in *Server) GetStatus() Dirty {
+	return &in.Status
+}
+
 func (in *Server) IsDirty(t Object) bool {
-	if in.Status.IsDirty(t) {
-		return true
-	}
-	server := t.(*Server)
-	return in.Status.PodIP != server.Status.PodIP
+	return false
 }
 
 func (in *Server) GetConditions() *Conditions {

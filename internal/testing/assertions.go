@@ -46,6 +46,14 @@ func NotFound(object client.Object) func() bool {
 
 func Exists(object client.Object) func() bool {
 	return func() bool {
-		return k8sClient.Get(ctx, client.ObjectKeyFromObject(object), object) == nil
+		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(object), object)
+		switch {
+		case errors.IsNotFound(err):
+			return false
+		case err == nil:
+			return true
+		default:
+			panic(err)
+		}
 	}
 }

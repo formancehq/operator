@@ -80,12 +80,16 @@ type Payments struct {
 	Status Status       `json:"status,omitempty"`
 }
 
+func (in *Payments) GetStatus() Dirty {
+	return &in.Status
+}
+
 func (in *Payments) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
 func (in *Payments) IsDirty(t Object) bool {
-	return in.Status.IsDirty(t)
+	return false
 }
 
 //+kubebuilder:object:root=true

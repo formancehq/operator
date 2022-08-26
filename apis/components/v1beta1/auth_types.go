@@ -62,8 +62,12 @@ type Auth struct {
 	Status Status   `json:"status,omitempty"`
 }
 
+func (a *Auth) GetStatus() Dirty {
+	return &a.Status
+}
+
 func (a *Auth) IsDirty(t Object) bool {
-	return a.Status.IsDirty(t)
+	return false
 }
 
 func (a *Auth) GetConditions() *Conditions {

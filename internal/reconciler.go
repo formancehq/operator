@@ -64,10 +64,18 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	if updated.IsDirty(actual) {
-		log.FromContext(ctx).Info("Object dirty, updating status")
-		if patchErr := r.Status().Update(ctx, updated); patchErr != nil {
-			log.FromContext(ctx).Error(patchErr, "Updating status")
+		log.FromContext(ctx).Info("Object dirty, updating it")
+		if patchErr := r.Update(ctx, updated); patchErr != nil {
+			log.FromContext(ctx).Error(patchErr, "Updating object")
 			return ctrl.Result{}, patchErr
+		}
+	} else {
+		if updated.GetStatus().IsDirty(actual) {
+			log.FromContext(ctx).Info("Object dirty, updating status")
+			if patchErr := r.Status().Update(ctx, updated); patchErr != nil {
+				log.FromContext(ctx).Error(patchErr, "Updating status")
+				return ctrl.Result{}, patchErr
+			}
 		}
 	}
 

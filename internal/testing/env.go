@@ -88,6 +88,10 @@ func GetScheme() *runtime.Scheme {
 	return scheme.Scheme
 }
 
+func ActualNamespace() *corev1.Namespace {
+	return ns
+}
+
 var _ = SynchronizedAfterSuite(func() {
 	cancel()
 	Expect(testEnv.Stop()).To(BeNil())
@@ -144,6 +148,7 @@ func WithNewNamespace(fn func()) {
 	AfterEach(func() {
 		Expect(k8sClient.Delete(ctx, ns))
 		k8sClient = oldClient
+		ns = nil
 	})
 	fn()
 }

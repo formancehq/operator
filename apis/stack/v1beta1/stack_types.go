@@ -92,9 +92,12 @@ func (in *Stack) GetScheme() string {
 	}
 	return "https"
 }
+func (in *Stack) GetStatus() Dirty {
+	return &in.Status
+}
 
 func (in *Stack) IsDirty(t Object) bool {
-	return in.Status.IsDirty(t)
+	return false
 }
 
 func (in *Stack) GetConditions() *Conditions {

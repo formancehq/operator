@@ -56,6 +56,10 @@ func (r Mutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1be
 		return Requeue(), err
 	}
 
+	if err := pkgInternal.DefineOwner(ctx, r.client, r.scheme, actualK8SClient, actualK8SClient.Spec.AuthServerReference); err != nil {
+		return Requeue(), err
+	}
+
 	var (
 		actualAuthServerClient           *authclient.Client
 		err                              error
