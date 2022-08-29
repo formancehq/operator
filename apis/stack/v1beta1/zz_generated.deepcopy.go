@@ -145,7 +145,7 @@ func (in *IngressGlobalConfig) DeepCopy() *IngressGlobalConfig {
 func (in *LedgerSpec) DeepCopyInto(out *LedgerSpec) {
 	*out = *in
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
-	out.Scaling = in.Scaling
+	in.Scalable.DeepCopyInto(&out.Scalable)
 	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Redis != nil {
 		in, out := &in.Redis, &out.Redis

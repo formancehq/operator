@@ -22,6 +22,7 @@ limitations under the License.
 package sharedtypes
 
 import (
+	"k8s.io/api/autoscaling/v2"
 	"k8s.io/api/core/v1"
 )
 
@@ -375,6 +376,18 @@ func (in *Scalable) DeepCopyInto(out *Scalable) {
 		in, out := &in.Replicas, &out.Replicas
 		*out = new(int32)
 		**out = **in
+	}
+	if in.MinReplicas != nil {
+		in, out := &in.MinReplicas, &out.MinReplicas
+		*out = new(int32)
+		**out = **in
+	}
+	if in.Metrics != nil {
+		in, out := &in.Metrics, &out.Metrics
+		*out = make([]v2.MetricSpec, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 }
 

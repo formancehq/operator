@@ -181,9 +181,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			}
 		}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Scalable: Scalable{
-				Replicas: ledger.Spec.Replicas,
-			},
+			Scalable:    stack.Spec.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
 			ImageHolder: stack.Spec.Services.Ledger.ImageHolder,
 			Ingress:     stack.Spec.Services.Ledger.Ingress.Compute(stack, "/api/ledger"),
 			Debug:       stack.Spec.Debug || stack.Spec.Services.Ledger.Debug,

@@ -35,9 +35,12 @@ import (
 	pkgError "github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscallingv1 "k8s.io/api/autoscaling/v1"
+	autoscallingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -70,6 +73,7 @@ type Mutator struct {
 	Scheme *runtime.Scheme
 }
 
+// +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
@@ -111,6 +115,10 @@ func (r *Mutator) Mutate(ctx context.Context, ledger *componentsv1beta1.Ledger) 
 			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(ledger)
+	}
+
+	if _, err := r.reconcileHPA(ctx, ledger); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling HPA")
 	}
 
 	SetReady(ledger)
@@ -188,6 +196,12 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 							FailureThreshold:              10,
 							TerminationGracePeriodSeconds: pointer.Int64(10),
 						},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+								corev1.ResourceMemory: *resource.NewMilliQuantity(100, resource.DecimalSI),
+							},
+						},
 					}},
 				},
 			},
@@ -200,7 +214,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 				Command: []string{
 					"sh",
 					"-c",
-					fmt.Sprintf(`psql -Atx ${POSTGRES_URI} -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI} -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`),
+					`psql -Atx ${POSTGRES_URI} -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI} -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
 				Env: ledger.Spec.Postgres.Env(""),
 			}}
@@ -227,8 +241,24 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	return ret, err
 }
 
-func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.Ledger, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
+func (r *Mutator) reconcileHPA(ctx context.Context, ledger *componentsv1beta1.Ledger) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+		hpa.Spec = ledger.Spec.GetHPASpec(ledger)
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetHPAError(ledger, err.Error())
+		return nil, err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetHPAReady(ledger)
+	}
+	return ret, err
+}
+
+func (r *Mutator) reconcileService(ctx context.Context, ledger *componentsv1beta1.Ledger, deployment *appsv1.Deployment) (*corev1.Service, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(service *corev1.Service) error {
 		service.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
 				Name:        "http",
@@ -243,11 +273,11 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	})
 	switch {
 	case err != nil:
-		SetServiceError(auth, err.Error())
+		SetServiceError(ledger, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetServiceReady(auth)
+		SetServiceReady(ledger)
 	}
 	return ret, err
 }
@@ -340,7 +370,8 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta1.Scope{}).
-		Owns(&componentsv1beta1.SearchIngester{})
+		Owns(&componentsv1beta1.SearchIngester{}).
+		Owns(&autoscallingv1.HorizontalPodAutoscaler{})
 	return nil
 }
 

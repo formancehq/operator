@@ -35,9 +35,11 @@ import (
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscallingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -96,6 +98,10 @@ func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ct
 			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
 		RemoveIngressCondition(auth)
+	}
+
+	if _, err := r.reconcileHPA(ctx, auth); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling HPA")
 	}
 
 	SetReady(auth)
@@ -164,6 +170,12 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 						Env:             env,
 						LivenessProbe:   probeutil.DefaultLiveness(),
 						ImagePullPolicy: ImagePullPolicy(image),
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+								corev1.ResourceMemory: *resource.NewMilliQuantity(100, resource.DecimalSI),
+							},
+						},
 					}},
 				},
 			},
@@ -176,7 +188,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 				Command: []string{
 					"sh",
 					"-c",
-					fmt.Sprintf(`psql -Atx ${POSTGRES_URI} -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI} -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`),
+					`psql -Atx ${POSTGRES_URI} -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI} -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
 				Env: auth.Spec.Postgres.Env(""),
 			}}
@@ -307,6 +319,22 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.
 		SetIngressReady(auth)
 	}
 	return ret, nil
+}
+
+func (r *Mutator) reconcileHPA(ctx context.Context, auth *componentsv1beta1.Auth) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+		hpa.Spec = auth.Spec.GetHPASpec(auth)
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetHPAError(auth, err.Error())
+		return nil, err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetHPAReady(auth)
+	}
+	return ret, err
 }
 
 // SetupWithManager sets up the controller with the Manager.

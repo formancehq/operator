@@ -13,7 +13,9 @@ tasks:
       --install
       --set persistence.enabled=true
       --set service.type=NodePort
-      --set service.nodePort=30100 
+      --set service.nodePort=30100
+    - helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+    - helm upgrade --install --set args={--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP,ExternalIP} metrics-server metrics-server/metrics-server --namespace kube-system
 
   delete:
     desc: Delete the Kind cluster

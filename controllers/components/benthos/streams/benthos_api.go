@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"strings"
@@ -74,7 +73,7 @@ func (a *DefaultApi) CreateStream(ctx context.Context, address string, id string
 	case http.StatusOK:
 		return nil
 	case http.StatusBadRequest:
-		data, err := ioutil.ReadAll(rsp.Body)
+		data, err := io.ReadAll(rsp.Body)
 		if err != nil {
 			panic(err)
 		}

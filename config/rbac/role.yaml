@@ -70,6 +70,18 @@ rules:
   - patch
   - update
 - apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - benthos.components.formance.com
   resources:
   - servers

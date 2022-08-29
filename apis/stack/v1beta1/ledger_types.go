@@ -12,10 +12,9 @@ import (
 // +kubebuilder:object:generate=true
 type LedgerSpec struct {
 	ImageHolder `json:",inline"`
+	Scalable    `json:",inline"`
 	// +optional
-	Debug bool `json:"debug,omitempty"`
-	// +optional
-	Scaling  ScalingSpec    `json:"scaling,omitempty"`
+	Debug    bool           `json:"debug,omitempty"`
 	Postgres PostgresConfig `json:"postgres"`
 	// +optional
 	Redis *authcomponentsv1beta1.RedisConfig `json:"redis"`
