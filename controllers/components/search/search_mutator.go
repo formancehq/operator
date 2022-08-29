@@ -121,6 +121,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
+			Replicas: search.Spec.GetReplicas(),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
 			},
@@ -153,6 +154,15 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	default:
 		SetDeploymentReady(search)
 	}
+
+	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	search.Status.Selector = selector.String()
+	search.Status.Replicas = *search.Spec.GetReplicas()
+
 	return ret, err
 }
 

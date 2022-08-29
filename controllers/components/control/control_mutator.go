@@ -91,6 +91,7 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(control), control, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
+			Replicas: control.Spec.GetReplicas(),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
 			},
@@ -123,6 +124,15 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 	default:
 		SetDeploymentReady(control)
 	}
+
+	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	control.Status.Selector = selector.String()
+	control.Status.Replicas = *control.Spec.GetReplicas()
+
 	return ret, err
 }
 

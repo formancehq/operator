@@ -68,8 +68,8 @@ type PaymentsSpec struct {
 	MongoDB MongoDBConfig `json:"mongoDB"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // Payments is the Schema for the payments API
 type Payments struct {

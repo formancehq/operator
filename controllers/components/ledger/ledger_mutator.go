@@ -149,13 +149,10 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 		env = append(env, ledger.Spec.Collector.Env("NUMARY_")...)
 	}
 
-	image := ledger.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
-
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(deployment *appsv1.Deployment) error {
+		image := ledger.Spec.GetImage(defaultImage)
 		deployment.Spec = appsv1.DeploymentSpec{
+			Replicas: ledger.Spec.GetReplicas(),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
 			},
@@ -218,6 +215,15 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	default:
 		SetDeploymentReady(ledger)
 	}
+
+	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	ledger.Status.Selector = selector.String()
+	ledger.Status.Replicas = *ledger.Spec.GetReplicas()
+
 	return ret, err
 }
 

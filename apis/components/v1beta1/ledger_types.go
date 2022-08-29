@@ -46,6 +46,7 @@ func (c CollectorConfig) Env(prefix string) []corev1.EnvVar {
 
 // LedgerSpec defines the desired state of Ledger
 type LedgerSpec struct {
+	Scalable    `json:",inline"`
 	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
@@ -63,16 +64,17 @@ type LedgerSpec struct {
 	ElasticSearchIndex string           `json:"elasticSearchIndex"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
 // Ledger is the Schema for the ledgers API
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 type Ledger struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   LedgerSpec `json:"spec,omitempty"`
-	Status Status     `json:"status,omitempty"`
+	Spec LedgerSpec `json:"spec"`
+	// +optional
+	Status ReplicationStatus `json:"status"`
 }
 
 func (a *Ledger) GetStatus() Dirty {

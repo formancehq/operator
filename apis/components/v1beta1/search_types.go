@@ -51,6 +51,7 @@ func (in *ElasticSearchConfig) Endpoint() string {
 
 // SearchSpec defines the desired state of Search
 type SearchSpec struct {
+	Scalable    `json:",inline"`
 	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
@@ -65,16 +66,17 @@ type SearchSpec struct {
 	Index         string              `json:"index"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 
 // Search is the Schema for the searches API
 type Search struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SearchSpec `json:"spec,omitempty"`
-	Status Status     `json:"status,omitempty"`
+	Spec   SearchSpec        `json:"spec,omitempty"`
+	Status ReplicationStatus `json:"status,omitempty"`
 }
 
 func (in *Search) GetStatus() Dirty {

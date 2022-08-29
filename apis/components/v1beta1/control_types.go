@@ -23,6 +23,7 @@ import (
 
 // ControlSpec defines the desired state of Control
 type ControlSpec struct {
+	Scalable    `json:",inline"`
 	ImageHolder `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
@@ -32,16 +33,17 @@ type ControlSpec struct {
 	ApiURLBack  string `json:"apiURLBack"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 
 // Control is the Schema for the controls API
 type Control struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ControlSpec `json:"spec,omitempty"`
-	Status Status      `json:"status,omitempty"`
+	Spec   ControlSpec       `json:"spec,omitempty"`
+	Status ReplicationStatus `json:"status,omitempty"`
 }
 
 func (in *Control) GetStatus() Dirty {
@@ -56,7 +58,8 @@ func (in *Control) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 
 // ControlList contains a list of Control
 type ControlList struct {

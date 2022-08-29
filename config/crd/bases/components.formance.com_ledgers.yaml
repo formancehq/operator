@@ -464,6 +464,9 @@ spec:
                 required:
                 - uri
                 type: object
+              replicas:
+                format: int32
+                type: integer
             required:
             - elasticSearchIndex
             - postgres
@@ -516,9 +519,20 @@ spec:
                   - type
                   type: object
                 type: array
+              replicas:
+                format: int32
+                type: integer
+              selector:
+                type: string
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true
     subresources:
+      scale:
+        labelSelectorPath: .status.selector
+        specReplicasPath: .spec.replicas
+        statusReplicasPath: .status.replicas
       status: {}

@@ -29,6 +29,7 @@ type DelegatedOIDCServerConfiguration struct {
 
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
+	Scalable    `json:",inline"`
 	ImageHolder `json:",inline"`
 	Postgres    PostgresConfigCreateDatabase `json:"postgres"`
 	BaseURL     string                       `json:"baseURL"`
@@ -50,16 +51,17 @@ type AuthSpec struct {
 	Monitoring *MonitoringSpec `json:"monitoring"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 
 // Auth is the Schema for the auths API
 type Auth struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AuthSpec `json:"spec,omitempty"`
-	Status Status   `json:"status,omitempty"`
+	Spec   AuthSpec          `json:"spec,omitempty"`
+	Status ReplicationStatus `json:"status,omitempty"`
 }
 
 func (a *Auth) GetStatus() Dirty {
