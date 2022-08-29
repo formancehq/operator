@@ -93,23 +93,3 @@ spec:
           password: admin
     control:
       image: ghcr.io/numary/control:cdbeb8e9bd10d388674da80622a113519f1147ce
----
-apiVersion: auth.components.formance.com/v1beta1
-kind: Scope
-metadata:
-  name: scope1
-  namespace: stack1
-spec:
-  label: scope1
-  authServerReference: auth
-#---
-#apiVersion: auth.components.formance.com/v1beta1
-#kind: Client
-#metadata:
-#  name: postman
-#  namespace: stack1
-#spec:
-#  public: true
-#  authServerReference: auth
-#  redirectUris:
-#  - https://oauth.pstmn.io/v1/callback
