@@ -147,11 +147,7 @@ func (in *LedgerSpec) DeepCopyInto(out *LedgerSpec) {
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	in.Scalable.DeepCopyInto(&out.Scalable)
 	in.Postgres.DeepCopyInto(&out.Postgres)
-	if in.Redis != nil {
-		in, out := &in.Redis, &out.Redis
-		*out = new(componentsv1beta1.RedisConfig)
-		**out = **in
-	}
+	in.LockingStrategy.DeepCopyInto(&out.LockingStrategy)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
 		*out = new(IngressConfig)

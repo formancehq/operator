@@ -73,6 +73,10 @@ spec:
         port: 5432
         username: formance
         password: formance
+      locking:
+        strategy: redis
+        redis:
+          uri: redis://redis-headless.default.svc.cluster.local:6379
     payments:
       mongoDB:
         host: mongodb-svc.default.svc.cluster.local

@@ -4,7 +4,6 @@ package sharedtypes
 import (
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/numary/formance-operator/internal/envutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -105,7 +104,6 @@ func (c *PostgresConfig) Validate() field.ErrorList {
 	if c.Username != "" || c.UsernameFrom != nil {
 		ret = append(ret, validate("password", c.Password, c.PasswordFrom)...)
 	}
-	spew.Dump(ret)
 	return ret
 }
 

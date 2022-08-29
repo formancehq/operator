@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httputil"
 	"strings"
 )
 
@@ -47,12 +46,6 @@ func (a *DefaultApi) request(ctx context.Context, address, method, path string, 
 	}
 	req = req.WithContext(ctx)
 
-	data, err := httputil.DumpRequest(req, true)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(data))
-
 	return http.DefaultClient.Do(req)
 }
 
@@ -62,12 +55,6 @@ func (a *DefaultApi) CreateStream(ctx context.Context, address string, id string
 	if err != nil {
 		return err
 	}
-
-	data, err := httputil.DumpResponse(rsp, true)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(data))
 
 	switch rsp.StatusCode {
 	case http.StatusOK:

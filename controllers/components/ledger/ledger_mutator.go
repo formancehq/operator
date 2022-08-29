@@ -134,18 +134,10 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 		envutil.Env("NUMARY_STORAGE_DRIVER", "postgres"),
 	}
 	env = append(env, ledger.Spec.Postgres.Env("NUMARY_")...)
+	env = append(env, ledger.Spec.LockingStrategy.Env("NUMARY_")...)
 	env = append(env, envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_DATABASE_URI)"))
 	if ledger.Spec.Debug {
 		env = append(env, envutil.Env("NUMARY_DEBUG", "true"))
-	}
-	if ledger.Spec.Redis != nil {
-		env = append(env, envutil.Env("NUMARY_REDIS_ENABLED", "true"))
-		env = append(env, envutil.Env("NUMARY_REDIS_ADDR", ledger.Spec.Redis.Uri))
-		if !ledger.Spec.Redis.TLS {
-			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "false"))
-		} else {
-			env = append(env, envutil.Env("NUMARY_REDIS_USE_TLS", "true"))
-		}
 	}
 	if ledger.Spec.Auth != nil {
 		env = append(env, ledger.Spec.Auth.Env("NUMARY_")...)

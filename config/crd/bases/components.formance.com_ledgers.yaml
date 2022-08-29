@@ -139,6 +139,37 @@ spec:
                 - host
                 - path
                 type: object
+              locking:
+                properties:
+                  redis:
+                    properties:
+                      duration:
+                        description: A Duration represents the elapsed time between
+                          two instants as an int64 nanosecond count. The representation
+                          limits the largest representable duration to approximately
+                          290 years.
+                        format: int64
+                        type: integer
+                      insecure:
+                        type: boolean
+                      retry:
+                        description: A Duration represents the elapsed time between
+                          two instants as an int64 nanosecond count. The representation
+                          limits the largest representable duration to approximately
+                          290 years.
+                        format: int64
+                        type: integer
+                      tls:
+                        type: boolean
+                      uri:
+                        type: string
+                    required:
+                    - uri
+                    type: object
+                  strategy:
+                    default: memory
+                    type: string
+                type: object
               maxReplicas:
                 default: 10
                 description: upper limit for the number of pods that can be set by
@@ -942,22 +973,13 @@ spec:
                 required:
                 - createDatabase
                 type: object
-              redis:
-                properties:
-                  tls:
-                    type: boolean
-                  uri:
-                    type: string
-                required:
-                - uri
-                type: object
               replicas:
                 default: 1
                 format: int32
                 type: integer
             required:
             - elasticSearchIndex
-            - postgres
+            - locking
             type: object
           status:
             properties:

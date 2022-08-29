@@ -181,11 +181,11 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			}
 		}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Scalable:    stack.Spec.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
-			ImageHolder: stack.Spec.Services.Ledger.ImageHolder,
-			Ingress:     stack.Spec.Services.Ledger.Ingress.Compute(stack, "/api/ledger"),
-			Debug:       stack.Spec.Debug || stack.Spec.Services.Ledger.Debug,
-			Redis:       stack.Spec.Services.Ledger.Redis,
+			Scalable:        stack.Spec.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
+			ImageHolder:     stack.Spec.Services.Ledger.ImageHolder,
+			Ingress:         stack.Spec.Services.Ledger.Ingress.Compute(stack, "/api/ledger"),
+			Debug:           stack.Spec.Debug || stack.Spec.Services.Ledger.Debug,
+			LockingStrategy: stack.Spec.Services.Ledger.LockingStrategy,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
 					Database:       fmt.Sprintf("%s-ledger", stack.Name),

@@ -17,16 +17,73 @@ limitations under the License.
 package v1beta1
 
 import (
+	"time"
+
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal/envutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-type RedisConfig struct {
+type LockingStrategyRedisConfig struct {
 	Uri string `json:"uri"`
 	// +optional
 	TLS bool `json:"tls"`
+	// +optional
+	InsecureTLS bool `json:"insecure,omitempty"`
+	// +optional
+	Duration time.Duration `json:"duration,omitempty"`
+	// +optional
+	Retry time.Duration `json:"retry,omitempty"`
+}
+
+func (cfg LockingStrategyRedisConfig) Env(prefix string) []corev1.EnvVar {
+	ret := []corev1.EnvVar{
+		envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_URL", cfg.Uri),
+	}
+	if cfg.Duration != 0 {
+		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_DURATION", cfg.Duration.String()))
+	}
+	if cfg.Retry != 0 {
+		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_RETRY", cfg.Retry.String()))
+	}
+	if cfg.TLS {
+		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_ENABLED", "true"))
+	}
+	if cfg.InsecureTLS {
+		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_INSECURE", "true"))
+	}
+	return ret
+}
+
+type LockingStrategy struct {
+	// +kubebuilder:Enum:={memory,redis}
+	// +kubebuilder:default:=memory
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
+	// +optional
+	Redis *LockingStrategyRedisConfig `json:"redis"`
+}
+
+func (s LockingStrategy) Env(prefix string) []corev1.EnvVar {
+	ret := make([]corev1.EnvVar, 0)
+	if s.Redis != nil {
+		ret = append(ret, s.Redis.Env(prefix)...)
+	}
+	ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY", s.Strategy))
+	return ret
+}
+
+func (s LockingStrategy) Validate() field.ErrorList {
+	ret := field.ErrorList{}
+	switch {
+	case s.Strategy == "redis" && s.Redis == nil:
+		ret = append(ret, field.Required(field.NewPath("redis"), "config must be specified"))
+	case s.Strategy != "redis" && s.Redis != nil:
+		ret = append(ret, field.Required(field.NewPath("redis"), "config must not be specified if locking strategy is memory"))
+	}
+	return ret
 }
 
 type PostgresConfigCreateDatabase struct {
@@ -53,7 +110,6 @@ type LedgerSpec struct {
 	// +optional
 	Debug bool `json:"debug"`
 	// +optional
-	Redis    *RedisConfig                 `json:"redis"`
 	Postgres PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
 	Auth *AuthConfigSpec `json:"auth"`
@@ -62,6 +118,8 @@ type LedgerSpec struct {
 	// +optional
 	Collector          *CollectorConfig `json:"collector"`
 	ElasticSearchIndex string           `json:"elasticSearchIndex"`
+
+	LockingStrategy LockingStrategy `json:"locking"`
 }
 
 // Ledger is the Schema for the ledgers API
