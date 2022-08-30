@@ -3,6 +3,7 @@ package streams
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -80,6 +81,11 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 		Name:      stream.Spec.Reference,
 	}, server)); err != nil {
 		return nil, pkgError.Wrap(err, "Finding benthos server")
+	}
+
+	if server.Status.PodIP == "" {
+		SetError(stream, errors.New("no ip on server"))
+		return Requeue(5 * time.Second), nil
 	}
 
 	address := fmt.Sprintf("http://%s:4195", server.Status.PodIP)
