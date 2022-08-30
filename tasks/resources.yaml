@@ -36,3 +36,4 @@ tasks:
     - task: otel:install
     - task: elasticsearch:install
     - task: redpanda:install
+    - task: redis:install
