@@ -47,8 +47,12 @@ type SearchIngester struct {
 	Status Status             `json:"status,omitempty"`
 }
 
+func (in *SearchIngester) GetStatus() Dirty {
+	return &in.Status
+}
+
 func (in *SearchIngester) IsDirty(t Object) bool {
-	return in.Status.IsDirty(t)
+	return false
 }
 
 func (in *SearchIngester) GetConditions() *Conditions {

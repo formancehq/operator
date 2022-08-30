@@ -17,6 +17,8 @@ resources:
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
+- patches/webhook_in_stack_stacks.yaml
+- patches/cainjection_in_stack_stacks.yaml
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
 #- patches/webhook_in_licenses.yaml

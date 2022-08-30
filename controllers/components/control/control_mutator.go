@@ -11,9 +11,11 @@ import (
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscallingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -40,38 +42,42 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 	return nil
 }
 
-func (m *Mutator) Mutate(ctx context.Context, t *Control) (*ctrl.Result, error) {
-	SetProgressing(t)
+func (m *Mutator) Mutate(ctx context.Context, control *Control) (*ctrl.Result, error) {
+	SetProgressing(control)
 
-	deployment, err := m.reconcileDeployment(ctx, t)
+	deployment, err := m.reconcileDeployment(ctx, control)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	service, err := m.reconcileService(ctx, t, deployment)
+	service, err := m.reconcileService(ctx, control, deployment)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if t.Spec.Ingress != nil {
-		_, err = m.reconcileIngress(ctx, t, service)
+	if control.Spec.Ingress != nil {
+		_, err = m.reconcileIngress(ctx, control, service)
 		if err != nil {
 			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = m.Client.Delete(ctx, &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      t.Name,
-				Namespace: t.Namespace,
+				Name:      control.Name,
+				Namespace: control.Namespace,
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
 			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		RemoveIngressCondition(t)
+		RemoveIngressCondition(control)
 	}
 
-	SetReady(t)
+	if _, err := m.reconcileHPA(ctx, control); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling HPA")
+	}
+
+	SetReady(control)
 
 	return nil, nil
 }
@@ -91,6 +97,7 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(control), control, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
+			Replicas: control.Spec.GetReplicas(),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
 			},
@@ -109,6 +116,12 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 							Name:          "http",
 							ContainerPort: 3000,
 						}},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
+								corev1.ResourceMemory: *resource.NewMilliQuantity(500, resource.DecimalSI),
+							},
+						},
 					}},
 				},
 			},
@@ -123,6 +136,15 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 	default:
 		SetDeploymentReady(control)
 	}
+
+	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	control.Status.Selector = selector.String()
+	control.Status.Replicas = *control.Spec.GetReplicas()
+
 	return ret, err
 }
 
@@ -147,6 +169,22 @@ func (m *Mutator) reconcileService(ctx context.Context, auth *Control, deploymen
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		SetServiceReady(auth)
+	}
+	return ret, err
+}
+
+func (r *Mutator) reconcileHPA(ctx context.Context, ctrl *Control) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ctrl), ctrl, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+		hpa.Spec = ctrl.Spec.GetHPASpec(ctrl)
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetHPAError(ctrl, err.Error())
+		return nil, err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetHPAReady(ctrl)
 	}
 	return ret, err
 }

@@ -32,9 +32,11 @@ import (
 	"github.com/opensearch-project/opensearch-go"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscallingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -96,6 +98,10 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 		RemoveIngressCondition(search)
 	}
 
+	if _, err := r.reconcileHPA(ctx, search); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling HPA")
+	}
+
 	SetReady(search)
 
 	return nil, nil
@@ -121,6 +127,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
+			Replicas: search.Spec.GetReplicas(),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
 			},
@@ -140,6 +147,12 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 							ContainerPort: 8080,
 						}},
 						LivenessProbe: probeutil.DefaultLiveness(),
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+								corev1.ResourceMemory: *resource.NewMilliQuantity(100, resource.DecimalSI),
+							},
+						},
 					}},
 				},
 			},
@@ -153,6 +166,15 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	default:
 		SetDeploymentReady(search)
 	}
+
+	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	search.Status.Selector = selector.String()
+	search.Status.Replicas = *search.Spec.GetReplicas()
+
 	return ret, err
 }
 
@@ -220,6 +242,22 @@ func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, 
 		SetIngressReady(search)
 	}
 	return ret, nil
+}
+
+func (r *Mutator) reconcileHPA(ctx context.Context, search *v1beta1.Search) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+		hpa.Spec = search.Spec.GetHPASpec(search)
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetHPAError(search, err.Error())
+		return nil, err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetHPAReady(search)
+	}
+	return ret, err
 }
 
 func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1beta1.Search) (controllerutil.OperationResult, error) {

@@ -1,13 +1,17 @@
 package v1beta1
 
 import (
+	"fmt"
+
 	"github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/internal/collectionutil"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type AuthSpec struct {
-	ImageHolder    `json:",inline"`
-	PostgresConfig PostgresConfig `json:"postgres"`
+	ImageHolder `json:",inline"`
+	Postgres    PostgresConfig `json:"postgres"`
 	// +optional
 	SigningKey          string                                   `json:"signingKey"`
 	DelegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
@@ -26,4 +30,11 @@ func (in *AuthSpec) GetScheme() string {
 		return in.Scheme
 	}
 	return "https"
+}
+
+func (in *AuthSpec) Validate() field.ErrorList {
+	return Map(in.Postgres.Validate(), func(t1 *field.Error) *field.Error {
+		t1.Field = fmt.Sprintf("postgres.%s", t1.Field)
+		return t1
+	})
 }

@@ -54,6 +54,20 @@ type ClientStatus struct {
 	Scopes map[string]string `json:"scopes"`
 }
 
+func (in *ClientStatus) IsDirty(t Object) bool {
+	if in.Status.IsDirty(t) {
+		return true
+	}
+	client := t.(*Client)
+	if !reflect.DeepEqual(in.Scopes, client.Status.Scopes) {
+		return true
+	}
+	if in.AuthServerID != client.Status.AuthServerID {
+		return true
+	}
+	return false
+}
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Server ID",type="string",JSONPath=".status.authServerID",description="Auth server ID"
@@ -67,18 +81,12 @@ type Client struct {
 	Status ClientStatus `json:"status,omitempty"`
 }
 
-func (in *Client) IsDirty(t Object) bool {
-	if in.Status.IsDirty(t) {
-		return true
-	}
-	client := t.(*Client)
-	if !reflect.DeepEqual(in.Status.Scopes, client.Status.Scopes) {
-		return true
-	}
-	if in.Status.AuthServerID != client.Status.AuthServerID {
-		return true
-	}
-	return false
+func (c *Client) IsDirty(t Object) bool {
+	return authServerChanges(t, c, c.Spec.AuthServerReference)
+}
+
+func (c *Client) GetStatus() Dirty {
+	return &c.Status
 }
 
 func (in *Client) GetConditions() *Conditions {
@@ -210,10 +218,13 @@ func (in *Client) AddScopeSpec(scope *Scope) {
 	in.Spec.Scopes = append(in.Spec.Scopes, scope.Name)
 }
 
-func NewClient(name string) *Client {
+func NewClient(name, reference string) *Client {
 	return &Client{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+		},
+		Spec: ClientSpec{
+			AuthServerReference: reference,
 		},
 	}
 }

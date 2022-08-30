@@ -5,8 +5,14 @@ import (
 )
 
 // +kubebuilder:object:generate=false
+type Dirty interface {
+	IsDirty(t Object) bool
+}
+
+// +kubebuilder:object:generate=false
 type Object interface {
 	client.Object
+	Dirty
+	GetStatus() Dirty
 	GetConditions() *Conditions
-	IsDirty(t Object) bool
 }

@@ -45,8 +45,12 @@ type Stream struct {
 	Status Status     `json:"status,omitempty"`
 }
 
+func (in *Stream) GetStatus() Dirty {
+	return &in.Status
+}
+
 func (in *Stream) IsDirty(t Object) bool {
-	return in.Status.IsDirty(t)
+	return false
 }
 
 func (in *Stream) GetConditions() *Conditions {

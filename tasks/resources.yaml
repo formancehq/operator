@@ -22,6 +22,9 @@ includes:
   mongodb:
     taskfile: ./resources/mongodb.yaml
     dir: .
+  redis:
+    taskfile: ./resources/redis.yaml
+    dir: .
 
 tasks:
   install:

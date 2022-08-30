@@ -5,7 +5,7 @@ import (
 )
 
 type ImageHolder struct {
-	// +kubebuilder:validation:Optional
+	// +optional
 	Image string `json:"image,omitempty"`
 
 	// ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec.
@@ -15,4 +15,11 @@ type ImageHolder struct {
 	// +patchMergeKey=name
 	// +patchStrategy=merge
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,15,rep,name=imagePullSecrets"`
+}
+
+func (h *ImageHolder) GetImage(def string) string {
+	if h.Image == "" {
+		return def
+	}
+	return h.Image
 }

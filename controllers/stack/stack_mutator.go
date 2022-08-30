@@ -116,10 +116,13 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	}, stack, func(auth *authcomponentsv1beta1.Auth) error {
 		auth.Spec = authcomponentsv1beta1.AuthSpec{
 			ImageHolder: stack.Spec.Auth.ImageHolder,
+			Scalable: Scalable{
+				Replicas: auth.Spec.Replicas,
+			},
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
-					PostgresConfig: stack.Spec.Auth.PostgresConfig,
+					PostgresConfig: stack.Spec.Auth.Postgres,
 					Database:       fmt.Sprintf("%s-auth", stack.Name),
 				},
 			},
@@ -178,9 +181,11 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 			}
 		}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Ingress: stack.Spec.Services.Ledger.Ingress.Compute(stack, "/api/ledger"),
-			Debug:   stack.Spec.Debug || stack.Spec.Services.Ledger.Debug,
-			Redis:   stack.Spec.Services.Ledger.Redis,
+			Scalable:        stack.Spec.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
+			ImageHolder:     stack.Spec.Services.Ledger.ImageHolder,
+			Ingress:         stack.Spec.Services.Ledger.Ingress.Compute(stack, "/api/ledger"),
+			Debug:           stack.Spec.Debug || stack.Spec.Services.Ledger.Debug,
+			LockingStrategy: stack.Spec.Services.Ledger.LockingStrategy,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
 					Database:       fmt.Sprintf("%s-ledger", stack.Name),
@@ -189,7 +194,6 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 				CreateDatabase: true,
 			},
 			Monitoring:         stack.Spec.Monitoring,
-			ImageHolder:        stack.Spec.Services.Ledger.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 		}
@@ -297,6 +301,9 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 		Name:      stack.ServiceName("control"),
 	}, stack, func(control *authcomponentsv1beta1.Control) error {
 		control.Spec = authcomponentsv1beta1.ControlSpec{
+			Scalable: Scalable{
+				Replicas: control.Spec.Replicas,
+			},
 			Ingress:     stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
 			Debug:       stack.Spec.Debug || stack.Spec.Services.Control.Debug,
 			ImageHolder: stack.Spec.Services.Control.ImageHolder,
@@ -348,6 +355,9 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 		Name:      stack.ServiceName("search"),
 	}, stack, func(search *authcomponentsv1beta1.Search) error {
 		search.Spec = authcomponentsv1beta1.SearchSpec{
+			Scalable: Scalable{
+				Replicas: search.Spec.Replicas,
+			},
 			Ingress:       stack.Spec.Services.Search.Ingress.Compute(stack, "/api/search"),
 			Debug:         stack.Spec.Debug || stack.Spec.Services.Search.Debug,
 			Auth:          nil,
