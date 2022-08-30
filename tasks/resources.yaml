@@ -37,3 +37,4 @@ tasks:
     - task: elasticsearch:install
     - task: redpanda:install
     - task: redis:install
+    - task: mongodb:install
