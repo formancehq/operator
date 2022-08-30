@@ -47,7 +47,7 @@ spec:
     host: kubernetes.docker.internal
     scheme: http
     delegatedOIDCServer:
-      issuer: http://kubernetes.docker.internal/dex
+      issuer: http://kubernetes.docker.internal/api/dex
       clientID: dexclient
       clientSecret: dexclient
     postgres:

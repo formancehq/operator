@@ -15,7 +15,7 @@ tasks:
     - >
       helm upgrade dex dex/dex
       --install
-      --set config.issuer="http://kubernetes.docker.internal/dex"
+      --set config.issuer="http://kubernetes.docker.internal/api/dex"
       --set config.storage.type=postgres
       --set config.storage.config.host=postgresql
       --set config.storage.config.port=5432
