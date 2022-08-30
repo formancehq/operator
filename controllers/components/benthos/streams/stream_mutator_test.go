@@ -28,11 +28,10 @@ var _ = Describe("Stream Controller", func() {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "foo",
 					},
-					Status: ServerStatus{
-						PodIP: "10.0.0.1",
-					},
 				}
 				Expect(Create(server)).To(Succeed())
+				server.Status.PodIP = "10.0.0.1"
+				Expect(UpdateStatus(server)).To(Succeed())
 			})
 			AfterEach(func() {
 				Expect(kClient.IgnoreNotFound(Delete(server))).To(Succeed())

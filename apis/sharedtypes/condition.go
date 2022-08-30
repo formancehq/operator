@@ -96,6 +96,10 @@ func SetReady(object Object, msg ...string) {
 	SetCondition(object, ConditionTypeReady, metav1.ConditionTrue, msg...)
 }
 
+func RemoveReadyCondition(object Object) {
+	object.GetConditions().Remove(ConditionTypeReady)
+}
+
 func SetProgressing(object Object, msg ...string) {
 	object.GetConditions().Remove(ConditionTypeReady)
 	SetCondition(object, ConditionTypeProgressing, metav1.ConditionTrue, msg...)

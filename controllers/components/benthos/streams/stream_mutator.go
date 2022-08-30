@@ -3,7 +3,6 @@ package streams
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -14,6 +13,7 @@ import (
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/finalizerutil"
 	pkgError "github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -75,17 +75,19 @@ func (s *StreamMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 
 func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Result, error) {
 
+	RemoveReadyCondition(stream)
+
 	server := &Server{}
-	if err := client.IgnoreNotFound(s.client.Get(ctx, types.NamespacedName{
+	err := s.client.Get(ctx, types.NamespacedName{
 		Namespace: stream.Namespace,
 		Name:      stream.Spec.Reference,
-	}, server)); err != nil {
-		return nil, pkgError.Wrap(err, "Finding benthos server")
-	}
-
-	if server.Status.PodIP == "" {
-		SetError(stream, errors.New("no ip on server"))
-		return Requeue(5 * time.Second), nil
+	}, server)
+	if err != nil {
+		switch {
+		case errors.IsNotFound(err):
+		default:
+			return nil, pkgError.Wrap(err, "Finding benthos server")
+		}
 	}
 
 	address := fmt.Sprintf("http://%s:4195", server.Status.PodIP)
@@ -103,8 +105,11 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 		return nil, err
 	}
 
-	if server.UID == "" {
-		return Requeue(), pkgError.New("Server not found")
+	if server.UID == "" { // Not found
+		return Requeue(5 * time.Second), pkgError.New("server not found")
+	}
+	if server.Status.PodIP == "" {
+		return Requeue(5 * time.Second), pkgError.New("no ip on server")
 	}
 
 	SetProgressing(stream)
@@ -130,11 +135,10 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 		err = nil
 	}
 	if err != nil {
-		SetError(stream, err)
 		if IsLintError(err) {
-			return nil, nil // No requeue as it will not change anything
+			return nil, err // No requeue as it will not change anything
 		}
-		return Requeue(5 * time.Second), nil
+		return Requeue(5 * time.Second), err
 	}
 
 	SetReady(stream)

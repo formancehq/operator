@@ -153,6 +153,10 @@ func WithNewNamespace(fn func()) {
 	fn()
 }
 
+func UpdateStatus(ob client.Object) error {
+	return k8sClient.Status().Update(ctx, ob)
+}
+
 func Create(ob client.Object) error {
 	return k8sClient.Create(ctx, ob)
 }

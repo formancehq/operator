@@ -7,7 +7,7 @@ import (
 )
 
 func Requeue(after ...time.Duration) *controllerruntime.Result {
-	if len(after) > 0 {
+	if len(after) > 1 {
 		panic("too many arguments")
 	}
 
