@@ -3,19 +3,56 @@ package sharedtypes
 import (
 	"strings"
 
-	"github.com/numary/formance-operator/internal/envutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type KafkaSASLConfig struct {
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	Mechanism    string `json:"mechanism"`
-	ScramSHASize string `json:"scramSHASize"`
+	// +optional
+	Username string `json:"username,omitempty"`
+	// +optional
+	UsernameFrom *ConfigSource `json:"usernameFrom,omitempty"`
+	// +optional
+	Password string `json:"password,omitempty"`
+	// +optional
+	PasswordFrom *ConfigSource `json:"passwordFrom,omitempty"`
+	Mechanism    string        `json:"mechanism"`
+	ScramSHASize string        `json:"scramSHASize"`
+}
+
+func (cfg *KafkaSASLConfig) Env(prefix string) []corev1.EnvVar {
+	if cfg == nil {
+		return []corev1.EnvVar{}
+	}
+	return []corev1.EnvVar{
+		EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_ENABLED", "true"),
+		SelectRequiredConfigValueOrReference("PUBLISHER_KAFKA_SASL_USERNAME", prefix,
+			cfg.Username, cfg.UsernameFrom),
+		SelectRequiredConfigValueOrReference("PUBLISHER_KAFKA_SASL_PASSWORD", prefix,
+			cfg.Password, cfg.PasswordFrom),
+		EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_MECHANISM", cfg.Mechanism),
+		EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_SCRAM_SHA_SIZE", cfg.ScramSHASize),
+	}
+}
+
+func (cfg *KafkaSASLConfig) Validate() field.ErrorList {
+	if cfg == nil {
+		return field.ErrorList{}
+	}
+	return MergeAll(
+		ValidateRequiredConfigValueOrReference("username",
+			cfg.Username, cfg.UsernameFrom),
+		ValidateRequiredConfigValueOrReference("password",
+			cfg.Password, cfg.PasswordFrom),
+	)
 }
 
 type KafkaConfig struct {
+	// +optional
 	Brokers []string `json:"brokers"`
+	// +optional
+	BrokersFrom *ConfigSource `json:"brokersFrom"`
 	// +optional
 	TLS bool `json:"tls"`
 	// +optional
@@ -26,21 +63,24 @@ func (s *KafkaConfig) Env(prefix string) []corev1.EnvVar {
 
 	ret := make([]corev1.EnvVar, 0)
 	ret = append(ret,
-		envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_ENABLED", "true"),
-		envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_BROKER", strings.Join(s.Brokers, ",")),
+		EnvWithPrefix(prefix, "PUBLISHER_KAFKA_ENABLED", "true"),
+		SelectRequiredConfigValueOrReference("PUBLISHER_KAFKA_BROKER", prefix,
+			strings.Join(s.Brokers, ","), s.BrokersFrom),
 	)
 	if s.SASL != nil {
-		ret = append(ret,
-			envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_ENABLED", "true"),
-			envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_USERNAME", s.SASL.Username),
-			envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_PASSWORD", s.SASL.Password),
-			envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_MECHANISM", s.SASL.Mechanism),
-			envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_SASL_SCRAM_SHA_SIZE", s.SASL.ScramSHASize),
-		)
+		ret = append(ret, s.SASL.Env(prefix)...)
 	}
 	if s.TLS {
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "PUBLISHER_KAFKA_TLS_ENABLED", "true"))
+		ret = append(ret, EnvWithPrefix(prefix, "PUBLISHER_KAFKA_TLS_ENABLED", "true"))
 	}
 
 	return ret
+}
+
+func (in *KafkaConfig) Validate() field.ErrorList {
+	return MergeAll(
+		Map(in.SASL.Validate(), AddPrefixToFieldError("sasl.")),
+		ValidateRequiredConfigValueOrReference("brokers.",
+			strings.Join(in.Brokers, ","), in.BrokersFrom),
+	)
 }

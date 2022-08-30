@@ -30,7 +30,6 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/internal/envutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -121,12 +120,9 @@ func (r *Mutator) Mutate(ctx context.Context, payment *componentsv1beta1.Payment
 func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1beta1.Payments) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "payment")
 
-	env := []corev1.EnvVar{
-		envutil.Env("MONGODB_URI", payment.Spec.MongoDB.Uri()),
-		envutil.Env("MONGODB_DATABASE", payment.Spec.MongoDB.Database),
-	}
+	env := payment.Spec.MongoDB.Env("")
 	if payment.Spec.Debug {
-		env = append(env, envutil.Env("DEBUG", "true"))
+		env = append(env, Env("DEBUG", "true"))
 	}
 	if payment.Spec.Auth != nil {
 		env = append(env, payment.Spec.Auth.Env("")...)

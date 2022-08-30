@@ -9,7 +9,6 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -17,10 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-)
-
-const (
-	ConditionTypeError = "Error"
 )
 
 type Mutator[T Object] interface {
@@ -57,7 +52,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	log.FromContext(ctx).Info("Call mutator")
 	result, reconcileError := r.Mutator.Mutate(ctx, updated)
 	if reconcileError != nil {
-		SetCondition(updated, ConditionTypeError, metav1.ConditionTrue, reconcileError.Error())
+		SetError(updated, reconcileError)
 		log.FromContext(ctx).Error(reconcileError, "Reconciling")
 	} else {
 		RemoveCondition(updated, ConditionTypeError)

@@ -17,37 +17,86 @@ limitations under the License.
 package v1beta1
 
 import (
-	"fmt"
-
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/internal/collectionutil"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type MongoDBConfig struct {
-	// +required
-	Host string `json:"host"`
-	// +required
-	Port uint16 `json:"port"`
+	// +optional
+	Host string `json:"host,omitempty"`
+	// +optional
+	HostFrom *ConfigSource `json:"hostFrom,omitempty"`
+	// +optional
+	Port uint16 `json:"port,omitempty"`
+	// +optional
+	PortFrom *ConfigSource `json:"portFrom,omitempty"`
+	// +optional
+	Username string `json:"username,omitempty"`
+	// +optional
+	UsernameFrom *ConfigSource `json:"usernameFrom,omitempty"`
+	// +optional
+	Password string `json:"password,omitempty"`
+	// +optional
+	PasswordFrom *ConfigSource `json:"passwordFrom,omitempty"`
+	// +optional
+	UseSrv bool `json:"useSrv,omitempty"`
 	// +required
 	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	UseSrv   bool   `json:"useSrv"`
 }
 
-func (cfg MongoDBConfig) Uri() string {
-	var credentialsPart string
-	if cfg.Username != "" {
-		credentialsPart = fmt.Sprintf("%s:%s@", cfg.Username, cfg.Password)
+func (cfg *MongoDBConfig) Env(prefix string) []corev1.EnvVar {
+
+	env := make([]corev1.EnvVar, 0)
+	env = append(env, SelectRequiredConfigValueOrReference("MONGODB_HOST", prefix,
+		cfg.Host, cfg.HostFrom))
+
+	if cfg.Username != "" || cfg.UsernameFrom != nil {
+		env = append(env,
+			SelectRequiredConfigValueOrReference("MONGODB_USERNAME", prefix,
+				cfg.Username, cfg.UsernameFrom),
+			SelectRequiredConfigValueOrReference("MONGODB_PASSWORD", prefix,
+				cfg.Password, cfg.PasswordFrom),
+			Env("MONGODB_CREDENTIALS_PART", ComputeEnvVar(prefix, "%s:%s@",
+				"MONGODB_USERNAME",
+				"MONGODB_PASSWORD")),
+		)
 	}
-	var portPart string
-	scheme := "mongodb"
+
 	if cfg.UseSrv {
-		scheme = scheme + "+srv"
+		env = append(env, Env("MONGODB_SCHEME", "mongodb+srv"))
 	} else {
-		portPart = fmt.Sprintf(":%d", cfg.Port)
+		env = append(env,
+			Env("MONGODB_SCHEME", "mongodb"),
+			SelectRequiredConfigValueOrReference("MONGODB_PORT", prefix,
+				cfg.Port, cfg.PortFrom),
+			EnvWithPrefix(prefix, "MONGODB_PORT_PART",
+				ComputeEnvVar(prefix, ":%s", "MONGODB_PORT"),
+			),
+		)
 	}
-	return fmt.Sprintf("%s://%s%s%s", scheme, credentialsPart, cfg.Host, portPart)
+	env = append(env,
+		Env("MONGODB_URI", ComputeEnvVar(prefix, "%s://%s%s%s",
+			"MONGODB_SCHEME",
+			"MONGODB_CREDENTIALS_PART",
+			"MONGODB_HOST",
+			"MONGODB_PORT_PART",
+		)),
+		Env("MONGODB_DATABASE", cfg.Database),
+	)
+
+	return env
+}
+
+func (cfg *MongoDBConfig) Validate() field.ErrorList {
+	return MergeAll(
+		ValidateRequiredConfigValueOrReference("host", cfg.Host, cfg.HostFrom),
+		ValidateRequiredConfigValueOrReference("port", cfg.Port, cfg.PortFrom),
+		ValidateRequiredConfigValueOrReferenceOnly("username", cfg.Username, cfg.UsernameFrom),
+		ValidateRequiredConfigValueOrReferenceOnly("password", cfg.Password, cfg.PasswordFrom),
+	)
 }
 
 // PaymentsSpec defines the desired state of Payments

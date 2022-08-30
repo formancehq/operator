@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
-	"github.com/numary/formance-operator/internal"
 	. "github.com/numary/formance-operator/internal/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -74,7 +73,7 @@ var _ = Describe("Stream Controller", func() {
 						Eventually(Exists(server)).Should(BeFalse())
 					})
 					It("Should set stream to error state", func() {
-						Eventually(ConditionStatus(stream, internal.ConditionTypeError)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(stream, ConditionTypeError)).Should(Equal(metav1.ConditionTrue))
 					})
 					Context("Then removing the stream", func() {
 						BeforeEach(func() {

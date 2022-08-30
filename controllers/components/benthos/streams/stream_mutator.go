@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"time"
 
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
@@ -123,10 +124,11 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 		err = nil
 	}
 	if err != nil {
+		SetError(stream, err)
 		if IsLintError(err) {
-			return nil, err // No requeue as it will not change anything
+			return nil, nil // No requeue as it will not change anything
 		}
-		return Requeue(), err
+		return Requeue(5 * time.Second), nil
 	}
 
 	SetReady(stream)

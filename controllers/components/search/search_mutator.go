@@ -18,7 +18,6 @@ package search
 
 import (
 	"context"
-	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/formance-operator/apis/components/auth/v1beta1"
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
@@ -26,7 +25,6 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/internal/envutil"
 	"github.com/numary/formance-operator/internal/probeutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	"github.com/opensearch-project/opensearch-go"
@@ -114,11 +112,8 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	if search.Spec.Monitoring != nil {
 		env = append(env, search.Spec.Monitoring.Env("")...)
 	}
-	env = append(env,
-		envutil.Env("OPEN_SEARCH_SERVICE", fmt.Sprintf("%s:%d", search.Spec.ElasticSearch.Host, search.Spec.ElasticSearch.Port)),
-		envutil.Env("OPEN_SEARCH_SCHEME", search.Spec.ElasticSearch.Scheme),
-		envutil.Env("ES_INDICES", search.Spec.Index),
-	)
+	env = append(env, search.Spec.ElasticSearch.Env("")...)
+	env = append(env, Env("ES_INDICES", search.Spec.Index))
 
 	image := search.Spec.Image
 	if image == "" {

@@ -57,16 +57,14 @@ type StackSpec struct {
 }
 
 func (in *StackSpec) Validate() field.ErrorList {
-	ret := field.ErrorList{}
-	ret = append(ret, Map(in.Services.Ledger.Validate(), func(t1 *field.Error) *field.Error {
-		t1.Field = fmt.Sprintf("services.ledger.%s", t1.Field)
-		return t1
-	})...)
-	ret = append(ret, Map(in.Auth.Validate(), func(t1 *field.Error) *field.Error {
-		t1.Field = fmt.Sprintf("auth.%s", t1.Field)
-		return t1
-	})...)
-	return ret
+	return MergeAll(
+		Map(in.Services.Ledger.Validate(), AddPrefixToFieldError("services.ledger.")),
+		Map(in.Services.Payments.Validate(), AddPrefixToFieldError("services.payments.")),
+		Map(in.Services.Search.Validate(), AddPrefixToFieldError("services.search.")),
+		Map(in.Auth.Validate(), AddPrefixToFieldError("auth.")),
+		Map(in.Monitoring.Validate(), AddPrefixToFieldError("monitoring.")),
+		Map(in.Kafka.Validate(), AddPrefixToFieldError("kafka.")),
+	)
 }
 
 type ServicesSpec struct {
