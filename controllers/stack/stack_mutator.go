@@ -252,12 +252,16 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 			MongoDB: authcomponentsv1beta1.MongoDBConfig{
-				UseSrv:   stack.Spec.Services.Payments.MongoDB.UseSrv,
-				Host:     stack.Spec.Services.Payments.MongoDB.Host,
-				Port:     stack.Spec.Services.Payments.MongoDB.Port,
-				Database: stack.Name,
-				Username: stack.Spec.Services.Payments.MongoDB.Username,
-				Password: stack.Spec.Services.Payments.MongoDB.Password,
+				UseSrv:       stack.Spec.Services.Payments.MongoDB.UseSrv,
+				Host:         stack.Spec.Services.Payments.MongoDB.Host,
+				HostFrom:     stack.Spec.Services.Payments.MongoDB.HostFrom,
+				Port:         stack.Spec.Services.Payments.MongoDB.Port,
+				PortFrom:     stack.Spec.Services.Payments.MongoDB.PortFrom,
+				Database:     stack.Name,
+				Username:     stack.Spec.Services.Payments.MongoDB.Username,
+				UsernameFrom: stack.Spec.Services.Payments.MongoDB.UsernameFrom,
+				Password:     stack.Spec.Services.Payments.MongoDB.Password,
+				PasswordFrom: stack.Spec.Services.Payments.MongoDB.PasswordFrom,
 			},
 		}
 		return nil

@@ -1,8 +1,6 @@
 package v1beta1
 
 import (
-	"fmt"
-
 	"github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	. "github.com/numary/formance-operator/internal/collectionutil"
@@ -33,8 +31,8 @@ func (in *AuthSpec) GetScheme() string {
 }
 
 func (in *AuthSpec) Validate() field.ErrorList {
-	return Map(in.Postgres.Validate(), func(t1 *field.Error) *field.Error {
-		t1.Field = fmt.Sprintf("postgres.%s", t1.Field)
-		return t1
-	})
+	return MergeAll(
+		Map(in.Postgres.Validate(), AddPrefixToFieldError("postgres.")),
+		Map(in.DelegatedOIDCServer.Validate(), AddPrefixToFieldError("delegatedOIDCServer.")),
+	)
 }

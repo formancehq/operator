@@ -4,8 +4,9 @@ package sharedtypes
 import (
 	"fmt"
 
-	"github.com/numary/formance-operator/internal/envutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type MonitoringSpec struct {
@@ -21,37 +22,45 @@ func (in *MonitoringSpec) Env(prefix string) []v1.EnvVar {
 	return ret
 }
 
-type EndpointReference struct {
-	// +optional
-	Value string `json:"value,omitempty" protobuf:"bytes,2,opt,name=value"`
-	// +optional
-	ValueFrom *v1.EnvVarSource `json:"valueFrom,omitempty" protobuf:"bytes,3,opt,name=valueFrom"`
+func (in *MonitoringSpec) Validate() field.ErrorList {
+	return in.Traces.Validate()
 }
 
 type TracesOtlpSpec struct {
-	Endpoint EndpointReference `json:"endpoint,omitempty"`
 	// +optional
-	Port     int32  `json:"port"`
-	Insecure bool   `json:"insecure,omitempty"`
-	Mode     string `json:"mode,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
+	// +optional
+	EndpointFrom *ConfigSource `json:"endpointFrom,omitempty"`
+	// +optional
+	Port int32 `json:"port,omitempty"`
+	// +optional
+	PortFrom *ConfigSource `json:"portFrom,omitempty"`
+	// +optional
+	Insecure bool `json:"insecure,omitempty"`
+	// +kubebuilder:validation:Enum:={grpc,http}
+	// +kubebuilder:validation:default:=grpc
+	// +optional
+	Mode string `json:"mode,omitempty"`
 }
 
 func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
-	env := []v1.EnvVar{
-		envutil.EnvWithPrefix(prefix, "OTEL_TRACES", "true"),
-		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER", "otlp"),
-		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_INSECURE", fmt.Sprintf("%t", in.Insecure)),
-		envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_MODE", in.Mode),
-		envutil.Env("PORT", fmt.Sprintf("%d", in.Port)),
+	return []v1.EnvVar{
+		EnvWithPrefix(prefix, "OTEL_TRACES", "true"),
+		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER", "otlp"),
+		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_INSECURE", fmt.Sprintf("%t", in.Insecure)),
+		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_MODE", in.Mode),
+		SelectRequiredConfigValueOrReference("PORT", prefix, in.Port, in.PortFrom),
+		SelectRequiredConfigValueOrReference("ENDPOINT", prefix,
+			in.Endpoint, in.EndpointFrom),
+		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", "$(ENDPOINT):$(PORT)"),
 	}
-	switch {
-	case in.Endpoint.Value != "":
-		env = append(env, envutil.Env("ENDPOINT", in.Endpoint.Value))
-	case in.Endpoint.ValueFrom != nil:
-		env = append(env, envutil.EnvFrom("ENDPOINT", in.Endpoint.ValueFrom))
-	}
-	env = append(env, envutil.EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", "$(ENDPOINT):$(PORT)"))
-	return env
+}
+
+func (in *TracesOtlpSpec) Validate() field.ErrorList {
+	return MergeAll(
+		ValidateRequiredConfigValueOrReference("endpoint", in.Endpoint, in.EndpointFrom),
+		ValidateRequiredConfigValueOrReference("port", in.Port, in.PortFrom),
+	)
 }
 
 type TracesSpec struct {
@@ -65,4 +74,8 @@ func (in *TracesSpec) Env(prefix string) []v1.EnvVar {
 		ret = append(ret, in.Otlp.Env(prefix)...)
 	}
 	return ret
+}
+
+func (in *TracesSpec) Validate() field.ErrorList {
+	return in.Otlp.Validate()
 }

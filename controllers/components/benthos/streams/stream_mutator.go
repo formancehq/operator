@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"time"
 
 	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
@@ -12,6 +13,7 @@ import (
 	. "github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/finalizerutil"
 	pkgError "github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -73,12 +75,19 @@ func (s *StreamMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 
 func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Result, error) {
 
+	RemoveReadyCondition(stream)
+
 	server := &Server{}
-	if err := client.IgnoreNotFound(s.client.Get(ctx, types.NamespacedName{
+	err := s.client.Get(ctx, types.NamespacedName{
 		Namespace: stream.Namespace,
 		Name:      stream.Spec.Reference,
-	}, server)); err != nil {
-		return nil, pkgError.Wrap(err, "Finding benthos server")
+	}, server)
+	if err != nil {
+		switch {
+		case errors.IsNotFound(err):
+		default:
+			return nil, pkgError.Wrap(err, "Finding benthos server")
+		}
 	}
 
 	address := fmt.Sprintf("http://%s:4195", server.Status.PodIP)
@@ -96,8 +105,11 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 		return nil, err
 	}
 
-	if server.UID == "" {
-		return Requeue(), pkgError.New("Server not found")
+	if server.UID == "" { // Not found
+		return Requeue(5 * time.Second), pkgError.New("server not found")
+	}
+	if server.Status.PodIP == "" {
+		return Requeue(5 * time.Second), pkgError.New("no ip on server")
 	}
 
 	SetProgressing(stream)
@@ -126,7 +138,7 @@ func (s *StreamMutator) Mutate(ctx context.Context, stream *Stream) (*ctrl.Resul
 		if IsLintError(err) {
 			return nil, err // No requeue as it will not change anything
 		}
-		return Requeue(), err
+		return Requeue(5 * time.Second), err
 	}
 
 	SetReady(stream)

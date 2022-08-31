@@ -18,13 +18,44 @@ package v1beta1
 
 import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/internal/collectionutil"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type DelegatedOIDCServerConfiguration struct {
-	Issuer       string `json:"issuer"`
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
+	// +optional
+	Issuer string `json:"issuer,omitempty"`
+	// +optional
+	IssuerFrom *ConfigSource `json:"issuerFrom,omitempty"`
+	// +optional
+	ClientID string `json:"clientID,omitempty"`
+	// +optional
+	ClientIDFrom *ConfigSource `json:"clientIDFrom,omitempty"`
+	// +optional
+	ClientSecret string `json:"clientSecret,omitempty"`
+	// +optional
+	ClientSecretFrom *ConfigSource `json:"clientSecretFrom,omitempty"`
+}
+
+func (cfg DelegatedOIDCServerConfiguration) Env() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		SelectRequiredConfigValueOrReference("DELEGATED_CLIENT_SECRET", "",
+			cfg.ClientSecret, cfg.ClientSecretFrom),
+		SelectRequiredConfigValueOrReference("DELEGATED_CLIENT_ID", "",
+			cfg.ClientID, cfg.ClientIDFrom),
+		SelectRequiredConfigValueOrReference("DELEGATED_ISSUER", "",
+			cfg.Issuer, cfg.IssuerFrom),
+	}
+}
+
+func (c *DelegatedOIDCServerConfiguration) Validate() field.ErrorList {
+	return MergeAll(
+		ValidateRequiredConfigValueOrReference("issuer", c.Issuer, c.IssuerFrom),
+		ValidateRequiredConfigValueOrReference("clientID", c.ClientID, c.ClientIDFrom),
+		ValidateRequiredConfigValueOrReference("clientSecret", c.ClientSecret, c.ClientSecretFrom),
+	)
 }
 
 // AuthSpec defines the desired state of Auth

@@ -3,6 +3,8 @@ package v1beta1
 import (
 	"github.com/numary/formance-operator/apis/components/v1beta1"
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/formance-operator/internal/collectionutil"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 // +kubebuilder:object:generate=true
@@ -16,4 +18,8 @@ type SearchSpec struct {
 	ElasticSearchConfig *v1beta1.ElasticSearchConfig `json:"elasticSearch"`
 	//+optional
 	Ingress *IngressConfig `json:"ingress"`
+}
+
+func (in *SearchSpec) Validate() field.ErrorList {
+	return Map(in.ElasticSearchConfig.Validate(), AddPrefixToFieldError("elasticSearch"))
 }

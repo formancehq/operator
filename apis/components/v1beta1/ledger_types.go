@@ -20,14 +20,17 @@ import (
 	"time"
 
 	. "github.com/numary/formance-operator/apis/sharedtypes"
-	"github.com/numary/formance-operator/internal/envutil"
+	. "github.com/numary/formance-operator/internal/collectionutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type LockingStrategyRedisConfig struct {
-	Uri string `json:"uri"`
+	// +optional
+	Uri string `json:"uri,omitempty"`
+	// +optional
+	UriFrom *ConfigSource `json:"uriFrom,omitempty"`
 	// +optional
 	TLS bool `json:"tls"`
 	// +optional
@@ -40,21 +43,29 @@ type LockingStrategyRedisConfig struct {
 
 func (cfg LockingStrategyRedisConfig) Env(prefix string) []corev1.EnvVar {
 	ret := []corev1.EnvVar{
-		envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_URL", cfg.Uri),
+		SelectRequiredConfigValueOrReference("LOCK_STRATEGY_REDIS_URL", prefix,
+			cfg.Uri, cfg.UriFrom),
 	}
 	if cfg.Duration != 0 {
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_DURATION", cfg.Duration.String()))
+		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_DURATION", cfg.Duration.String()))
 	}
 	if cfg.Retry != 0 {
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_RETRY", cfg.Retry.String()))
+		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_RETRY", cfg.Retry.String()))
 	}
 	if cfg.TLS {
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_ENABLED", "true"))
+		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_ENABLED", "true"))
 	}
 	if cfg.InsecureTLS {
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_INSECURE", "true"))
+		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_INSECURE", "true"))
 	}
 	return ret
+}
+
+func (cfg *LockingStrategyRedisConfig) Validate() field.ErrorList {
+	if cfg == nil {
+		return field.ErrorList{}
+	}
+	return ValidateRequiredConfigValueOrReference("uri", cfg.Uri, cfg.UriFrom)
 }
 
 type LockingStrategy struct {
@@ -71,11 +82,11 @@ func (s LockingStrategy) Env(prefix string) []corev1.EnvVar {
 	if s.Redis != nil {
 		ret = append(ret, s.Redis.Env(prefix)...)
 	}
-	ret = append(ret, envutil.EnvWithPrefix(prefix, "LOCK_STRATEGY", s.Strategy))
+	ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY", s.Strategy))
 	return ret
 }
 
-func (s LockingStrategy) Validate() field.ErrorList {
+func (s *LockingStrategy) Validate() field.ErrorList {
 	ret := field.ErrorList{}
 	switch {
 	case s.Strategy == "redis" && s.Redis == nil:
@@ -83,7 +94,7 @@ func (s LockingStrategy) Validate() field.ErrorList {
 	case s.Strategy != "redis" && s.Redis != nil:
 		ret = append(ret, field.Required(field.NewPath("redis"), "config must not be specified if locking strategy is memory"))
 	}
-	return ret
+	return MergeAll(ret, s.Redis.Validate())
 }
 
 type PostgresConfigCreateDatabase struct {
@@ -98,7 +109,7 @@ type CollectorConfig struct {
 
 func (c CollectorConfig) Env(prefix string) []corev1.EnvVar {
 	ret := c.KafkaConfig.Env(prefix)
-	return append(ret, envutil.EnvWithPrefix(prefix, "PUBLISHER_TOPIC_MAPPING", "*:"+c.Topic))
+	return append(ret, EnvWithPrefix(prefix, "PUBLISHER_TOPIC_MAPPING", "*:"+c.Topic))
 }
 
 // LedgerSpec defines the desired state of Ledger

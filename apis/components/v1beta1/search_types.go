@@ -20,7 +20,10 @@ import (
 	"fmt"
 
 	. "github.com/numary/formance-operator/apis/sharedtypes"
+	"github.com/numary/formance-operator/internal/collectionutil"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type ElasticSearchTLSConfig struct {
@@ -36,9 +39,18 @@ type ElasticSearchBasicAuthConfig struct {
 }
 
 type ElasticSearchConfig struct {
-	Host   string `json:"host"`
-	Scheme string `json:"scheme"`
-	Port   uint16 `json:"port"`
+	// +optional
+	// +kubebuilder:validation:Enum:={http,https}
+	// +kubebuilder:validation:default:=https
+	Scheme string `json:"scheme,omitempty"`
+	// +optional
+	Host string `json:"host,omitempty"`
+	// +optional
+	HostFrom *ConfigSource `json:"hostFrom,omitempty"`
+	// +optional
+	Port uint16 `json:"port,omitempty"`
+	// +optional
+	PortFrom *ConfigSource `json:"portFrom,omitempty"`
 	// +optional
 	TLS ElasticSearchTLSConfig `json:"tls"`
 	// +optional
@@ -47,6 +59,25 @@ type ElasticSearchConfig struct {
 
 func (in *ElasticSearchConfig) Endpoint() string {
 	return fmt.Sprintf("%s://%s:%d", in.Scheme, in.Host, in.Port)
+}
+
+func (in *ElasticSearchConfig) Env(prefix string) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		SelectRequiredConfigValueOrReference("OPEN_SEARCH_HOST", prefix, in.Host, in.HostFrom),
+		SelectRequiredConfigValueOrReference("OPEN_SEARCH_PORT", prefix, in.Port, in.PortFrom),
+		EnvWithPrefix(prefix, "OPEN_SEARCH_SCHEME", in.Scheme),
+		EnvWithPrefix(prefix, "OPEN_SEARCH_SERVICE", ComputeEnvVar(prefix, "%s:%s",
+			"OPEN_SEARCH_HOST",
+			"OPEN_SEARCH_PORT",
+		)),
+	}
+}
+
+func (in *ElasticSearchConfig) Validate() field.ErrorList {
+	return collectionutil.MergeAll(
+		ValidateRequiredConfigValueOrReference("host", in.Host, in.HostFrom),
+		ValidateRequiredConfigValueOrReference("port", in.Port, in.PortFrom),
+	)
 }
 
 // SearchSpec defines the desired state of Search

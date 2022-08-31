@@ -30,7 +30,6 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/internal/envutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
@@ -130,14 +129,14 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "ledger")
 
 	env := []corev1.EnvVar{
-		envutil.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
-		envutil.Env("NUMARY_STORAGE_DRIVER", "postgres"),
+		Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
+		Env("NUMARY_STORAGE_DRIVER", "postgres"),
 	}
 	env = append(env, ledger.Spec.Postgres.Env("NUMARY_")...)
 	env = append(env, ledger.Spec.LockingStrategy.Env("NUMARY_")...)
-	env = append(env, envutil.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_DATABASE_URI)"))
+	env = append(env, Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_DATABASE_URI)"))
 	if ledger.Spec.Debug {
-		env = append(env, envutil.Env("NUMARY_DEBUG", "true"))
+		env = append(env, Env("NUMARY_DEBUG", "true"))
 	}
 	if ledger.Spec.Auth != nil {
 		env = append(env, ledger.Spec.Auth.Env("NUMARY_")...)

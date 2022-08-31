@@ -47,7 +47,7 @@ spec:
     host: kubernetes.docker.internal
     scheme: http
     delegatedOIDCServer:
-      issuer: http://kubernetes.docker.internal/dex
+      issuer: http://kubernetes.docker.internal/api/dex
       clientID: dexclient
       clientSecret: dexclient
     postgres:
@@ -58,8 +58,7 @@ spec:
   monitoring:
     traces:
       otlp:
-        endpoint:
-          value: otel-collector-opentelemetry-collector.default.svc.cluster.local
+        endpoint: otel-collector-opentelemetry-collector.default.svc.cluster.local
         insecure: true
         mode: grpc
         port: 4317

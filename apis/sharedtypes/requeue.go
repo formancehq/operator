@@ -1,9 +1,23 @@
 package sharedtypes
 
 import (
+	"time"
+
 	controllerruntime "sigs.k8s.io/controller-runtime"
 )
 
-func Requeue() *controllerruntime.Result {
-	return &controllerruntime.Result{Requeue: true}
+func Requeue(after ...time.Duration) *controllerruntime.Result {
+	if len(after) > 1 {
+		panic("too many arguments")
+	}
+
+	return &controllerruntime.Result{
+		Requeue: true,
+		RequeueAfter: func() time.Duration {
+			if len(after) == 1 {
+				return after[0]
+			}
+			return 0
+		}(),
+	}
 }

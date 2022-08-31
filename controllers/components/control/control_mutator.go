@@ -7,7 +7,6 @@ import (
 	. "github.com/numary/formance-operator/apis/sharedtypes"
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/internal/envutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -86,8 +85,8 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "control")
 
 	env := []corev1.EnvVar{
-		envutil.Env("API_URL_BACK", control.Spec.ApiURLBack),
-		envutil.Env("API_URL_FRONT", control.Spec.ApiURLFront),
+		Env("API_URL_BACK", control.Spec.ApiURLBack),
+		Env("API_URL_FRONT", control.Spec.ApiURLFront),
 	}
 
 	image := control.Spec.Image

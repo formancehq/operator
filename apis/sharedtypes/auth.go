@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/numary/formance-operator/internal/envutil"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -46,15 +45,15 @@ func (spec *AuthConfigSpec) Env(prefix string) []corev1.EnvVar {
 		return ret
 	}
 	if spec.OAuth2 != nil {
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BEARER_ENABLED", "true"))
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BEARER_INTROSPECT_URL", spec.OAuth2.IntrospectUrl))
+		ret = append(ret, EnvWithPrefix(prefix, "AUTH_BEARER_ENABLED", "true"))
+		ret = append(ret, EnvWithPrefix(prefix, "AUTH_BEARER_INTROSPECT_URL", spec.OAuth2.IntrospectUrl))
 		if spec.OAuth2.AudienceWildcard {
-			ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BEARER_AUDIENCES_WILDCARD", "true"))
+			ret = append(ret, EnvWithPrefix(prefix, "AUTH_BEARER_AUDIENCES_WILDCARD", "true"))
 		} else {
-			ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BEARER_AUDIENCE", strings.Join(spec.OAuth2.Audiences, " ")))
+			ret = append(ret, EnvWithPrefix(prefix, "AUTH_BEARER_AUDIENCE", strings.Join(spec.OAuth2.Audiences, " ")))
 		}
 		if spec.OAuth2.ProtectedByScopes {
-			ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BEARER_USE_SCOPES", "true"))
+			ret = append(ret, EnvWithPrefix(prefix, "AUTH_BEARER_USE_SCOPES", "true"))
 		}
 	}
 	if spec.HTTPBasic != nil && spec.HTTPBasic.Enabled {
@@ -62,8 +61,8 @@ func (spec *AuthConfigSpec) Env(prefix string) []corev1.EnvVar {
 		for k, v := range spec.HTTPBasic.Credentials {
 			credentials += fmt.Sprintf("%s:%s ", k, v)
 		}
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BASIC_ENABLED", "true"))
-		ret = append(ret, envutil.EnvWithPrefix(prefix, "AUTH_BASIC_CREDENTIALS", credentials))
+		ret = append(ret, EnvWithPrefix(prefix, "AUTH_BASIC_ENABLED", "true"))
+		ret = append(ret, EnvWithPrefix(prefix, "AUTH_BASIC_CREDENTIALS", credentials))
 	}
 	return ret
 }

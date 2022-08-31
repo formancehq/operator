@@ -30,7 +30,6 @@ import (
 	"github.com/numary/formance-operator/internal"
 	"github.com/numary/formance-operator/internal/collectionutil"
 	"github.com/numary/formance-operator/internal/containerutil"
-	"github.com/numary/formance-operator/internal/envutil"
 	"github.com/numary/formance-operator/internal/probeutil"
 	"github.com/numary/formance-operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
@@ -120,13 +119,11 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 
 	env := make([]corev1.EnvVar, 0)
 	env = append(env, auth.Spec.Postgres.Env("PG_")...)
+	env = append(env, auth.Spec.DelegatedOIDCServer.Env()...)
 	env = append(env,
-		envutil.Env("POSTGRES_URI", "$(PG_POSTGRES_DATABASE_URI)"),
-		envutil.Env("DELEGATED_CLIENT_SECRET", auth.Spec.DelegatedOIDCServer.ClientSecret),
-		envutil.Env("DELEGATED_CLIENT_ID", auth.Spec.DelegatedOIDCServer.ClientID),
-		envutil.Env("DELEGATED_ISSUER", auth.Spec.DelegatedOIDCServer.Issuer),
-		envutil.Env("BASE_URL", auth.Spec.BaseURL),
-		envutil.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
+		Env("POSTGRES_URI", "$(PG_POSTGRES_DATABASE_URI)"),
+		Env("BASE_URL", auth.Spec.BaseURL),
+		EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secret.Name,
@@ -137,8 +134,8 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	)
 	if auth.Spec.DevMode {
 		env = append(env,
-			envutil.Env("DEBUG", "1"),
-			envutil.Env("CAOS_OIDC_DEV", "1"),
+			Env("DEBUG", "1"),
+			Env("CAOS_OIDC_DEV", "1"),
 		)
 	}
 	if auth.Spec.Monitoring != nil {

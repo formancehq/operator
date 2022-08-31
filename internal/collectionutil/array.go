@@ -54,3 +54,11 @@ func NotEqual[T comparable](value T) func(t T) bool {
 		return t != value
 	}
 }
+
+func MergeAll[T comparable](arrays ...[]T) []T {
+	ret := make([]T, 0)
+	for _, a := range arrays {
+		ret = append(ret, a...)
+	}
+	return ret
+}
