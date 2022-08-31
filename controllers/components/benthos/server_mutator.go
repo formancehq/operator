@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	defaultImage = "jeffail/benthos:latest"
+	defaultImage = "jeffail/benthos:4.5.1"
 	serverLabel  = "server.benthos.components.formance.com"
 )
 
