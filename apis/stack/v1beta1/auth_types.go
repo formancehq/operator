@@ -31,6 +31,9 @@ func (in *AuthSpec) GetScheme() string {
 }
 
 func (in *AuthSpec) Validate() field.ErrorList {
+	if in == nil {
+		return field.ErrorList{}
+	}
 	return MergeAll(
 		Map(in.Postgres.Validate(), AddPrefixToFieldError("postgres.")),
 		Map(in.DelegatedOIDCServer.Validate(), AddPrefixToFieldError("delegatedOIDCServer.")),
