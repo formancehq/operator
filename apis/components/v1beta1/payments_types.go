@@ -66,24 +66,24 @@ func (cfg *MongoDBConfig) Env(prefix string) []corev1.EnvVar {
 	}
 
 	if cfg.UseSrv {
-		env = append(env, Env("MONGODB_SCHEME", "mongodb+srv"))
+		env = append(env,
+			Env("MONGODB_URI", ComputeEnvVar(prefix, "mongodb+srv://%s%s",
+				"MONGODB_CREDENTIALS_PART",
+				"MONGODB_HOST",
+			)),
+		)
 	} else {
 		env = append(env,
-			Env("MONGODB_SCHEME", "mongodb"),
 			SelectRequiredConfigValueOrReference("MONGODB_PORT", prefix,
 				cfg.Port, cfg.PortFrom),
-			EnvWithPrefix(prefix, "MONGODB_PORT_PART",
-				ComputeEnvVar(prefix, ":%s", "MONGODB_PORT"),
-			),
+			Env("MONGODB_URI", ComputeEnvVar(prefix, "mongodb://%s%s:%s",
+				"MONGODB_CREDENTIALS_PART",
+				"MONGODB_HOST",
+				"MONGODB_PORT",
+			)),
 		)
 	}
 	env = append(env,
-		Env("MONGODB_URI", ComputeEnvVar(prefix, "%s://%s%s%s",
-			"MONGODB_SCHEME",
-			"MONGODB_CREDENTIALS_PART",
-			"MONGODB_HOST",
-			"MONGODB_PORT_PART",
-		)),
 		Env("MONGODB_DATABASE", cfg.Database),
 	)
 
