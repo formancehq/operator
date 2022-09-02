@@ -52,7 +52,8 @@ func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
 		SelectRequiredConfigValueOrReference("PORT", prefix, in.Port, in.PortFrom),
 		SelectRequiredConfigValueOrReference("ENDPOINT", prefix,
 			in.Endpoint, in.EndpointFrom),
-		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", "$(ENDPOINT):$(PORT)"),
+		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT",
+			ComputeEnvVar(prefix, "%s:%s", "ENDPOINT", "PORT")),
 	}
 }
 
