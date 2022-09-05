@@ -1,9 +1,9 @@
-package v1
+package v1beta1
 
 import (
 	"context"
 
-	"github.com/numary/formance-operator/apis/stack/v1beta1"
+	"github.com/numary/operator/apis/stack/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -13,8 +13,8 @@ import (
 type StackInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*v1beta1.StackList, error)
 	Get(ctx context.Context, name string, options metav1.GetOptions) (*v1beta1.Stack, error)
-	Create(ctx context.Context, organization *v1beta1.Stack) (*v1beta1.Stack, error)
-	Update(ctx context.Context, organization *v1beta1.Stack) (*v1beta1.Stack, error)
+	Create(ctx context.Context, stack *v1beta1.Stack) (*v1beta1.Stack, error)
+	Update(ctx context.Context, stack *v1beta1.Stack) (*v1beta1.Stack, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
 	Delete(ctx context.Context, name string) error
 }
