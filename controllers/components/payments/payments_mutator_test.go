@@ -46,6 +46,13 @@ var _ = Describe("Payments controller", func() {
 								},
 								Topic: "xxx",
 							},
+							MongoDB: MongoDBConfig{
+								Host:     "XXX",
+								Port:     27017,
+								Username: "foo",
+								Password: "bar",
+								Database: "test",
+							},
 							ElasticSearchIndex: "foo",
 						},
 					}
