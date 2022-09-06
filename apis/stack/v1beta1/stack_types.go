@@ -58,12 +58,12 @@ type StackSpec struct {
 
 func (in *StackSpec) Validate() field.ErrorList {
 	return MergeAll(
-		Map(in.Services.Ledger.Validate(), AddPrefixToFieldError("services.ledger.")),
-		Map(in.Services.Payments.Validate(), AddPrefixToFieldError("services.payments.")),
-		Map(in.Services.Search.Validate(), AddPrefixToFieldError("services.search.")),
-		Map(in.Auth.Validate(), AddPrefixToFieldError("auth.")),
-		Map(in.Monitoring.Validate(), AddPrefixToFieldError("monitoring.")),
-		Map(in.Kafka.Validate(), AddPrefixToFieldError("kafka.")),
+		Map(in.Services.Ledger.Validate(), AddPrefixToFieldError("services.ledger")),
+		Map(in.Services.Payments.Validate(), AddPrefixToFieldError("services.payments")),
+		Map(in.Services.Search.Validate(), AddPrefixToFieldError("services.search")),
+		Map(in.Auth.Validate(), AddPrefixToFieldError("auth")),
+		Map(in.Monitoring.Validate(), AddPrefixToFieldError("monitoring")),
+		Map(in.Kafka.Validate(), AddPrefixToFieldError("kafka")),
 	)
 }
 
