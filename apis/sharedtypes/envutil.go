@@ -36,7 +36,9 @@ func Env(key, value string) corev1.EnvVar {
 	}
 }
 
-func ValidateRequiredConfigValueOrReferenceOnly[T comparable](key string, v T, source *ConfigSource) field.ErrorList {
+func ValidateRequiredConfigValueOrReferenceOnly[T comparable, SRC interface {
+	*ConfigSource | *corev1.EnvVarSource
+}](key string, v T, source SRC) field.ErrorList {
 	var zeroValue T
 	ret := field.ErrorList{}
 	if !(v == zeroValue || source == nil) {
@@ -50,7 +52,9 @@ func ValidateRequiredConfigValueOrReferenceOnly[T comparable](key string, v T, s
 	return ret
 }
 
-func ValidateRequiredConfigValueOrReference[T comparable](key string, v T, source *ConfigSource) field.ErrorList {
+func ValidateRequiredConfigValueOrReference[T comparable, SRC interface {
+	*ConfigSource | *corev1.EnvVarSource
+}](key string, v T, source SRC) field.ErrorList {
 	var zeroValue T
 	ret := field.ErrorList{}
 	if v == zeroValue && source == nil {
@@ -65,8 +69,8 @@ func ValidateRequiredConfigValueOrReference[T comparable](key string, v T, sourc
 
 func SelectRequiredConfigValueOrReference[VALUE interface {
 	string |
-		int | int8 | int16 | int32 | int64 |
-		uint | uint8 | uint16 | uint32 | uint64
+	int | int8 | int16 | int32 | int64 |
+	uint | uint8 | uint16 | uint32 | uint64
 }, SRC interface {
 	*ConfigSource | *corev1.EnvVarSource
 }](key, prefix string, v VALUE, src SRC) corev1.EnvVar {
@@ -76,10 +80,14 @@ func SelectRequiredConfigValueOrReference[VALUE interface {
 	)
 	switch v := any(v).(type) {
 	case string:
-		stringValue = &v
+		if v != "" {
+			stringValue = &v
+		}
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		value := fmt.Sprintf("%d", v)
-		stringValue = &value
+		if v != 0 {
+			value := fmt.Sprintf("%d", v)
+			stringValue = &value
+		}
 	}
 	if stringValue != nil {
 		ret = EnvWithPrefix(prefix, key, *stringValue)
@@ -87,10 +95,10 @@ func SelectRequiredConfigValueOrReference[VALUE interface {
 		switch src := any(src).(type) {
 		case *ConfigSource:
 			ret = EnvFromWithPrefix(prefix, key, src.Env())
-		case *EnvVarSource:
+		case *corev1.EnvVarSource:
 			ret = corev1.EnvVar{
 				Name:      prefix + key,
-				ValueFrom: (*corev1.EnvVarSource)(src),
+				ValueFrom: src,
 			}
 		}
 	}

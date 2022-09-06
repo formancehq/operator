@@ -6,8 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-type EnvVarSource corev1.EnvVarSource
-
 type ConfigSource struct {
 	// Selects a key of a ConfigMap.
 	// +optional
