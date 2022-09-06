@@ -69,8 +69,8 @@ func ValidateRequiredConfigValueOrReference[T comparable, SRC interface {
 
 func SelectRequiredConfigValueOrReference[VALUE interface {
 	string |
-	int | int8 | int16 | int32 | int64 |
-	uint | uint8 | uint16 | uint32 | uint64
+		int | int8 | int16 | int32 | int64 |
+		uint | uint8 | uint16 | uint32 | uint64
 }, SRC interface {
 	*ConfigSource | *corev1.EnvVarSource
 }](key, prefix string, v VALUE, src SRC) corev1.EnvVar {
