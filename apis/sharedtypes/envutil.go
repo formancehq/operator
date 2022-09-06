@@ -63,13 +63,13 @@ func ValidateRequiredConfigValueOrReference[T comparable](key string, v T, sourc
 	return append(ret, ValidateRequiredConfigValueOrReferenceOnly(key, v, source)...)
 }
 
-type configurableType interface {
+func SelectRequiredConfigValueOrReference[VALUE interface {
 	string |
 		int | int8 | int16 | int32 | int64 |
 		uint | uint8 | uint16 | uint32 | uint64
-}
-
-func SelectRequiredConfigValueOrReference[I configurableType](key, prefix string, v I, src *ConfigSource) corev1.EnvVar {
+}, SRC interface {
+	*ConfigSource | *corev1.EnvVarSource
+}](key, prefix string, v VALUE, src SRC) corev1.EnvVar {
 	var (
 		ret         corev1.EnvVar
 		stringValue *string
@@ -84,7 +84,15 @@ func SelectRequiredConfigValueOrReference[I configurableType](key, prefix string
 	if stringValue != nil {
 		ret = EnvWithPrefix(prefix, key, *stringValue)
 	} else {
-		ret = EnvFromWithPrefix(prefix, key, src.Env())
+		switch src := any(src).(type) {
+		case *ConfigSource:
+			ret = EnvFromWithPrefix(prefix, key, src.Env())
+		case *EnvVarSource:
+			ret = corev1.EnvVar{
+				Name:      prefix + key,
+				ValueFrom: (*corev1.EnvVarSource)(src),
+			}
+		}
 	}
 	return ret
 }
