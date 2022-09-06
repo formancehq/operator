@@ -23,6 +23,9 @@ func (in *MonitoringSpec) Env(prefix string) []v1.EnvVar {
 }
 
 func (in *MonitoringSpec) Validate() field.ErrorList {
+	if in == nil {
+		return field.ErrorList{}
+	}
 	return in.Traces.Validate()
 }
 
@@ -78,5 +81,8 @@ func (in *TracesSpec) Env(prefix string) []v1.EnvVar {
 }
 
 func (in *TracesSpec) Validate() field.ErrorList {
+	if in == nil {
+		return field.ErrorList{}
+	}
 	return in.Otlp.Validate()
 }
