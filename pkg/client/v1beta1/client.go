@@ -7,7 +7,9 @@ import (
 )
 
 func init() {
-	v1beta1.AddToScheme(scheme.Scheme)
+	if err := v1beta1.AddToScheme(scheme.Scheme); err != nil {
+		panic(err)
+	}
 }
 
 type Client struct {
