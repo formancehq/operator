@@ -1,7 +1,7 @@
 package v1beta1
 
 import (
-	. "github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/operator/apis/sharedtypes"
 )
 
 // +kubebuilder:object:generate=true

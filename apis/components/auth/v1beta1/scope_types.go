@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
+	. "github.com/numary/operator/apis/sharedtypes"
+	. "github.com/numary/operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

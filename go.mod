@@ -1,4 +1,4 @@
-module github.com/numary/formance-operator
+module github.com/numary/operator
 
 go 1.18
 

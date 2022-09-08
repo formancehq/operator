@@ -23,7 +23,7 @@ package v1beta1
 
 import (
 	"encoding/json"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	"github.com/numary/operator/apis/sharedtypes"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 

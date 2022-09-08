@@ -3,7 +3,7 @@ layout:
 - go.kubebuilder.io/v3
 multigroup: true
 projectName: formance-operator
-repo: github.com/numary/formance-operator
+repo: github.com/numary/operator
 resources:
 - api:
     crdVersion: v1
@@ -11,7 +11,7 @@ resources:
   domain: formance.com
   group: stack
   kind: Stack
-  path: github.com/numary/formance-operator/apis/stack/v1beta1
+  path: github.com/numary/operator/apis/stack/v1beta1
   version: v1beta1
   webhooks:
 #    defaulting: true
@@ -22,7 +22,7 @@ resources:
   domain: formance.com
   group: stack
   kind: License
-  path: github.com/numary/formance-operator/apis/stack/v1beta1
+  path: github.com/numary/operator/apis/stack/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -31,7 +31,7 @@ resources:
   domain: formance.com
   group: components
   kind: Auth
-  path: github.com/numary/formance-operator/apis/components/v1beta1
+  path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -40,7 +40,7 @@ resources:
   domain: formance.com
   group: components
   kind: Ledger
-  path: github.com/numary/formance-operator/apis/components/v1beta1
+  path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -49,7 +49,7 @@ resources:
   domain: formance.com
   group: components
   kind: Payments
-  path: github.com/numary/formance-operator/apis/components/v1beta1
+  path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -58,7 +58,7 @@ resources:
   domain: formance.com
   group: components
   kind: Search
-  path: github.com/numary/formance-operator/apis/components/v1beta1
+  path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -67,7 +67,7 @@ resources:
   domain: formance.com
   group: components
   kind: Control
-  path: github.com/numary/formance-operator/apis/components/v1beta1
+  path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -76,7 +76,7 @@ resources:
   domain: formance.com
   group: auth
   kind: Client
-  path: github.com/numary/formance-operator/apis/components/auth/v1beta1
+  path: github.com/numary/operator/apis/components/auth/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -85,7 +85,7 @@ resources:
   domain: formance.com
   group: auth
   kind: Scope
-  path: github.com/numary/formance-operator/apis/components/auth/v1beta1
+  path: github.com/numary/operator/apis/components/auth/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -94,7 +94,7 @@ resources:
   domain: formance.com
   group: benthos.components.formance.com
   kind: Server
-  path: github.com/numary/formance-operator/apis/benthos.components.formance.com/v1beta1
+  path: github.com/numary/operator/apis/benthos.components.formance.com/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -103,7 +103,7 @@ resources:
   domain: formance.com
   group: benthos.components.formance.com
   kind: Stream
-  path: github.com/numary/formance-operator/apis/benthos.components.formance.com/v1beta1
+  path: github.com/numary/operator/apis/benthos.components.formance.com/v1beta1
   version: v1beta1
 - api:
     crdVersion: v1
@@ -112,6 +112,6 @@ resources:
   domain: formance.com
   group: components
   kind: SearchIngester
-  path: github.com/numary/formance-operator/apis/components/v1beta1
+  path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
 version: "3"

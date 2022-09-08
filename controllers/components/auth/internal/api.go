@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/formance-operator/internal/collectionutil"
+	. "github.com/numary/operator/internal/collectionutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

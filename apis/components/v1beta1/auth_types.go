@@ -17,8 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
+	. "github.com/numary/operator/apis/sharedtypes"
+	. "github.com/numary/operator/internal/collectionutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"

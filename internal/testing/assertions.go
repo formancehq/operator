@@ -1,8 +1,8 @@
 package testing
 
 import (
-	"github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/collectionutil"
+	"github.com/numary/operator/apis/sharedtypes"
+	. "github.com/numary/operator/internal/collectionutil"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
