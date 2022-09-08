@@ -3,7 +3,7 @@ package sharedtypes
 import (
 	"strings"
 
-	. "github.com/numary/formance-operator/internal/collectionutil"
+	. "github.com/numary/operator/internal/collectionutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

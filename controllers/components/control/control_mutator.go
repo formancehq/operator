@@ -3,11 +3,11 @@ package control
 import (
 	"context"
 
-	. "github.com/numary/formance-operator/apis/components/v1beta1"
-	. "github.com/numary/formance-operator/apis/sharedtypes"
-	"github.com/numary/formance-operator/internal"
-	"github.com/numary/formance-operator/internal/collectionutil"
-	"github.com/numary/formance-operator/internal/resourceutil"
+	. "github.com/numary/operator/apis/components/v1beta1"
+	. "github.com/numary/operator/apis/sharedtypes"
+	"github.com/numary/operator/internal"
+	"github.com/numary/operator/internal/collectionutil"
+	"github.com/numary/operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscallingv2 "k8s.io/api/autoscaling/v2"

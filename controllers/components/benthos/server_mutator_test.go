@@ -1,9 +1,9 @@
 package benthos
 
 import (
-	. "github.com/numary/formance-operator/apis/components/benthos/v1beta1"
-	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/internal/testing"
+	. "github.com/numary/operator/apis/components/benthos/v1beta1"
+	. "github.com/numary/operator/apis/sharedtypes"
+	. "github.com/numary/operator/internal/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"

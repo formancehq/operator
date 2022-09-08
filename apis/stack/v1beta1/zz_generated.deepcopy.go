@@ -22,8 +22,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	"github.com/numary/formance-operator/apis/sharedtypes"
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	"github.com/numary/operator/apis/sharedtypes"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 

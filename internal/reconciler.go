@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	. "github.com/numary/formance-operator/apis/sharedtypes"
+	. "github.com/numary/operator/apis/sharedtypes"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

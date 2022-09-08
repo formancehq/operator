@@ -2,10 +2,10 @@ package stack
 
 import (
 	"github.com/google/uuid"
-	componentsv1beta1 "github.com/numary/formance-operator/apis/components/v1beta1"
-	. "github.com/numary/formance-operator/apis/sharedtypes"
-	. "github.com/numary/formance-operator/apis/stack/v1beta1"
-	. "github.com/numary/formance-operator/internal/testing"
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	. "github.com/numary/operator/apis/sharedtypes"
+	. "github.com/numary/operator/apis/stack/v1beta1"
+	. "github.com/numary/operator/internal/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
