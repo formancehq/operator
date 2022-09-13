@@ -1,6 +1,7 @@
 package stack
 
 import (
+	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	"github.com/google/uuid"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
@@ -14,7 +15,11 @@ import (
 )
 
 var _ = Describe("Stack controller (Auth)", func() {
-	mutator := NewMutator(GetClient(), GetScheme())
+	mutator := NewMutator(GetClient(), GetScheme(), []string{"*.example.com"}, certmanagermetav1.ObjectReference{
+		Name:  "name",
+		Kind:  "kind",
+		Group: "group",
+	})
 	WithMutator(mutator, func() {
 		Context("When creating stack", func() {
 			var (
