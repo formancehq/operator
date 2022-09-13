@@ -334,7 +334,7 @@ func (r *Mutator) reconcileHPA(ctx context.Context, auth *componentsv1beta1.Auth
 	return ret, err
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithBuilder sets up the controller with the Manager.
 func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).

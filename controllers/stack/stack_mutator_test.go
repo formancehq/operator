@@ -1,9 +1,6 @@
 package stack
 
 import (
-	"fmt"
-
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	certmanagermetav1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	"github.com/google/uuid"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
@@ -57,17 +54,6 @@ var _ = Describe("Stack controller (Auth)", func() {
 						Enabled: true,
 					}
 					Expect(Update(stack)).To(BeNil())
-					Eventually(ConditionStatus(stack, ConditionTypeStackCertificateReady)).
-						Should(Equal(metav1.ConditionTrue))
-				})
-				It("Should create a certificate on a new namespace", func() {
-					certificate := &certmanagerv1.Certificate{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("%s-certificate", stack.Name),
-							Namespace: stack.Spec.Namespace,
-						},
-					}
-					Expect(Exists(certificate)()).To(BeTrue())
 				})
 			})
 			Context("With ledger service", func() {
