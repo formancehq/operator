@@ -52,11 +52,6 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
-	//if actual.Spec.Ingress.TLS != nil && actual.Spec.Ingress.Enabled && actual.Spec.Ingress.TLS.SecretName != "" {
-	//	if err := m.reconcileCertificate(ctx, actual); err != nil {
-	//		return Requeue(), pkgError.Wrap(err, "Reconciling certificate")
-	//	}
-	//}
 	if err := m.reconcileAuth(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
@@ -395,31 +390,6 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 	log.FromContext(ctx).Info("Search ready")
 	return nil
 }
-
-//func (r *Mutator) reconcileCertificate(ctx context.Context, stack *v1beta1.Stack) error {
-//	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
-//		Namespace: stack.Spec.Namespace,
-//		Name:      fmt.Sprintf("%s-certificate", stack.Name),
-//	}, stack, func(certificate *certmanagerv1.Certificate) error {
-//		certificate.Spec = certmanagerv1.CertificateSpec{
-//			DNSNames:   r.dnsNames,
-//			SecretName: stack.Spec.Ingress.TLS.SecretName,
-//			IssuerRef:  r.issuerRef,
-//		}
-//		return nil
-//	})
-//	switch {
-//	case err != nil:
-//		stack.SetCertificateError(err.Error())
-//		return err
-//	case operationResult == controllerutil.OperationResultNone:
-//	default:
-//		stack.SetCertificateReady()
-//	}
-//
-//	log.FromContext(ctx).Info("Certificate ready")
-//	return nil
-//}
 
 var _ internal.Mutator[*v1beta1.Stack] = &Mutator{}
 
