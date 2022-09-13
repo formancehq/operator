@@ -33,7 +33,8 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
-      - run: go mod vendor
+      - run: go mod download
+      - run: CGO_ENABLED=0 GOOS=linux go build -v -a -o manager main.go
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -49,8 +50,9 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          target: release
           tags: ghcr.io/formancehq/operator:latest,ghcr.io/formancehq/operator:${{ github.event.release.tag_name }}
           build-args: |
             APP_SHA=${{ github.sha }}
@@ -60,8 +62,9 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          target: release
           tags: ghcr.io/formancehq/operator:${{ github.event.release.tag_name }}
           build-args: |
             APP_SHA=${{ github.sha }}
@@ -71,8 +74,9 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          target: release
           tags: ghcr.io/formancehq/operator:${{ github.sha }}
           build-args: |
             APP_SHA=${{ github.sha }}
