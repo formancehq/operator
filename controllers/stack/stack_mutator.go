@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	"github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
+	v1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
