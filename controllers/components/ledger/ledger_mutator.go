@@ -190,7 +190,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-								corev1.ResourceMemory: *resource.NewMilliQuantity(100, resource.DecimalSI),
+								corev1.ResourceMemory: *resource.NewQuantity(256, resource.DecimalSI),
 							},
 						},
 					}},
