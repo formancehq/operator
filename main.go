@@ -20,6 +20,8 @@ import (
 	"flag"
 	"os"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	v1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -65,18 +67,28 @@ func init() {
 	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(traefik.AddToScheme(scheme))
 	utilruntime.Must(benthoscomponentsformancecomv1beta1.AddToScheme(scheme))
+	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
+	var (
+		metricsAddr          string
+		enableLeaderElection bool
+		probeAddr            string
+		dnsName              string
+		issuerRefName        string
+		issuerRefKind        string
+	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&dnsName, "dns name to use", "", "")
+	flag.StringVar(&issuerRefName, "Issuer ref name", "", "")
+	flag.StringVar(&issuerRefKind, "Issuer ref kind", "ClusterIssuer", "")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -109,7 +121,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	stackMutator := stack.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	stackMutator := stack.NewMutator(mgr.GetClient(), mgr.GetScheme(), []string{
+		dnsName,
+	}, v1.ObjectReference{
+		Name: issuerRefName,
+		Kind: issuerRefKind,
+	})
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), stackMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")
 		os.Exit(1)

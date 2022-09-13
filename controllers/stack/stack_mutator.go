@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	v1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
@@ -22,13 +24,16 @@ import (
 )
 
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/finalizers,verbs=update
 
 type Mutator struct {
-	client client.Client
-	scheme *runtime.Scheme
+	client    client.Client
+	scheme    *runtime.Scheme
+	dnsNames  []string
+	issuerRef v1.ObjectReference
 }
 
 func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
@@ -37,15 +42,20 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 		Owns(&authcomponentsv1beta1.Ledger{}).
 		Owns(&authcomponentsv1beta1.Search{}).
 		Owns(&authcomponentsv1beta1.Payments{}).
-		Owns(&corev1.Namespace{})
+		Owns(&corev1.Namespace{}).
+		Owns(&certmanagerv1.Certificate{})
 	return nil
 }
 
 func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
 	SetProgressing(actual)
-
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
+	}
+	if actual.Spec.Ingress.TLS != nil && actual.Spec.Ingress.Enabled && actual.Spec.Ingress.TLS.SecretName != "" {
+		if err := m.reconcileCertificate(ctx, actual); err != nil {
+			return Requeue(), pkgError.Wrap(err, "Reconciling certificate")
+		}
 	}
 	if err := m.reconcileAuth(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
@@ -386,14 +396,43 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 	return nil
 }
 
+func (r *Mutator) reconcileCertificate(ctx context.Context, stack *v1beta1.Stack) error {
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      fmt.Sprintf("%s-certificate", stack.Name),
+	}, stack, func(certificate *certmanagerv1.Certificate) error {
+		certificate.Spec = certmanagerv1.CertificateSpec{
+			DNSNames:   r.dnsNames,
+			SecretName: stack.Spec.Ingress.TLS.SecretName,
+			IssuerRef:  r.issuerRef,
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetCertificateError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetCertificateReady()
+	}
+
+	log.FromContext(ctx).Info("Certificate ready")
+	return nil
+}
+
 var _ internal.Mutator[*v1beta1.Stack] = &Mutator{}
 
 func NewMutator(
 	client client.Client,
 	scheme *runtime.Scheme,
+	dnsNames []string,
+	issuerRef v1.ObjectReference,
 ) internal.Mutator[*v1beta1.Stack] {
 	return &Mutator{
-		client: client,
-		scheme: scheme,
+		client:    client,
+		scheme:    scheme,
+		dnsNames:  dnsNames,
+		issuerRef: issuerRef,
 	}
 }

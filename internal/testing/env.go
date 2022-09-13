@@ -7,6 +7,7 @@ import (
 	osRuntime "runtime"
 	"sync"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/google/uuid"
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	benthoscomponentsformancecomv1beta1 "github.com/numary/operator/apis/components/benthos/v1beta1"
@@ -49,12 +50,14 @@ func start() {
 
 	//By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join(filepath.Dir(filename), "..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{
+			filepath.Join(filepath.Dir(filename), "..", "..", "config", "crd", "bases"),
+			filepath.Join(filepath.Dir(filename), "..", "..", "external-crds"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 
 	var err error
-	// cfg is defined in this file globally.
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
@@ -63,6 +66,7 @@ func start() {
 	Expect(authcomponentsv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(benthoscomponentsformancecomv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(stackv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(certmanagerv1.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
@@ -107,7 +111,7 @@ func WithMutator[T Object](mutator internal.Mutator[T], fn func()) {
 		ctx, cancel = context.WithCancel(ActualContext())
 		done = make(chan struct{})
 		mgr, err := ctrl.NewManager(ClusterConfig(), ctrl.Options{
-			Scheme:             scheme.Scheme,
+			Scheme:             GetScheme(),
 			MetricsBindAddress: "0",
 		})
 		Expect(err).ToNot(HaveOccurred())
