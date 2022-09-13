@@ -50,7 +50,10 @@ func start() {
 
 	//By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join(filepath.Dir(filename), "..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{
+			filepath.Join(filepath.Dir(filename), "..", "..", "config", "crd", "bases"),
+			filepath.Join(filepath.Dir(filename), "..", "..", "external-crds"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 
