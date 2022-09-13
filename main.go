@@ -85,9 +85,9 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&dnsName, "dns name to use", "", "")
-	flag.StringVar(&issuerRefName, "Issuer ref name", "", "")
-	flag.StringVar(&issuerRefKind, "Issuer ref kind", "ClusterIssuer", "")
+	flag.StringVar(&dnsName, "dns-name", "", "")
+	flag.StringVar(&issuerRefName, "issuer-ref-name", "", "")
+	flag.StringVar(&issuerRefKind, "issuer-ref-kind", "ClusterIssuer", "")
 
 	opts := zap.Options{
 		Development: true,
