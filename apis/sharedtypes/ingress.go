@@ -46,6 +46,6 @@ func (t *IngressTLS) AsK8SIngressTLSSlice() []networkingv1.IngressTLS {
 		return nil
 	}
 	return []networkingv1.IngressTLS{{
-		SecretName: t.SecretName,
+		//SecretName: t.SecretName,
 	}}
 }
