@@ -47,7 +47,7 @@ import (
 )
 
 const (
-	defaultImage = "ghcr.io/numary/search:latest"
+	defaultImage = "ghcr.io/formancehq/search:latest"
 )
 
 // Mutator reconciles a Auth object

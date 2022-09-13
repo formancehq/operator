@@ -43,7 +43,7 @@ spec:
     annotations:
       traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
   auth:
-    image: ghcr.io/numary/auth:a2d200a8d89fcab9e294f58b361443571ee7e7aa
+    image: ghcr.io/formancehq/auth:a2d200a8d89fcab9e294f58b361443571ee7e7aa
     host: kubernetes.docker.internal
     scheme: http
     delegatedOIDCServer:
@@ -91,4 +91,4 @@ spec:
           username: admin
           password: admin
     control:
-      image: ghcr.io/numary/control:cdbeb8e9bd10d388674da80622a113519f1147ce
+      image: ghcr.io/formancehq/control:cdbeb8e9bd10d388674da80622a113519f1147ce

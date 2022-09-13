@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultImage = "ghcr.io/numary/control:latest"
+	defaultImage = "ghcr.io/formancehq/control:latest"
 )
 
 //+kubebuilder:rbac:groups=components.formance.com,resources=controls,verbs=get;list;watch;create;update;patch;delete

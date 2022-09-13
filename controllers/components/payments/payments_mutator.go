@@ -60,7 +60,7 @@ var benthosConfigTpl = template.
 	)
 
 const (
-	defaultImage = "ghcr.io/numary/payments:latest"
+	defaultImage = "ghcr.io/formancehq/payments:latest"
 )
 
 // Mutator reconciles a Auth object

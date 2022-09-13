@@ -8904,7 +8904,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: ghcr.io/numary/operator:{{$.Chart.AppVersion}}
+        image: ghcr.io/formancehq/operator:{{$.Chart.AppVersion}}
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
