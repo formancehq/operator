@@ -75,13 +75,12 @@ type ServicesSpec struct {
 }
 
 const (
-	ConditionTypeStackNamespaceReady   = "NamespaceReady"
-	ConditionTypeStackAuthReady        = "AuthReady"
-	ConditionTypeStackLedgerReady      = "LedgerReady"
-	ConditionTypeStackSearchReady      = "SearchReady"
-	ConditionTypeStackControlReady     = "ControlReady"
-	ConditionTypeStackPaymentsReady    = "PaymentsReady"
-	ConditionTypeStackCertificateReady = "CertificateReady"
+	ConditionTypeStackNamespaceReady = "NamespaceReady"
+	ConditionTypeStackAuthReady      = "AuthReady"
+	ConditionTypeStackLedgerReady    = "LedgerReady"
+	ConditionTypeStackSearchReady    = "SearchReady"
+	ConditionTypeStackControlReady   = "ControlReady"
+	ConditionTypeStackPaymentsReady  = "PaymentsReady"
 )
 
 //+kubebuilder:object:root=true
@@ -164,14 +163,6 @@ func (in *Stack) SetPaymentError(msg string) {
 
 func (in *Stack) SetPaymentReady() {
 	SetCondition(in, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
-}
-
-func (in *Stack) SetCertificateReady() {
-	SetCondition(in, ConditionTypeStackCertificateReady, metav1.ConditionTrue)
-}
-
-func (in *Stack) SetCertificateError(msg string) {
-	SetCondition(in, ConditionTypeStackCertificateReady, metav1.ConditionFalse, msg)
 }
 
 func (in *Stack) RemoveAuthStatus() {
