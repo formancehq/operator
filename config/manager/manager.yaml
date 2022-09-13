@@ -38,6 +38,9 @@ spec:
         - /manager
         args:
         - --leader-elect
+        - --dns-name="*.sandbox.formance.cloud"
+        - --issuer-ref-name="r53-letsencrypt-prod"
+        - --issuer-ref-kind="ClusterIssuer"
         image: controller:latest
         imagePullPolicy: Always
         name: manager
