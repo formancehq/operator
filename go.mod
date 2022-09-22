@@ -8,14 +8,14 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/numary/auth/authclient v0.0.0-20220811153653-6335dd9658f2
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/ginkgo/v2 v2.1.4
-	github.com/onsi/gomega v1.19.0
+	github.com/onsi/ginkgo/v2 v2.1.6
+	github.com/onsi/gomega v1.20.1
 	github.com/opensearch-project/opensearch-go v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/traefik/traefik/v2 v2.8.3
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.25.0
-	k8s.io/apimachinery v0.25.0
+	k8s.io/apimachinery v0.25.2
 	k8s.io/client-go v0.25.0
 	k8s.io/klog/v2 v2.70.1
 	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
@@ -87,7 +87,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apiextensions-apiserver v0.25.0 // indirect
 	k8s.io/component-base v0.25.0 // indirect
-	k8s.io/kube-aggregator v0.24.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803164354-a70c9af30aea // indirect
 	sigs.k8s.io/gateway-api v0.4.3 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
