@@ -20,6 +20,8 @@ import (
 	"flag"
 	"os"
 
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	v1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -41,10 +43,11 @@ import (
 	stackv1beta1 "github.com/numary/operator/apis/stack/v1beta1"
 	"github.com/numary/operator/controllers/components/auth"
 	"github.com/numary/operator/controllers/components/ledger"
-
 	"github.com/numary/operator/controllers/stack"
 	"github.com/numary/operator/internal"
 
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -66,6 +69,7 @@ func init() {
 	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(traefik.AddToScheme(scheme))
 	utilruntime.Must(benthoscomponentsformancecomv1beta1.AddToScheme(scheme))
+	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -121,6 +125,9 @@ func main() {
 
 	stackMutator := stack.NewMutator(mgr.GetClient(), mgr.GetScheme(), []string{
 		dnsName,
+	}, v1.ObjectReference{
+		Name: issuerRefName,
+		Kind: issuerRefKind,
 	})
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), stackMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")
@@ -189,7 +196,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Webhooks")
 		os.Exit(1)
 	}
-
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
