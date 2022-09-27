@@ -3,6 +3,7 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: formance
 nodes:
 - role: control-plane
+  image: kindest/node:v1.23.12
   kubeadmConfigPatches:
     - |
       kind: InitConfiguration
@@ -20,7 +21,9 @@ nodes:
       hostPort: 5005
       protocol: TCP
 - role: worker
+  image: kindest/node:v1.23.12
 - role: worker
+  image: kindest/node:v1.23.12
 containerdConfigPatches:
 - |-
   [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-docker-registry.registry.svc.cluster.local:5000"]
