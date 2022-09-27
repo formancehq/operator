@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/numary/operator/apis/components/auth/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	. "github.com/numary/operator/internal/collectionutil"
 	corev1 "k8s.io/api/core/v1"
@@ -80,6 +81,9 @@ type AuthSpec struct {
 
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
+
+	// +optional
+	StaticClients []*v1beta1.StaticClient `json:"staticClients"`
 }
 
 // +kubebuilder:object:root=true
@@ -105,6 +109,10 @@ func (a *Auth) IsDirty(t Object) bool {
 
 func (a *Auth) GetConditions() *Conditions {
 	return &a.Status.Conditions
+}
+
+func (in *Auth) HasStaticClients() bool {
+	return in.Spec.StaticClients != nil && len(in.Spec.StaticClients) > 0
 }
 
 //+kubebuilder:object:root=true

@@ -25,19 +25,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type ClientConfiguration struct {
+	// +optional
+	Public bool `json:"public" yaml:"public"`
+	// +optional
+	Description *string `json:"description,omitempty" yaml:"description"`
+	// +optional
+	RedirectUris []string `json:"redirectUris" yaml:"redirectUris"`
+	// +optional
+	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris" yaml:"postLogoutRedirectUris"`
+	// +optional
+	Scopes []string `json:"scopes" yaml:"scopes"`
+}
+
+type StaticClient struct {
+	ClientConfiguration `json:",inline" yaml:",inline"`
+	ID                  string `json:"id" yaml:"id"`
+	// +optional
+	Secrets []string `json:"secrets" yaml:"secrets"`
+}
+
 // ClientSpec defines the desired state of Client
 type ClientSpec struct {
+	ClientConfiguration `json:",inline"`
 	AuthServerReference string `json:"authServerReference"`
-	// +optional
-	Public bool `json:"public"`
-	// +optional
-	Description *string `json:"description,omitempty"`
-	// +optional
-	RedirectUris []string `json:"redirectUris"`
-	// +optional
-	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris"`
-	// +optional
-	Scopes []string `json:"scopes"`
 }
 
 const (

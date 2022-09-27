@@ -7,7 +7,6 @@ import (
 	osRuntime "runtime"
 	"sync"
 
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/google/uuid"
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	benthoscomponentsformancecomv1beta1 "github.com/numary/operator/apis/components/benthos/v1beta1"
@@ -65,7 +64,6 @@ func start() {
 	Expect(authcomponentsv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(benthoscomponentsformancecomv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(stackv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
-	Expect(certmanagerv1.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())

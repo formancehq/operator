@@ -23,6 +23,7 @@ package v1beta1
 
 import (
 	"encoding/json"
+	authv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	"github.com/numary/operator/apis/sharedtypes"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -102,6 +103,17 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 		in, out := &in.Monitoring, &out.Monitoring
 		*out = new(sharedtypes.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.StaticClients != nil {
+		in, out := &in.StaticClients, &out.StaticClients
+		*out = make([]*authv1beta1.StaticClient, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(authv1beta1.StaticClient)
+				(*in).DeepCopyInto(*out)
+			}
+		}
 	}
 }
 

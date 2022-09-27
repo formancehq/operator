@@ -25,6 +25,7 @@ import (
 	"encoding/pem"
 	"fmt"
 
+	"github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/internal"
@@ -33,6 +34,7 @@ import (
 	"github.com/numary/operator/internal/probeutil"
 	"github.com/numary/operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscallingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
@@ -59,6 +61,7 @@ type Mutator struct {
 	Scheme *runtime.Scheme
 }
 
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
@@ -71,7 +74,12 @@ func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ct
 
 	SetProgressing(auth)
 
-	deployment, err := r.reconcileDeployment(ctx, auth)
+	config, err := r.reconcileConfigFile(ctx, auth)
+	if err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling config")
+	}
+
+	deployment, err := r.reconcileDeployment(ctx, auth, config)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
@@ -108,7 +116,7 @@ func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta1.Auth) (*ct
 	return nil, nil
 }
 
-func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1beta1.Auth) (*appsv1.Deployment, error) {
+func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1beta1.Auth, config *corev1.ConfigMap) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "auth")
 	port := int32(8080)
 
@@ -118,6 +126,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	}
 
 	env := make([]corev1.EnvVar, 0)
+	env = append(env, Env("CONFIG", "/config/config.yaml"))
 	env = append(env, auth.Spec.Postgres.Env("PG_")...)
 	env = append(env, auth.Spec.DelegatedOIDCServer.Env()...)
 	env = append(env,
@@ -159,6 +168,16 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 				},
 				Spec: corev1.PodSpec{
 					ImagePullSecrets: auth.Spec.ImagePullSecrets,
+					Volumes: []corev1.Volume{{
+						Name: "config",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: config.Name,
+								},
+							},
+						},
+					}},
 					Containers: []corev1.Container{{
 						Name:            "auth",
 						Image:           image,
@@ -173,6 +192,11 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 								corev1.ResourceMemory: *resource.NewQuantity(256, resource.DecimalSI),
 							},
 						},
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "config",
+							ReadOnly:  true,
+							MountPath: "/config",
+						}},
 					}},
 				},
 			},
@@ -231,6 +255,31 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		SetServiceReady(auth)
+	}
+	return ret, err
+}
+
+func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1beta1.Auth) (*corev1.ConfigMap, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(configMap *corev1.ConfigMap) error {
+		yaml, err := yaml.Marshal(struct {
+			Clients []*v1beta1.StaticClient `yaml:"clients"`
+		}{
+			Clients: auth.Spec.StaticClients,
+		})
+		if err != nil {
+			panic(err)
+		}
+		configMap.Data = map[string]string{
+			"config.yaml": string(yaml),
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetConfigMapError(auth, err.Error())
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetConfigMapReady(auth)
 	}
 	return ret, err
 }
@@ -340,7 +389,8 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&corev1.Secret{})
+		Owns(&corev1.Secret{}).
+		Owns(&corev1.ConfigMap{})
 	return nil
 }
 

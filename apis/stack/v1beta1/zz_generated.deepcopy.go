@@ -22,6 +22,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	authv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	"github.com/numary/operator/apis/sharedtypes"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,6 +38,17 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 		in, out := &in.Ingress, &out.Ingress
 		*out = new(IngressConfig)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.StaticClients != nil {
+		in, out := &in.StaticClients, &out.StaticClients
+		*out = make([]*authv1beta1.StaticClient, len(*in))
+		for i := range *in {
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(authv1beta1.StaticClient)
+				(*in).DeepCopyInto(*out)
+			}
+		}
 	}
 }
 
