@@ -62,6 +62,9 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	if err := m.reconcileSearch(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
+	if err := m.reconcileWebhooks(ctx, actual); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
+	}
 	if err := m.reconcileControl(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
@@ -279,6 +282,73 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 	}
 
 	log.FromContext(ctx).Info("Payment ready")
+	return nil
+}
+
+func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack) error {
+	log.FromContext(ctx).Info("Reconciling Webhooks")
+
+	if stack.Spec.Services.Webhooks == nil {
+		log.FromContext(ctx).Info("Deleting Webhooks")
+		err := r.client.Delete(ctx, &authcomponentsv1beta1.Webhooks{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: stack.Spec.Namespace,
+				Name:      stack.ServiceName("Webhooks"),
+			},
+		})
+		switch {
+		case errors.IsNotFound(err):
+		case err != nil:
+			return pkgError.Wrap(err, "Deleting Webhooks")
+		default:
+			stack.RemoveAuthStatus()
+		}
+		return nil
+	}
+
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      stack.ServiceName("Webhooks"),
+	}, stack, func(payment *authcomponentsv1beta1.Webhooks) error {
+		var collector *authcomponentsv1beta1.CollectorConfig
+		if stack.Spec.Kafka != nil {
+			collector = &authcomponentsv1beta1.CollectorConfig{
+				KafkaConfig: *stack.Spec.Kafka,
+				Topic:       fmt.Sprintf("%s-payments", stack.Name),
+			}
+		}
+		payment.Spec = authcomponentsv1beta1.WebhooksSpec{
+			Ingress:            stack.Spec.Services.Webhooks.Ingress.Compute(stack, "/api/webhooks"),
+			Debug:              stack.Spec.Debug || stack.Spec.Services.Webhooks.Debug,
+			Monitoring:         stack.Spec.Monitoring,
+			ImageHolder:        stack.Spec.Services.Webhooks.ImageHolder,
+			Collector:          collector,
+			ElasticSearchIndex: stack.Name,
+			MongoDB: authcomponentsv1beta1.MongoDBConfig{
+				UseSrv:       stack.Spec.Services.Webhooks.MongoDB.UseSrv,
+				Host:         stack.Spec.Services.Webhooks.MongoDB.Host,
+				HostFrom:     stack.Spec.Services.Webhooks.MongoDB.HostFrom,
+				Port:         stack.Spec.Services.Webhooks.MongoDB.Port,
+				PortFrom:     stack.Spec.Services.Webhooks.MongoDB.PortFrom,
+				Database:     stack.Name,
+				Username:     stack.Spec.Services.Webhooks.MongoDB.Username,
+				UsernameFrom: stack.Spec.Services.Webhooks.MongoDB.UsernameFrom,
+				Password:     stack.Spec.Services.Webhooks.MongoDB.Password,
+				PasswordFrom: stack.Spec.Services.Webhooks.MongoDB.PasswordFrom,
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetPaymentError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetPaymentReady()
+	}
+
+	log.FromContext(ctx).Info("Webhooks ready")
 	return nil
 }
 
