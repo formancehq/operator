@@ -92,3 +92,9 @@ spec:
           password: admin
     control:
       image: ghcr.io/formancehq/control:cdbeb8e9bd10d388674da80622a113519f1147ce
+    webhooks:
+      mongoDB:
+        host: mongodb-svc.default.svc.cluster.local
+        port: 27017
+        username: root
+        password: very-secured-password

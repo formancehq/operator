@@ -14,7 +14,6 @@ resources:
   path: github.com/numary/operator/apis/stack/v1beta1
   version: v1beta1
   webhooks:
-#    defaulting: true
     validation: true
     webhookVersion: v1
 - api:
@@ -112,6 +111,15 @@ resources:
   domain: formance.com
   group: components
   kind: SearchIngester
+  path: github.com/numary/operator/apis/components/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Webhooks
   path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
 version: "3"

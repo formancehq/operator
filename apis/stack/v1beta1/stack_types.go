@@ -72,6 +72,7 @@ type ServicesSpec struct {
 	Ledger   *LedgerSpec   `json:"ledger,omitempty"`
 	Payments *PaymentsSpec `json:"payments,omitempty"`
 	Search   *SearchSpec   `json:"search,omitempty"`
+	Webhooks *WebhooksSpec `json:"webhooks,omitempty"`
 }
 
 const (

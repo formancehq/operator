@@ -7,7 +7,7 @@ import (
 )
 
 // +kubebuilder:object:generate=true
-type PaymentsSpec struct {
+type WebhooksSpec struct {
 	ImageHolder `json:",inline"`
 	// +optional
 	Debug bool `json:"debug,omitempty"`
@@ -18,6 +18,6 @@ type PaymentsSpec struct {
 	MongoDB MongoDBConfig  `json:"mongoDB"`
 }
 
-func (in *PaymentsSpec) Validate() field.ErrorList {
+func (in *WebhooksSpec) Validate() field.ErrorList {
 	return Map(in.MongoDB.Validate(), AddPrefixToFieldError("mongoDB."))
 }

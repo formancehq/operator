@@ -52,6 +52,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	componentscontrollers "github.com/numary/operator/controllers/components"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -185,6 +187,13 @@ func main() {
 	}
 	if err = (&stackv1beta1.Stack{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Stack")
+		os.Exit(1)
+	}
+	if err = (&componentscontrollers.WebhooksReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Webhooks")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
