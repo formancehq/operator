@@ -43,7 +43,7 @@ spec:
     annotations:
       traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
   auth:
-    image: ghcr.io/formancehq/auth:a2d200a8d89fcab9e294f58b361443571ee7e7aa
+    image: ghcr.io/formancehq/auth:08a08324572693e44b8cdad61849139f1b896fd9
     host: kubernetes.docker.internal
     scheme: http
     delegatedOIDCServer:
@@ -55,6 +55,11 @@ spec:
       port: 5432
       username: formance
       password: formance
+    staticClients:
+    - id: foo
+      public: true
+      secrets:
+      - bar
   monitoring:
     traces:
       otlp:

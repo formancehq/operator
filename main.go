@@ -20,8 +20,6 @@ import (
 	"flag"
 	"os"
 
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
-	v1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -69,7 +67,6 @@ func init() {
 	utilruntime.Must(authcomponentsv1beta1.AddToScheme(scheme))
 	utilruntime.Must(traefik.AddToScheme(scheme))
 	utilruntime.Must(benthoscomponentsformancecomv1beta1.AddToScheme(scheme))
-	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -125,9 +122,6 @@ func main() {
 
 	stackMutator := stack.NewMutator(mgr.GetClient(), mgr.GetScheme(), []string{
 		dnsName,
-	}, v1.ObjectReference{
-		Name: issuerRefName,
-		Kind: issuerRefKind,
 	})
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), stackMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")

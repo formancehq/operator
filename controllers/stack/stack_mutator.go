@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	v1 "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
@@ -29,10 +28,9 @@ import (
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/finalizers,verbs=update
 
 type Mutator struct {
-	client    client.Client
-	scheme    *runtime.Scheme
-	dnsNames  []string
-	issuerRef v1.ObjectReference
+	client   client.Client
+	scheme   *runtime.Scheme
+	dnsNames []string
 }
 
 func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
@@ -138,6 +136,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 			Ingress:             stack.Spec.Auth.Ingress.Compute(stack, "/api/auth"),
 			DelegatedOIDCServer: stack.Spec.Auth.DelegatedOIDCServer,
 			Monitoring:          stack.Spec.Monitoring,
+			StaticClients:       stack.Spec.Auth.StaticClients,
 		}
 		return nil
 	})
@@ -465,12 +464,10 @@ func NewMutator(
 	client client.Client,
 	scheme *runtime.Scheme,
 	dnsNames []string,
-	issuerRef v1.ObjectReference,
 ) internal.Mutator[*v1beta1.Stack] {
 	return &Mutator{
-		client:    client,
-		scheme:    scheme,
-		dnsNames:  dnsNames,
-		issuerRef: issuerRef,
+		client:   client,
+		scheme:   scheme,
+		dnsNames: dnsNames,
 	}
 }

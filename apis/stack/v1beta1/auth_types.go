@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	authv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	"github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	. "github.com/numary/operator/internal/collectionutil"
@@ -21,6 +22,8 @@ type AuthSpec struct {
 	Scheme string `json:"scheme,omitempty"`
 	// +optional
 	Debug bool `json:"debug"`
+	// +optional
+	StaticClients []*authv1beta1.StaticClient `json:"staticClients"`
 }
 
 func (in *AuthSpec) GetScheme() string {
