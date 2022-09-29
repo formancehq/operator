@@ -18,6 +18,7 @@ package webhooks
 
 import (
 	"context"
+
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
@@ -62,6 +63,11 @@ func (r *Mutator) Mutate(ctx context.Context, webhook *componentsv1beta1.Webhook
 	deployment, err := r.reconcileDeployment(ctx, webhook)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
+	}
+
+	_, err = r.reconcileWorkersDeployment(ctx, webhook)
+	if err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling workers deployment")
 	}
 
 	service, err := r.reconcileService(ctx, webhook, deployment)
@@ -137,9 +143,113 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhook *componentsv1
 						LivenessProbe: &corev1.Probe{
 							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_health",
+									Path: "/_healthcheck",
 									Port: intstr.IntOrString{
 										IntVal: 8080,
+									},
+									Scheme: "HTTP",
+								},
+							},
+							InitialDelaySeconds:           1,
+							TimeoutSeconds:                30,
+							PeriodSeconds:                 2,
+							SuccessThreshold:              1,
+							FailureThreshold:              10,
+							TerminationGracePeriodSeconds: pointer.Int64(10),
+						},
+					}},
+				},
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetDeploymentError(webhook, err.Error())
+		return nil, err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetDeploymentReady(webhook)
+	}
+	return ret, err
+}
+
+func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhook *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhook")
+
+	env := webhook.Spec.MongoDB.Env("")
+	if webhook.Spec.Debug {
+		env = append(env, Env("DEBUG", "true"))
+	}
+	if webhook.Spec.Auth != nil {
+		env = append(env, webhook.Spec.Auth.Env("")...)
+	}
+	if webhook.Spec.Monitoring != nil {
+		env = append(env, webhook.Spec.Monitoring.Env("")...)
+	}
+	if webhook.Spec.Collector != nil {
+		env = append(env, webhook.Spec.Collector.Env("")...)
+	}
+
+	image := webhook.Spec.Image
+	if image == "" {
+		image = defaultImage
+	}
+
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(deployment *appsv1.Deployment) error {
+		deployment.Spec = appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: matchLabels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: matchLabels,
+				},
+				Spec: corev1.PodSpec{
+					ImagePullSecrets: webhook.Spec.ImagePullSecrets,
+					Containers: []corev1.Container{{
+						Name:            "webhook-retries",
+						Image:           image,
+						ImagePullPolicy: ImagePullPolicy(image),
+						Command:         []string{"workers", "retries"},
+						Env:             env,
+						Ports: []corev1.ContainerPort{{
+							Name:          "webhooks-retries",
+							ContainerPort: 8082,
+						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/_healthcheck",
+									Port: intstr.IntOrString{
+										IntVal: 8082,
+									},
+									Scheme: "HTTP",
+								},
+							},
+							InitialDelaySeconds:           1,
+							TimeoutSeconds:                30,
+							PeriodSeconds:                 2,
+							SuccessThreshold:              1,
+							FailureThreshold:              10,
+							TerminationGracePeriodSeconds: pointer.Int64(10),
+						},
+					}, {
+						Name:            "webhook-messages",
+						Image:           image,
+						ImagePullPolicy: ImagePullPolicy(image),
+						Command:         []string{"worker", "messages"},
+						Env:             env,
+						Ports: []corev1.ContainerPort{{
+							Name:          "webhooks-messages",
+							ContainerPort: 8081,
+						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/_healthcheck",
+									Port: intstr.IntOrString{
+										IntVal: 8081,
 									},
 									Scheme: "HTTP",
 								},
