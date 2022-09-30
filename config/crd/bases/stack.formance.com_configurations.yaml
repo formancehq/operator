@@ -377,9 +377,6 @@ spec:
                   - id
                   type: object
                 type: array
-            required:
-            - delegatedOIDCServer
-            - postgres
             type: object
           ingress:
             properties:

@@ -51,10 +51,14 @@ type StackSpec struct {
 }
 
 type ServicesSpec struct {
-	Control  *ControlSpec  `json:"control,omitempty"`
-	Ledger   *LedgerSpec   `json:"ledger,omitempty"`
+	// +optional
+	Control *ControlSpec `json:"control,omitempty"`
+	// +optional
+	Ledger *LedgerSpec `json:"ledger,omitempty"`
+	// +optional
 	Payments *PaymentsSpec `json:"payments,omitempty"`
-	Search   *SearchSpec   `json:"search,omitempty"`
+	// +optional
+	Search *SearchSpec `json:"search,omitempty"`
 }
 
 const (

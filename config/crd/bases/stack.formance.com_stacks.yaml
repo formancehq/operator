@@ -413,9 +413,6 @@ spec:
                       - id
                       type: object
                     type: array
-                required:
-                - delegatedOIDCServer
-                - postgres
                 type: object
               debug:
                 type: boolean
