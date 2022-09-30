@@ -189,7 +189,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 			SigningKey:          configuration.Auth.SigningKey,
 			DevMode:             stack.Spec.Debug,
 			Ingress:             configuration.Auth.Ingress.Compute(stack, configuration, "/api/auth"),
-			DelegatedOIDCServer: configuration.Auth.DelegatedOIDCServer,
+			DelegatedOIDCServer: *configuration.Auth.DelegatedOIDCServer,
 			Monitoring:          configuration.Monitoring,
 			StaticClients:       configuration.Auth.StaticClients,
 		}

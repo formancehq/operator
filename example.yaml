@@ -103,4 +103,4 @@ spec:
   debug: true
   scheme: http
   host: kubernetes.docker.internal
-  configuration: stacks
+  seed: stacks

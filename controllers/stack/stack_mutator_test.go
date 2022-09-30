@@ -139,7 +139,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 								Password: "admin",
 							},
 							SigningKey: "XXX",
-							DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
+							DelegatedOIDCServer: &componentsv1beta1.DelegatedOIDCServerConfiguration{
 								Issuer:       "http://example.net",
 								ClientID:     "clientId",
 								ClientSecret: "clientSecret",

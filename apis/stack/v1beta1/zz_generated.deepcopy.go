@@ -33,7 +33,11 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	*out = *in
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	in.Postgres.DeepCopyInto(&out.Postgres)
-	in.DelegatedOIDCServer.DeepCopyInto(&out.DelegatedOIDCServer)
+	if in.DelegatedOIDCServer != nil {
+		in, out := &in.DelegatedOIDCServer, &out.DelegatedOIDCServer
+		*out = new(componentsv1beta1.DelegatedOIDCServerConfiguration)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
 		*out = new(IngressConfig)

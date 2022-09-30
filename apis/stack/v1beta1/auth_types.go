@@ -15,7 +15,7 @@ type AuthSpec struct {
 	// +optional
 	SigningKey string `json:"signingKey"`
 	// +optional
-	DelegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+	DelegatedOIDCServer *v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
 	// +optional
