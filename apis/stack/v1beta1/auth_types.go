@@ -21,8 +21,6 @@ type AuthSpec struct {
 	// +optional
 	Scheme string `json:"scheme,omitempty"`
 	// +optional
-	Debug bool `json:"debug"`
-	// +optional
 	StaticClients []*authv1beta1.StaticClient `json:"staticClients"`
 }
 

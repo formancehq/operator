@@ -12,8 +12,6 @@ type SearchSpec struct {
 	ImageHolder `json:",inline"`
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
-	// +optional
-	Debug bool `json:"debug"`
 
 	ElasticSearchConfig *v1beta1.ElasticSearchConfig `json:"elasticSearch"`
 	//+optional

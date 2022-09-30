@@ -16,106 +16,161 @@ import (
 var _ = Describe("Stack controller (Auth)", func() {
 	mutator := NewMutator(GetClient(), GetScheme(), []string{"*.example.com"})
 	WithMutator(mutator, func() {
-		Context("When creating stack", func() {
+		When("Creating a stack with no configuration object", func() {
 			var (
-				stack *Stack
+				stack           *Stack
+				configurationId string
 			)
 			BeforeEach(func() {
 				name := uuid.NewString()
+				configurationId = uuid.NewString()
+
 				stack = &Stack{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: name,
 					},
 					Spec: StackSpec{
-						Namespace: name,
+						Namespace:     name,
+						Configuration: configurationId,
 					},
 				}
-
 				Expect(Create(stack)).To(Succeed())
-				Eventually(ConditionStatus(stack, ConditionTypeReady)).
+				Eventually(ConditionStatus(stack, ConditionTypeError)).
 					Should(Equal(metav1.ConditionTrue))
 			})
-			It("Should create a new namespace", func() {
-				Expect(Get(types.NamespacedName{
-					Name: stack.Spec.Namespace,
-				}, &v1.Namespace{})).To(BeNil())
-			})
-			Context("With ingress", func() {
+			Context("Then creating the configuration object", func() {
+				var (
+					configuration *Configuration
+				)
 				BeforeEach(func() {
-					stack.Spec.Ingress = IngressGlobalConfig{
-						TLS: &IngressTLS{
-							SecretName: uuid.NewString(),
+					configuration = &Configuration{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: configurationId,
 						},
-						Enabled: true,
 					}
-					Expect(Update(stack)).To(BeNil())
+					Expect(Create(configuration)).To(Succeed())
+				})
+				It("Should resolve the error", func() {
+					Eventually(ConditionStatus(stack, ConditionTypeError)).
+						Should(Equal(metav1.ConditionUnknown))
 				})
 			})
-			Context("With ledger service", func() {
+		})
+		When("Creating a configuration", func() {
+			var (
+				configuration *Configuration
+			)
+			BeforeEach(func() {
+				configuration = &Configuration{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: uuid.NewString(),
+					},
+				}
+				Expect(Create(configuration)).To(Succeed())
+			})
+			Context("Then creating a stack", func() {
+				var (
+					stack *Stack
+				)
 				BeforeEach(func() {
-					stack.Spec.Services.Ledger = &LedgerSpec{
-						Postgres: PostgresConfig{
-							Port:     1234,
-							Host:     "XXX",
-							Username: "XXX",
-							Password: "XXX",
+					name := uuid.NewString()
+
+					stack = &Stack{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: name,
+						},
+						Spec: StackSpec{
+							Namespace:     name,
+							Configuration: configuration.Name,
 						},
 					}
-					Expect(Update(stack)).To(BeNil())
-					Eventually(ConditionStatus(stack, ConditionTypeStackLedgerReady)).
+
+					Expect(Create(stack)).To(Succeed())
+					Eventually(ConditionStatus(stack, ConditionTypeReady)).
 						Should(Equal(metav1.ConditionTrue))
 				})
-				It("Should create a ledger on a new namespace", func() {
-					ledger := &componentsv1beta1.Ledger{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      stack.ServiceName("ledger"),
-							Namespace: stack.Spec.Namespace,
-						},
-					}
-					Expect(Exists(ledger)()).To(BeTrue())
+				It("Should create a new namespace", func() {
+					Expect(Get(types.NamespacedName{
+						Name: stack.Spec.Namespace,
+					}, &v1.Namespace{})).To(BeNil())
 				})
-			})
-			Context("With auth configuration", func() {
-				BeforeEach(func() {
-					stack.Spec.Auth = &AuthSpec{
-						Postgres: PostgresConfig{
-							Port:     5432,
-							Host:     "postgres",
-							Username: "admin",
-							Password: "admin",
-						},
-						SigningKey: "XXX",
-						DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
-							Issuer:       "http://example.net",
-							ClientID:     "clientId",
-							ClientSecret: "clientSecret",
-						},
-					}
-					Expect(Update(stack)).To(BeNil())
-					Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).
-						Should(Equal(metav1.ConditionTrue))
-				})
-				It("Should create a auth server on a new namespace", func() {
-					Expect(Exists(&componentsv1beta1.Auth{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      stack.ServiceName("auth"),
-							Namespace: stack.Spec.Namespace,
-						},
-					})()).To(BeTrue())
-				})
-				Context("Then removing auth", func() {
+				Context("With ingress", func() {
 					BeforeEach(func() {
-						stack.Spec.Auth = nil
-						Expect(Update(stack)).To(BeNil())
-						Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).Should(Equal(metav1.ConditionUnknown))
+						configuration.Ingress = IngressGlobalConfig{
+							TLS: &IngressTLS{
+								SecretName: uuid.NewString(),
+							},
+							Enabled: true,
+						}
+						Expect(Update(configuration)).To(BeNil())
 					})
-					It("Should remove Auth deployment", func() {
-						Expect(Exists(&componentsv1beta1.Auth{
+				})
+				Context("With ledger service", func() {
+					BeforeEach(func() {
+						configuration.Services.Ledger = &LedgerSpec{
+							Postgres: PostgresConfig{
+								Port:     1234,
+								Host:     "XXX",
+								Username: "XXX",
+								Password: "XXX",
+							},
+						}
+						Expect(Update(configuration)).To(BeNil())
+						Eventually(ConditionStatus(stack, ConditionTypeStackLedgerReady)).
+							Should(Equal(metav1.ConditionTrue))
+					})
+					It("Should create a ledger on a new namespace", func() {
+						ledger := &componentsv1beta1.Ledger{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      stack.Name,
+								Name:      stack.ServiceName("ledger"),
 								Namespace: stack.Spec.Namespace,
 							},
-						})()).To(BeFalse())
+						}
+						Expect(Exists(ledger)()).To(BeTrue())
+					})
+				})
+				Context("With auth configuration", func() {
+					BeforeEach(func() {
+						configuration.Auth = &AuthSpec{
+							Postgres: PostgresConfig{
+								Port:     5432,
+								Host:     "postgres",
+								Username: "admin",
+								Password: "admin",
+							},
+							SigningKey: "XXX",
+							DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
+								Issuer:       "http://example.net",
+								ClientID:     "clientId",
+								ClientSecret: "clientSecret",
+							},
+						}
+						Expect(Update(configuration)).To(BeNil())
+						Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).
+							Should(Equal(metav1.ConditionTrue))
+					})
+					It("Should create a auth server on a new namespace", func() {
+						Expect(Exists(&componentsv1beta1.Auth{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      stack.ServiceName("auth"),
+								Namespace: stack.Spec.Namespace,
+							},
+						})()).To(BeTrue())
+					})
+					Context("Then removing auth", func() {
+						BeforeEach(func() {
+							configuration.Auth = nil
+							Expect(Update(configuration)).To(BeNil())
+							Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).Should(Equal(metav1.ConditionUnknown))
+						})
+						It("Should remove Auth deployment", func() {
+							Expect(Exists(&componentsv1beta1.Auth{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      stack.Name,
+									Namespace: stack.Spec.Namespace,
+								},
+							})()).To(BeFalse())
+						})
 					})
 				})
 			})

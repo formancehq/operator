@@ -8,17 +8,24 @@ import (
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
 	"github.com/numary/operator/internal"
+	"github.com/numary/operator/internal/collectionutil"
 	"github.com/numary/operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	builder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
@@ -26,6 +33,7 @@ import (
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=stack.formance.com,resources=configurations,verbs=get;list;watch
 
 type Mutator struct {
 	client   client.Client
@@ -33,34 +41,78 @@ type Mutator struct {
 	dnsNames []string
 }
 
-func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
-	builder.
+func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
+
+	if err := mgr.GetFieldIndexer().
+		IndexField(context.Background(), &v1beta1.Stack{}, ".spec.configuration", func(rawObj client.Object) []string {
+			return []string{rawObj.(*v1beta1.Stack).Spec.Configuration}
+		}); err != nil {
+		return err
+	}
+
+	bldr.
 		Owns(&authcomponentsv1beta1.Auth{}).
 		Owns(&authcomponentsv1beta1.Ledger{}).
 		Owns(&authcomponentsv1beta1.Search{}).
 		Owns(&authcomponentsv1beta1.Payments{}).
-		Owns(&corev1.Namespace{})
+		Owns(&corev1.Namespace{}).
+		Watches(
+			&source.Kind{
+				Type: &v1beta1.Configuration{},
+			}, handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
+				stacks := &v1beta1.StackList{}
+				listOps := &client.ListOptions{
+					FieldSelector: fields.OneTermEqualSelector(".spec.configuration", object.GetName()),
+					Namespace:     object.GetNamespace(),
+				}
+				err := mgr.GetClient().List(context.TODO(), stacks, listOps)
+				if err != nil {
+					return []reconcile.Request{}
+				}
+
+				return collectionutil.Map(stacks.Items, func(s v1beta1.Stack) reconcile.Request {
+					return reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Name:      s.GetName(),
+							Namespace: s.GetNamespace(),
+						},
+					}
+				})
+			}),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		)
 	return nil
 }
 
 func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
 	SetProgressing(actual)
+
+	configuration := &v1beta1.Configuration{}
+	if err := m.client.Get(ctx, types.NamespacedName{
+		Name: actual.Spec.Configuration,
+	}, configuration); err != nil {
+		if errors.IsNotFound(err) {
+			return nil, pkgError.New("Configuration object not found")
+		}
+		return Requeue(), fmt.Errorf("Error retrieving configuration object: %s", err)
+	}
+
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
-	if err := m.reconcileAuth(ctx, actual); err != nil {
+	if err := m.reconcileAuth(ctx, actual, configuration); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
-	if err := m.reconcileLedger(ctx, actual); err != nil {
+	if err := m.reconcileLedger(ctx, actual, configuration); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
-	if err := m.reconcilePayment(ctx, actual); err != nil {
+	if err := m.reconcilePayment(ctx, actual, configuration); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
-	if err := m.reconcileSearch(ctx, actual); err != nil {
+	if err := m.reconcileSearch(ctx, actual, configuration); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
-	if err := m.reconcileControl(ctx, actual); err != nil {
+	if err := m.reconcileControl(ctx, actual, configuration); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
 
@@ -90,10 +142,10 @@ func (r *Mutator) reconcileNamespace(ctx context.Context, stack *v1beta1.Stack) 
 	return nil
 }
 
-func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error {
+func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
 	log.FromContext(ctx).Info("Reconciling Auth")
 
-	if stack.Spec.Auth == nil {
+	if configuration.Auth == nil {
 		log.FromContext(ctx).Info("Deleting Auth")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Auth{
 			ObjectMeta: metav1.ObjectMeta{
@@ -116,24 +168,24 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 		Name:      stack.ServiceName("auth"),
 	}, stack, func(auth *authcomponentsv1beta1.Auth) error {
 		auth.Spec = authcomponentsv1beta1.AuthSpec{
-			ImageHolder: stack.Spec.Auth.ImageHolder,
+			ImageHolder: configuration.Auth.ImageHolder,
 			Scalable: Scalable{
 				Replicas: auth.Spec.Replicas,
 			},
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
-					PostgresConfig: stack.Spec.Auth.Postgres,
+					PostgresConfig: configuration.Auth.Postgres,
 					Database:       fmt.Sprintf("%s-auth", stack.Name),
 				},
 			},
-			BaseURL:             fmt.Sprintf("%s://%s/api/auth", stack.Spec.Auth.GetScheme(), stack.Spec.Auth.Host),
-			SigningKey:          stack.Spec.Auth.SigningKey,
-			DevMode:             stack.Spec.Debug || stack.Spec.Auth.Debug,
-			Ingress:             stack.Spec.Auth.Ingress.Compute(stack, "/api/auth"),
-			DelegatedOIDCServer: stack.Spec.Auth.DelegatedOIDCServer,
-			Monitoring:          stack.Spec.Monitoring,
-			StaticClients:       stack.Spec.Auth.StaticClients,
+			BaseURL:             fmt.Sprintf("%s://%s/api/auth", configuration.Auth.GetScheme(), configuration.Auth.Host),
+			SigningKey:          configuration.Auth.SigningKey,
+			DevMode:             stack.Spec.Debug,
+			Ingress:             configuration.Auth.Ingress.Compute(stack, configuration, "/api/auth"),
+			DelegatedOIDCServer: configuration.Auth.DelegatedOIDCServer,
+			Monitoring:          configuration.Monitoring,
+			StaticClients:       configuration.Auth.StaticClients,
 		}
 		return nil
 	})
@@ -150,10 +202,10 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack) error
 	return nil
 }
 
-func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) error {
+func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
 	log.FromContext(ctx).Info("Reconciling Ledger")
 
-	if stack.Spec.Services.Ledger == nil {
+	if configuration.Services.Ledger == nil {
 		log.FromContext(ctx).Info("Deleting Ledger")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Ledger{
 			ObjectMeta: metav1.ObjectMeta{
@@ -176,26 +228,26 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 		Name:      stack.ServiceName("ledger"),
 	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
 		var collector *authcomponentsv1beta1.CollectorConfig
-		if stack.Spec.Kafka != nil {
+		if configuration.Kafka != nil {
 			collector = &authcomponentsv1beta1.CollectorConfig{
-				KafkaConfig: *stack.Spec.Kafka,
+				KafkaConfig: *configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
 			}
 		}
 		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
-			Scalable:        stack.Spec.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
-			ImageHolder:     stack.Spec.Services.Ledger.ImageHolder,
-			Ingress:         stack.Spec.Services.Ledger.Ingress.Compute(stack, "/api/ledger"),
-			Debug:           stack.Spec.Debug || stack.Spec.Services.Ledger.Debug,
-			LockingStrategy: stack.Spec.Services.Ledger.LockingStrategy,
+			Scalable:        configuration.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
+			ImageHolder:     configuration.Services.Ledger.ImageHolder,
+			Ingress:         configuration.Services.Ledger.Ingress.Compute(stack, configuration, "/api/ledger"),
+			Debug:           stack.Spec.Debug,
+			LockingStrategy: configuration.Services.Ledger.LockingStrategy,
 			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
 					Database:       fmt.Sprintf("%s-ledger", stack.Name),
-					PostgresConfig: stack.Spec.Services.Ledger.Postgres,
+					PostgresConfig: configuration.Services.Ledger.Postgres,
 				},
 				CreateDatabase: true,
 			},
-			Monitoring:         stack.Spec.Monitoring,
+			Monitoring:         configuration.Monitoring,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 		}
@@ -214,10 +266,10 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack) err
 	return nil
 }
 
-func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) error {
+func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
 	log.FromContext(ctx).Info("Reconciling Payment")
 
-	if stack.Spec.Services.Payments == nil {
+	if configuration.Services.Payments == nil {
 		log.FromContext(ctx).Info("Deleting Payments")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Payments{
 			ObjectMeta: metav1.ObjectMeta{
@@ -240,30 +292,30 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 		Name:      stack.ServiceName("payments"),
 	}, stack, func(payment *authcomponentsv1beta1.Payments) error {
 		var collector *authcomponentsv1beta1.CollectorConfig
-		if stack.Spec.Kafka != nil {
+		if configuration.Kafka != nil {
 			collector = &authcomponentsv1beta1.CollectorConfig{
-				KafkaConfig: *stack.Spec.Kafka,
+				KafkaConfig: *configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			}
 		}
 		payment.Spec = authcomponentsv1beta1.PaymentsSpec{
-			Ingress:            stack.Spec.Services.Payments.Ingress.Compute(stack, "/api/payments"),
-			Debug:              stack.Spec.Debug || stack.Spec.Services.Payments.Debug,
-			Monitoring:         stack.Spec.Monitoring,
-			ImageHolder:        stack.Spec.Services.Payments.ImageHolder,
+			Ingress:            configuration.Services.Payments.Ingress.Compute(stack, configuration, "/api/payments"),
+			Debug:              stack.Spec.Debug,
+			Monitoring:         configuration.Monitoring,
+			ImageHolder:        configuration.Services.Payments.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 			MongoDB: authcomponentsv1beta1.MongoDBConfig{
-				UseSrv:       stack.Spec.Services.Payments.MongoDB.UseSrv,
-				Host:         stack.Spec.Services.Payments.MongoDB.Host,
-				HostFrom:     stack.Spec.Services.Payments.MongoDB.HostFrom,
-				Port:         stack.Spec.Services.Payments.MongoDB.Port,
-				PortFrom:     stack.Spec.Services.Payments.MongoDB.PortFrom,
+				UseSrv:       configuration.Services.Payments.MongoDB.UseSrv,
+				Host:         configuration.Services.Payments.MongoDB.Host,
+				HostFrom:     configuration.Services.Payments.MongoDB.HostFrom,
+				Port:         configuration.Services.Payments.MongoDB.Port,
+				PortFrom:     configuration.Services.Payments.MongoDB.PortFrom,
 				Database:     stack.Name,
-				Username:     stack.Spec.Services.Payments.MongoDB.Username,
-				UsernameFrom: stack.Spec.Services.Payments.MongoDB.UsernameFrom,
-				Password:     stack.Spec.Services.Payments.MongoDB.Password,
-				PasswordFrom: stack.Spec.Services.Payments.MongoDB.PasswordFrom,
+				Username:     configuration.Services.Payments.MongoDB.Username,
+				UsernameFrom: configuration.Services.Payments.MongoDB.UsernameFrom,
+				Password:     configuration.Services.Payments.MongoDB.Password,
+				PasswordFrom: configuration.Services.Payments.MongoDB.PasswordFrom,
 			},
 		}
 		return nil
@@ -281,10 +333,10 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 	return nil
 }
 
-func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) error {
+func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
 	log.FromContext(ctx).Info("Reconciling Control")
 
-	if stack.Spec.Services.Control == nil {
+	if configuration.Services.Control == nil {
 		log.FromContext(ctx).Info("Deleting Control")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Control{
 			ObjectMeta: metav1.ObjectMeta{
@@ -310,9 +362,9 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 			Scalable: Scalable{
 				Replicas: control.Spec.Replicas,
 			},
-			Ingress:     stack.Spec.Services.Control.Ingress.Compute(stack, "/"),
-			Debug:       stack.Spec.Debug || stack.Spec.Services.Control.Debug,
-			ImageHolder: stack.Spec.Services.Control.ImageHolder,
+			Ingress:     configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
+			Debug:       stack.Spec.Debug,
+			ImageHolder: configuration.Services.Control.ImageHolder,
 			ApiURLFront: fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
 			ApiURLBack:  fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
 		}
@@ -331,10 +383,10 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack) er
 	return nil
 }
 
-func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) error {
+func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
 	log.FromContext(ctx).Info("Reconciling Search")
 
-	if stack.Spec.Services.Search == nil {
+	if configuration.Services.Search == nil {
 		log.FromContext(ctx).Info("Deleting Search")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Search{
 			ObjectMeta: metav1.ObjectMeta{
@@ -352,7 +404,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 		return nil
 	}
 
-	if stack.Spec.Kafka == nil {
+	if configuration.Kafka == nil {
 		return pkgError.New("collector must be configured to use search service")
 	}
 
@@ -364,13 +416,13 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack) err
 			Scalable: Scalable{
 				Replicas: search.Spec.Replicas,
 			},
-			Ingress:       stack.Spec.Services.Search.Ingress.Compute(stack, "/api/search"),
-			Debug:         stack.Spec.Debug || stack.Spec.Services.Search.Debug,
+			Ingress:       configuration.Services.Search.Ingress.Compute(stack, configuration, "/api/search"),
+			Debug:         stack.Spec.Debug,
 			Auth:          nil,
-			Monitoring:    stack.Spec.Monitoring,
-			ImageHolder:   stack.Spec.Services.Search.ImageHolder,
-			ElasticSearch: *stack.Spec.Services.Search.ElasticSearchConfig,
-			KafkaConfig:   *stack.Spec.Kafka,
+			Monitoring:    configuration.Monitoring,
+			ImageHolder:   configuration.Services.Search.ImageHolder,
+			ElasticSearch: *configuration.Services.Search.ElasticSearchConfig,
+			KafkaConfig:   *configuration.Kafka,
 			Index:         stack.Name,
 		}
 		return nil

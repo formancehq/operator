@@ -11,9 +11,7 @@ import (
 type LedgerSpec struct {
 	ImageHolder `json:",inline"`
 	Scalable    `json:",inline"`
-	// +optional
-	Debug    bool           `json:"debug,omitempty"`
-	Postgres PostgresConfig `json:"postgres"`
+	Postgres    PostgresConfig `json:"postgres"`
 	// +optional
 	LockingStrategy authcomponentsv1beta1.LockingStrategy `json:"locking"`
 	// +optional

@@ -11,9 +11,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-stack-formance-com-v1beta1-stack
+      path: /validate-stack-formance-com-v1beta1-configuration
   failurePolicy: Fail
-  name: vstack.kb.io
+  name: vconfiguration.kb.io
   rules:
   - apiGroups:
     - stack.formance.com
@@ -22,7 +22,6 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
-    - DELETE
     resources:
-    - stacks
+    - configurations
   sideEffects: None

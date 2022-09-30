@@ -32,15 +32,15 @@ type IngressConfig struct {
 	Host string `json:"host"`
 }
 
-func (cfg *IngressConfig) IsEnabled(stack *Stack) bool {
+func (cfg *IngressConfig) IsEnabled(configuration *Configuration) bool {
 	if cfg == nil || cfg.Enabled == nil {
-		return stack.Spec.Ingress.Enabled
+		return configuration.Ingress.Enabled
 	}
 	return *cfg.Enabled
 }
 
-func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
-	if !cfg.IsEnabled(stack) {
+func (cfg *IngressConfig) Compute(stack *Stack, configuration *Configuration, path string) *IngressSpec {
+	if !cfg.IsEnabled(configuration) {
 		return nil
 	}
 	var host string
@@ -51,7 +51,7 @@ func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
 		host = stack.Spec.Host
 	}
 
-	annotations := stack.Spec.Ingress.Annotations
+	annotations := configuration.Ingress.Annotations
 	if cfg != nil {
 		annotations = MergeMaps(annotations, cfg.Annotations)
 	}
@@ -60,6 +60,6 @@ func (cfg *IngressConfig) Compute(stack *Stack, path string) *IngressSpec {
 		Path:        path,
 		Host:        host,
 		Annotations: annotations,
-		TLS:         stack.Spec.Ingress.TLS,
+		TLS:         configuration.Ingress.TLS,
 	}
 }

@@ -25,22 +25,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-var stackLog = logf.Log.WithName("stack-resource")
+// log is for logging in this package.
+var configurationLog = logf.Log.WithName("configuration-resource")
 
-func (r *Stack) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (r *Configuration) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/validate-stack-formance-com-v1beta1-stack,mutating=false,failurePolicy=fail,sideEffects=None,groups=stack.formance.com,resources=stacks,verbs=create;update;delete,versions=v1beta1,name=vstack.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-stack-formance-com-v1beta1-configuration,mutating=false,failurePolicy=fail,sideEffects=None,groups=stack.formance.com,resources=configurations,verbs=create;update,versions=v1beta1,name=vconfiguration.kb.io,admissionReviewVersions=v1
 
-var _ webhook.Validator = &Stack{}
+var _ webhook.Validator = &Configuration{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *Stack) ValidateCreate() error {
-	stackLog.Info("validate create", "name", r.Name)
-	errs := r.Spec.Validate()
+func (r *Configuration) ValidateCreate() error {
+	configurationLog.Info("validate create", "name", r.Name)
+	errs := r.Validate()
 	if len(errs) == 0 {
 		return nil
 	}
@@ -50,13 +51,13 @@ func (r *Stack) ValidateCreate() error {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *Stack) ValidateUpdate(old runtime.Object) error {
-	stackLog.Info("validate update", "name", r.Name)
+func (r *Configuration) ValidateUpdate(old runtime.Object) error {
+	configurationLog.Info("validate update", "name", r.Name)
 	return r.ValidateCreate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *Stack) ValidateDelete() error {
-	stackLog.Info("validate delete", "name", r.Name)
-	return nil
+func (r *Configuration) ValidateDelete() error {
+	configurationLog.Info("validate delete", "name", r.Name)
+	return r.ValidateCreate()
 }

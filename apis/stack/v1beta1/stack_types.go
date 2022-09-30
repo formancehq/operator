@@ -20,9 +20,7 @@ import (
 	"fmt"
 
 	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type IngressGlobalConfig struct {
@@ -36,35 +34,17 @@ type IngressGlobalConfig struct {
 
 // StackSpec defines the desired state of Stack
 type StackSpec struct {
+	Configuration string `json:"configuration"`
+
 	// +optional
 	Debug bool `json:"debug"`
 	// +required
 	Namespace string `json:"namespace,omitempty"`
 	// +optional
-	Monitoring *MonitoringSpec `json:"monitoring,omitempty"`
-	// +optional
-	Services ServicesSpec `json:"services,omitempty"`
-	// +optional
-	Auth *AuthSpec `json:"auth,omitempty"`
-	// +optional
-	Ingress IngressGlobalConfig `json:"ingress"`
-	// +optional
-	Kafka *KafkaConfig `json:"kafka"`
 	// +required
 	Host string `json:"host"`
 	// +optional
 	Scheme string `json:"scheme"`
-}
-
-func (in *StackSpec) Validate() field.ErrorList {
-	return MergeAll(
-		Map(in.Services.Ledger.Validate(), AddPrefixToFieldError("services.ledger")),
-		Map(in.Services.Payments.Validate(), AddPrefixToFieldError("services.payments")),
-		Map(in.Services.Search.Validate(), AddPrefixToFieldError("services.search")),
-		Map(in.Auth.Validate(), AddPrefixToFieldError("auth")),
-		Map(in.Monitoring.Validate(), AddPrefixToFieldError("monitoring")),
-		Map(in.Kafka.Validate(), AddPrefixToFieldError("kafka")),
-	)
 }
 
 type ServicesSpec struct {
@@ -105,6 +85,7 @@ func (in *Stack) GetScheme() string {
 	}
 	return "https"
 }
+
 func (in *Stack) GetStatus() Dirty {
 	return &in.Status
 }
