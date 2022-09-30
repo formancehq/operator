@@ -32,14 +32,14 @@ type IngressConfig struct {
 	Host string `json:"host"`
 }
 
-func (cfg *IngressConfig) IsEnabled(configuration *Configuration) bool {
+func (cfg *IngressConfig) IsEnabled(configuration *ConfigurationSpec) bool {
 	if cfg == nil || cfg.Enabled == nil {
 		return configuration.Ingress.Enabled
 	}
 	return *cfg.Enabled
 }
 
-func (cfg *IngressConfig) Compute(stack *Stack, configuration *Configuration, path string) *IngressSpec {
+func (cfg *IngressConfig) Compute(stack *Stack, configuration *ConfigurationSpec, path string) *IngressSpec {
 	if !cfg.IsEnabled(configuration) {
 		return nil
 	}

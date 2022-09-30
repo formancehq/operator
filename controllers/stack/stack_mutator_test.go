@@ -30,8 +30,8 @@ var _ = Describe("Stack controller (Auth)", func() {
 						Name: name,
 					},
 					Spec: StackSpec{
-						Namespace:     name,
-						Configuration: configurationId,
+						Namespace: name,
+						Seed:      configurationId,
 					},
 				}
 				Expect(Create(stack)).To(Succeed())
@@ -80,8 +80,8 @@ var _ = Describe("Stack controller (Auth)", func() {
 							Name: name,
 						},
 						Spec: StackSpec{
-							Namespace:     name,
-							Configuration: configuration.Name,
+							Namespace: name,
+							Seed:      configuration.Name,
 						},
 					}
 

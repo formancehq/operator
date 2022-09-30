@@ -19,5 +19,8 @@ type SearchSpec struct {
 }
 
 func (in *SearchSpec) Validate() field.ErrorList {
+	if in == nil {
+		return nil
+	}
 	return Map(in.ElasticSearchConfig.Validate(), AddPrefixToFieldError("elasticSearch"))
 }

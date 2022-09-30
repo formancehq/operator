@@ -19,6 +19,9 @@ type LedgerSpec struct {
 }
 
 func (in *LedgerSpec) Validate() field.ErrorList {
+	if in == nil {
+		return nil
+	}
 	ret := Map(in.Postgres.Validate(), AddPrefixToFieldError("postgres"))
 	ret = append(ret, Map(in.LockingStrategy.Validate(), AddPrefixToFieldError("locking"))...)
 	return ret

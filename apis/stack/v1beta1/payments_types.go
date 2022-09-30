@@ -47,5 +47,8 @@ type PaymentsSpec struct {
 }
 
 func (in *PaymentsSpec) Validate() field.ErrorList {
+	if in == nil {
+		return nil
+	}
 	return Map(in.MongoDB.Validate(), AddPrefixToFieldError("mongoDB."))
 }

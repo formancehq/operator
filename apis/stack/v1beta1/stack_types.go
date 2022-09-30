@@ -34,7 +34,10 @@ type IngressGlobalConfig struct {
 
 // StackSpec defines the desired state of Stack
 type StackSpec struct {
-	Configuration string `json:"configuration"`
+	// +optional
+	Seed string `json:"seed"`
+	// +optional
+	ConfigurationSpec `json:",inline"`
 
 	// +optional
 	Debug bool `json:"debug"`

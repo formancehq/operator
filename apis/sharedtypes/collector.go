@@ -78,6 +78,9 @@ func (s *KafkaConfig) Env(prefix string) []corev1.EnvVar {
 }
 
 func (in *KafkaConfig) Validate() field.ErrorList {
+	if in == nil {
+		return nil
+	}
 	return MergeAll(
 		Map(in.SASL.Validate(), AddPrefixToFieldError("sasl.")),
 		ValidateRequiredConfigValueOrReference("brokers.",

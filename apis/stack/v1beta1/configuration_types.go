@@ -17,21 +17,15 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/imdario/mergo"
 	. "github.com/numary/operator/apis/sharedtypes"
 	. "github.com/numary/operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:resource:scope=Cluster
-//+kubebuilder:subresource:status
-
-// Configuration is the Schema for the configurations API
-type Configuration struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
+type ConfigurationSpec struct {
+	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
 	Services ServicesSpec `json:"services,omitempty"`
@@ -43,7 +37,15 @@ type Configuration struct {
 	Kafka *KafkaConfig `json:"kafka"`
 }
 
-func (in *Configuration) Validate() field.ErrorList {
+func (in *ConfigurationSpec) MergeWith(spec *ConfigurationSpec) *ConfigurationSpec {
+	cp := in.DeepCopy()
+	if err := mergo.Merge(cp, spec, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+		panic(err)
+	}
+	return cp
+}
+
+func (in *ConfigurationSpec) Validate() field.ErrorList {
 	return MergeAll(
 		Map(in.Services.Ledger.Validate(), AddPrefixToFieldError("services.ledger")),
 		Map(in.Services.Payments.Validate(), AddPrefixToFieldError("services.payments")),
@@ -52,6 +54,17 @@ func (in *Configuration) Validate() field.ErrorList {
 		Map(in.Monitoring.Validate(), AddPrefixToFieldError("monitoring")),
 		Map(in.Kafka.Validate(), AddPrefixToFieldError("kafka")),
 	)
+}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:resource:scope=Cluster
+//+kubebuilder:subresource:status
+
+// Configuration is the Schema for the configurations API
+type Configuration struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	ConfigurationSpec `json:",inline"`
 }
 
 //+kubebuilder:object:root=true

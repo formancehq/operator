@@ -45,7 +45,7 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 
 	if err := mgr.GetFieldIndexer().
 		IndexField(context.Background(), &v1beta1.Stack{}, ".spec.configuration", func(rawObj client.Object) []string {
-			return []string{rawObj.(*v1beta1.Stack).Spec.Configuration}
+			return []string{rawObj.(*v1beta1.Stack).Spec.Seed}
 		}); err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 
 	configuration := &v1beta1.Configuration{}
 	if err := m.client.Get(ctx, types.NamespacedName{
-		Name: actual.Spec.Configuration,
+		Name: actual.Spec.Seed,
 	}, configuration); err != nil {
 		if errors.IsNotFound(err) {
 			return nil, pkgError.New("Configuration object not found")
@@ -97,22 +97,28 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 		return Requeue(), fmt.Errorf("Error retrieving configuration object: %s", err)
 	}
 
+	configurationSpec := &configuration.ConfigurationSpec
+	configurationSpec = configurationSpec.MergeWith(&actual.Spec.ConfigurationSpec)
+	if err := configurationSpec.Validate(); len(err) > 0 {
+		return nil, pkgError.Wrap(err.ToAggregate(), "Validating configuration")
+	}
+
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
-	if err := m.reconcileAuth(ctx, actual, configuration); err != nil {
+	if err := m.reconcileAuth(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
-	if err := m.reconcileLedger(ctx, actual, configuration); err != nil {
+	if err := m.reconcileLedger(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
-	if err := m.reconcilePayment(ctx, actual, configuration); err != nil {
+	if err := m.reconcilePayment(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
-	if err := m.reconcileSearch(ctx, actual, configuration); err != nil {
+	if err := m.reconcileSearch(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
-	if err := m.reconcileControl(ctx, actual, configuration); err != nil {
+	if err := m.reconcileControl(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
 
@@ -142,7 +148,7 @@ func (r *Mutator) reconcileNamespace(ctx context.Context, stack *v1beta1.Stack) 
 	return nil
 }
 
-func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
+func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Auth")
 
 	if configuration.Auth == nil {
@@ -202,7 +208,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 	return nil
 }
 
-func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
+func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Ledger")
 
 	if configuration.Services.Ledger == nil {
@@ -266,7 +272,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 	return nil
 }
 
-func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
+func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Payment")
 
 	if configuration.Services.Payments == nil {
@@ -333,7 +339,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 	return nil
 }
 
-func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
+func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Control")
 
 	if configuration.Services.Control == nil {
@@ -383,7 +389,7 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 	return nil
 }
 
-func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.Configuration) error {
+func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Search")
 
 	if configuration.Services.Search == nil {
