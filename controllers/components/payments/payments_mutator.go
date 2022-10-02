@@ -118,7 +118,7 @@ func (r *Mutator) Mutate(ctx context.Context, payment *componentsv1beta1.Payment
 }
 
 func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1beta1.Payments) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "payment")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "payments")
 
 	env := payment.Spec.MongoDB.Env("")
 	if payment.Spec.Debug {
