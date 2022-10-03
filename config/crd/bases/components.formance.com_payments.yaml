@@ -256,8 +256,6 @@ spec:
                 type: object
               mongoDB:
                 properties:
-                  database:
-                    type: string
                   host:
                     type: string
                   hostFrom:
@@ -420,8 +418,6 @@ spec:
                         - key
                         type: object
                     type: object
-                required:
-                - database
                 type: object
               monitoring:
                 properties:
