@@ -376,6 +376,14 @@ rules:
 - apiGroups:
   - stack.formance.com
   resources:
+  - configurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - stack.formance.com
+  resources:
   - stacks
   verbs:
   - create

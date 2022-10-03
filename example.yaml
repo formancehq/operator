@@ -29,6 +29,72 @@ spec:
     - /api/ledger
 ---
 apiVersion: stack.formance.com/v1beta1
+kind: Configuration
+metadata:
+  name: stacks
+
+# Define global ingress configuration
+ingress:
+  enabled: true
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
+auth:
+  image: ghcr.io/formancehq/auth:1505d4b7ea47a31b5691515983650ab164fbe58e
+  host: kubernetes.docker.internal
+  scheme: http
+  delegatedOIDCServer:
+    issuer: http://kubernetes.docker.internal/api/dex
+    clientID: dexclient
+    clientSecret: dexclient
+  postgres:
+    host: postgresql.default.svc.cluster.local
+    port: 5432
+    username: formance
+    password: formance
+  staticClients:
+  - id: foo
+    public: true
+    secrets:
+    - bar
+monitoring:
+  traces:
+    otlp:
+      endpoint: otel-collector-opentelemetry-collector.default.svc.cluster.local
+      insecure: true
+      mode: grpc
+      port: 4317
+kafka:
+  brokers:
+  - redpanda.default.svc.cluster.local:9092
+services:
+  ledger:
+    postgres:
+      host: postgresql.default.svc.cluster.local
+      port: 5432
+      username: formance
+      password: formance
+    locking:
+      strategy: redis
+      redis:
+        uri: redis://redis-headless.default.svc.cluster.local:6379
+  payments:
+    mongoDB:
+      host: mongodb-svc.default.svc.cluster.local
+      port: 27017
+      username: root
+      password: very-secured-password
+  search:
+    elasticSearch:
+      host: elasticsearch-master.default.svc.cluster.local
+      port: 9200
+      scheme: http
+      basicAuth:
+        username: admin
+        password: admin
+  control:
+    image: ghcr.io/formancehq/control:latest
+---
+apiVersion: stack.formance.com/v1beta1
 kind: Stack
 metadata:
   name: stack1
@@ -37,63 +103,4 @@ spec:
   debug: true
   scheme: http
   host: kubernetes.docker.internal
-  # Define global ingress configuration
-  ingress:
-    enabled: true
-    annotations:
-      traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
-  auth:
-    image: ghcr.io/formancehq/auth:08a08324572693e44b8cdad61849139f1b896fd9
-    host: kubernetes.docker.internal
-    scheme: http
-    delegatedOIDCServer:
-      issuer: http://kubernetes.docker.internal/api/dex
-      clientID: dexclient
-      clientSecret: dexclient
-    postgres:
-      host: postgresql.default.svc.cluster.local
-      port: 5432
-      username: formance
-      password: formance
-    staticClients:
-    - id: foo
-      public: true
-      secrets:
-      - bar
-  monitoring:
-    traces:
-      otlp:
-        endpoint: otel-collector-opentelemetry-collector.default.svc.cluster.local
-        insecure: true
-        mode: grpc
-        port: 4317
-  kafka:
-    brokers:
-    - redpanda.default.svc.cluster.local:9092
-  services:
-    ledger:
-      postgres:
-        host: postgresql.default.svc.cluster.local
-        port: 5432
-        username: formance
-        password: formance
-      locking:
-        strategy: redis
-        redis:
-          uri: redis://redis-headless.default.svc.cluster.local:6379
-    payments:
-      mongoDB:
-        host: mongodb-svc.default.svc.cluster.local
-        port: 27017
-        username: root
-        password: very-secured-password
-    search:
-      elasticSearch:
-        host: elasticsearch-master.default.svc.cluster.local
-        port: 9200
-        scheme: http
-        basicAuth:
-          username: admin
-          password: admin
-    control:
-      image: ghcr.io/formancehq/control:cdbeb8e9bd10d388674da80622a113519f1147ce
+  seed: stacks

@@ -12,8 +12,6 @@ type SearchSpec struct {
 	ImageHolder `json:",inline"`
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
-	// +optional
-	Debug bool `json:"debug"`
 
 	ElasticSearchConfig *v1beta1.ElasticSearchConfig `json:"elasticSearch"`
 	//+optional
@@ -21,5 +19,8 @@ type SearchSpec struct {
 }
 
 func (in *SearchSpec) Validate() field.ErrorList {
+	if in == nil {
+		return nil
+	}
 	return Map(in.ElasticSearchConfig.Validate(), AddPrefixToFieldError("elasticSearch"))
 }

@@ -10,7 +10,5 @@ type ControlSpec struct {
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional
-	Debug bool `json:"debug"`
-	// +optional
 	Ingress *IngressConfig `json:"ingress"`
 }

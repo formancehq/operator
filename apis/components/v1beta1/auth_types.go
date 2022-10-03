@@ -52,6 +52,9 @@ func (cfg DelegatedOIDCServerConfiguration) Env() []corev1.EnvVar {
 }
 
 func (c *DelegatedOIDCServerConfiguration) Validate() field.ErrorList {
+	if c == nil {
+		return nil
+	}
 	return MergeAll(
 		ValidateRequiredConfigValueOrReference("issuer", c.Issuer, c.IssuerFrom),
 		ValidateRequiredConfigValueOrReference("clientID", c.ClientID, c.ClientIDFrom),

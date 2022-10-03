@@ -41,11 +41,10 @@ import (
 	stackv1beta1 "github.com/numary/operator/apis/stack/v1beta1"
 	"github.com/numary/operator/controllers/components/auth"
 	"github.com/numary/operator/controllers/components/ledger"
+
 	"github.com/numary/operator/controllers/stack"
 	"github.com/numary/operator/internal"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -175,10 +174,6 @@ func main() {
 	searchIngesterMutator := searchingester.NewMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchIngesterMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SearchIngester")
-		os.Exit(1)
-	}
-	if err = (&stackv1beta1.Stack{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Stack")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
