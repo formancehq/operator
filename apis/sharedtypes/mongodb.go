@@ -1,23 +1,6 @@
-/*
-Copyright 2022.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package v1beta1
+package sharedtypes
 
 import (
-	. "github.com/numary/operator/apis/sharedtypes"
 	. "github.com/numary/operator/internal/collectionutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -44,6 +27,15 @@ type MongoDBConfig struct {
 	UseSrv bool `json:"useSrv,omitempty"`
 	// +required
 	Database string `json:"database"`
+}
+
+func (in *MongoDBConfig) Validate() field.ErrorList {
+	return MergeAll(
+		ValidateRequiredConfigValueOrReference("host", in.Host, in.HostFrom),
+		ValidateRequiredConfigValueOrReference("port", in.Port, in.PortFrom),
+		ValidateRequiredConfigValueOrReference("username", in.Username, in.UsernameFrom),
+		ValidateRequiredConfigValueOrReference("password", in.Password, in.PasswordFrom),
+	)
 }
 
 func (cfg *MongoDBConfig) Env(prefix string) []corev1.EnvVar {
@@ -87,13 +79,4 @@ func (cfg *MongoDBConfig) Env(prefix string) []corev1.EnvVar {
 	)
 
 	return env
-}
-
-func (cfg *MongoDBConfig) Validate() field.ErrorList {
-	return MergeAll(
-		ValidateRequiredConfigValueOrReference("host", cfg.Host, cfg.HostFrom),
-		ValidateRequiredConfigValueOrReference("port", cfg.Port, cfg.PortFrom),
-		ValidateRequiredConfigValueOrReferenceOnly("username", cfg.Username, cfg.UsernameFrom),
-		ValidateRequiredConfigValueOrReferenceOnly("password", cfg.Password, cfg.PasswordFrom),
-	)
 }

@@ -256,7 +256,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack) er
 			ImageHolder:        stack.Spec.Services.Payments.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
-			MongoDB: authcomponentsv1beta1.MongoDBConfig{
+			MongoDB: MongoDBConfig{
 				UseSrv:       stack.Spec.Services.Payments.MongoDB.UseSrv,
 				Host:         stack.Spec.Services.Payments.MongoDB.Host,
 				HostFrom:     stack.Spec.Services.Payments.MongoDB.HostFrom,
@@ -323,7 +323,7 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack) e
 			ImageHolder:        stack.Spec.Services.Webhooks.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
-			MongoDB: authcomponentsv1beta1.MongoDBConfig{
+			MongoDB: MongoDBConfig{
 				UseSrv:       stack.Spec.Services.Webhooks.MongoDB.UseSrv,
 				Host:         stack.Spec.Services.Webhooks.MongoDB.Host,
 				HostFrom:     stack.Spec.Services.Webhooks.MongoDB.HostFrom,

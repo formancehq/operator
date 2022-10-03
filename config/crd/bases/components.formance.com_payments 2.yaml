@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.0
   creationTimestamp: null
-  name: webhooks.components.formance.com
+  name: payments.components.formance.com
 spec:
   group: components.formance.com
   names:
-    kind: Webhooks
-    listKind: WebhooksList
-    plural: webhooks
-    singular: webhooks
+    kind: Payments
+    listKind: PaymentsList
+    plural: payments
+    singular: payments
   scope: Namespaced
   versions:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: Webhooks is the Schema for the Webhooks API
+        description: Payments is the Schema for the payments API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: WebhooksSpec defines the desired state of Webhooks
+            description: PaymentsSpec defines the desired state of Payments
             properties:
               auth:
                 properties:
@@ -256,6 +256,8 @@ spec:
                 type: object
               mongoDB:
                 properties:
+                  database:
+                    type: string
                   host:
                     type: string
                   hostFrom:
@@ -418,6 +420,8 @@ spec:
                         - key
                         type: object
                     type: object
+                required:
+                - database
                 type: object
               monitoring:
                 properties:
