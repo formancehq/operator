@@ -59,7 +59,6 @@ type ServicesSpec struct {
 	Payments *PaymentsSpec `json:"payments,omitempty"`
 	Search   *SearchSpec   `json:"search,omitempty"`
 	Webhooks *WebhooksSpec `json:"webhooks,omitempty"`
-
 }
 
 const (
