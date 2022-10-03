@@ -10,8 +10,6 @@ import (
 type PaymentsSpec struct {
 	ImageHolder `json:",inline"`
 	// +optional
-	Debug bool `json:"debug,omitempty"`
-	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
@@ -19,5 +17,8 @@ type PaymentsSpec struct {
 }
 
 func (in *PaymentsSpec) Validate() field.ErrorList {
+	if in == nil {
+		return nil
+	}
 	return Map(in.MongoDB.Validate(), AddPrefixToFieldError("mongoDB."))
 }

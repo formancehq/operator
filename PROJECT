@@ -122,4 +122,15 @@ resources:
   kind: Webhooks
   path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+  controller: true
+  domain: formance.com
+  group: stack
+  kind: Configuration
+  path: github.com/numary/operator/apis/stack/v1beta1
+  version: v1beta1
+  webhooks:
+    validation: true
+    webhookVersion: v1
 version: "3"

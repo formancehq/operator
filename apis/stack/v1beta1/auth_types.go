@@ -10,18 +10,18 @@ import (
 
 type AuthSpec struct {
 	ImageHolder `json:",inline"`
-	Postgres    PostgresConfig `json:"postgres"`
 	// +optional
-	SigningKey          string                                   `json:"signingKey"`
-	DelegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+	Postgres PostgresConfig `json:"postgres"`
+	// +optional
+	SigningKey string `json:"signingKey"`
+	// +optional
+	DelegatedOIDCServer *v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
-	// +required
+	// +optional
 	Host string `json:"host,omitempty"`
 	// +optional
 	Scheme string `json:"scheme,omitempty"`
-	// +optional
-	Debug bool `json:"debug"`
 	// +optional
 	StaticClients []*authv1beta1.StaticClient `json:"staticClients"`
 }
