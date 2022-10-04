@@ -96,7 +96,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 				})
 				Context("With ingress", func() {
 					BeforeEach(func() {
-						configuration.Ingress = IngressGlobalConfig{
+						configuration.Spec.Ingress = IngressGlobalConfig{
 							TLS: &IngressTLS{
 								SecretName: uuid.NewString(),
 							},
@@ -107,7 +107,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 				})
 				Context("With ledger service", func() {
 					BeforeEach(func() {
-						configuration.Services.Ledger = &LedgerSpec{
+						configuration.Spec.Services.Ledger = &LedgerSpec{
 							Postgres: PostgresConfig{
 								Port:     1234,
 								Host:     "XXX",
@@ -131,7 +131,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 				})
 				Context("With auth configuration", func() {
 					BeforeEach(func() {
-						configuration.Auth = &AuthSpec{
+						configuration.Spec.Auth = &AuthSpec{
 							Postgres: PostgresConfig{
 								Port:     5432,
 								Host:     "postgres",
@@ -159,7 +159,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					})
 					Context("Then removing auth", func() {
 						BeforeEach(func() {
-							configuration.Auth = nil
+							configuration.Spec.Auth = nil
 							Expect(Update(configuration)).To(BeNil())
 							Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).Should(Equal(metav1.ConditionUnknown))
 						})

@@ -97,7 +97,7 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 		return Requeue(), fmt.Errorf("Error retrieving configuration object: %s", err)
 	}
 
-	configurationSpec := &configuration.ConfigurationSpec
+	configurationSpec := &configuration.Spec
 	configurationSpec = configurationSpec.MergeWith(&actual.Spec.ConfigurationSpec)
 	if err := configurationSpec.Validate(); len(err) > 0 {
 		return nil, pkgError.Wrap(err.ToAggregate(), "Validating configuration")
