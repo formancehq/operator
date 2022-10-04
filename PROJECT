@@ -124,4 +124,13 @@ resources:
   webhooks:
     validation: true
     webhookVersion: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Webhooks
+  path: github.com/numary/operator/apis/components/v1beta1
+  version: v1beta1
 version: "3"

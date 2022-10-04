@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	authcomponentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
 	"github.com/numary/operator/internal"
@@ -51,10 +51,10 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 	}
 
 	bldr.
-		Owns(&authcomponentsv1beta1.Auth{}).
-		Owns(&authcomponentsv1beta1.Ledger{}).
-		Owns(&authcomponentsv1beta1.Search{}).
-		Owns(&authcomponentsv1beta1.Payments{}).
+		Owns(&componentsv1beta1.Auth{}).
+		Owns(&componentsv1beta1.Ledger{}).
+		Owns(&componentsv1beta1.Search{}).
+		Owns(&componentsv1beta1.Payments{}).
 		Owns(&corev1.Namespace{}).
 		Watches(
 			&source.Kind{
@@ -121,6 +121,9 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	if err := m.reconcileControl(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
+	if err := m.reconcileWebhooks(ctx, actual, configurationSpec); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
+	}
 
 	SetReady(actual)
 	return nil, nil
@@ -153,7 +156,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 
 	if configuration.Auth == nil {
 		log.FromContext(ctx).Info("Deleting Auth")
-		err := r.client.Delete(ctx, &authcomponentsv1beta1.Auth{
+		err := r.client.Delete(ctx, &componentsv1beta1.Auth{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: stack.Spec.Namespace,
 				Name:      stack.ServiceName("auth"),
@@ -172,13 +175,13 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
-	}, stack, func(auth *authcomponentsv1beta1.Auth) error {
-		auth.Spec = authcomponentsv1beta1.AuthSpec{
+	}, stack, func(auth *componentsv1beta1.Auth) error {
+		auth.Spec = componentsv1beta1.AuthSpec{
 			ImageHolder: configuration.Auth.ImageHolder,
 			Scalable: Scalable{
 				Replicas: auth.Spec.Replicas,
 			},
-			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
 					PostgresConfig: configuration.Auth.Postgres,
@@ -213,7 +216,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 
 	if configuration.Services.Ledger == nil {
 		log.FromContext(ctx).Info("Deleting Ledger")
-		err := r.client.Delete(ctx, &authcomponentsv1beta1.Ledger{
+		err := r.client.Delete(ctx, &componentsv1beta1.Ledger{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: stack.Spec.Namespace,
 				Name:      stack.ServiceName("ledger"),
@@ -232,21 +235,21 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("ledger"),
-	}, stack, func(ledger *authcomponentsv1beta1.Ledger) error {
-		var collector *authcomponentsv1beta1.CollectorConfig
+	}, stack, func(ledger *componentsv1beta1.Ledger) error {
+		var collector *componentsv1beta1.CollectorConfig
 		if configuration.Kafka != nil {
-			collector = &authcomponentsv1beta1.CollectorConfig{
+			collector = &componentsv1beta1.CollectorConfig{
 				KafkaConfig: *configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
 			}
 		}
-		ledger.Spec = authcomponentsv1beta1.LedgerSpec{
+		ledger.Spec = componentsv1beta1.LedgerSpec{
 			Scalable:        configuration.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
 			ImageHolder:     configuration.Services.Ledger.ImageHolder,
 			Ingress:         configuration.Services.Ledger.Ingress.Compute(stack, configuration, "/api/ledger"),
 			Debug:           stack.Spec.Debug,
 			LockingStrategy: configuration.Services.Ledger.LockingStrategy,
-			Postgres: authcomponentsv1beta1.PostgresConfigCreateDatabase{
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 				PostgresConfigWithDatabase: PostgresConfigWithDatabase{
 					Database:       fmt.Sprintf("%s-ledger", stack.Name),
 					PostgresConfig: configuration.Services.Ledger.Postgres,
@@ -277,7 +280,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 
 	if configuration.Services.Payments == nil {
 		log.FromContext(ctx).Info("Deleting Payments")
-		err := r.client.Delete(ctx, &authcomponentsv1beta1.Payments{
+		err := r.client.Delete(ctx, &componentsv1beta1.Payments{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: stack.Spec.Namespace,
 				Name:      stack.ServiceName("payments"),
@@ -288,7 +291,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 		case err != nil:
 			return pkgError.Wrap(err, "Deleting Payments")
 		default:
-			stack.RemoveAuthStatus()
+			stack.RemovePaymentsStatus()
 		}
 		return nil
 	}
@@ -296,27 +299,27 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("payments"),
-	}, stack, func(payment *authcomponentsv1beta1.Payments) error {
-		var collector *authcomponentsv1beta1.CollectorConfig
+	}, stack, func(payment *componentsv1beta1.Payments) error {
+		var collector *componentsv1beta1.CollectorConfig
 		if configuration.Kafka != nil {
-			collector = &authcomponentsv1beta1.CollectorConfig{
+			collector = &componentsv1beta1.CollectorConfig{
 				KafkaConfig: *configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			}
 		}
-		payment.Spec = authcomponentsv1beta1.PaymentsSpec{
+		payment.Spec = componentsv1beta1.PaymentsSpec{
 			Ingress:            configuration.Services.Payments.Ingress.Compute(stack, configuration, "/api/payments"),
 			Debug:              stack.Spec.Debug,
 			Monitoring:         configuration.Monitoring,
 			ImageHolder:        configuration.Services.Payments.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
-			MongoDB: authcomponentsv1beta1.MongoDBConfig{
-				UseSrv:       configuration.Services.Payments.MongoDB.UseSrv,
-				Host:         configuration.Services.Payments.MongoDB.Host,
-				HostFrom:     configuration.Services.Payments.MongoDB.HostFrom,
-				Port:         configuration.Services.Payments.MongoDB.Port,
-				PortFrom:     configuration.Services.Payments.MongoDB.PortFrom,
+			MongoDB: MongoDBConfig{
+				UseSrv:       stack.Spec.Services.Payments.MongoDB.UseSrv,
+				Host:         stack.Spec.Services.Payments.MongoDB.Host,
+				HostFrom:     stack.Spec.Services.Payments.MongoDB.HostFrom,
+				Port:         stack.Spec.Services.Payments.MongoDB.Port,
+				PortFrom:     stack.Spec.Services.Payments.MongoDB.PortFrom,
 				Database:     stack.Name,
 				Username:     configuration.Services.Payments.MongoDB.Username,
 				UsernameFrom: configuration.Services.Payments.MongoDB.UsernameFrom,
@@ -339,12 +342,78 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 	return nil
 }
 
+func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
+	log.FromContext(ctx).Info("Reconciling Webhooks")
+
+	if stack.Spec.Services.Webhooks == nil {
+		log.FromContext(ctx).Info("Deleting Webhooks")
+		err := r.client.Delete(ctx, &componentsv1beta1.Webhooks{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: stack.Spec.Namespace,
+				Name:      stack.ServiceName("Webhooks"),
+			},
+		})
+		switch {
+		case errors.IsNotFound(err):
+		case err != nil:
+			return pkgError.Wrap(err, "Deleting Webhooks")
+		default:
+			stack.RemoveWebhooksStatus()
+		}
+		return nil
+	}
+
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      stack.ServiceName("Webhooks"),
+	}, stack, func(payment *componentsv1beta1.Webhooks) error {
+		var collector *componentsv1beta1.CollectorConfig
+		if stack.Spec.Kafka != nil {
+			collector = &componentsv1beta1.CollectorConfig{
+				KafkaConfig: *stack.Spec.Kafka,
+				Topic:       fmt.Sprintf("%s-payments", stack.Name),
+			}
+		}
+		payment.Spec = componentsv1beta1.WebhooksSpec{
+			Ingress:     stack.Spec.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
+			Debug:       stack.Spec.Debug || stack.Spec.Services.Webhooks.Debug,
+			Monitoring:  stack.Spec.Monitoring,
+			ImageHolder: stack.Spec.Services.Webhooks.ImageHolder,
+			Collector:   collector,
+			MongoDB: MongoDBConfig{
+				UseSrv:       stack.Spec.Services.Webhooks.MongoDB.UseSrv,
+				Host:         stack.Spec.Services.Webhooks.MongoDB.Host,
+				HostFrom:     stack.Spec.Services.Webhooks.MongoDB.HostFrom,
+				Port:         stack.Spec.Services.Webhooks.MongoDB.Port,
+				PortFrom:     stack.Spec.Services.Webhooks.MongoDB.PortFrom,
+				Database:     stack.Name,
+				Username:     stack.Spec.Services.Webhooks.MongoDB.Username,
+				UsernameFrom: stack.Spec.Services.Webhooks.MongoDB.UsernameFrom,
+				Password:     stack.Spec.Services.Webhooks.MongoDB.Password,
+				PasswordFrom: stack.Spec.Services.Webhooks.MongoDB.PasswordFrom,
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetPaymentError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetPaymentReady()
+	}
+
+	log.FromContext(ctx).Info("Webhooks ready")
+	return nil
+}
+
 func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Control")
 
 	if configuration.Services.Control == nil {
 		log.FromContext(ctx).Info("Deleting Control")
-		err := r.client.Delete(ctx, &authcomponentsv1beta1.Control{
+		err := r.client.Delete(ctx, &componentsv1beta1.Control{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: stack.Spec.Namespace,
 				Name:      stack.ServiceName("control"),
@@ -363,8 +432,8 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("control"),
-	}, stack, func(control *authcomponentsv1beta1.Control) error {
-		control.Spec = authcomponentsv1beta1.ControlSpec{
+	}, stack, func(control *componentsv1beta1.Control) error {
+		control.Spec = componentsv1beta1.ControlSpec{
 			Scalable: Scalable{
 				Replicas: control.Spec.Replicas,
 			},
@@ -394,7 +463,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, con
 
 	if configuration.Services.Search == nil {
 		log.FromContext(ctx).Info("Deleting Search")
-		err := r.client.Delete(ctx, &authcomponentsv1beta1.Search{
+		err := r.client.Delete(ctx, &componentsv1beta1.Search{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: stack.Spec.Namespace,
 				Name:      stack.ServiceName("search"),
@@ -417,8 +486,8 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, con
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("search"),
-	}, stack, func(search *authcomponentsv1beta1.Search) error {
-		search.Spec = authcomponentsv1beta1.SearchSpec{
+	}, stack, func(search *componentsv1beta1.Search) error {
+		search.Spec = componentsv1beta1.SearchSpec{
 			Scalable: Scalable{
 				Replicas: search.Spec.Replicas,
 			},
