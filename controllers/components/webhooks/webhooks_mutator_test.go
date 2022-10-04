@@ -53,7 +53,6 @@ var _ = Describe("Webhooks controller", func() {
 								Password: "bar",
 								Database: "test",
 							},
-							ElasticSearchIndex: "foo",
 						},
 					}
 					Expect(Create(webhooks)).To(BeNil())

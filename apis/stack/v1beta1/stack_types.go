@@ -82,6 +82,7 @@ const (
 	ConditionTypeStackSearchReady    = "SearchReady"
 	ConditionTypeStackControlReady   = "ControlReady"
 	ConditionTypeStackPaymentsReady  = "PaymentsReady"
+	ConditionTypeStackWebhooksReady  = "WebhooksReady"
 )
 
 //+kubebuilder:object:root=true
@@ -176,6 +177,14 @@ func (in *Stack) RemoveSearchStatus() {
 
 func (in *Stack) RemoveControlStatus() {
 	in.Status.RemoveCondition(ConditionTypeStackControlReady)
+}
+
+func (in *Stack) RemovePaymentsStatus() {
+	in.Status.RemoveCondition(ConditionTypeStackPaymentsReady)
+}
+
+func (in *Stack) RemoveWebhooksStatus() {
+	in.Status.RemoveCondition(ConditionTypeStackWebhooksReady)
 }
 
 func (s *Stack) ServiceName(v string) string {

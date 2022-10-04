@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestAuth(t *testing.T) {
+func TestWebhooks(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Auth Suite")
+	RunSpecs(t, "Webhooks Suite")
 }

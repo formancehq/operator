@@ -33,9 +33,8 @@ type WebhooksSpec struct {
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
 	// +optional
-	Collector          *CollectorConfig `json:"collector"`
-	ElasticSearchIndex string           `json:"elasticSearchIndex"`
-
+	Collector *CollectorConfig `json:"collector"`
+	// +optional
 	MongoDB MongoDBConfig `json:"mongoDB"`
 }
 
