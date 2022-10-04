@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	
+
 	"github.com/numary/operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
@@ -33,9 +33,9 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 }
 
 func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.Result, error) {
-	
+
 	SetProgressing(ingester)
-	
+
 	search := &Search{}
 	if err := m.client.Get(ctx, types.NamespacedName{
 		Namespace: ingester.Namespace,
@@ -43,7 +43,7 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 	}, search); err != nil {
 		return Requeue(), err
 	}
-	
+
 	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, m.client, m.scheme, types.NamespacedName{
 		Namespace: ingester.Namespace,
 		Name:      ingester.Name + "-ingestion-stream",
@@ -111,12 +111,12 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 				},
 			},
 		}
-		
+
 		data, err := json.Marshal(config)
 		if err != nil {
 			return err
 		}
-		
+
 		t.Spec.Config = data
 		t.Spec.Reference = fmt.Sprintf("%s-search-benthos", t.Namespace)
 		return nil
@@ -129,7 +129,7 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 	default:
 		SetCondition(ingester, "IngestionStreamReady", metav1.ConditionTrue)
 	}
-	
+
 	SetReady(ingester)
 	return nil, nil
 }
