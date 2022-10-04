@@ -64,7 +64,9 @@ func (in *ConfigurationSpec) Validate() field.ErrorList {
 type Configuration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	ConfigurationSpec `json:",inline"`
+
+	Spec   ConfigurationSpec `json:"spec,omitempty"`
+	Status Status            `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

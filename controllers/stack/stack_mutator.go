@@ -3,7 +3,7 @@ package stack
 import (
 	"context"
 	"fmt"
-	
+
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
@@ -42,14 +42,14 @@ type Mutator struct {
 }
 
 func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
-	
+
 	if err := mgr.GetFieldIndexer().
 		IndexField(context.Background(), &v1beta1.Stack{}, ".spec.configuration", func(rawObj client.Object) []string {
 			return []string{rawObj.(*v1beta1.Stack).Spec.Seed}
 		}); err != nil {
 		return err
 	}
-	
+
 	bldr.
 		Owns(&authcomponentsv1beta1.Auth{}).
 		Owns(&authcomponentsv1beta1.Ledger{}).
@@ -69,7 +69,7 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 				if err != nil {
 					return []reconcile.Request{}
 				}
-				
+
 				return collectionutil.Map(stacks.Items, func(s v1beta1.Stack) reconcile.Request {
 					return reconcile.Request{
 						NamespacedName: types.NamespacedName{
@@ -86,7 +86,7 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 
 func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
 	SetProgressing(actual)
-	
+
 	configuration := &v1beta1.Configuration{}
 	if err := m.client.Get(ctx, types.NamespacedName{
 		Name: actual.Spec.Seed,
@@ -96,13 +96,13 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 		}
 		return Requeue(), fmt.Errorf("Error retrieving configuration object: %s", err)
 	}
-	
-	configurationSpec := &configuration.ConfigurationSpec
+
+	configurationSpec := &configuration.Spec
 	configurationSpec = configurationSpec.MergeWith(&actual.Spec.ConfigurationSpec)
 	if err := configurationSpec.Validate(); len(err) > 0 {
 		return nil, pkgError.Wrap(err.ToAggregate(), "Validating configuration")
 	}
-	
+
 	if err := m.reconcileNamespace(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
@@ -118,21 +118,17 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	if err := m.reconcileSearch(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
-	
-	if err := m.reconcileWebhooks(ctx, actual, configurationSpec); err != nil {
-		return Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
-	}
 	if err := m.reconcileControl(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
-	
+
 	SetReady(actual)
 	return nil, nil
 }
 
 func (r *Mutator) reconcileNamespace(ctx context.Context, stack *v1beta1.Stack) error {
 	log.FromContext(ctx).Info("Reconciling Namespace")
-	
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Name: stack.Spec.Namespace,
 	}, stack, func(ns *corev1.Namespace) error {
@@ -147,14 +143,14 @@ func (r *Mutator) reconcileNamespace(ctx context.Context, stack *v1beta1.Stack) 
 	default:
 		stack.SetNamespaceCreated()
 	}
-	
+
 	log.FromContext(ctx).Info("Namespace ready")
 	return nil
 }
 
 func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Auth")
-	
+
 	if configuration.Auth == nil {
 		log.FromContext(ctx).Info("Deleting Auth")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Auth{
@@ -172,7 +168,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 		}
 		return nil
 	}
-	
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
@@ -207,14 +203,14 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 	default:
 		stack.SetAuthReady()
 	}
-	
+
 	log.FromContext(ctx).Info("Auth ready")
 	return nil
 }
 
 func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Ledger")
-	
+
 	if configuration.Services.Ledger == nil {
 		log.FromContext(ctx).Info("Deleting Ledger")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Ledger{
@@ -232,7 +228,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 		}
 		return nil
 	}
-	
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("ledger"),
@@ -271,14 +267,14 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 	default:
 		stack.SetLedgerReady()
 	}
-	
+
 	log.FromContext(ctx).Info("Ledger ready")
 	return nil
 }
 
 func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Payment")
-	
+
 	if configuration.Services.Payments == nil {
 		log.FromContext(ctx).Info("Deleting Payments")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Payments{
@@ -296,7 +292,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 		}
 		return nil
 	}
-	
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("payments"),
@@ -315,12 +311,12 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 			ImageHolder:        configuration.Services.Payments.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
-			MongoDB: MongoDBConfig{
-				UseSrv:       stack.Spec.Services.Payments.MongoDB.UseSrv,
-				Host:         stack.Spec.Services.Payments.MongoDB.Host,
-				HostFrom:     stack.Spec.Services.Payments.MongoDB.HostFrom,
-				Port:         stack.Spec.Services.Payments.MongoDB.Port,
-				PortFrom:     stack.Spec.Services.Payments.MongoDB.PortFrom,
+			MongoDB: authcomponentsv1beta1.MongoDBConfig{
+				UseSrv:       configuration.Services.Payments.MongoDB.UseSrv,
+				Host:         configuration.Services.Payments.MongoDB.Host,
+				HostFrom:     configuration.Services.Payments.MongoDB.HostFrom,
+				Port:         configuration.Services.Payments.MongoDB.Port,
+				PortFrom:     configuration.Services.Payments.MongoDB.PortFrom,
 				Database:     stack.Name,
 				Username:     configuration.Services.Payments.MongoDB.Username,
 				UsernameFrom: configuration.Services.Payments.MongoDB.UsernameFrom,
@@ -338,81 +334,14 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 	default:
 		stack.SetPaymentReady()
 	}
-	
-	log.FromContext(ctx).Info("Payment ready")
-	return nil
-}
 
-func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
-	log.FromContext(ctx).Info("Reconciling Webhooks")
-	
-	if stack.Spec.Services.Webhooks == nil {
-		log.FromContext(ctx).Info("Deleting Webhooks")
-		err := r.client.Delete(ctx, &authcomponentsv1beta1.Webhooks{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: stack.Spec.Namespace,
-				Name:      stack.ServiceName("Webhooks"),
-			},
-		})
-		switch {
-		case errors.IsNotFound(err):
-		case err != nil:
-			return pkgError.Wrap(err, "Deleting Webhooks")
-		default:
-			stack.RemoveAuthStatus()
-		}
-		return nil
-	}
-	
-	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
-		Namespace: stack.Spec.Namespace,
-		Name:      stack.ServiceName("Webhooks"),
-	}, stack, func(payment *authcomponentsv1beta1.Webhooks) error {
-		var collector *authcomponentsv1beta1.CollectorConfig
-		if stack.Spec.Kafka != nil {
-			collector = &authcomponentsv1beta1.CollectorConfig{
-				KafkaConfig: *stack.Spec.Kafka,
-				Topic:       fmt.Sprintf("%s-payments", stack.Name),
-			}
-		}
-		payment.Spec = authcomponentsv1beta1.WebhooksSpec{
-			Ingress:            stack.Spec.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
-			Debug:              stack.Spec.Debug || stack.Spec.Services.Webhooks.Debug,
-			Monitoring:         stack.Spec.Monitoring,
-			ImageHolder:        stack.Spec.Services.Webhooks.ImageHolder,
-			Collector:          collector,
-			ElasticSearchIndex: stack.Name,
-			MongoDB: MongoDBConfig{
-				UseSrv:       stack.Spec.Services.Webhooks.MongoDB.UseSrv,
-				Host:         stack.Spec.Services.Webhooks.MongoDB.Host,
-				HostFrom:     stack.Spec.Services.Webhooks.MongoDB.HostFrom,
-				Port:         stack.Spec.Services.Webhooks.MongoDB.Port,
-				PortFrom:     stack.Spec.Services.Webhooks.MongoDB.PortFrom,
-				Database:     stack.Name,
-				Username:     stack.Spec.Services.Webhooks.MongoDB.Username,
-				UsernameFrom: stack.Spec.Services.Webhooks.MongoDB.UsernameFrom,
-				Password:     stack.Spec.Services.Webhooks.MongoDB.Password,
-				PasswordFrom: stack.Spec.Services.Webhooks.MongoDB.PasswordFrom,
-			},
-		}
-		return nil
-	})
-	switch {
-	case err != nil:
-		stack.SetPaymentError(err.Error())
-		return err
-	case operationResult == controllerutil.OperationResultNone:
-	default:
-		stack.SetPaymentReady()
-	}
-	
-	log.FromContext(ctx).Info("Webhooks ready")
+	log.FromContext(ctx).Info("Payment ready")
 	return nil
 }
 
 func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Control")
-	
+
 	if configuration.Services.Control == nil {
 		log.FromContext(ctx).Info("Deleting Control")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Control{
@@ -430,7 +359,7 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 		}
 		return nil
 	}
-	
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("control"),
@@ -455,14 +384,14 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 	default:
 		stack.SetControlReady()
 	}
-	
+
 	log.FromContext(ctx).Info("Control ready")
 	return nil
 }
 
 func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Search")
-	
+
 	if configuration.Services.Search == nil {
 		log.FromContext(ctx).Info("Deleting Search")
 		err := r.client.Delete(ctx, &authcomponentsv1beta1.Search{
@@ -480,11 +409,11 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, con
 		}
 		return nil
 	}
-	
+
 	if configuration.Kafka == nil {
 		return pkgError.New("collector must be configured to use search service")
 	}
-	
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("search"),
@@ -512,7 +441,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, con
 	default:
 		stack.SetSearchReady()
 	}
-	
+
 	log.FromContext(ctx).Info("Search ready")
 	return nil
 }
