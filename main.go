@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/numary/operator/controllers/components/webhooks"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -139,6 +140,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Payments")
 		os.Exit(1)
 	}
+	webhooksMutator := webhooks.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), webhooksMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Webhooks")
+		os.Exit(1)
+	}
 	searchMutator := search.NewMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = internal.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Search")
@@ -176,6 +182,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "SearchIngester")
 		os.Exit(1)
 	}
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

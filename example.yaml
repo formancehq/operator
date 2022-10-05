@@ -93,6 +93,12 @@ services:
         password: admin
   control:
     image: ghcr.io/formancehq/control:latest
+  webhooks:
+    mongoDB:
+      host: mongodb-svc.default.svc.cluster.local
+      port: 27017
+      username: root
+      password: very-secured-password
 ---
 apiVersion: stack.formance.com/v1beta1
 kind: Stack
