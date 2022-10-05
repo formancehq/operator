@@ -18,7 +18,7 @@ package webhooks
 
 import (
 	"context"
-	
+
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
@@ -57,24 +57,24 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=webhooks/finalizers,verbs=update
 
 func (r *Mutator) Mutate(ctx context.Context, webhook *componentsv1beta1.Webhooks) (*ctrl.Result, error) {
-	
+
 	SetProgressing(webhook)
-	
+
 	deployment, err := r.reconcileDeployment(ctx, webhook)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
-	
+
 	_, err = r.reconcileWorkersDeployment(ctx, webhook)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling workers deployment")
 	}
-	
+
 	service, err := r.reconcileService(ctx, webhook, deployment)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
-	
+
 	if webhook.Spec.Ingress != nil {
 		_, err = r.reconcileIngress(ctx, webhook, service)
 		if err != nil {
@@ -92,15 +92,15 @@ func (r *Mutator) Mutate(ctx context.Context, webhook *componentsv1beta1.Webhook
 		}
 		RemoveIngressCondition(webhook)
 	}
-	
+
 	SetReady(webhook)
-	
+
 	return nil, nil
 }
 
 func (r *Mutator) reconcileDeployment(ctx context.Context, webhook *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhook")
-	
+
 	env := webhook.Spec.MongoDB.Env("")
 	if webhook.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
@@ -114,12 +114,12 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhook *componentsv1
 	if webhook.Spec.Collector != nil {
 		env = append(env, webhook.Spec.Collector.Env("")...)
 	}
-	
+
 	image := webhook.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
-	
+
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -176,7 +176,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhook *componentsv1
 
 func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhook *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhook")
-	
+
 	env := webhook.Spec.MongoDB.Env("")
 	if webhook.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
@@ -190,12 +190,12 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhook *compo
 	if webhook.Spec.Collector != nil {
 		env = append(env, webhook.Spec.Collector.Env("")...)
 	}
-	
+
 	image := webhook.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
-	
+
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
