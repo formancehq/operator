@@ -8,7 +8,7 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/numary/auth/authclient v0.0.0-20220811153653-6335dd9658f2
 	github.com/onsi/ginkgo/v2 v2.1.6
-	github.com/onsi/gomega v1.20.1
+	github.com/onsi/gomega v1.20.2
 	github.com/opensearch-project/opensearch-go v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.0
