@@ -25,7 +25,7 @@ type MongoDBConfig struct {
 	PasswordFrom *ConfigSource `json:"passwordFrom,omitempty"`
 	// +optional
 	UseSrv bool `json:"useSrv,omitempty"`
-	// +required
+	// +optional
 	Database string `json:"database"`
 }
 
