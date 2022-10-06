@@ -1838,8 +1838,6 @@ spec:
                                 - key
                                 type: object
                             type: object
-                        required:
-                        - database
                         type: object
                       scaling:
                         properties:
@@ -2236,8 +2234,6 @@ spec:
                                 - key
                                 type: object
                             type: object
-                        required:
-                        - database
                         type: object
                       scaling:
                         properties:

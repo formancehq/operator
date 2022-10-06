@@ -420,8 +420,6 @@ spec:
                         - key
                         type: object
                     type: object
-                required:
-                - database
                 type: object
               monitoring:
                 properties:
