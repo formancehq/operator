@@ -89,83 +89,83 @@ type Stack struct {
 	Status Status    `json:"status,omitempty"`
 }
 
-func (in *Stack) GetScheme() string {
-	if in.Spec.Scheme != "" {
-		return in.Spec.Scheme
+func (s *Stack) GetScheme() string {
+	if s.Spec.Scheme != "" {
+		return s.Spec.Scheme
 	}
 	return "https"
 }
 
-func (in *Stack) GetStatus() Dirty {
-	return &in.Status
+func (s *Stack) GetStatus() Dirty {
+	return &s.Status
 }
 
-func (in *Stack) IsDirty(t Object) bool {
+func (s *Stack) IsDirty(t Object) bool {
 	return false
 }
 
-func (in *Stack) GetConditions() *Conditions {
-	return &in.Status.Conditions
+func (s *Stack) GetConditions() *Conditions {
+	return &s.Status.Conditions
 }
 
-func (in *Stack) SetNamespaceCreated() {
-	SetCondition(in, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
+func (s *Stack) SetNamespaceCreated() {
+	SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) SetNamespaceError(msg string) {
-	SetCondition(in, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
+func (s *Stack) SetNamespaceError(msg string) {
+	SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
 }
 
-func (in *Stack) SetAuthReady() {
-	SetCondition(in, ConditionTypeStackAuthReady, metav1.ConditionTrue)
+func (s *Stack) SetAuthReady() {
+	SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) SetAuthError(msg string) {
-	SetCondition(in, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
+func (s *Stack) SetAuthError(msg string) {
+	SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
 }
 
-func (in *Stack) SetLedgerReady() {
-	SetCondition(in, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
+func (s *Stack) SetLedgerReady() {
+	SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) SetLedgerError(msg string) {
-	SetCondition(in, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
+func (s *Stack) SetLedgerError(msg string) {
+	SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
 }
 
-func (in *Stack) SetSearchReady() {
-	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionTrue)
+func (s *Stack) SetSearchReady() {
+	SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) SetSearchError(msg string) {
-	SetCondition(in, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
+func (s *Stack) SetSearchError(msg string) {
+	SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
 }
 
-func (in *Stack) SetControlReady() {
-	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionTrue)
+func (s *Stack) SetControlReady() {
+	SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) SetControlError(msg string) {
-	SetCondition(in, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
+func (s *Stack) SetControlError(msg string) {
+	SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
 }
 
-func (in *Stack) SetPaymentError(msg string) {
-	SetCondition(in, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
+func (s *Stack) SetPaymentError(msg string) {
+	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
 }
 
-func (in *Stack) SetPaymentReady() {
-	SetCondition(in, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
+func (s *Stack) SetPaymentReady() {
+	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
 }
 
-func (in *Stack) RemoveAuthStatus() {
-	in.Status.RemoveCondition(ConditionTypeStackAuthReady)
+func (s *Stack) RemoveAuthStatus() {
+	s.Status.RemoveCondition(ConditionTypeStackAuthReady)
 }
 
-func (in *Stack) RemoveSearchStatus() {
-	in.Status.RemoveCondition(ConditionTypeStackSearchReady)
+func (s *Stack) RemoveSearchStatus() {
+	s.Status.RemoveCondition(ConditionTypeStackSearchReady)
 }
 
-func (in *Stack) RemoveControlStatus() {
-	in.Status.RemoveCondition(ConditionTypeStackControlReady)
+func (s *Stack) RemoveControlStatus() {
+	s.Status.RemoveCondition(ConditionTypeStackControlReady)
 }
 
 func (in *Stack) RemovePaymentsStatus() {

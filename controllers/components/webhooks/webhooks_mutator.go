@@ -18,6 +18,7 @@ package webhooks
 
 import (
 	"context"
+	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
@@ -304,9 +305,12 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 }
 
 func (r *Mutator) reconcileIngress(ctx context.Context, webhook *componentsv1beta1.Webhooks, service *corev1.Service) (*networkingv1.Ingress, error) {
+	annotations := webhook.Spec.Ingress.Annotations
+	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", webhook.Namespace)
+	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = webhook.Spec.Ingress.Annotations
+		ingress.ObjectMeta.Annotations = annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			TLS: webhook.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
