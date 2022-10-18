@@ -200,6 +200,9 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *v1beta1.Search, de
 
 func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, service *corev1.Service) (*networkingv1.Ingress, error) {
 	annotations := search.Spec.Ingress.Annotations
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
 	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", search.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(ingress *networkingv1.Ingress) error {

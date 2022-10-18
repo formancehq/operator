@@ -306,6 +306,9 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 
 func (r *Mutator) reconcileIngress(ctx context.Context, webhook *componentsv1beta1.Webhooks, service *corev1.Service) (*networkingv1.Ingress, error) {
 	annotations := webhook.Spec.Ingress.Annotations
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
 	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", webhook.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(ingress *networkingv1.Ingress) error {

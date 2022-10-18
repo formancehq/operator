@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - Lint
-      - Test
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
