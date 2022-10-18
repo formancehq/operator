@@ -18,6 +18,7 @@ package search
 
 import (
 	"context"
+	"fmt"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	. "github.com/numary/operator/apis/components/benthos/v1beta1"
@@ -198,9 +199,12 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *v1beta1.Search, de
 }
 
 func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, service *corev1.Service) (*networkingv1.Ingress, error) {
+	annotations := search.Spec.Ingress.Annotations
+	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", search.Namespace)
+	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = search.Spec.Ingress.Annotations
+		ingress.ObjectMeta.Annotations = annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			TLS: search.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{

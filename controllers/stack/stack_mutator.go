@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
+	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
@@ -41,7 +44,7 @@ type Mutator struct {
 	dnsNames []string
 }
 
-func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
+func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 
 	if err := mgr.GetFieldIndexer().
 		IndexField(context.Background(), &v1beta1.Stack{}, ".spec.configuration", func(rawObj client.Object) []string {
@@ -84,17 +87,17 @@ func (m *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 	return nil
 }
 
-func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
+func (r *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
 	SetProgressing(actual)
 
 	configuration := &v1beta1.Configuration{}
-	if err := m.client.Get(ctx, types.NamespacedName{
+	if err := r.client.Get(ctx, types.NamespacedName{
 		Name: actual.Spec.Seed,
 	}, configuration); err != nil {
 		if errors.IsNotFound(err) {
 			return nil, pkgError.New("Configuration object not found")
 		}
-		return Requeue(), fmt.Errorf("Error retrieving configuration object: %s", err)
+		return Requeue(), fmt.Errorf("error retrieving configuration object: %s", err)
 	}
 
 	configurationSpec := &configuration.Spec
@@ -103,25 +106,28 @@ func (m *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 		return nil, pkgError.Wrap(err.ToAggregate(), "Validating configuration")
 	}
 
-	if err := m.reconcileNamespace(ctx, actual); err != nil {
+	if err := r.reconcileNamespace(ctx, actual); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
-	if err := m.reconcileAuth(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileMiddleware(ctx, actual); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling middleware")
+	}
+	if err := r.reconcileAuth(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
-	if err := m.reconcileLedger(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileLedger(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
-	if err := m.reconcilePayment(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcilePayment(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
-	if err := m.reconcileSearch(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileSearch(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
-	if err := m.reconcileControl(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileControl(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
-	if err := m.reconcileWebhooks(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileWebhooks(ctx, actual, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
 	}
 
@@ -148,6 +154,36 @@ func (r *Mutator) reconcileNamespace(ctx context.Context, stack *v1beta1.Stack) 
 	}
 
 	log.FromContext(ctx).Info("Namespace ready")
+	return nil
+}
+
+func (r *Mutator) reconcileMiddleware(ctx context.Context, stack *v1beta1.Stack) error {
+	log.FromContext(ctx).Info("Reconciling Middleware")
+
+	m := make(map[string]apiextensionv1.JSON)
+	m["auth"] = apiextensionv1.JSON{
+		Raw: []byte(fmt.Sprintf(`{"Issuer": "%s"}`, stack.Spec.Host+"/api/auth")),
+	}
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Spec.Namespace,
+		Name:      "auth-middleware",
+	}, stack, func(middleware *traefik.Middleware) error {
+		middleware.Spec = traefik.MiddlewareSpec{
+			Plugin: m,
+		}
+		return nil
+	})
+
+	switch {
+	case err != nil:
+		stack.SetAuthError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetAuthReady()
+	}
+
+	log.FromContext(ctx).Info("Middleware ready")
 	return nil
 }
 

@@ -219,9 +219,12 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 }
 
 func (r *Mutator) reconcileIngress(ctx context.Context, payment *componentsv1beta1.Payments, service *corev1.Service) (*networkingv1.Ingress, error) {
+	annotations := payment.Spec.Ingress.Annotations
+	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", payment.Namespace)
+	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payment), payment, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = payment.Spec.Ingress.Annotations
+		ingress.ObjectMeta.Annotations = annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			TLS: payment.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
