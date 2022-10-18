@@ -433,3 +433,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - traefik.containo.us
+  resources:
+  - middleware
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

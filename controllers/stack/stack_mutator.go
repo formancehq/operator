@@ -33,6 +33,7 @@ import (
 
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=traefik.containo.us,resources=middleware,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=stack.formance.com,resources=stacks/finalizers,verbs=update
