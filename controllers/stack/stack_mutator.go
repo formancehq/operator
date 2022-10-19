@@ -8,6 +8,7 @@ import (
 	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
 	"github.com/numary/operator/internal"
 	"github.com/numary/operator/internal/collectionutil"
