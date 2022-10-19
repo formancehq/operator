@@ -16,6 +16,7 @@ import (
 	"github.com/numary/operator/internal"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -65,6 +66,7 @@ func start() {
 	Expect(authcomponentsv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(benthoscomponentsformancecomv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(stackv1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(traefik.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())

@@ -64,13 +64,14 @@ type ServicesSpec struct {
 }
 
 const (
-	ConditionTypeStackNamespaceReady = "NamespaceReady"
-	ConditionTypeStackAuthReady      = "AuthReady"
-	ConditionTypeStackLedgerReady    = "LedgerReady"
-	ConditionTypeStackSearchReady    = "SearchReady"
-	ConditionTypeStackControlReady   = "ControlReady"
-	ConditionTypeStackPaymentsReady  = "PaymentsReady"
-	ConditionTypeStackWebhooksReady  = "WebhooksReady"
+	ConditionTypeStackNamespaceReady  = "NamespaceReady"
+	ConditionTypeStackAuthReady       = "AuthReady"
+	ConditionTypeStackLedgerReady     = "LedgerReady"
+	ConditionTypeStackSearchReady     = "SearchReady"
+	ConditionTypeStackControlReady    = "ControlReady"
+	ConditionTypeStackPaymentsReady   = "PaymentsReady"
+	ConditionTypeStackWebhooksReady   = "WebhooksReady"
+	ConditionTypeStackMiddlewareReady = "MiddlewareReady"
 )
 
 //+kubebuilder:object:root=true
@@ -152,6 +153,10 @@ func (s *Stack) SetPaymentError(msg string) {
 	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
 }
 
+func (s *Stack) SetMiddlewareError(msg string) {
+	SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
+}
+
 func (s *Stack) SetPaymentReady() {
 	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
 }
@@ -174,6 +179,10 @@ func (in *Stack) RemovePaymentsStatus() {
 
 func (in *Stack) RemoveWebhooksStatus() {
 	in.Status.RemoveCondition(ConditionTypeStackWebhooksReady)
+}
+
+func (in *Stack) SetMiddlewareReady() {
+	in.Status.RemoveCondition(ConditionTypeStackMiddlewareReady)
 }
 
 func (s *Stack) ServiceName(v string) string {

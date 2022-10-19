@@ -60,6 +60,7 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 		Owns(&componentsv1beta1.Search{}).
 		Owns(&componentsv1beta1.Payments{}).
 		Owns(&corev1.Namespace{}).
+		Owns(&traefik.Middleware{}).
 		Watches(
 			&source.Kind{
 				Type: &v1beta1.Configuration{},
@@ -177,11 +178,11 @@ func (r *Mutator) reconcileMiddleware(ctx context.Context, stack *v1beta1.Stack)
 
 	switch {
 	case err != nil:
-		stack.SetAuthError(err.Error())
+		stack.SetMiddlewareError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		stack.SetAuthReady()
+		stack.SetMiddlewareReady()
 	}
 
 	log.FromContext(ctx).Info("Middleware ready")
