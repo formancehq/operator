@@ -436,7 +436,7 @@ rules:
 - apiGroups:
   - traefik.containo.us
   resources:
-  - middleware
+  - middlewares
   verbs:
   - create
   - delete
