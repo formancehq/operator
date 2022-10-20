@@ -39,6 +39,8 @@ spec:
                 type: string
               apiURLFront:
                 type: string
+              authClientSecret:
+                type: string
               debug:
                 type: boolean
               image:
