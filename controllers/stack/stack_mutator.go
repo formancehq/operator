@@ -111,9 +111,11 @@ func (r *Mutator) Mutate(ctx context.Context, stack *v1beta1.Stack) (*ctrl.Resul
 	}
 
 	// Add static clients for app needing it (Actually, control)
-	stack.Status.StaticAuthClients = map[string]authcomponentsv1beta1.StaticClient{}
-	if stack.Spec.Auth != nil {
-		if stack.Spec.Services.Control != nil {
+	if configuration.Spec.Auth != nil {
+		if stack.Status.StaticAuthClients == nil {
+			stack.Status.StaticAuthClients = map[string]authcomponentsv1beta1.StaticClient{}
+		}
+		if configuration.Spec.Services.Control != nil {
 			stack.Status.StaticAuthClients["control"] = authcomponentsv1beta1.StaticClient{
 				ID: "control",
 				Secrets: []string{
@@ -501,12 +503,17 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 			Ingress:     configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
 			Debug:       stack.Spec.Debug,
 			ImageHolder: configuration.Services.Control.ImageHolder,
-			ApiURLFront: fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
-			ApiURLBack:  fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
-			AuthClientConfiguration: &componentsv1beta1.AuthClientConfiguration{
-				ClientID:     stack.Status.StaticAuthClients["control"].ID,
-				ClientSecret: stack.Status.StaticAuthClients["control"].Secrets[0],
-			},
+			ApiURLFront: fmt.Sprintf("%s/api", stack.URL()),
+			ApiURLBack:  fmt.Sprintf("%s/api", stack.URL()),
+			AuthClientConfiguration: func() *componentsv1beta1.AuthClientConfiguration {
+				if configuration.Auth == nil {
+					return nil
+				}
+				return &componentsv1beta1.AuthClientConfiguration{
+					ClientID:     stack.Status.StaticAuthClients["control"].ID,
+					ClientSecret: stack.Status.StaticAuthClients["control"].Secrets[0],
+				}
+			}(),
 		}
 		return nil
 	})

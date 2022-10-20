@@ -786,13 +786,6 @@ spec:
                 properties:
                   control:
                     properties:
-                      auth:
-                        properties:
-                          enabled:
-                            type: boolean
-                        required:
-                        - enabled
-                        type: object
                       image:
                         type: string
                       imagePullSecrets:
