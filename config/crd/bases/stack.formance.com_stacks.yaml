@@ -786,6 +786,13 @@ spec:
                 properties:
                   control:
                     properties:
+                      auth:
+                        properties:
+                          enabled:
+                            type: boolean
+                        required:
+                        - enabled
+                        type: object
                       image:
                         type: string
                       imagePullSecrets:
@@ -2322,6 +2329,35 @@ spec:
                   - type
                   type: object
                 type: array
+              staticAuthClients:
+                additionalProperties:
+                  properties:
+                    description:
+                      type: string
+                    id:
+                      type: string
+                    postLogoutRedirectUris:
+                      items:
+                        type: string
+                      type: array
+                    public:
+                      type: boolean
+                    redirectUris:
+                      items:
+                        type: string
+                      type: array
+                    scopes:
+                      items:
+                        type: string
+                      type: array
+                    secrets:
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - id
+                  type: object
+                type: object
             type: object
         type: object
     served: true

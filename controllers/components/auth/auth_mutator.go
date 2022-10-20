@@ -262,7 +262,7 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1beta1.Auth) (*corev1.ConfigMap, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(configMap *corev1.ConfigMap) error {
 		yaml, err := yaml.Marshal(struct {
-			Clients []*v1beta1.StaticClient `yaml:"clients"`
+			Clients []v1beta1.StaticClient `yaml:"clients"`
 		}{
 			Clients: auth.Spec.StaticClients,
 		})

@@ -88,10 +88,15 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 		Env("API_URL_BACK", control.Spec.ApiURLBack),
 		Env("API_URL_FRONT", control.Spec.ApiURLFront),
 		Env("API_URL", control.Spec.ApiURLFront),
-		Env("ENCRYPTION_KEY", control.Spec.ApiURLFront),
-		Env("ENCRYPTION_IV", "6f0c77c78a624022"),
-		Env("CLIENT_ID", "control"),
-		Env("CLIENT_SECRET", control.Spec.AuthClientSecret),
+	}
+
+	if control.Spec.AuthClientConfiguration != nil {
+		env = append(env,
+			Env("ENCRYPTION_KEY", "00000000000000000000000000000000"),
+			Env("ENCRYPTION_IV", "6f0c77c78a624022"),
+			Env("CLIENT_ID", control.Spec.AuthClientConfiguration.ClientID),
+			Env("CLIENT_SECRET", control.Spec.AuthClientConfiguration.ClientSecret),
+		)
 	}
 
 	image := control.Spec.Image

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
@@ -11,7 +13,7 @@ import (
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/apis/stack/v1beta1"
 	"github.com/numary/operator/internal"
-	"github.com/numary/operator/internal/collectionutil"
+	. "github.com/numary/operator/internal/collectionutil"
 	"github.com/numary/operator/internal/resourceutil"
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -75,7 +77,7 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 					return []reconcile.Request{}
 				}
 
-				return collectionutil.Map(stacks.Items, func(s v1beta1.Stack) reconcile.Request {
+				return Map(stacks.Items, func(s v1beta1.Stack) reconcile.Request {
 					return reconcile.Request{
 						NamespacedName: types.NamespacedName{
 							Name:      s.GetName(),
@@ -89,12 +91,12 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 	return nil
 }
 
-func (r *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Result, error) {
-	SetProgressing(actual)
+func (r *Mutator) Mutate(ctx context.Context, stack *v1beta1.Stack) (*ctrl.Result, error) {
+	SetProgressing(stack)
 
 	configuration := &v1beta1.Configuration{}
 	if err := r.client.Get(ctx, types.NamespacedName{
-		Name: actual.Spec.Seed,
+		Name: stack.Spec.Seed,
 	}, configuration); err != nil {
 		if errors.IsNotFound(err) {
 			return nil, pkgError.New("Configuration object not found")
@@ -103,37 +105,58 @@ func (r *Mutator) Mutate(ctx context.Context, actual *v1beta1.Stack) (*ctrl.Resu
 	}
 
 	configurationSpec := &configuration.Spec
-	configurationSpec = configurationSpec.MergeWith(&actual.Spec.ConfigurationSpec)
+	configurationSpec = configurationSpec.MergeWith(&stack.Spec.ConfigurationSpec)
 	if err := configurationSpec.Validate(); len(err) > 0 {
 		return nil, pkgError.Wrap(err.ToAggregate(), "Validating configuration")
 	}
 
-	if err := r.reconcileNamespace(ctx, actual); err != nil {
+	// Add static clients for app needing it (Actually, control)
+	stack.Status.StaticAuthClients = map[string]authcomponentsv1beta1.StaticClient{}
+	if stack.Spec.Auth != nil {
+		if stack.Spec.Services.Control != nil {
+			stack.Status.StaticAuthClients["control"] = authcomponentsv1beta1.StaticClient{
+				ID: "control",
+				Secrets: []string{
+					uuid.NewString(),
+				},
+				ClientConfiguration: authcomponentsv1beta1.ClientConfiguration{
+					RedirectUris: []string{
+						fmt.Sprintf("%s/auth/login", stack.URL()),
+					},
+					PostLogoutRedirectUris: []string{
+						fmt.Sprintf("%s/auth/destroy", stack.URL()),
+					},
+				},
+			}
+		}
+	}
+
+	if err := r.reconcileNamespace(ctx, stack); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling namespace")
 	}
-	if err := r.reconcileMiddleware(ctx, actual); err != nil {
+	if err := r.reconcileMiddleware(ctx, stack); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling middleware")
 	}
-	if err := r.reconcileAuth(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileAuth(ctx, stack, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
-	if err := r.reconcileLedger(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileLedger(ctx, stack, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
-	if err := r.reconcilePayment(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcilePayment(ctx, stack, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
-	if err := r.reconcileSearch(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileSearch(ctx, stack, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
-	if err := r.reconcileControl(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileControl(ctx, stack, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
-	if err := r.reconcileWebhooks(ctx, actual, configurationSpec); err != nil {
+	if err := r.reconcileWebhooks(ctx, stack, configurationSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
 	}
 
-	SetReady(actual)
+	SetReady(stack)
 	return nil, nil
 }
 
@@ -232,7 +255,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 			Ingress:             configuration.Auth.Ingress.Compute(stack, configuration, "/api/auth"),
 			DelegatedOIDCServer: *configuration.Auth.DelegatedOIDCServer,
 			Monitoring:          configuration.Monitoring,
-			StaticClients:       configuration.Auth.StaticClients,
+			StaticClients:       append(configuration.Auth.StaticClients, SliceFromMap(stack.Status.StaticAuthClients)...),
 		}
 		return nil
 	})
@@ -475,12 +498,15 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 			Scalable: Scalable{
 				Replicas: control.Spec.Replicas,
 			},
-			Ingress:          configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
-			Debug:            stack.Spec.Debug,
-			ImageHolder:      configuration.Services.Control.ImageHolder,
-			ApiURLFront:      fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
-			ApiURLBack:       fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
-			AuthClientSecret: configuration.Auth.StaticClients[1].Secrets[0],
+			Ingress:     configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
+			Debug:       stack.Spec.Debug,
+			ImageHolder: configuration.Services.Control.ImageHolder,
+			ApiURLFront: fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
+			ApiURLBack:  fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
+			AuthClientConfiguration: &componentsv1beta1.AuthClientConfiguration{
+				ClientID:     stack.Status.StaticAuthClients["control"].ID,
+				ClientSecret: stack.Status.StaticAuthClients["control"].Secrets[0],
+			},
 		}
 		return nil
 	})

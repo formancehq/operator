@@ -86,7 +86,7 @@ type AuthSpec struct {
 	Monitoring *MonitoringSpec `json:"monitoring"`
 
 	// +optional
-	StaticClients []*v1beta1.StaticClient `json:"staticClients"`
+	StaticClients []v1beta1.StaticClient `json:"staticClients"`
 }
 
 // +kubebuilder:object:root=true

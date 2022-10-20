@@ -31,3 +31,11 @@ func MergeMaps[K comparable, V any](maps ...map[K]V) map[K]V {
 	}
 	return ret
 }
+
+func SliceFromMap[K comparable, V any](m map[K]V) []V {
+	ret := make([]V, 0)
+	for _, v := range m {
+		ret = append(ret, v)
+	}
+	return ret
+}

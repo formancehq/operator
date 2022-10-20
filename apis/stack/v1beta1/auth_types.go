@@ -23,7 +23,7 @@ type AuthSpec struct {
 	// +optional
 	Scheme string `json:"scheme,omitempty"`
 	// +optional
-	StaticClients []*authv1beta1.StaticClient `json:"staticClients"`
+	StaticClients []authv1beta1.StaticClient `json:"staticClients"`
 }
 
 func (in *AuthSpec) GetScheme() string {
