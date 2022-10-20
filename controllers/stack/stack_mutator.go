@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -119,7 +118,10 @@ func (r *Mutator) Mutate(ctx context.Context, stack *v1beta1.Stack) (*ctrl.Resul
 			stack.Status.StaticAuthClients["control"] = authcomponentsv1beta1.StaticClient{
 				ID: "control",
 				Secrets: []string{
-					uuid.NewString(),
+					"control",
+					// When creating Control CRD later in the code, we trigger a new reconciliation loop on the stack as
+					// the Stack object owns Control object, which invalid the current reconciliation (we cannot update the status as the generation as changed).
+					//uuid.NewString(),
 				},
 				ClientConfiguration: authcomponentsv1beta1.ClientConfiguration{
 					RedirectUris: []string{
