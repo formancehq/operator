@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
@@ -96,6 +97,8 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 			Env("ENCRYPTION_IV", "6f0c77c78a624022"),
 			Env("CLIENT_ID", control.Spec.AuthClientConfiguration.ClientID),
 			Env("CLIENT_SECRET", control.Spec.AuthClientConfiguration.ClientSecret),
+			// TODO: Clean that mess
+			Env("REDIRECT_URI", strings.TrimSuffix(control.Spec.ApiURLFront, "/api")),
 		)
 	}
 
