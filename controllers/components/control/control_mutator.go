@@ -87,6 +87,11 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 	env := []corev1.EnvVar{
 		Env("API_URL_BACK", control.Spec.ApiURLBack),
 		Env("API_URL_FRONT", control.Spec.ApiURLFront),
+		Env("API_URL", control.Spec.ApiURLFront),
+		Env("ENCRYPTION_KEY", control.Spec.ApiURLFront),
+		Env("ENCRYPTION_IV", "6f0c77c78a624022"),
+		Env("CLIENT_ID", "control"),
+		Env("CLIENT_SECRET", control.Spec.AuthClientSecret),
 	}
 
 	image := control.Spec.Image
@@ -172,8 +177,8 @@ func (m *Mutator) reconcileService(ctx context.Context, auth *Control, deploymen
 	return ret, err
 }
 
-func (r *Mutator) reconcileHPA(ctx context.Context, ctrl *Control) (*autoscallingv2.HorizontalPodAutoscaler, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ctrl), ctrl, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+func (m *Mutator) reconcileHPA(ctx context.Context, ctrl *Control) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(ctrl), ctrl, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
 		hpa.Spec = ctrl.Spec.GetHPASpec(ctrl)
 		return nil
 	})

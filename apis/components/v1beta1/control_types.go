@@ -31,6 +31,8 @@ type ControlSpec struct {
 	Debug       bool   `json:"debug"`
 	ApiURLFront string `json:"apiURLFront"`
 	ApiURLBack  string `json:"apiURLBack"`
+	// +optional
+	AuthClientSecret string `json:"authClientSecret"`
 }
 
 // +kubebuilder:object:root=true

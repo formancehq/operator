@@ -475,11 +475,12 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 			Scalable: Scalable{
 				Replicas: control.Spec.Replicas,
 			},
-			Ingress:     configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
-			Debug:       stack.Spec.Debug,
-			ImageHolder: configuration.Services.Control.ImageHolder,
-			ApiURLFront: fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
-			ApiURLBack:  fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
+			Ingress:          configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
+			Debug:            stack.Spec.Debug,
+			ImageHolder:      configuration.Services.Control.ImageHolder,
+			ApiURLFront:      fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
+			ApiURLBack:       fmt.Sprintf("%s://%s/api", stack.GetScheme(), stack.Spec.Host),
+			AuthClientSecret: configuration.Auth.StaticClients[1].Secrets[0],
 		}
 		return nil
 	})
