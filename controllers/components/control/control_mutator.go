@@ -91,10 +91,15 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 		Env("API_URL", control.Spec.ApiURLFront),
 	}
 
+	if control.Spec.Monitoring != nil {
+		env = append(env, control.Spec.Monitoring.Env("")...)
+	}
+
+	// TODO: Generate value
 	if control.Spec.AuthClientConfiguration != nil {
 		env = append(env,
-			Env("ENCRYPTION_KEY", "00000000000000000000000000000000"),
-			Env("ENCRYPTION_IV", "6f0c77c78a624022"),
+			Env("ENCRYPTION_KEY", "a18a6e9cbb589a5311aaa4c5adbd47d788bb9840ae355a234c0344687c595be4"),
+			Env("ENCRYPTION_IV", "5677f20d0ea3048a68b3781ee34089a9"),
 			Env("CLIENT_ID", control.Spec.AuthClientConfiguration.ClientID),
 			Env("CLIENT_SECRET", control.Spec.AuthClientConfiguration.ClientSecret),
 			// TODO: Clean that mess

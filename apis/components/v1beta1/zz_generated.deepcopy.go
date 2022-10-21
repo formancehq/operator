@@ -223,6 +223,11 @@ func (in *ControlSpec) DeepCopyInto(out *ControlSpec) {
 		*out = new(sharedtypes.IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Monitoring != nil {
+		in, out := &in.Monitoring, &out.Monitoring
+		*out = new(sharedtypes.MonitoringSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.AuthClientConfiguration != nil {
 		in, out := &in.AuthClientConfiguration, &out.AuthClientConfiguration
 		*out = new(AuthClientConfiguration)

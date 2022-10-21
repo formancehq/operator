@@ -33,6 +33,8 @@ type ControlSpec struct {
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
+	Monitoring *MonitoringSpec `json:"monitoring"`
+	// +optional
 	Debug       bool   `json:"debug"`
 	ApiURLFront string `json:"apiURLFront"`
 	ApiURLBack  string `json:"apiURLBack"`
