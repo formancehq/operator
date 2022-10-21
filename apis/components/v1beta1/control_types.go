@@ -21,6 +21,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type AuthClientConfiguration struct {
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+}
+
 // ControlSpec defines the desired state of Control
 type ControlSpec struct {
 	Scalable    `json:",inline"`
@@ -31,6 +36,9 @@ type ControlSpec struct {
 	Debug       bool   `json:"debug"`
 	ApiURLFront string `json:"apiURLFront"`
 	ApiURLBack  string `json:"apiURLBack"`
+
+	// +optional
+	AuthClientConfiguration *AuthClientConfiguration `json:"auth"`
 }
 
 // +kubebuilder:object:root=true

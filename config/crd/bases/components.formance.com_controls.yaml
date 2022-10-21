@@ -39,6 +39,16 @@ spec:
                 type: string
               apiURLFront:
                 type: string
+              auth:
+                properties:
+                  clientID:
+                    type: string
+                  clientSecret:
+                    type: string
+                required:
+                - clientID
+                - clientSecret
+                type: object
               debug:
                 type: boolean
               image:

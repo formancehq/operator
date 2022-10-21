@@ -262,7 +262,7 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1beta1.Auth) (*corev1.ConfigMap, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(configMap *corev1.ConfigMap) error {
 		yaml, err := yaml.Marshal(struct {
-			Clients []*v1beta1.StaticClient `yaml:"clients"`
+			Clients []v1beta1.StaticClient `yaml:"clients"`
 		}{
 			Clients: auth.Spec.StaticClients,
 		})
@@ -326,15 +326,9 @@ func (r *Mutator) reconcileSigningKeySecret(ctx context.Context, auth *component
 }
 
 func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta1.Auth, service *corev1.Service) (*networkingv1.Ingress, error) {
-	annotations := auth.Spec.Ingress.Annotations
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", auth.Namespace)
-	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = annotations
+		ingress.ObjectMeta.Annotations = auth.Spec.Ingress.Annotations
 		ingress.Spec = networkingv1.IngressSpec{
 			TLS: auth.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{

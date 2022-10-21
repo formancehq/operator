@@ -18,7 +18,9 @@ package v1beta1
 
 import (
 	"fmt"
+	"reflect"
 
+	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -74,20 +76,38 @@ const (
 	ConditionTypeStackMiddlewareReady = "MiddlewareReady"
 )
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
-//+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.progress`
-//+kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version",description="Stack Version"
-//+kubebuilder:printcolumn:name="Namespace",type="string",JSONPath=".spec.namespace",description="Stack Namespace"
+type ControlAuthentication struct {
+	ClientID string
+}
+
+type StackStatus struct {
+	Status `json:",inline"`
+
+	// +optional
+	StaticAuthClients map[string]authcomponentsv1beta1.StaticClient `json:"staticAuthClients,omitempty"`
+}
+
+func (s *StackStatus) IsDirty(reference Object) bool {
+	if s.Status.IsDirty(reference) {
+		return true
+	}
+	return !reflect.DeepEqual(reference.(*Stack).Status.StaticAuthClients, s.StaticAuthClients)
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.progress`
+// +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version",description="Stack Version"
+// +kubebuilder:printcolumn:name="Namespace",type="string",JSONPath=".spec.namespace",description="Stack Namespace"
 
 // Stack is the Schema for the stacks API
 type Stack struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StackSpec `json:"spec,omitempty"`
-	Status Status    `json:"status,omitempty"`
+	Spec   StackSpec   `json:"spec,omitempty"`
+	Status StackStatus `json:"status,omitempty"`
 }
 
 func (s *Stack) GetScheme() string {
@@ -95,6 +115,10 @@ func (s *Stack) GetScheme() string {
 		return s.Spec.Scheme
 	}
 	return "https"
+}
+
+func (s *Stack) URL() string {
+	return fmt.Sprintf("%s://%s", s.GetScheme(), s.Spec.Host)
 }
 
 func (s *Stack) GetStatus() Dirty {

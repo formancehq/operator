@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
@@ -87,6 +88,18 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 	env := []corev1.EnvVar{
 		Env("API_URL_BACK", control.Spec.ApiURLBack),
 		Env("API_URL_FRONT", control.Spec.ApiURLFront),
+		Env("API_URL", control.Spec.ApiURLFront),
+	}
+
+	if control.Spec.AuthClientConfiguration != nil {
+		env = append(env,
+			Env("ENCRYPTION_KEY", "00000000000000000000000000000000"),
+			Env("ENCRYPTION_IV", "6f0c77c78a624022"),
+			Env("CLIENT_ID", control.Spec.AuthClientConfiguration.ClientID),
+			Env("CLIENT_SECRET", control.Spec.AuthClientConfiguration.ClientSecret),
+			// TODO: Clean that mess
+			Env("REDIRECT_URI", strings.TrimSuffix(control.Spec.ApiURLFront, "/api")),
+		)
 	}
 
 	image := control.Spec.Image
@@ -172,8 +185,8 @@ func (m *Mutator) reconcileService(ctx context.Context, auth *Control, deploymen
 	return ret, err
 }
 
-func (r *Mutator) reconcileHPA(ctx context.Context, ctrl *Control) (*autoscallingv2.HorizontalPodAutoscaler, error) {
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ctrl), ctrl, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+func (m *Mutator) reconcileHPA(ctx context.Context, ctrl *Control) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(ctrl), ctrl, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
 		hpa.Spec = ctrl.Spec.GetHPASpec(ctrl)
 		return nil
 	})
