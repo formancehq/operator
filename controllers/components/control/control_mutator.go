@@ -98,8 +98,8 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 	// TODO: Generate value
 	if control.Spec.AuthClientConfiguration != nil {
 		env = append(env,
-			Env("ENCRYPTION_KEY", "mysuperencryptionkey"),
-			Env("ENCRYPTION_IV", "6f0c77c78a624022"),
+			Env("ENCRYPTION_KEY", "9h44y2ZqrDuUy5R9NGLA9hca7uRUr932"),
+			Env("ENCRYPTION_IV", "b6747T6eP9DnMvEw"),
 			Env("CLIENT_ID", control.Spec.AuthClientConfiguration.ClientID),
 			Env("CLIENT_SECRET", control.Spec.AuthClientConfiguration.ClientSecret),
 			// TODO: Clean that mess

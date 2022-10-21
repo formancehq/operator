@@ -505,6 +505,7 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 			Ingress:     configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
 			Debug:       stack.Spec.Debug,
 			ImageHolder: configuration.Services.Control.ImageHolder,
+			Monitoring:  configuration.Monitoring,
 			ApiURLFront: fmt.Sprintf("%s/api", stack.URL()),
 			ApiURLBack:  fmt.Sprintf("%s/api", stack.URL()),
 			AuthClientConfiguration: func() *componentsv1beta1.AuthClientConfiguration {
