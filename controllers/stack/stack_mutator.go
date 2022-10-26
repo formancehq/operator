@@ -237,6 +237,13 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 		return nil
 	}
 
+	staticClient := append(configuration.Auth.StaticClients, SliceFromMap(stack.Status.StaticAuthClients)...)
+	if staticClient == nil {
+		for _, static := range staticClient {
+			static.Scopes = []string{"openid", "profile", "email", "offline"}
+		}
+	}
+
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
@@ -259,7 +266,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 			Ingress:             configuration.Auth.Ingress.Compute(stack, configuration, "/api/auth"),
 			DelegatedOIDCServer: *configuration.Auth.DelegatedOIDCServer,
 			Monitoring:          configuration.Monitoring,
-			StaticClients:       append(configuration.Auth.StaticClients, SliceFromMap(stack.Status.StaticAuthClients)...),
+			StaticClients:       staticClient,
 		}
 		return nil
 	})
