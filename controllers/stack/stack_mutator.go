@@ -124,6 +124,12 @@ func (r *Mutator) Mutate(ctx context.Context, stack *v1beta1.Stack) (*ctrl.Resul
 					//uuid.NewString(),
 				},
 				ClientConfiguration: authcomponentsv1beta1.ClientConfiguration{
+					Scopes: []string{
+						"openid",
+						"profile",
+						"email",
+						"offline",
+					},
 					RedirectUris: []string{
 						fmt.Sprintf("%s/auth/login", stack.URL()),
 					},
@@ -238,12 +244,6 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 	}
 
 	staticClient := append(configuration.Auth.StaticClients, SliceFromMap(stack.Status.StaticAuthClients)...)
-	if staticClient == nil {
-		for _, static := range staticClient {
-			static.Scopes = []string{"openid", "profile", "email", "offline"}
-		}
-	}
-
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("auth"),
