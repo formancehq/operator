@@ -66,10 +66,10 @@ func (r *Mutator) Mutate(ctx context.Context, webhooks *componentsv1beta1.Webhoo
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	_, err = r.reconcileWorkersDeployment(ctx, webhooks)
-	if err != nil {
-		return Requeue(), pkgError.Wrap(err, "Reconciling workers deployment")
-	}
+	//_, err = r.reconcileWorkersDeployment(ctx, webhooks)
+	//if err != nil {
+	//	return Requeue(), pkgError.Wrap(err, "Reconciling workers deployment")
+	//}
 
 	service, err := r.reconcileService(ctx, webhooks, deployment)
 	if err != nil {
@@ -187,7 +187,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 
 func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks-workers")
-	webhooks.Name = fmt.Sprintf("%s-webhooks-worker", webhooks.Namespace)
 
 	env := webhooks.Spec.MongoDB.Env("")
 	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_CONN_STRING", "$(MONGODB_URI)"))
