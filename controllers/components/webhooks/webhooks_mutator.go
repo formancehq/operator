@@ -186,7 +186,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 }
 
 func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks")
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks-workers")
 
 	env := webhooks.Spec.MongoDB.Env("")
 	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_CONN_STRING", "${MONGODB_URI}"))
@@ -218,6 +218,7 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 	}
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(deployment *appsv1.Deployment) error {
+		deployment.Name = "webhooks-workers"
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
