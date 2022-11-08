@@ -444,7 +444,7 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, c
 		if configuration.Kafka != nil {
 			collector = &componentsv1beta1.CollectorConfig{
 				KafkaConfig: *configuration.Kafka,
-				Topic:       fmt.Sprintf("%s-payments", stack.Name),
+				Topic:       fmt.Sprintf("%s-payments,%s-ledger", stack.Name, stack.Name),
 			}
 		}
 		webhooks.Spec = componentsv1beta1.WebhooksSpec{

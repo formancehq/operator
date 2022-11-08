@@ -179,6 +179,16 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks")
 
 	env := webhooks.Spec.MongoDB.Env("")
+	env = append(env, Env("STORAGE_MONGO_CONN_STRING", ComputeEnvVar("", "MONGODB_URI")))
+	env = append(env, Env("STORAGE_MONGO_DATABASE_NAME", ComputeEnvVar("", "MONGODB_DATABASE")))
+	env = append(env, Env("KAFKA_BROKERS", ComputeEnvVar("", "PUBLISHER_KAFKA_BROKER")))
+	env = append(env, Env("KAFKA_TOPICS", ComputeEnvVar("", "PUBLISHER_TOPIC_MAPPING")))
+	env = append(env, Env("KAFKA_TLS_ENABLED", ComputeEnvVar("", "PUBLISHER_KAFKA_TLS_ENABLED")))
+	env = append(env, Env("KAFKA_SASL_ENABLED", ComputeEnvVar("", "PUBLISHER_KAFKA_SASL_ENABLED")))
+	env = append(env, Env("KAFKA_SASL_MECHANISM", ComputeEnvVar("", "PUBLISHER_KAFKA_SASL_MECHANISM")))
+	env = append(env, Env("KAFKA_USERNAME", ComputeEnvVar("", "PUBLISHER_KAFKA_SASL_USERNAME")))
+	env = append(env, Env("KAFKA_PASSWORD", webhooks.Spec.Collector.Topic))
+
 	if webhooks.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
 	}
