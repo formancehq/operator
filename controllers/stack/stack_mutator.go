@@ -418,12 +418,12 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
 	log.FromContext(ctx).Info("Reconciling Webhooks")
 
-	if stack.Spec.Services.Webhooks == nil {
+	if configuration.Services.Webhooks == nil {
 		log.FromContext(ctx).Info("Deleting Webhooks")
 		err := r.client.Delete(ctx, &componentsv1beta1.Webhooks{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: stack.Spec.Namespace,
-				Name:      stack.ServiceName("Webhooks"),
+				Name:      stack.ServiceName("webhooks"),
 			},
 		})
 		switch {
@@ -438,18 +438,18 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, c
 
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
-		Name:      stack.ServiceName("Webhooks"),
+		Name:      stack.ServiceName("webhooks"),
 	}, stack, func(webhooks *componentsv1beta1.Webhooks) error {
 		var collector *componentsv1beta1.CollectorConfig
-		if stack.Spec.Kafka != nil {
+		if configuration.Kafka != nil {
 			collector = &componentsv1beta1.CollectorConfig{
-				KafkaConfig: *stack.Spec.Kafka,
-				Topic:       fmt.Sprintf("%s-ledger,%s-payments", stack.Name, stack.Name),
+				KafkaConfig: *configuration.Kafka,
+				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			}
 		}
 		webhooks.Spec = componentsv1beta1.WebhooksSpec{
-			Ingress:     stack.Spec.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
-			Debug:       stack.Spec.Debug || configuration.Services.Webhooks.Debug,
+			Ingress:     configuration.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
+			Debug:       stack.Spec.Debug,
 			Monitoring:  configuration.Monitoring,
 			ImageHolder: configuration.Services.Webhooks.ImageHolder,
 			Collector:   collector,

@@ -57,71 +57,71 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=webhooks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.formance.com,resources=webhooks/finalizers,verbs=update
 
-func (r *Mutator) Mutate(ctx context.Context, webhook *componentsv1beta1.Webhooks) (*ctrl.Result, error) {
+func (r *Mutator) Mutate(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*ctrl.Result, error) {
 
-	SetProgressing(webhook)
+	SetProgressing(webhooks)
 
-	deployment, err := r.reconcileDeployment(ctx, webhook)
+	deployment, err := r.reconcileDeployment(ctx, webhooks)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	_, err = r.reconcileWorkersDeployment(ctx, webhook)
+	_, err = r.reconcileWorkersDeployment(ctx, webhooks)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling workers deployment")
 	}
 
-	service, err := r.reconcileService(ctx, webhook, deployment)
+	service, err := r.reconcileService(ctx, webhooks, deployment)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if webhook.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, webhook, service)
+	if webhooks.Spec.Ingress != nil {
+		_, err = r.reconcileIngress(ctx, webhooks, service)
 		if err != nil {
 			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      webhook.Name,
-				Namespace: webhook.Namespace,
+				Name:      webhooks.Name,
+				Namespace: webhooks.Namespace,
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
 			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		RemoveIngressCondition(webhook)
+		RemoveIngressCondition(webhooks)
 	}
 
-	SetReady(webhook)
+	SetReady(webhooks)
 
 	return nil, nil
 }
 
-func (r *Mutator) reconcileDeployment(ctx context.Context, webhook *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhook")
+func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks")
 
-	env := webhook.Spec.MongoDB.Env("")
-	if webhook.Spec.Debug {
+	env := webhooks.Spec.MongoDB.Env("")
+	if webhooks.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
 	}
-	if webhook.Spec.Auth != nil {
-		env = append(env, webhook.Spec.Auth.Env("")...)
+	if webhooks.Spec.Auth != nil {
+		env = append(env, webhooks.Spec.Auth.Env("")...)
 	}
-	if webhook.Spec.Monitoring != nil {
-		env = append(env, webhook.Spec.Monitoring.Env("")...)
+	if webhooks.Spec.Monitoring != nil {
+		env = append(env, webhooks.Spec.Monitoring.Env("")...)
 	}
-	if webhook.Spec.Collector != nil {
-		env = append(env, webhook.Spec.Collector.Env("")...)
+	if webhooks.Spec.Collector != nil {
+		env = append(env, webhooks.Spec.Collector.Env("")...)
 	}
 
-	image := webhook.Spec.Image
+	image := webhooks.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
 
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -131,9 +131,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhook *componentsv1
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: webhook.Spec.ImagePullSecrets,
+					ImagePullSecrets: webhooks.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
-						Name:            "webhook",
+						Name:            "webhooks",
 						Image:           image,
 						ImagePullPolicy: ImagePullPolicy(image),
 						Env:             env,
@@ -166,38 +166,38 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhook *componentsv1
 	})
 	switch {
 	case err != nil:
-		SetDeploymentError(webhook, err.Error())
+		SetDeploymentError(webhooks, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetDeploymentReady(webhook)
+		SetDeploymentReady(webhooks)
 	}
 	return ret, err
 }
 
-func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhook *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
-	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhook")
+func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks")
 
-	env := webhook.Spec.MongoDB.Env("")
-	if webhook.Spec.Debug {
+	env := webhooks.Spec.MongoDB.Env("")
+	if webhooks.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
 	}
-	if webhook.Spec.Auth != nil {
-		env = append(env, webhook.Spec.Auth.Env("")...)
+	if webhooks.Spec.Auth != nil {
+		env = append(env, webhooks.Spec.Auth.Env("")...)
 	}
-	if webhook.Spec.Monitoring != nil {
-		env = append(env, webhook.Spec.Monitoring.Env("")...)
+	if webhooks.Spec.Monitoring != nil {
+		env = append(env, webhooks.Spec.Monitoring.Env("")...)
 	}
-	if webhook.Spec.Collector != nil {
-		env = append(env, webhook.Spec.Collector.Env("")...)
+	if webhooks.Spec.Collector != nil {
+		env = append(env, webhooks.Spec.Collector.Env("")...)
 	}
 
-	image := webhook.Spec.Image
+	image := webhooks.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
 
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -207,9 +207,9 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhook *compo
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: webhook.Spec.ImagePullSecrets,
+					ImagePullSecrets: webhooks.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
-						Name:            "webhook-retries",
+						Name:            "webhooks-retries",
 						Image:           image,
 						ImagePullPolicy: ImagePullPolicy(image),
 						Command:         []string{"workers", "retries"},
@@ -236,7 +236,7 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhook *compo
 							TerminationGracePeriodSeconds: pointer.Int64(10),
 						},
 					}, {
-						Name:            "webhook-messages",
+						Name:            "webhooks-messages",
 						Image:           image,
 						ImagePullPolicy: ImagePullPolicy(image),
 						Command:         []string{"worker", "messages"},
@@ -270,11 +270,11 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhook *compo
 	})
 	switch {
 	case err != nil:
-		SetDeploymentError(webhook, err.Error())
+		SetDeploymentError(webhooks, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetDeploymentReady(webhook)
+		SetDeploymentReady(webhooks)
 	}
 	return ret, err
 }
@@ -304,26 +304,26 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	return ret, err
 }
 
-func (r *Mutator) reconcileIngress(ctx context.Context, webhook *componentsv1beta1.Webhooks, service *corev1.Service) (*networkingv1.Ingress, error) {
-	annotations := webhook.Spec.Ingress.Annotations
+func (r *Mutator) reconcileIngress(ctx context.Context, webhooks *componentsv1beta1.Webhooks, service *corev1.Service) (*networkingv1.Ingress, error) {
+	annotations := webhooks.Spec.Ingress.Annotations
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
-	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", webhook.Namespace)
+	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", webhooks.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhook), webhook, func(ingress *networkingv1.Ingress) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = annotations
 		ingress.Spec = networkingv1.IngressSpec{
-			TLS: webhook.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+			TLS: webhooks.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: webhook.Spec.Ingress.Host,
+					Host: webhooks.Spec.Ingress.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path:     webhook.Spec.Ingress.Path,
+									Path:     webhooks.Spec.Ingress.Path,
 									PathType: &pathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
@@ -344,11 +344,11 @@ func (r *Mutator) reconcileIngress(ctx context.Context, webhook *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		SetIngressError(webhook, err.Error())
+		SetIngressError(webhooks, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetIngressReady(webhook)
+		SetIngressReady(webhooks)
 	}
 	return ret, nil
 }
