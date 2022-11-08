@@ -19,6 +19,7 @@ package webhooks
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
@@ -64,6 +65,11 @@ func (r *Mutator) Mutate(ctx context.Context, webhooks *componentsv1beta1.Webhoo
 	deployment, err := r.reconcileDeployment(ctx, webhooks)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
+	}
+
+	_, err = r.reconcileWorkersDeployment(ctx, webhooks)
+	if err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling workers deployment")
 	}
 
 	service, err := r.reconcileService(ctx, webhooks, deployment)
@@ -152,6 +158,123 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 									Path: "/_healthcheck",
 									Port: intstr.IntOrString{
 										IntVal: 8080,
+									},
+									Scheme: "HTTP",
+								},
+							},
+							InitialDelaySeconds:           1,
+							TimeoutSeconds:                30,
+							PeriodSeconds:                 2,
+							SuccessThreshold:              1,
+							FailureThreshold:              10,
+							TerminationGracePeriodSeconds: pointer.Int64(10),
+						},
+					}},
+				},
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		SetDeploymentError(webhooks, err.Error())
+		return nil, err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetDeploymentReady(webhooks)
+	}
+	return ret, err
+}
+
+func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
+	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks-workers")
+
+	env := webhooks.Spec.MongoDB.Env("")
+	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_CONN_STRING", "$(MONGODB_URI)"))
+	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_DATABASE_NAME", ComputeEnvVar("", "$(MONGODB_DATABASE)")))
+	env = append(env, EnvWithPrefix("", "KAFKA_BROKERS", ComputeEnvVar("", "$(PUBLISHER_KAFKA_BROKER)")))
+	env = append(env, EnvWithPrefix("", "KAFKA_TOPICS", ComputeEnvVar("", "$(PUBLISHER_TOPIC_MAPPING)")))
+	env = append(env, EnvWithPrefix("", "KAFKA_TLS_ENABLED", ComputeEnvVar("", "$(PUBLISHER_KAFKA_TLS_ENABLED)")))
+	env = append(env, EnvWithPrefix("", "KAFKA_SASL_ENABLED", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_ENABLED)")))
+	env = append(env, EnvWithPrefix("", "KAFKA_SASL_MECHANISM", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_MECHANISM)")))
+	env = append(env, EnvWithPrefix("", "KAFKA_USERNAME", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_USERNAME)")))
+	env = append(env, EnvWithPrefix("", "KAFKA_PASSWORD", webhooks.Spec.Collector.Topic))
+
+	if webhooks.Spec.Debug {
+		env = append(env, Env("DEBUG", "true"))
+	}
+	if webhooks.Spec.Auth != nil {
+		env = append(env, webhooks.Spec.Auth.Env("")...)
+	}
+	if webhooks.Spec.Monitoring != nil {
+		env = append(env, webhooks.Spec.Monitoring.Env("")...)
+	}
+	if webhooks.Spec.Collector != nil {
+		env = append(env, webhooks.Spec.Collector.Env("")...)
+	}
+
+	image := webhooks.Spec.Image
+	if image == "" {
+		image = defaultImage
+	}
+
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+		Namespace: webhooks.Namespace,
+		Name:      webhooks.Name + "-workers",
+	}, webhooks, func(deployment *appsv1.Deployment) error {
+		deployment.Spec = appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: matchLabels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: matchLabels,
+				},
+				Spec: corev1.PodSpec{
+					ImagePullSecrets: webhooks.Spec.ImagePullSecrets,
+					Containers: []corev1.Container{{
+						Name:            "webhooks-retries",
+						Image:           image,
+						ImagePullPolicy: ImagePullPolicy(image),
+						Command:         []string{"workers", "retries"},
+						Env:             env,
+						Ports: []corev1.ContainerPort{{
+							Name:          "retries",
+							ContainerPort: 8082,
+						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/_healthcheck",
+									Port: intstr.IntOrString{
+										IntVal: 8082,
+									},
+									Scheme: "HTTP",
+								},
+							},
+							InitialDelaySeconds:           1,
+							TimeoutSeconds:                30,
+							PeriodSeconds:                 2,
+							SuccessThreshold:              1,
+							FailureThreshold:              10,
+							TerminationGracePeriodSeconds: pointer.Int64(10),
+						},
+					}, {
+						Name:            "webhooks-messages",
+						Image:           image,
+						ImagePullPolicy: ImagePullPolicy(image),
+						Command:         []string{"worker", "messages"},
+						Env:             env,
+						Ports: []corev1.ContainerPort{{
+							Name:          "messages",
+							ContainerPort: 8081,
+						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/_healthcheck",
+									Port: intstr.IntOrString{
+										IntVal: 8081,
 									},
 									Scheme: "HTTP",
 								},
