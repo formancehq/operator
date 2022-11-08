@@ -19,7 +19,6 @@ package webhooks
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
@@ -34,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
