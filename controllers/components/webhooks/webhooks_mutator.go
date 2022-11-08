@@ -236,7 +236,7 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 						Name:            "webhooks-retries",
 						Image:           image,
 						ImagePullPolicy: ImagePullPolicy(image),
-						Command:         []string{"webhooks", "workers", "retries"},
+						Command:         []string{"webhooks", "worker", "retries"},
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "retries",
