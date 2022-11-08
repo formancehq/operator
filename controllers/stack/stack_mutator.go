@@ -439,15 +439,15 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, c
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Spec.Namespace,
 		Name:      stack.ServiceName("Webhooks"),
-	}, stack, func(payment *componentsv1beta1.Webhooks) error {
+	}, stack, func(webhooks *componentsv1beta1.Webhooks) error {
 		var collector *componentsv1beta1.CollectorConfig
 		if stack.Spec.Kafka != nil {
 			collector = &componentsv1beta1.CollectorConfig{
 				KafkaConfig: *stack.Spec.Kafka,
-				Topic:       fmt.Sprintf("%s-payments", stack.Name),
+				Topic:       fmt.Sprintf("%s-ledger,%s-payments", stack.Name, stack.Name),
 			}
 		}
-		payment.Spec = componentsv1beta1.WebhooksSpec{
+		webhooks.Spec = componentsv1beta1.WebhooksSpec{
 			Ingress:     stack.Spec.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
 			Debug:       stack.Spec.Debug || configuration.Services.Webhooks.Debug,
 			Monitoring:  configuration.Monitoring,
@@ -470,11 +470,11 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, c
 	})
 	switch {
 	case err != nil:
-		stack.SetPaymentError(err.Error())
+		stack.SetWebhooksError(err.Error())
 		return err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		stack.SetPaymentReady()
+		stack.SetWebhooksReady()
 	}
 
 	log.FromContext(ctx).Info("Webhooks ready")

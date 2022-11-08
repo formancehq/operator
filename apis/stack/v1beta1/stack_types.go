@@ -177,12 +177,20 @@ func (s *Stack) SetPaymentError(msg string) {
 	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
 }
 
+func (s *Stack) SetWebhooksError(msg string) {
+	SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
+}
+
 func (s *Stack) SetMiddlewareError(msg string) {
 	SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetPaymentReady() {
 	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
+}
+
+func (s *Stack) SetWebhooksReady() {
+	SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) RemoveAuthStatus() {
