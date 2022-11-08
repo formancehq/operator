@@ -60,6 +60,7 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 		Owns(&componentsv1beta1.Ledger{}).
 		Owns(&componentsv1beta1.Search{}).
 		Owns(&componentsv1beta1.Payments{}).
+		Owns(&componentsv1beta1.Webhooks{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&traefik.Middleware{}).
 		Watches(
