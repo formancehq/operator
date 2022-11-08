@@ -76,70 +76,70 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=payments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.formance.com,resources=payments/finalizers,verbs=update
 
-func (r *Mutator) Mutate(ctx context.Context, payment *componentsv1beta1.Payments) (*ctrl.Result, error) {
+func (r *Mutator) Mutate(ctx context.Context, payments *componentsv1beta1.Payments) (*ctrl.Result, error) {
 
-	SetProgressing(payment)
+	SetProgressing(payments)
 
-	deployment, err := r.reconcileDeployment(ctx, payment)
+	deployment, err := r.reconcileDeployment(ctx, payments)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	service, err := r.reconcileService(ctx, payment, deployment)
+	service, err := r.reconcileService(ctx, payments, deployment)
 	if err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if err := r.reconcileIngestionStream(ctx, payment); err != nil {
+	if err := r.reconcileIngestionStream(ctx, payments); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if payment.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, payment, service)
+	if payments.Spec.Ingress != nil {
+		_, err = r.reconcileIngress(ctx, payments, service)
 		if err != nil {
 			return Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      payment.Name,
-				Namespace: payment.Namespace,
+				Name:      payments.Name,
+				Namespace: payments.Namespace,
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
 			return Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		RemoveIngressCondition(payment)
+		RemoveIngressCondition(payments)
 	}
 
-	SetReady(payment)
+	SetReady(payments)
 
 	return nil, nil
 }
 
-func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1beta1.Payments) (*appsv1.Deployment, error) {
+func (r *Mutator) reconcileDeployment(ctx context.Context, payments *componentsv1beta1.Payments) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "payments")
 
-	env := payment.Spec.MongoDB.Env("")
-	if payment.Spec.Debug {
+	env := payments.Spec.MongoDB.Env("")
+	if payments.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
 	}
-	if payment.Spec.Auth != nil {
-		env = append(env, payment.Spec.Auth.Env("")...)
+	if payments.Spec.Auth != nil {
+		env = append(env, payments.Spec.Auth.Env("")...)
 	}
-	if payment.Spec.Monitoring != nil {
-		env = append(env, payment.Spec.Monitoring.Env("")...)
+	if payments.Spec.Monitoring != nil {
+		env = append(env, payments.Spec.Monitoring.Env("")...)
 	}
-	if payment.Spec.Collector != nil {
-		env = append(env, payment.Spec.Collector.Env("")...)
+	if payments.Spec.Collector != nil {
+		env = append(env, payments.Spec.Collector.Env("")...)
 	}
 
-	image := payment.Spec.Image
+	image := payments.Spec.Image
 	if image == "" {
 		image = defaultImage
 	}
 
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payment), payment, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payments), payments, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -149,9 +149,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: payment.Spec.ImagePullSecrets,
+					ImagePullSecrets: payments.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
-						Name:            "payment",
+						Name:            "payments",
 						Image:           image,
 						ImagePullPolicy: ImagePullPolicy(image),
 						Env:             env,
@@ -184,11 +184,11 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payment *componentsv1
 	})
 	switch {
 	case err != nil:
-		SetDeploymentError(payment, err.Error())
+		SetDeploymentError(payments, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetDeploymentReady(payment)
+		SetDeploymentReady(payments)
 	}
 	return ret, err
 }
@@ -218,26 +218,26 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta1.
 	return ret, err
 }
 
-func (r *Mutator) reconcileIngress(ctx context.Context, payment *componentsv1beta1.Payments, service *corev1.Service) (*networkingv1.Ingress, error) {
-	annotations := payment.Spec.Ingress.Annotations
+func (r *Mutator) reconcileIngress(ctx context.Context, payments *componentsv1beta1.Payments, service *corev1.Service) (*networkingv1.Ingress, error) {
+	annotations := payments.Spec.Ingress.Annotations
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
-	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", payment.Namespace)
+	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", payments.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payment), payment, func(ingress *networkingv1.Ingress) error {
+	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payments), payments, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = annotations
 		ingress.Spec = networkingv1.IngressSpec{
-			TLS: payment.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+			TLS: payments.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: payment.Spec.Ingress.Host,
+					Host: payments.Spec.Ingress.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path:     payment.Spec.Ingress.Path,
+									Path:     payments.Spec.Ingress.Path,
 									PathType: &pathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
@@ -258,23 +258,23 @@ func (r *Mutator) reconcileIngress(ctx context.Context, payment *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		SetIngressError(payment, err.Error())
+		SetIngressError(payments, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetIngressReady(payment)
+		SetIngressReady(payments)
 	}
 	return ret, nil
 }
 
-func (r *Mutator) reconcileIngestionStream(ctx context.Context, payment *componentsv1beta1.Payments) error {
+func (r *Mutator) reconcileIngestionStream(ctx context.Context, payments *componentsv1beta1.Payments) error {
 	_, ret, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
-		Namespace: payment.Namespace,
-		Name:      payment.Name + "-ingestion-stream",
-	}, payment, func(t *componentsv1beta1.SearchIngester) error {
+		Namespace: payments.Namespace,
+		Name:      payments.Name + "-ingestion-stream",
+	}, payments, func(t *componentsv1beta1.SearchIngester) error {
 		buf := bytes.NewBufferString("")
 		if err := benthosConfigTpl.Execute(buf, map[string]any{
-			"ElasticSearchIndex": payment.Spec.ElasticSearchIndex,
+			"ElasticSearchIndex": payments.Spec.ElasticSearchIndex,
 		}); err != nil {
 			return err
 		}
@@ -290,17 +290,17 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, payment *compone
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = payment.Spec.Collector.Topic
-		t.Spec.Reference = fmt.Sprintf("%s-search", payment.Namespace)
+		t.Spec.Topic = payments.Spec.Collector.Topic
+		t.Spec.Reference = fmt.Sprintf("%s-search", payments.Namespace)
 		return nil
 	})
 	switch {
 	case err != nil:
-		SetCondition(payment, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
+		SetCondition(payments, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
 		return err
 	case ret == controllerutil.OperationResultNone:
 	default:
-		SetCondition(payment, "IngestionStreamReady", metav1.ConditionTrue)
+		SetCondition(payments, "IngestionStreamReady", metav1.ConditionTrue)
 	}
 	return nil
 }
