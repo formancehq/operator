@@ -42,7 +42,12 @@ var _ = Describe("Webhooks controller", func() {
 								KafkaConfig: KafkaConfig{
 									Brokers: []string{"http://kafka"},
 									TLS:     false,
-									SASL:    nil,
+									SASL: &KafkaSASLConfig{
+										Username:     "username",
+										Password:     "password",
+										Mechanism:    "mechanism",
+										ScramSHASize: "scramSHASize",
+									},
 								},
 								Topic: "xxx",
 							},

@@ -19,6 +19,8 @@ package webhooks
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
@@ -103,16 +105,18 @@ func (r *Mutator) Mutate(ctx context.Context, webhooks *componentsv1beta1.Webhoo
 func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks")
 
-	env := webhooks.Spec.MongoDB.Env("")
-	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_CONN_STRING", "$(MONGODB_URI)"))
-	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_DATABASE_NAME", ComputeEnvVar("", "$(MONGODB_DATABASE)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_BROKERS", ComputeEnvVar("", "$(PUBLISHER_KAFKA_BROKER)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_TOPICS", ComputeEnvVar("", "$(PUBLISHER_TOPIC_MAPPING)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_TLS_ENABLED", ComputeEnvVar("", "$(PUBLISHER_KAFKA_TLS_ENABLED)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_SASL_ENABLED", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_ENABLED)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_SASL_MECHANISM", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_MECHANISM)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_USERNAME", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_USERNAME)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_PASSWORD", webhooks.Spec.Collector.Topic))
+	mongodbString := fmt.Sprintf("mongodb+srv://%s:%s@%s:%d", webhooks.Spec.MongoDB.Username, webhooks.Spec.MongoDB.Password, webhooks.Spec.MongoDB.Host, webhooks.Spec.MongoDB.Port)
+	env := []corev1.EnvVar{
+		Env("STORAGE_MONGO_CONN_STRING", mongodbString),
+		Env("STORAGE_MONGO_DATABASE_NAME", webhooks.Spec.MongoDB.Database),
+		Env("KAFKA_BROKERS", strings.Join(webhooks.Spec.Collector.Brokers, ", ")),
+		Env("KAFKA_TOPICS", webhooks.Spec.Collector.Topic),
+		Env("KAFKA_TLS_ENABLED", strconv.FormatBool(webhooks.Spec.Collector.TLS)),
+		Env("KAFKA_SASL_ENABLED", "true"),
+		Env("KAFKA_SASL_MECHANISM", webhooks.Spec.Collector.SASL.Mechanism),
+		Env("KAFKA_USERNAME", webhooks.Spec.Collector.SASL.Username),
+		Env("KAFKA_PASSWORD", webhooks.Spec.Collector.SASL.Password),
+	}
 
 	if webhooks.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
@@ -122,9 +126,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 	}
 	if webhooks.Spec.Monitoring != nil {
 		env = append(env, webhooks.Spec.Monitoring.Env("")...)
-	}
-	if webhooks.Spec.Collector != nil {
-		env = append(env, webhooks.Spec.Collector.Env("")...)
 	}
 
 	image := webhooks.Spec.Image
@@ -189,16 +190,18 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks-workers")
 
-	env := webhooks.Spec.MongoDB.Env("")
-	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_CONN_STRING", "$(MONGODB_URI)"))
-	env = append(env, EnvWithPrefix("", "STORAGE_MONGO_DATABASE_NAME", ComputeEnvVar("", "$(MONGODB_DATABASE)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_BROKERS", ComputeEnvVar("", "$(PUBLISHER_KAFKA_BROKER)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_TOPICS", ComputeEnvVar("", "$(PUBLISHER_TOPIC_MAPPING)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_TLS_ENABLED", ComputeEnvVar("", "$(PUBLISHER_KAFKA_TLS_ENABLED)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_SASL_ENABLED", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_ENABLED)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_SASL_MECHANISM", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_MECHANISM)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_USERNAME", ComputeEnvVar("", "$(PUBLISHER_KAFKA_SASL_USERNAME)")))
-	env = append(env, EnvWithPrefix("", "KAFKA_PASSWORD", webhooks.Spec.Collector.Topic))
+	mongodbString := fmt.Sprintf("mongodb+srv://%s:%s@%s:%d", webhooks.Spec.MongoDB.Username, webhooks.Spec.MongoDB.Password, webhooks.Spec.MongoDB.Host, webhooks.Spec.MongoDB.Port)
+	env := []corev1.EnvVar{
+		Env("STORAGE_MONGO_CONN_STRING", mongodbString),
+		Env("STORAGE_MONGO_DATABASE_NAME", webhooks.Spec.MongoDB.Database),
+		Env("KAFKA_BROKERS", strings.Join(webhooks.Spec.Collector.Brokers, ", ")),
+		Env("KAFKA_TOPICS", webhooks.Spec.Collector.Topic),
+		Env("KAFKA_TLS_ENABLED", strconv.FormatBool(webhooks.Spec.Collector.TLS)),
+		Env("KAFKA_SASL_ENABLED", "true"),
+		Env("KAFKA_SASL_MECHANISM", webhooks.Spec.Collector.SASL.Mechanism),
+		Env("KAFKA_USERNAME", webhooks.Spec.Collector.SASL.Username),
+		Env("KAFKA_PASSWORD", webhooks.Spec.Collector.SASL.Password),
+	}
 
 	if webhooks.Spec.Debug {
 		env = append(env, Env("DEBUG", "true"))
@@ -208,9 +211,6 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 	}
 	if webhooks.Spec.Monitoring != nil {
 		env = append(env, webhooks.Spec.Monitoring.Env("")...)
-	}
-	if webhooks.Spec.Collector != nil {
-		env = append(env, webhooks.Spec.Collector.Env("")...)
 	}
 
 	image := webhooks.Spec.Image
@@ -269,23 +269,6 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 							Name:          "messages",
 							ContainerPort: 8081,
 						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_healthcheck",
-									Port: intstr.IntOrString{
-										IntVal: 8081,
-									},
-									Scheme: "HTTP",
-								},
-							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
 					}},
 				},
 			},
