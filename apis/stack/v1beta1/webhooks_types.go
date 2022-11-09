@@ -19,5 +19,8 @@ type WebhooksSpec struct {
 }
 
 func (in *WebhooksSpec) Validate() field.ErrorList {
+	if in == nil {
+		return nil
+	}
 	return Map(in.MongoDB.Validate(), AddPrefixToFieldError("mongoDB."))
 }
