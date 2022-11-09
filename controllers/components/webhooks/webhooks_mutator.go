@@ -105,7 +105,7 @@ func (r *Mutator) Mutate(ctx context.Context, webhooks *componentsv1beta1.Webhoo
 func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks")
 
-	mongodbString := fmt.Sprintf("mongodb+srv://%s:%s@%s:%d", webhooks.Spec.MongoDB.Username, webhooks.Spec.MongoDB.Password, webhooks.Spec.MongoDB.Host, webhooks.Spec.MongoDB.Port)
+	mongodbString := fmt.Sprintf("mongodb+srv://%s:%s@%s", webhooks.Spec.MongoDB.Username, webhooks.Spec.MongoDB.Password, webhooks.Spec.MongoDB.Host)
 	env := []corev1.EnvVar{
 		Env("STORAGE_MONGO_CONN_STRING", mongodbString),
 		Env("STORAGE_MONGO_DATABASE_NAME", webhooks.Spec.MongoDB.Database),
@@ -190,7 +190,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta1.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "webhooks-workers")
 
-	mongodbString := fmt.Sprintf("mongodb+srv://%s:%s@%s:%d", webhooks.Spec.MongoDB.Username, webhooks.Spec.MongoDB.Password, webhooks.Spec.MongoDB.Host, webhooks.Spec.MongoDB.Port)
+	mongodbString := fmt.Sprintf("mongodb+srv://%s:%s@%s", webhooks.Spec.MongoDB.Username, webhooks.Spec.MongoDB.Password, webhooks.Spec.MongoDB.Host)
 	env := []corev1.EnvVar{
 		Env("STORAGE_MONGO_CONN_STRING", mongodbString),
 		Env("STORAGE_MONGO_DATABASE_NAME", webhooks.Spec.MongoDB.Database),
