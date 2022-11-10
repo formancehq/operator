@@ -113,6 +113,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	if search.Spec.Monitoring != nil {
 		env = append(env, search.Spec.Monitoring.Env("")...)
 	}
+	if search.Spec.Debug {
+		env = append(env, Env("DEBUG", "true"))
+	}
 	env = append(env, search.Spec.ElasticSearch.Env("")...)
 	env = append(env, Env("ES_INDICES", search.Spec.Index))
 
