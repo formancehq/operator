@@ -280,7 +280,7 @@ func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1be
 		return controllerutil.OperationResultNone, err
 	}
 
-	if err := LoadMapping(ctx, client, DefaultMapping(search.Spec.Index)); err != nil {
+	if err := LoadMapping(ctx, client, DefaultMapping(search.Spec.Index), search.Name); err != nil {
 		return controllerutil.OperationResultNone, err
 	}
 
