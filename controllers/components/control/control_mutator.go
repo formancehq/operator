@@ -136,7 +136,7 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
-								corev1.ResourceMemory: *resource.NewQuantity(512, resource.DecimalSI),
+								corev1.ResourceMemory: *resource.NewMilliQuantity(512, resource.DecimalSI),
 							},
 						},
 					}},
