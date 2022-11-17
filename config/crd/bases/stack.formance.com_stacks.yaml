@@ -1879,6 +1879,7 @@ spec:
                   search:
                     properties:
                       elasticSearch:
+                        description: '*optional'
                         properties:
                           basicAuth:
                             properties:
