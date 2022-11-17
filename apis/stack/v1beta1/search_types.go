@@ -10,10 +10,13 @@ import (
 // +kubebuilder:object:generate=true
 type SearchSpec struct {
 	ImageHolder `json:",inline"`
+
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 
+	// *optional
 	ElasticSearchConfig *v1beta1.ElasticSearchConfig `json:"elasticSearch"`
+
 	//+optional
 	Ingress *IngressConfig `json:"ingress"`
 }
