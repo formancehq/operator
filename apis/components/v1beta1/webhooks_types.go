@@ -20,7 +20,7 @@ import (
 
 // WebhooksSpec defines the desired state of Webhooks
 type WebhooksSpec struct {
-	ImageHolder `json:",inline"`
+	Version string `json:"version"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional

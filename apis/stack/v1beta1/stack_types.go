@@ -36,8 +36,10 @@ type IngressGlobalConfig struct {
 
 // StackSpec defines the desired state of Stack
 type StackSpec struct {
-	// +optional
+	// +required
 	Seed string `json:"seed"`
+	// +required
+	Version string `json:"version"`
 	// +optional
 	ConfigurationSpec `json:",inline"`
 
@@ -99,6 +101,7 @@ func (s *StackStatus) IsDirty(reference Object) bool {
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.progress`
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version",description="Stack Version"
+// +kubebuilder:printcolumn:name="Configuration",type="string",JSONPath=".spec.seed",description="Stack Configuration"
 // +kubebuilder:printcolumn:name="Namespace",type="string",JSONPath=".spec.namespace",description="Stack Namespace"
 
 // Stack is the Schema for the stacks API

@@ -169,24 +169,6 @@ spec:
                         type: boolean
                     type: object
                 type: object
-              image:
-                type: string
-              imagePullSecrets:
-                description: 'ImagePullSecrets is an optional list of references to
-                  secrets in the same namespace to use for pulling any of the images
-                  used by this PodSpec. If specified, these secrets will be passed
-                  to individual puller implementations for them to use. More info:
-                  https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod'
-                items:
-                  description: LocalObjectReference contains enough information to
-                    let you locate the referenced object inside the same namespace.
-                  properties:
-                    name:
-                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?'
-                      type: string
-                  type: object
-                type: array
               index:
                 type: string
               ingress:
@@ -1043,10 +1025,13 @@ spec:
                 default: 1
                 format: int32
                 type: integer
+              version:
+                type: string
             required:
             - elasticsearch
             - index
             - kafka
+            - version
             type: object
           status:
             properties:

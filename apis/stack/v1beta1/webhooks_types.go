@@ -8,7 +8,6 @@ import (
 
 // +kubebuilder:object:generate=true
 type WebhooksSpec struct {
-	ImageHolder `json:",inline"`
 	// +optional
 	Debug bool `json:"debug,omitempty"`
 	// +optional

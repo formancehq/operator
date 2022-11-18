@@ -48,7 +48,7 @@ import (
 )
 
 const (
-	defaultImage = "ghcr.io/formancehq/search:latest"
+	defaultImage = "ghcr.io/formancehq/search"
 )
 
 // Mutator reconciles a Auth object
@@ -119,10 +119,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	env = append(env, search.Spec.ElasticSearch.Env("")...)
 	env = append(env, Env("ES_INDICES", search.Spec.Index))
 
-	image := search.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
+	image := fmt.Sprintf("%s:%s", defaultImage, search.Spec.Version)
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
@@ -135,7 +132,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: search.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "search",
 						Image:           image,

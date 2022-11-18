@@ -60,7 +60,7 @@ var benthosConfigTpl = template.
 	)
 
 const (
-	defaultImage = "ghcr.io/formancehq/payments:latest"
+	defaultImage = "ghcr.io/formancehq/payments"
 )
 
 // Mutator reconciles a Auth object
@@ -134,10 +134,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payments *componentsv
 		env = append(env, payments.Spec.Collector.Env("")...)
 	}
 
-	image := payments.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
+	image := fmt.Sprintf("%s:%s", defaultImage, payments.Spec.Version)
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payments), payments, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
@@ -149,7 +146,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, payments *componentsv
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: payments.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "payments",
 						Image:           image,

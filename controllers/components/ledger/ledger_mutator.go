@@ -63,7 +63,7 @@ var benthosConfigTpl = template.
 	)
 
 const (
-	defaultImage = "ghcr.io/formancehq/ledger:latest"
+	defaultImage = "ghcr.io/formancehq/ledger"
 )
 
 // Mutator reconciles a Auth object
@@ -149,7 +149,8 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 	}
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(deployment *appsv1.Deployment) error {
-		image := ledger.Spec.GetImage(defaultImage)
+		image := fmt.Sprintf("%s:%s", defaultImage, ledger.Spec.Version)
+
 		deployment.Spec = appsv1.DeploymentSpec{
 			Replicas: ledger.Spec.GetReplicas(),
 			Selector: &metav1.LabelSelector{
@@ -160,7 +161,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, ledger *componentsv1b
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: ledger.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "ledger",
 						Image:           image,

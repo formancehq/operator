@@ -8,7 +8,6 @@ import (
 
 // +kubebuilder:object:generate=true
 type PaymentsSpec struct {
-	ImageHolder `json:",inline"`
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional

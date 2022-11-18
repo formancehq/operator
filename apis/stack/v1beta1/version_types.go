@@ -25,11 +25,8 @@ import (
 
 // VersionSpec defines the desired state of Version
 type VersionSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Version. Edit version_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +required
+	Version string `json:"version"`
 }
 
 // VersionStatus defines the observed state of Version

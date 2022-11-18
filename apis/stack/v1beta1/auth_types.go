@@ -9,7 +9,6 @@ import (
 )
 
 type AuthSpec struct {
-	ImageHolder `json:",inline"`
 	// +optional
 	Postgres PostgresConfig `json:"postgres"`
 	// +optional

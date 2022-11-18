@@ -64,10 +64,10 @@ func (c *DelegatedOIDCServerConfiguration) Validate() field.ErrorList {
 
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
-	Scalable    `json:",inline"`
-	ImageHolder `json:",inline"`
-	Postgres    PostgresConfigCreateDatabase `json:"postgres"`
-	BaseURL     string                       `json:"baseURL"`
+	Version  string `json:"version"`
+	Scalable `json:",inline"`
+	Postgres PostgresConfigCreateDatabase `json:"postgres"`
+	BaseURL  string                       `json:"baseURL"`
 
 	// SigningKey is a private key
 	// The signing key is used by the server to sign JWT tokens

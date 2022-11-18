@@ -28,8 +28,8 @@ type AuthClientConfiguration struct {
 
 // ControlSpec defines the desired state of Control
 type ControlSpec struct {
-	Scalable    `json:",inline"`
-	ImageHolder `json:",inline"`
+	Version  string `json:"version"`
+	Scalable `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional

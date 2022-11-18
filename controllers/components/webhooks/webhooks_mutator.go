@@ -44,7 +44,7 @@ import (
 )
 
 const (
-	defaultImage = "ghcr.io/formancehq/webhooks:latest"
+	defaultImage = "ghcr.io/formancehq/webhooks"
 )
 
 // Mutator reconciles a Auth object
@@ -128,10 +128,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 		env = append(env, webhooks.Spec.Monitoring.Env("")...)
 	}
 
-	image := webhooks.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
+	image := fmt.Sprintf("%s:%s", defaultImage, webhooks.Spec.Version)
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
@@ -143,7 +140,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, webhooks *componentsv
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: webhooks.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "webhooks",
 						Image:           image,
@@ -213,11 +209,7 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 		env = append(env, webhooks.Spec.Monitoring.Env("")...)
 	}
 
-	image := webhooks.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
-
+	image := fmt.Sprintf("%s:%s", defaultImage, webhooks.Spec.Version)
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: webhooks.Namespace,
 		Name:      webhooks.Name + "-workers",
@@ -231,7 +223,6 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: webhooks.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "webhooks-retries",
 						Image:           image,

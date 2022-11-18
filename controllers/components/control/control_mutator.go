@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	. "github.com/numary/operator/apis/components/v1beta1"
@@ -26,7 +27,7 @@ import (
 )
 
 const (
-	defaultImage = "ghcr.io/formancehq/control:latest"
+	defaultImage = "ghcr.io/formancehq/control"
 )
 
 //+kubebuilder:rbac:groups=components.formance.com,resources=controls,verbs=get;list;watch;create;update;patch;delete
@@ -107,10 +108,7 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 		)
 	}
 
-	image := control.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
+	image := fmt.Sprintf("%s:%s", defaultImage, control.Spec.Version)
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(control), control, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
@@ -123,7 +121,6 @@ func (m *Mutator) reconcileDeployment(ctx context.Context, control *Control) (*a
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: control.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "control",
 						Image:           image,

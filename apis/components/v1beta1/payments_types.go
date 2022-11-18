@@ -23,7 +23,7 @@ import (
 
 // PaymentsSpec defines the desired state of Payments
 type PaymentsSpec struct {
-	ImageHolder `json:",inline"`
+	Version string `json:"version"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional

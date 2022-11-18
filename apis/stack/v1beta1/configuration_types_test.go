@@ -5,7 +5,6 @@ import (
 
 	"github.com/numary/operator/apis/sharedtypes"
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/core/v1"
 )
 
 func TestConfigurationOverride(t *testing.T) {
@@ -57,33 +56,13 @@ func TestConfigurationOverride(t *testing.T) {
 		{
 			name: "override array",
 			src: &ConfigurationSpec{
-				Auth: &AuthSpec{
-					ImageHolder: sharedtypes.ImageHolder{
-						ImagePullSecrets: []v1.LocalObjectReference{{
-							Name: "ref1",
-						}},
-					},
-				},
+				Auth: &AuthSpec{},
 			},
 			override: &ConfigurationSpec{
-				Auth: &AuthSpec{
-					ImageHolder: sharedtypes.ImageHolder{
-						ImagePullSecrets: []v1.LocalObjectReference{{
-							Name: "ref2",
-						}},
-					},
-				},
+				Auth: &AuthSpec{},
 			},
 			merged: &ConfigurationSpec{
-				Auth: &AuthSpec{
-					ImageHolder: sharedtypes.ImageHolder{
-						ImagePullSecrets: []v1.LocalObjectReference{{
-							Name: "ref1",
-						}, {
-							Name: "ref2",
-						}},
-					},
-				},
+				Auth: &AuthSpec{},
 			},
 		},
 	} {

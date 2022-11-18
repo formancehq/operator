@@ -9,9 +9,8 @@ import (
 
 // +kubebuilder:object:generate=true
 type LedgerSpec struct {
-	ImageHolder `json:",inline"`
-	Scalable    `json:",inline"`
-	Postgres    PostgresConfig `json:"postgres"`
+	Scalable `json:",inline"`
+	Postgres PostgresConfig `json:"postgres"`
 	// +optional
 	LockingStrategy authcomponentsv1beta1.LockingStrategy `json:"locking"`
 	// +optional

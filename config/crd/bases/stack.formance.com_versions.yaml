@@ -35,10 +35,10 @@ spec:
           spec:
             description: VersionSpec defines the desired state of Version
             properties:
-              foo:
-                description: Foo is an example field of Version. Edit version_types.go
-                  to remove/update
+              version:
                 type: string
+            required:
+            - version
             type: object
           status:
             description: VersionStatus defines the observed state of Version

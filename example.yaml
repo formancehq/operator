@@ -39,7 +39,6 @@ spec:
     annotations:
       traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
   auth:
-    image: ghcr.io/formancehq/auth:1505d4b7ea47a31b5691515983650ab164fbe58e
     host: kubernetes.docker.internal
     scheme: http
     delegatedOIDCServer:
@@ -91,8 +90,6 @@ spec:
         basicAuth:
           username: admin
           password: admin
-    control:
-      image: ghcr.io/formancehq/control:latest
 ---
 apiVersion: stack.formance.com/v1beta1
 kind: Stack
@@ -100,7 +97,15 @@ metadata:
   name: stack1
 spec:
   namespace: stack1
+  version: v1.9.0
   debug: true
   scheme: http
   host: kubernetes.docker.internal
   seed: stacks
+---
+apiVersion: stack.formance.com/v1beta1
+kind: Version
+metadata:
+  name: v1.9.0
+spec:
+  version: v1.9.0

@@ -94,6 +94,15 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 func (r *Mutator) Mutate(ctx context.Context, stack *v1beta1.Stack) (*ctrl.Result, error) {
 	SetProgressing(stack)
 
+	version := &v1beta1.Version{}
+	if err := r.client.Get(ctx, types.NamespacedName{
+		Name: stack.Spec.Version,
+	}, version); err != nil {
+		if errors.IsNotFound(err) {
+			return nil, pkgError.New("Version object not found")
+		}
+		return Requeue(), fmt.Errorf("error retrieving version object: %s", err)
+	}
 	configuration := &v1beta1.Configuration{}
 	if err := r.client.Get(ctx, types.NamespacedName{
 		Name: stack.Spec.Seed,
@@ -104,6 +113,7 @@ func (r *Mutator) Mutate(ctx context.Context, stack *v1beta1.Stack) (*ctrl.Resul
 		return Requeue(), fmt.Errorf("error retrieving configuration object: %s", err)
 	}
 
+	versionSpec := &version.Spec
 	configurationSpec := &configuration.Spec
 	configurationSpec = configurationSpec.MergeWith(&stack.Spec.ConfigurationSpec)
 	if err := configurationSpec.Validate(); len(err) > 0 {
@@ -148,22 +158,22 @@ func (r *Mutator) Mutate(ctx context.Context, stack *v1beta1.Stack) (*ctrl.Resul
 	if err := r.reconcileMiddleware(ctx, stack); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling middleware")
 	}
-	if err := r.reconcileAuth(ctx, stack, configurationSpec); err != nil {
+	if err := r.reconcileAuth(ctx, stack, configurationSpec, versionSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Auth")
 	}
-	if err := r.reconcileLedger(ctx, stack, configurationSpec); err != nil {
+	if err := r.reconcileLedger(ctx, stack, configurationSpec, versionSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
-	if err := r.reconcilePayment(ctx, stack, configurationSpec); err != nil {
+	if err := r.reconcilePayment(ctx, stack, configurationSpec, versionSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
-	if err := r.reconcileSearch(ctx, stack, configurationSpec); err != nil {
+	if err := r.reconcileSearch(ctx, stack, configurationSpec, versionSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Search")
 	}
-	if err := r.reconcileControl(ctx, stack, configurationSpec); err != nil {
+	if err := r.reconcileControl(ctx, stack, configurationSpec, versionSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Control")
 	}
-	if err := r.reconcileWebhooks(ctx, stack, configurationSpec); err != nil {
+	if err := r.reconcileWebhooks(ctx, stack, configurationSpec, versionSpec); err != nil {
 		return Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
 	}
 
@@ -223,7 +233,7 @@ func (r *Mutator) reconcileMiddleware(ctx context.Context, stack *v1beta1.Stack)
 	return nil
 }
 
-func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
+func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec, version *v1beta1.VersionSpec) error {
 	log.FromContext(ctx).Info("Reconciling Auth")
 
 	if configuration.Auth == nil {
@@ -250,7 +260,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 		Name:      stack.ServiceName("auth"),
 	}, stack, func(auth *componentsv1beta1.Auth) error {
 		auth.Spec = componentsv1beta1.AuthSpec{
-			ImageHolder: configuration.Auth.ImageHolder,
+			Version: version.Version,
 			Scalable: Scalable{
 				Replicas: auth.Spec.Replicas,
 			},
@@ -284,7 +294,7 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *v1beta1.Stack, confi
 	return nil
 }
 
-func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
+func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec, version *v1beta1.VersionSpec) error {
 	log.FromContext(ctx).Info("Reconciling Ledger")
 
 	if configuration.Services.Ledger == nil {
@@ -318,7 +328,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 		}
 		ledger.Spec = componentsv1beta1.LedgerSpec{
 			Scalable:        configuration.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
-			ImageHolder:     configuration.Services.Ledger.ImageHolder,
+			Version:         version.Version,
 			Ingress:         configuration.Services.Ledger.Ingress.Compute(stack, configuration, "/api/ledger"),
 			Debug:           stack.Spec.Debug,
 			LockingStrategy: configuration.Services.Ledger.LockingStrategy,
@@ -348,7 +358,7 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 	return nil
 }
 
-func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
+func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec, version *v1beta1.VersionSpec) error {
 	log.FromContext(ctx).Info("Reconciling Payment")
 
 	if configuration.Services.Payments == nil {
@@ -381,10 +391,10 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 			}
 		}
 		payment.Spec = componentsv1beta1.PaymentsSpec{
+			Version:            version.Version,
 			Ingress:            configuration.Services.Payments.Ingress.Compute(stack, configuration, "/api/payments"),
 			Debug:              stack.Spec.Debug,
 			Monitoring:         configuration.Monitoring,
-			ImageHolder:        configuration.Services.Payments.ImageHolder,
 			Collector:          collector,
 			ElasticSearchIndex: stack.Name,
 			MongoDB: MongoDBConfig{
@@ -415,7 +425,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 	return nil
 }
 
-func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
+func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec, version *v1beta1.VersionSpec) error {
 	log.FromContext(ctx).Info("Reconciling Webhooks")
 
 	if configuration.Services.Webhooks == nil {
@@ -448,11 +458,11 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, c
 			}
 		}
 		webhooks.Spec = componentsv1beta1.WebhooksSpec{
-			Ingress:     configuration.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
-			Debug:       stack.Spec.Debug,
-			Monitoring:  configuration.Monitoring,
-			ImageHolder: configuration.Services.Webhooks.ImageHolder,
-			Collector:   collector,
+			Version:    version.Version,
+			Ingress:    configuration.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
+			Debug:      stack.Spec.Debug,
+			Monitoring: configuration.Monitoring,
+			Collector:  collector,
 			MongoDB: MongoDBConfig{
 				UseSrv:       configuration.Services.Webhooks.MongoDB.UseSrv,
 				Host:         configuration.Services.Webhooks.MongoDB.Host,
@@ -481,7 +491,7 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *v1beta1.Stack, c
 	return nil
 }
 
-func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
+func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec, version *v1beta1.VersionSpec) error {
 	log.FromContext(ctx).Info("Reconciling Control")
 
 	if configuration.Services.Control == nil {
@@ -507,12 +517,12 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 		Name:      stack.ServiceName("control"),
 	}, stack, func(control *componentsv1beta1.Control) error {
 		control.Spec = componentsv1beta1.ControlSpec{
+			Version: version.Version,
 			Scalable: Scalable{
 				Replicas: control.Spec.Replicas,
 			},
 			Ingress:     configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
 			Debug:       stack.Spec.Debug,
-			ImageHolder: configuration.Services.Control.ImageHolder,
 			Monitoring:  configuration.Monitoring,
 			ApiURLFront: fmt.Sprintf("%s/api", stack.URL()),
 			ApiURLBack:  fmt.Sprintf("%s/api", stack.URL()),
@@ -541,7 +551,7 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *v1beta1.Stack, co
 	return nil
 }
 
-func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec) error {
+func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, configuration *v1beta1.ConfigurationSpec, version *v1beta1.VersionSpec) error {
 	log.FromContext(ctx).Info("Reconciling Search")
 
 	if configuration.Services.Search == nil {
@@ -571,6 +581,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, con
 		Name:      stack.ServiceName("search"),
 	}, stack, func(search *componentsv1beta1.Search) error {
 		search.Spec = componentsv1beta1.SearchSpec{
+			Version: version.Version,
 			Scalable: Scalable{
 				Replicas: search.Spec.Replicas,
 			},
@@ -578,7 +589,6 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, con
 			Debug:         stack.Spec.Debug,
 			Auth:          nil,
 			Monitoring:    configuration.Monitoring,
-			ImageHolder:   configuration.Services.Search.ImageHolder,
 			ElasticSearch: *configuration.Services.Search.ElasticSearchConfig,
 			KafkaConfig:   *configuration.Kafka,
 			Index:         stack.Name,

@@ -52,7 +52,7 @@ import (
 )
 
 const (
-	defaultImage = "ghcr.io/formancehq/auth:latest"
+	defaultImage = "ghcr.io/formancehq/auth"
 )
 
 // Mutator reconciles a Auth object
@@ -151,10 +151,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 		env = append(env, auth.Spec.Monitoring.Env("")...)
 	}
 
-	image := auth.Spec.Image
-	if image == "" {
-		image = defaultImage
-	}
+	image := fmt.Sprintf("%s:%s", defaultImage, auth.Spec.Version)
 
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
@@ -167,7 +164,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: auth.Spec.ImagePullSecrets,
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{

@@ -114,8 +114,8 @@ func (c CollectorConfig) Env(prefix string) []corev1.EnvVar {
 
 // LedgerSpec defines the desired state of Ledger
 type LedgerSpec struct {
-	Scalable    `json:",inline"`
-	ImageHolder `json:",inline"`
+	Version  string `json:"version"`
+	Scalable `json:",inline"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
