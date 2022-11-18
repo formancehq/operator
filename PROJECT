@@ -126,4 +126,11 @@ resources:
   kind: Webhooks
   path: github.com/numary/operator/apis/components/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+  domain: formance.com
+  group: stack
+  kind: Version
+  path: github.com/numary/operator/apis/stack/v1beta1
+  version: v1beta1
 version: "3"

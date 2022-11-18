@@ -1,0 +1,12 @@
+apiVersion: stack.formance.com/v1beta1
+kind: Version
+metadata:
+  labels:
+    app.kubernetes.io/name: version
+    app.kubernetes.io/instance: version-sample
+    app.kubernetes.io/part-of: formance-operator
+    app.kuberentes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: formance-operator
+  name: version-sample
+spec:
+  # TODO(user): Add fields here
