@@ -329,9 +329,8 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *v1beta1.Stack, con
 				},
 				CreateDatabase: true,
 			},
-			Monitoring:         configuration.Monitoring,
-			Collector:          collector,
-			ElasticSearchIndex: stack.Name,
+			Monitoring: configuration.Monitoring,
+			Collector:  collector,
 		}
 		return nil
 	})
@@ -381,12 +380,11 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *v1beta1.Stack, co
 			}
 		}
 		payment.Spec = componentsv1beta1.PaymentsSpec{
-			Ingress:            configuration.Services.Payments.Ingress.Compute(stack, configuration, "/api/payments"),
-			Debug:              stack.Spec.Debug,
-			Monitoring:         configuration.Monitoring,
-			ImageHolder:        configuration.Services.Payments.ImageHolder,
-			Collector:          collector,
-			ElasticSearchIndex: stack.Name,
+			Ingress:     configuration.Services.Payments.Ingress.Compute(stack, configuration, "/api/payments"),
+			Debug:       stack.Spec.Debug,
+			Monitoring:  configuration.Monitoring,
+			ImageHolder: configuration.Services.Payments.ImageHolder,
+			Collector:   collector,
 			MongoDB: MongoDBConfig{
 				UseSrv:       configuration.Services.Payments.MongoDB.UseSrv,
 				Host:         configuration.Services.Payments.MongoDB.Host,
@@ -582,6 +580,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *v1beta1.Stack, con
 			ElasticSearch: *configuration.Services.Search.ElasticSearchConfig,
 			KafkaConfig:   *configuration.Kafka,
 			Index:         stack.Name,
+			Batching:      configuration.Services.Search.Batching,
 		}
 		return nil
 	})

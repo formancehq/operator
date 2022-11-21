@@ -209,8 +209,6 @@ spec:
                 type: object
               debug:
                 type: boolean
-              elasticSearchIndex:
-                type: string
               image:
                 type: string
               imagePullSecrets:
@@ -1219,7 +1217,6 @@ spec:
                 format: int32
                 type: integer
             required:
-            - elasticSearchIndex
             - locking
             type: object
           status:

@@ -48,71 +48,7 @@ func (m *Mutator) Mutate(ctx context.Context, ingester *SearchIngester) (*ctrl.R
 		Namespace: ingester.Namespace,
 		Name:      ingester.Name + "-ingestion-stream",
 	}, ingester, func(t *v1beta1.Stream) error {
-		httpClientOutput := map[string]any{
-			"url": fmt.Sprintf("%s://%s:%d/_bulk",
-				search.Spec.ElasticSearch.Scheme,
-				search.Spec.ElasticSearch.Host,
-				search.Spec.ElasticSearch.Port),
-			"verb": "POST",
-			"headers": map[string]any{
-				"Content-Type": "application/x-ndjson",
-			},
-			"tls": map[string]any{
-				"enabled":          search.Spec.ElasticSearch.TLS.Enabled,
-				"skip_cert_verify": search.Spec.ElasticSearch.TLS.SkipCertVerify,
-			},
-		}
-		if search.Spec.ElasticSearch.BasicAuth != nil {
-			httpClientOutput["basic_auth"] = map[string]any{
-				"enabled":  true,
-				"username": search.Spec.ElasticSearch.BasicAuth.Username,
-				"password": search.Spec.ElasticSearch.BasicAuth.Password,
-			}
-		}
-		outputs := []map[string]any{{
-			"http_client": httpClientOutput,
-		}}
-		if ingester.Spec.Debug {
-			outputs = append(outputs, map[string]any{
-				"stdout": map[string]any{},
-			})
-		}
-		kafkaInput := map[string]any{
-			"addresses":        search.Spec.KafkaConfig.Brokers,
-			"topics":           []string{ingester.Spec.Topic},
-			"consumer_group":   ingester.Name,
-			"checkpoint_limit": 1024,
-		}
-		if search.Spec.KafkaConfig.TLS {
-			kafkaInput["tls"] = map[string]any{
-				"enabled": true,
-			}
-		}
-		if search.Spec.KafkaConfig.SASL != nil {
-			kafkaInput["sasl"] = map[string]any{
-				"mechanism": search.Spec.KafkaConfig.SASL.Mechanism,
-				"user":      search.Spec.KafkaConfig.SASL.Username,
-				"password":  search.Spec.KafkaConfig.SASL.Password,
-			}
-		}
-		config := map[string]interface{}{
-			"input": map[string]any{
-				"kafka": kafkaInput,
-			},
-			"pipeline": ingester.Spec.Pipeline,
-			"output": map[string]any{
-				"processors": []map[string]any{
-					{
-						"bloblang": `root = "%s\n".format(this.map_each(v -> v.string()).join("\n"))`,
-					},
-				},
-				"broker": map[string]any{
-					"outputs": outputs,
-				},
-			},
-		}
-
-		data, err := json.Marshal(config)
+		data, err := json.Marshal(ingester.Spec.Pipeline)
 		if err != nil {
 			return err
 		}

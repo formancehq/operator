@@ -33,8 +33,7 @@ type PaymentsSpec struct {
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
 	// +optional
-	Collector          *CollectorConfig `json:"collector"`
-	ElasticSearchIndex string           `json:"elasticSearchIndex"`
+	Collector *CollectorConfig `json:"collector"`
 
 	MongoDB MongoDBConfig `json:"mongoDB"`
 }

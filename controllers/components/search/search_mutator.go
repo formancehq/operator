@@ -18,11 +18,15 @@ package search
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	fs "io/fs"
+	"path/filepath"
+	"strings"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
-	. "github.com/numary/operator/apis/components/benthos/v1beta1"
-	"github.com/numary/operator/apis/components/v1beta1"
+	benthosv1beta1 "github.com/numary/operator/apis/components/benthos/v1beta1"
+	. "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	"github.com/numary/operator/internal"
 	"github.com/numary/operator/internal/collectionutil"
@@ -51,6 +55,9 @@ const (
 	defaultImage = "ghcr.io/formancehq/search:latest"
 )
 
+//go:embed benthos-config
+var benthosConfigFS embed.FS
+
 // Mutator reconciles a Auth object
 type Mutator struct {
 	client.Client
@@ -64,10 +71,18 @@ type Mutator struct {
 // +kubebuilder:rbac:groups=components.formance.com,resources=searches/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.formance.com,resources=searches/finalizers,verbs=update
 
-func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Result, error) {
+func (r *Mutator) Mutate(ctx context.Context, search *Search) (*ctrl.Result, error) {
 	deployment, err := r.reconcileDeployment(ctx, search)
 	if err != nil {
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
+	}
+
+	if _, err = r.reconcileBenthosTemplatesConfig(ctx, search); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling benthos templates")
+	}
+
+	if _, err = r.reconcileBenthosResourcesConfig(ctx, search); err != nil {
+		return Requeue(), pkgError.Wrap(err, "Reconciling benthos resources")
 	}
 
 	if _, err = r.reconcileBenthosStreamServer(ctx, search); err != nil {
@@ -106,7 +121,7 @@ func (r *Mutator) Mutate(ctx context.Context, search *v1beta1.Search) (*ctrl.Res
 	return nil, nil
 }
 
-func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Search) (*appsv1.Deployment, error) {
+func (r *Mutator) reconcileDeployment(ctx context.Context, search *Search) (*appsv1.Deployment, error) {
 	matchLabels := collectionutil.CreateMap("app.kubernetes.io/name", "search")
 
 	env := []corev1.EnvVar{}
@@ -177,7 +192,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, search *v1beta1.Searc
 	return ret, err
 }
 
-func (r *Mutator) reconcileService(ctx context.Context, auth *v1beta1.Search, deployment *appsv1.Deployment) (*corev1.Service, error) {
+func (r *Mutator) reconcileService(ctx context.Context, auth *Search, deployment *appsv1.Deployment) (*corev1.Service, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
 		service.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
@@ -201,7 +216,7 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *v1beta1.Search, de
 	return ret, err
 }
 
-func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, service *corev1.Service) (*networkingv1.Ingress, error) {
+func (r *Mutator) reconcileIngress(ctx context.Context, search *Search, service *corev1.Service) (*networkingv1.Ingress, error) {
 	annotations := search.Spec.Ingress.Annotations
 	if annotations == nil {
 		annotations = map[string]string{}
@@ -249,7 +264,7 @@ func (r *Mutator) reconcileIngress(ctx context.Context, search *v1beta1.Search, 
 	return ret, nil
 }
 
-func (r *Mutator) reconcileHPA(ctx context.Context, search *v1beta1.Search) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+func (r *Mutator) reconcileHPA(ctx context.Context, search *Search) (*autoscallingv2.HorizontalPodAutoscaler, error) {
 	ret, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
 		hpa.Spec = search.Spec.GetHPASpec(search)
 		return nil
@@ -265,7 +280,7 @@ func (r *Mutator) reconcileHPA(ctx context.Context, search *v1beta1.Search) (*au
 	return ret, err
 }
 
-func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1beta1.Search) (controllerutil.OperationResult, error) {
+func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *Search) (controllerutil.OperationResult, error) {
 
 	cfg := opensearch.Config{
 		Addresses: []string{search.Spec.ElasticSearch.Endpoint()},
@@ -289,15 +304,111 @@ func (r *Mutator) reconcileBenthosStreamServer(ctx context.Context, search *v1be
 	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
 		Namespace: search.Namespace,
 		Name:      search.Name + "-benthos",
-	}, search, func(t *Server) error {
+	}, search, func(server *benthosv1beta1.Server) error {
+		server.Spec.ResourcesConfigMap = search.Name + "-benthos-resources-config"
+		server.Spec.TemplatesConfigMap = search.Name + "-benthos-templates-config"
+		if search.Spec.Debug {
+			server.Spec.LogLevel = "trace"
+		}
+		server.Spec.Env = []corev1.EnvVar{
+			Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
+			Env("OPENSEARCH_URL", search.Spec.ElasticSearch.Endpoint()),
+			Env("OPENSEARCH_INDEX", search.Spec.Index),
+			Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
+			Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
+		}
+		if search.Spec.ElasticSearch.BasicAuth != nil {
+			server.Spec.Env = append(server.Spec.Env,
+				Env("BASIC_AUTH_ENABLED", "true"),
+				Env("BASIC_AUTH_USERNAME", search.Spec.ElasticSearch.BasicAuth.Username),
+				Env("BASIC_AUTH_PASSWORD", search.Spec.ElasticSearch.BasicAuth.Password),
+			)
+		}
+		if search.Spec.KafkaConfig.SASL != nil {
+			server.Spec.Env = append(server.Spec.Env,
+				Env("KAFKA_SASL_USERNAME", search.Spec.KafkaConfig.SASL.Username),
+				Env("KAFKA_SASL_PASSWORD", search.Spec.KafkaConfig.SASL.Password),
+				Env("KAFKA_SASL_MECHANISM", search.Spec.KafkaConfig.SASL.Mechanism),
+			)
+		}
+		if search.Spec.KafkaConfig.TLS {
+			server.Spec.Env = append(server.Spec.Env,
+				Env("KAFKA_TLS_ENABLED", "true"),
+			)
+		}
+
 		return nil
 	})
 	switch {
 	case err != nil:
-		SetCondition(search, "BenthosReady", metav1.ConditionFalse, err.Error())
+		SetCondition(search, ConditionTypeBenthosReady, metav1.ConditionFalse, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		SetCondition(search, "BenthosReady", metav1.ConditionTrue)
+		SetCondition(search, ConditionTypeBenthosReady, metav1.ConditionTrue)
+	}
+	return operationResult, nil
+}
+
+func copyDir(root, path string, ret *map[string]string) error {
+	dirEntries, err := fs.ReadDir(benthosConfigFS, path)
+	if err != nil {
+		return err
+	}
+	for _, dirEntry := range dirEntries {
+		dirEntryPath := filepath.Join(path, dirEntry.Name())
+		if dirEntry.IsDir() {
+			if err := copyDir(root, dirEntryPath, ret); err != nil {
+				return err
+			}
+		} else {
+			fileContent, err := fs.ReadFile(benthosConfigFS, dirEntryPath)
+			if err != nil {
+				return err
+			}
+			sanitizedPath := strings.TrimPrefix(dirEntryPath, root)
+			sanitizedPath = strings.TrimPrefix(sanitizedPath, "/")
+			(*ret)[sanitizedPath] = string(fileContent)
+		}
+	}
+	return nil
+}
+
+func (r *Mutator) reconcileBenthosTemplatesConfig(ctx context.Context, search *Search) (interface{}, error) {
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+		Namespace: search.Namespace,
+		Name:      search.Name + "-benthos-templates-config",
+	}, search, func(configMap *corev1.ConfigMap) error {
+		configMap.Data = map[string]string{}
+
+		rootDir := filepath.Join("benthos-config", "templates")
+		return copyDir(rootDir, rootDir, &configMap.Data)
+	})
+	switch {
+	case err != nil:
+		SetCondition(search, "BenthosConfigTemplatesReady", metav1.ConditionFalse, err.Error())
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetCondition(search, "BenthosConfigTemplatesReady", metav1.ConditionTrue)
+	}
+	return operationResult, nil
+}
+
+func (r *Mutator) reconcileBenthosResourcesConfig(ctx context.Context, search *Search) (interface{}, error) {
+	_, operationResult, err := resourceutil.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+		Namespace: search.Namespace,
+		Name:      search.Name + "-benthos-resources-config",
+	}, search, func(configMap *corev1.ConfigMap) error {
+		configMap.Data = map[string]string{}
+
+		rootDir := filepath.Join("benthos-config", "resources")
+		return copyDir(rootDir, rootDir, &configMap.Data)
+	})
+	switch {
+	case err != nil:
+		SetCondition(search, "BenthosConfigResourcesReady", metav1.ConditionFalse, err.Error())
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		SetCondition(search, "BenthosConfigResourcesReady", metav1.ConditionTrue)
 	}
 	return operationResult, nil
 }
@@ -309,11 +420,12 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) erro
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta1.Scope{}).
-		Owns(&Server{})
+		Owns(&corev1.ConfigMap{}).
+		Owns(&benthosv1beta1.Server{})
 	return nil
 }
 
-func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*v1beta1.Search] {
+func NewMutator(client client.Client, scheme *runtime.Scheme) internal.Mutator[*Search] {
 	return &Mutator{
 		Client: client,
 		Scheme: scheme,

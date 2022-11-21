@@ -1855,6 +1855,16 @@ spec:
                     type: object
                   search:
                     properties:
+                      batching:
+                        properties:
+                          count:
+                            type: integer
+                          period:
+                            type: string
+                        required:
+                        - count
+                        - period
+                        type: object
                       elasticSearch:
                         description: '*optional'
                         properties:

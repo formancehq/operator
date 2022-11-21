@@ -17,13 +17,10 @@ limitations under the License.
 package payments
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"text/template"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
@@ -49,15 +46,6 @@ import (
 
 //go:embed benthos-config.yml
 var benthosConfigDir embed.FS
-
-var benthosConfigTpl = template.
-	Must(
-		template.New("benthos-config.yml").
-			Funcs(template.FuncMap{
-				"join": strings.Join,
-			}).
-			ParseFS(benthosConfigDir, "benthos-config.yml"),
-	)
 
 const (
 	defaultImage = "ghcr.io/formancehq/payments:latest"
@@ -272,25 +260,27 @@ func (r *Mutator) reconcileIngestionStream(ctx context.Context, payments *compon
 		Namespace: payments.Namespace,
 		Name:      payments.Name + "-ingestion-stream",
 	}, payments, func(t *componentsv1beta1.SearchIngester) error {
-		buf := bytes.NewBufferString("")
-		if err := benthosConfigTpl.Execute(buf, map[string]any{
-			"ElasticSearchIndex": payments.Spec.ElasticSearchIndex,
-		}); err != nil {
+		data, err := benthosConfigDir.ReadFile("benthos-config.yml")
+		if err != nil {
 			return err
 		}
 
-		pipeline := map[string]any{}
-		if err := yaml.Unmarshal(buf.Bytes(), &pipeline); err != nil {
+		stream := map[string]any{}
+		if err := yaml.Unmarshal(data, &stream); err != nil {
 			return err
 		}
 
-		data, err := json.Marshal(pipeline)
+		input := stream["input"].(map[string]any)
+		eventBusInput := input["event_bus"].(map[string]any)
+		eventBusInput["topic"] = fmt.Sprintf(payments.Name)
+		eventBusInput["consumer_group"] = payments.Name
+
+		data, err = json.Marshal(stream)
 		if err != nil {
 			return err
 		}
 
 		t.Spec.Pipeline = data
-		t.Spec.Topic = payments.Spec.Collector.Topic
 		t.Spec.Reference = fmt.Sprintf("%s-search", payments.Namespace)
 		return nil
 	})

@@ -27,6 +27,14 @@ type ServerSpec struct {
 	ImageHolder `json:",inline"`
 	// +optional
 	InitContainers []corev1.Container `json:"containers,omitempty"`
+	// +optional
+	ResourcesConfigMap string `json:"resourcesConfigMap"`
+	// +optional
+	TemplatesConfigMap string `json:"templatesConfigMap"`
+	// +optional
+	Env []corev1.EnvVar `json:"env"`
+	// +optional
+	LogLevel string `json:"logLevel"`
 }
 
 // ServerStatus defines the observed state of Server

@@ -1,210 +1,155 @@
-processors:
-- json_schema:
-    schema: '{"type": "object"}'
-- catch:
-  - log:
-      level: ERROR
-      message: "Schema validation failed due to: ${!error()}"
-  - bloblang: root = deleted()
-- switch:
-  - check: this.type == "SAVED_METADATA"
-    processors:
-      - bloblang: |
-          map painlessDict {
-              root = match {
-                  this.type() == "object" => "[%s]".format(
-                      this.
-                          map_each(t -> "\"%s\": %v".format(t.key, t.value.apply("painlessDict"))).
-                          values().
-                          join(", ")
-                  ),
-                  this.type() == "array" => "[%s]".format(
-                      this.
-                          map_each(t -> t.apply("painlessDict")).
-                          join(",")
-                  ),
-                  this.type() == "string" => "%s".format(this.quote())
-                  _ => this.string()
-              }
-          }
+input:
+    event_bus:
+        topic: ledger
+        consumer_group: search
 
-          map savedMetadata {
-              root = [{
-                "update": {
-                    "_id": "%s-%s-%s".format(this.payload.targetType, this.ledger, this.payload.targetId),
-                    "_index": "{{ .ElasticSearchIndex }}"
-                }
-              }, {
-                  "script": {
-                    "source": "ctx._source.when=\"%s\"; %s".format(this.date, this.payload.metadata.
-                      map_each(t -> "ctx._source.data.metadata[%s]=%v".format(t.key.quote(), t.value.apply("painlessDict"))).
-                      values().
-                      sort(t -> t.right < t.left).
-                      join("; ")
-                    ),
-                    "lang": "painless"
-                  },
-                  "upsert": {
-                    "data": {
-                      "address": this.payload.targetId,
-                      "volumes": {},
-                      "balances": {},
-                      "metadata": this.payload.metadata,
-                      "ledger": this.ledger
-                    },
-                    "indexed": {
-                      "address": this.payload.targetId
-                    },
-                    "kind": "ACCOUNT",
-                    "ledger": this.ledger,
-                    "when": this.date
-                  }
-              }]
-          }
-          
-          root = this.apply("savedMetadata")
-  - check: this.type == "COMMITTED_TRANSACTIONS"
+pipeline:
     processors:
-      - bloblang: |
-          map painlessDict {
-            root = match {
-              this.type() == "object" => "[%s]".format(
-                this.
-                  map_each(t -> "\"%s\": %v".format(t.key, t.value.apply("painlessDict"))).
-                  values().
-                  join(", ")
-                ),
-                  this.type() == "array" => "[%s]".format(
-                    this.
-                      map_each(t -> t.apply("painlessDict")).
-                      join(",")
-                  ),
-                  this.type() == "string" => "%s".format(this.quote())
-                  _ => this.string()
-            }
-          }      
-              
-              map legacyVolumes {
-                        root = this.value.map_each(v -> {
-                          "script": {
-                            "source": "ctx._source.when=params.when; ctx._source.data.volumes[params.asset]=[\"output\": params.output, \"input\": params.input]; ctx._source.data.balances[params.asset]=params.input-params.output",
-                            "params": {
-                              "when": this.when,
-                              "asset": v.key,
-                              "input": v.value.input,
-                              "output": v.value.output
-                            },
-                            "lang": "painless"
-                          },
-                          "upsert": {
+    - switch_event_type:
+          events:
+          - label: COMMITTED_TRANSACTIONS
+            processors:
+            - bloblang: |
+                  map account {
+                    root = this.map_each(v -> v.value.map_each(v2 -> {
+                        "action": "upsert",
+                        "id": v.key,
+                        "document": {
                             "data": {
-                              "address": this.key,
-                              "volumes": this.value,
-                              "balances": this.value.map_each(volume -> volume.value.input - volume.value.output),
-                              "metadata": {}
+                                "address": v.key
                             },
                             "indexed": {
-                              "address": this.key,
-                              "ledger": this.ledger
+                                "address": v.key
                             },
-                            "kind": "ACCOUNT",
-                            "ledger": this.ledger,
-                            "when": this.when
-                          },
-                        }).values()
-                      }
-              
-                      map volumes {
-                        root = this.map_each(v -> v.value.map_each(v2 -> {
-                          "data": {
-                              "name": v2.key,
-                              "input": v2.value.input,
-                              "output": v2.value.output,
-                              "account": v.key
-                          },
-                        "indexed": {
-                          "account": v.key,
-                          "name": v2.key
-                        },
-                        "kind": "ASSET"
-                        }).values()).values().flatten()
-                      }
-              
-                      map tx {
-                        root = {
+                            "kind": "ACCOUNT"
+                        }
+                    }).values()).values().flatten()
+                  }
+                  
+                  map volumes {
+                      root = this.map_each(v -> v.value.map_each(v2 -> {
+                          "action": "index",
+                          "id": "%s-%s".format(v.key, v2.key),
+                          "document": {
+                              "data": {
+                                  "name": v2.key,
+                                  "input": v2.value.input,
+                                  "output": v2.value.output,
+                                  "account": v.key
+                              },
+                              "indexed": {
+                                  "account": v.key,
+                                  "name": v2.key
+                              },
+                              "kind": "ASSET"
+                          }
+                      }).values()).values().flatten()
+                  }
+                  
+                  map tx {
+                    root = {
+                      "action": "index",
+                      "id": "%s".format(this.txid),
+                      "document": {
                         "data": {
                           "postings": this.postings,
                           "reference": this.reference,
                           "txid": this.txid,
                           "timestamp": this.timestamp,
-                          "metadata": if this.metadata { this.metadata } else {{ "{{}}" }}
+                          "metadata": if this.metadata { this.metadata } else {{}}
                         },
                         "indexed": {
                           "reference": this.reference,
                           "txid": this.txid,
-                          "id": this.txid,
                           "timestamp": this.timestamp,
                           "asset": this.postings.map_each(p -> p.asset),
                           "source": this.postings.map_each(p -> p.source),
                           "destination": this.postings.map_each(p -> p.destination),
                           "amount": this.postings.map_each(p -> if p.asset.contains("/") {
-                            [ p.amount, p.amount / range(0, p.asset.split("/").index(1).number()).fold(1, t -> t.tally * 10) ]
-                          } else {
-                            [ p.amount ]
-                          }).flatten()
+                            p.amount / range(0, p.asset.split("/").index(1).number()).fold(1, t -> t.tally * 10) # amount / pow(10, decimal part of asset)
+                          } else {p.amount})
                         },
                         "kind": "TRANSACTION"
-                        }
                       }
-              
-                      map committedTransactions {
-                        root = [
-                            this.payload.transactions.
-                                map_each(t -> t.apply("tx")).
-                                map_each(t -> [{
-                                    "index": {
-                                        "_index": "{{ .ElasticSearchIndex }}",
-                                        "_id": "TRANSACTION-%s-%s".format(this.ledger, t.data.txid)
-                                    }
-                                }, t.assign({"data": {"ledger": this.ledger}, "indexed": {"ledger": this.ledger}}).merge({
-                                    "when": this.date,
-                                    "ledger": this.ledger
-                                })]).
-                                flatten(),
-                            this.payload.volumes.apply("volumes").
-                                sort(v -> v.right.data.account > v.left.data.account).
-                                map_each(t -> [{
-                                    "index": {
-                                        "_index": "{{ .ElasticSearchIndex }}",
-                                        "_id": "ASSET-%s-%s-%s".format(this.ledger, t.data.account, t.data.name)
-                                    }
-                                }, t.assign({"data": {"ledger": this.ledger}, "indexed": {"ledger": this.ledger}}).merge({
-                                      "when": this.date,
-                                      "ledger": this.ledger
-                                  })]).
-                                flatten(),
-                              this.payload.volumes.
-                                  map_each(t -> t.merge({
-                                      "ledger": this.ledger,
-                                      "when": this.date,
-                                  }).apply("legacyVolumes")).
-                                  values().
-                                  flatten().
-                                  sort_by(t -> t.upsert.data.address).
-                                  map_each(t -> [{
-                                      "update": {
-                                          "_index": "{{ .ElasticSearchIndex }}",
-                                          "_id": "ACCOUNT-%s-%s".format(this.ledger, t.upsert.data.address)
-                                      }
-                                  }, t.assign({"upsert": {"data": {"ledger": this.ledger}}})]).
-                                  flatten(),
-                        ].flatten()
+                    }
+                  }
+                  
+                  map committedTransactions {
+                      root = [
+                          this.payload.transactions.map_each(t -> t.apply("tx")).map_each(t -> t.assign({
+                              "id": "TRANSACTION-%s-%s".format(this.ledger, t.id)
+                          })),
+                          this.payload.volumes.apply("volumes").
+                              sort(v -> v.right.id > v.left.id).
+                              map_each(t -> t.assign({
+                                  "id": "ASSET-%s-%s".format(this.ledger, t.id)
+                              })),
+                          this.payload.volumes.apply("account").
+                              sort(v -> v.right.id > v.left.id).
+                              map_each(t -> t.assign({
+                                  "id": "ACCOUNT-%s-%s".format(this.ledger, t.id)
+                              })),
+                      ].flatten().map_each(t -> t.merge({
+                         "document": {
+                             "when": this.date,
+                             "ledger": this.ledger,
+                             "data": {
+                                 "ledger": this.ledger
+                             },
+                             "indexed": {
+                                 "ledger": this.ledger
+                             }
+                         },
+                     }))
+                  }
+                  
+                  root = this.apply("committedTransactions")
+            - unarchive:
+                  format: json_array
+            - bloblang: |
+                  meta action = this.action
+                  meta id = this.id
+                  root = this.document
+          - label: SAVED_METADATA
+            processors:
+            - bloblang: |
+                  meta targetType = this.payload.targetType
+                  meta targetId = this.payload.targetId
+                  meta ledger = this.ledger
+                  meta id = "%s-%s-%s".format(this.payload.targetType, this.ledger, this.payload.targetId)
+                  meta action = "upsert"
+                  root = this
+            - get_doc:
+                  id: ${!meta("id")}
+            - catch:
+              - log:
+                    level: INFO
+                    message: Document not found, assume it is an account
+              - bloblang: |
+                    root = this.assign({
+                      "_doc": {
+                        "data": {
+                          "address": meta("targetId"),
+                          "metadata": {}
+                        },
+                        "indexed": {
+                          "address": meta("targetId")
+                        },
+                        "kind": "ACCOUNT", # If not found, so, this is an account
                       }
-              
-                      root = this.apply("committedTransactions")
+                    })
+            - bloblang: |
+                  root = this._doc.assign({
+                    "data": {
+                      "metadata": this.payload.metadata,
+                      "ledger": this.ledger
+                    },
+                    "indexed": {
+                      "ledger": this.ledger
+                    },
+                    "ledger": this.ledger,
+                    "when": this.date
+                  })
 
-  - processors:
-      - bloblang: |
-          root = deleted()
-- catch:
-  - bloblang: root = deleted()
+output:
+    resource: elasticsearch
