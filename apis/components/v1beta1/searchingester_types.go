@@ -26,7 +26,6 @@ import (
 // SearchIngesterSpec defines the desired state of SearchIngester
 type SearchIngesterSpec struct {
 	Reference string `json:"reference"`
-	Topic     string `json:"topic"`
 	//+kubebuilder:pruning:PreserveUnknownFields
 	//+kubebuilder:validation:Type=object
 	//+kubebuilder:validation:Schemaless

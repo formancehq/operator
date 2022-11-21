@@ -62,6 +62,16 @@ spec:
                     - introspectUrl
                     type: object
                 type: object
+              batching:
+                properties:
+                  count:
+                    type: integer
+                  period:
+                    type: string
+                required:
+                - count
+                - period
+                type: object
               debug:
                 type: boolean
               elasticsearch:
@@ -1044,6 +1054,7 @@ spec:
                 format: int32
                 type: integer
             required:
+            - batching
             - elasticsearch
             - index
             - kafka

@@ -209,8 +209,6 @@ spec:
                 type: object
               debug:
                 type: boolean
-              elasticSearchIndex:
-                type: string
               image:
                 type: string
               imagePullSecrets:
@@ -619,7 +617,6 @@ spec:
                     type: object
                 type: object
             required:
-            - elasticSearchIndex
             - mongoDB
             type: object
           status:

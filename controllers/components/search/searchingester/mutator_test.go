@@ -51,7 +51,6 @@ var _ = Describe("Test Search Ingester", func() {
 						},
 						Spec: SearchIngesterSpec{
 							Reference: search.Name,
-							Topic:     "any",
 							Pipeline:  json.RawMessage(`{"foo": "bar"}`),
 						},
 					}

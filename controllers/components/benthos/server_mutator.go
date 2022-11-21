@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	defaultImage = "jeffail/benthos:4.5.1"
+	defaultImage = "jeffail/benthos:4.10.0"
 	serverLabel  = "server.benthos.components.formance.com"
 )
 
@@ -90,16 +90,43 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 	if image == "" {
 		image = defaultImage
 	}
+	command := []string{"/benthos"}
+	if server.Spec.ResourcesConfigMap != "" {
+		command = append(command, "-r", "/config/resources/*.yaml")
+	}
+	if server.Spec.TemplatesConfigMap != "" {
+		command = append(command, "-t", "/config/templates/*.yaml")
+	}
+	if server.Spec.LogLevel != "" {
+		command = append(command, "--log.level", server.Spec.LogLevel)
+	}
+	command = append(command, "streams")
 
 	expectedContainer := corev1.Container{
 		Name:            "benthos",
 		Image:           image,
 		ImagePullPolicy: ImagePullPolicy(image),
-		Command:         []string{"/benthos", "streams"},
+		Command:         command,
 		Ports: []corev1.ContainerPort{{
 			Name:          "benthos",
 			ContainerPort: 4195,
 		}},
+		VolumeMounts: []corev1.VolumeMount{},
+		Env:          server.Spec.Env,
+	}
+	if server.Spec.TemplatesConfigMap != "" {
+		expectedContainer.VolumeMounts = append(expectedContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      "templates",
+			ReadOnly:  true,
+			MountPath: "/config/templates",
+		})
+	}
+	if server.Spec.ResourcesConfigMap != "" {
+		expectedContainer.VolumeMounts = append(expectedContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      "resources",
+			ReadOnly:  true,
+			MountPath: "/config/resources",
+		})
 	}
 
 	pods := &corev1.PodList{}
@@ -149,10 +176,37 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *Server) (*core
 			serverLabel, server.Name,
 		)
 
+		pod.Spec.Volumes = []corev1.Volume{}
+		if server.Spec.ResourcesConfigMap != "" {
+			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+				Name: "resources",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: server.Spec.ResourcesConfigMap,
+						},
+					},
+				},
+			})
+		}
+		if server.Spec.TemplatesConfigMap != "" {
+			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+				Name: "templates",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: server.Spec.TemplatesConfigMap,
+						},
+					},
+				},
+			})
+		}
+
 		pod.Labels = matchLabels
 		pod.Spec.InitContainers = server.Spec.InitContainers
 		pod.Spec.Containers = []corev1.Container{expectedContainer}
 		pod.Spec.ImagePullSecrets = server.Spec.ImagePullSecrets
+
 		return nil
 	})
 	switch {

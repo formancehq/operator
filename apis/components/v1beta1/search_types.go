@@ -26,6 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+const (
+	ConditionTypeBenthosReady = "BenthosReady"
+)
+
 type ElasticSearchTLSConfig struct {
 	// +optional
 	Enabled bool `json:"enabled,omitempty"`
@@ -80,6 +84,11 @@ func (in *ElasticSearchConfig) Validate() field.ErrorList {
 	)
 }
 
+type Batching struct {
+	Count  int    `json:"count"`
+	Period string `json:"period"`
+}
+
 // SearchSpec defines the desired state of Search
 type SearchSpec struct {
 	Scalable    `json:",inline"`
@@ -95,6 +104,7 @@ type SearchSpec struct {
 	ElasticSearch ElasticSearchConfig `json:"elasticsearch"`
 	KafkaConfig   KafkaConfig         `json:"kafka"`
 	Index         string              `json:"index"`
+	Batching      Batching            `json:"batching"`
 }
 
 // +kubebuilder:object:root=true

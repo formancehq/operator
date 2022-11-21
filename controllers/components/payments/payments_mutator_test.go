@@ -53,7 +53,6 @@ var _ = Describe("Payments controller", func() {
 								Password: "bar",
 								Database: "test",
 							},
-							ElasticSearchIndex: "foo",
 						},
 					}
 					Expect(Create(payments)).To(BeNil())

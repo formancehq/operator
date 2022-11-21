@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/numary/operator/apis/components/benthos/v1beta1"
 	. "github.com/numary/operator/apis/components/v1beta1"
 	. "github.com/numary/operator/apis/sharedtypes"
 	. "github.com/numary/operator/internal/testing"
@@ -101,6 +102,48 @@ var _ = Describe("Search controller", func() {
 					Expect(Exists(service)()).To(BeTrue())
 					Expect(service.OwnerReferences).To(HaveLen(1))
 					Expect(service.OwnerReferences).To(ContainElement(ownerReference(search)))
+				})
+				It("Should create a benthos server", func() {
+					Eventually(ConditionStatus(search, ConditionTypeBenthosReady)).Should(Equal(metav1.ConditionTrue))
+					benthosServer := &v1beta1.Server{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      search.Name + "-benthos",
+							Namespace: search.Namespace,
+						},
+					}
+					Expect(Exists(benthosServer)()).To(BeTrue())
+					Expect(benthosServer.OwnerReferences).To(HaveLen(1))
+					Expect(benthosServer.OwnerReferences).To(ContainElement(ownerReference(search)))
+					Expect(benthosServer.Spec.TemplatesConfigMap).To(Equal(benthosServer.Name + "-templates-config"))
+					Expect(benthosServer.Spec.ResourcesConfigMap).To(Equal(benthosServer.Name + "-resources-config"))
+				})
+				It("Should create a benthos templates config map", func() {
+					Eventually(ConditionStatus(search, "BenthosConfigTemplatesReady")).Should(Equal(metav1.ConditionTrue))
+					configMap := &corev1.ConfigMap{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      search.Name + "-benthos-templates-config",
+							Namespace: search.Namespace,
+						},
+					}
+					Expect(Exists(configMap)()).To(BeTrue())
+					Expect(configMap.OwnerReferences).To(HaveLen(1))
+					Expect(configMap.OwnerReferences).To(ContainElement(ownerReference(search)))
+					Expect(configMap.Data["event_bus.yaml"]).NotTo(BeEmpty())
+					Expect(configMap.Data["switch_event_type.yaml"]).NotTo(BeEmpty())
+
+				})
+				It("Should create a benthos resources config map", func() {
+					Eventually(ConditionStatus(search, "BenthosConfigResourcesReady")).Should(Equal(metav1.ConditionTrue))
+					configMap := &corev1.ConfigMap{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      search.Name + "-benthos-resources-config",
+							Namespace: search.Namespace,
+						},
+					}
+					Expect(Exists(configMap)()).To(BeTrue())
+					Expect(configMap.OwnerReferences).To(HaveLen(1))
+					Expect(configMap.OwnerReferences).To(ContainElement(ownerReference(search)))
+					Expect(configMap.Data["output_elasticsearch.yaml"]).NotTo(BeEmpty())
 				})
 				Context("Then enable ingress", func() {
 					BeforeEach(func() {

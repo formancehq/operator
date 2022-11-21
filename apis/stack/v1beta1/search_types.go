@@ -19,6 +19,9 @@ type SearchSpec struct {
 
 	//+optional
 	Ingress *IngressConfig `json:"ingress"`
+
+	// +optional
+	Batching v1beta1.Batching `json:"batching"`
 }
 
 func (in *SearchSpec) Validate() field.ErrorList {

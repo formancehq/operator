@@ -38,6 +38,10 @@ var _ = Describe("Server controller", func() {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "server",
 						},
+						Spec: ServerSpec{
+							ResourcesConfigMap: "resources",
+							TemplatesConfigMap: "templates",
+						},
 					}
 					Expect(Create(server)).To(BeNil())
 					Eventually(ConditionStatus(server, ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
@@ -57,6 +61,9 @@ var _ = Describe("Server controller", func() {
 					pod := pods.Items[0]
 					Expect(pod.OwnerReferences).To(HaveLen(1))
 					Expect(pod.OwnerReferences).To(ContainElement(ownerReference(server)))
+
+					Expect(pod.Spec.Volumes).NotTo(BeEmpty())
+					Expect(pod.Spec.Containers[0].VolumeMounts).NotTo(BeEmpty())
 				})
 				It("Should create a service", func() {
 					Eventually(ConditionStatus(server, ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))

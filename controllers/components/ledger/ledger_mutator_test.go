@@ -58,7 +58,6 @@ var _ = Describe("Ledger controller", func() {
 								},
 								Topic: "xxx",
 							},
-							ElasticSearchIndex: "foo",
 						},
 					}
 					Expect(Create(ledger)).To(BeNil())

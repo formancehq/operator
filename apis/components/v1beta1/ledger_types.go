@@ -127,8 +127,7 @@ type LedgerSpec struct {
 	// +optional
 	Monitoring *MonitoringSpec `json:"monitoring"`
 	// +optional
-	Collector          *CollectorConfig `json:"collector"`
-	ElasticSearchIndex string           `json:"elasticSearchIndex"`
+	Collector *CollectorConfig `json:"collector"`
 
 	LockingStrategy LockingStrategy `json:"locking"`
 }
