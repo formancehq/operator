@@ -20,6 +20,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 		When("Creating a stack with no configuration object", func() {
 			var (
 				stack           *Stack
+				version         string
 				configurationId string
 			)
 			BeforeEach(func() {
@@ -33,6 +34,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					Spec: StackSpec{
 						Namespace: name,
 						Seed:      configurationId,
+						Version:   version,
 					},
 				}
 				Expect(Create(stack)).To(Succeed())
@@ -53,15 +55,43 @@ var _ = Describe("Stack controller (Auth)", func() {
 				})
 				It("Should resolve the error", func() {
 					Eventually(ConditionStatus(stack, ConditionTypeError)).
-						Should(Equal(metav1.ConditionUnknown))
+						Should(Equal(metav1.ConditionTrue))
+				})
+			})
+			Context("Then creating the version object", func() {
+				var (
+					version *Version
+				)
+				BeforeEach(func() {
+					version = &Version{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: configurationId,
+						},
+						Spec: VersionSpec{
+							Version: "v1.0.0",
+						},
+					}
+					Expect(Create(version)).To(Succeed())
+				})
+				It("Should resolve the error", func() {
+					Eventually(ConditionStatus(stack, ConditionTypeError)).
+						Should(Equal(metav1.ConditionTrue))
 				})
 			})
 		})
 		When("Creating a configuration", func() {
 			var (
 				configuration *Configuration
+				version       *Version
 			)
 			BeforeEach(func() {
+				version = &Version{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: uuid.NewString(),
+					},
+				}
+				Expect(Create(version)).To(Succeed())
+
 				configuration = &Configuration{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: uuid.NewString(),
@@ -83,6 +113,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 						Spec: StackSpec{
 							Namespace: name,
 							Seed:      configuration.Name,
+							Version:   version.Name,
 						},
 					}
 
