@@ -22,6 +22,7 @@ import (
 
 	"github.com/numary/operator/controllers/components/webhooks"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
+	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -87,7 +88,8 @@ func main() {
 	flag.StringVar(&issuerRefKind, "issuer-ref-kind", "ClusterIssuer", "")
 
 	opts := zap.Options{
-		Development: true,
+		Development: false,
+		Level:       zapcore.ErrorLevel,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
