@@ -202,6 +202,7 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 		Env("KAFKA_SASL_MECHANISM", webhooks.Spec.Collector.SASL.Mechanism),
 		Env("KAFKA_USERNAME", webhooks.Spec.Collector.SASL.Username),
 		Env("KAFKA_PASSWORD", webhooks.Spec.Collector.SASL.Password),
+		Env("KAFKA_CONSUMER_GROUP", webhooks.GetName()),
 	}
 
 	if webhooks.Spec.Debug {
