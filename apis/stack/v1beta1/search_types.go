@@ -14,7 +14,7 @@ type SearchSpec struct {
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 
-	// *optional
+	// +optional
 	ElasticSearchConfig *v1beta1.ElasticSearchConfig `json:"elasticSearch"`
 
 	//+optional
