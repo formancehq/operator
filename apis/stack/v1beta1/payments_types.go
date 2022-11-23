@@ -13,7 +13,8 @@ type PaymentsSpec struct {
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
-	MongoDB MongoDBConfig  `json:"mongoDB"`
+	// +optional
+	MongoDB MongoDBConfig `json:"mongoDB"`
 }
 
 func (in *PaymentsSpec) Validate() field.ErrorList {

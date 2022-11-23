@@ -1640,8 +1640,6 @@ spec:
                         default: 1
                         format: int32
                         type: integer
-                    required:
-                    - postgres
                     type: object
                   payments:
                     properties:
@@ -1873,8 +1871,6 @@ spec:
                           minReplica:
                             type: integer
                         type: object
-                    required:
-                    - mongoDB
                     type: object
                   search:
                     properties:
@@ -1889,7 +1885,6 @@ spec:
                         - period
                         type: object
                       elasticSearch:
-                        description: '*optional'
                         properties:
                           basicAuth:
                             properties:
@@ -2045,8 +2040,6 @@ spec:
                           minReplica:
                             type: integer
                         type: object
-                    required:
-                    - elasticSearch
                     type: object
                   webhooks:
                     properties:
@@ -2280,8 +2273,6 @@ spec:
                           minReplica:
                             type: integer
                         type: object
-                    required:
-                    - mongoDB
                     type: object
                 type: object
             type: object

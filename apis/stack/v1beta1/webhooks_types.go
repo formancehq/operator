@@ -15,7 +15,8 @@ type WebhooksSpec struct {
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
-	MongoDB MongoDBConfig  `json:"mongoDB"`
+	// +optional
+	MongoDB MongoDBConfig `json:"mongoDB"`
 }
 
 func (in *WebhooksSpec) Validate() field.ErrorList {
