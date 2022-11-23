@@ -271,6 +271,23 @@ func (r *Mutator) reconcileWorkersDeployment(ctx context.Context, webhooks *comp
 							Name:          "messages",
 							ContainerPort: 8081,
 						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/_healthcheck",
+									Port: intstr.IntOrString{
+										IntVal: 8081,
+									},
+									Scheme: "HTTP",
+								},
+							},
+							InitialDelaySeconds:           1,
+							TimeoutSeconds:                30,
+							PeriodSeconds:                 2,
+							SuccessThreshold:              1,
+							FailureThreshold:              10,
+							TerminationGracePeriodSeconds: pointer.Int64(10),
+						},
 					}},
 				},
 			},
