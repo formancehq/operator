@@ -1,5 +1,8 @@
 version: '3'
 
+dotenv:
+- .env
+
 vars:
   POSTGRES_USERNAME: formance
   POSTGRES_PASSWORD: formance

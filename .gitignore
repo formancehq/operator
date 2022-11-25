@@ -86,3 +86,5 @@ vendor
 
 example-staging.yaml
 demo.yml
+local-registries.yaml
+.env
