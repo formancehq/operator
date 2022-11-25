@@ -14,7 +14,7 @@ tasks:
         --set installCRDs=true
       - helm repo add redpanda https://charts.vectorized.io/
       - helm repo update redpanda
-      - kubectl apply -k https://github.com/redpanda-data/redpanda/src/go/k8s/config/crd?ref={{.VERSION}}&timeout=90
+      - kubectl apply -k 'https://github.com/redpanda-data/redpanda/src/go/k8s/config/crd?ref={{.VERSION}}&timeout=600'
       - helm upgrade --dependency-update --install redpanda-operator redpanda/redpanda-operator --version {{.VERSION}}
       # Configure a one node cluster with developer mode
       - task: "::cluster:apply"
