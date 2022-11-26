@@ -22,9 +22,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	authv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
+	auth_componentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	"github.com/numary/operator/apis/sharedtypes"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -45,7 +45,7 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	}
 	if in.StaticClients != nil {
 		in, out := &in.StaticClients, &out.StaticClients
-		*out = make([]authv1beta1.StaticClient, len(*in))
+		*out = make([]auth_componentsv1beta1.StaticClient, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -126,7 +126,7 @@ func (in *ConfigurationSpec) DeepCopyInto(out *ConfigurationSpec) {
 	*out = *in
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(sharedtypes.MonitoringSpec)
+		*out = new(apisv1beta1.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	in.Services.DeepCopyInto(&out.Services)
@@ -138,7 +138,7 @@ func (in *ConfigurationSpec) DeepCopyInto(out *ConfigurationSpec) {
 	in.Ingress.DeepCopyInto(&out.Ingress)
 	if in.Kafka != nil {
 		in, out := &in.Kafka, &out.Kafka
-		*out = new(sharedtypes.KafkaConfig)
+		*out = new(apisv1beta1.KafkaConfig)
 		(*in).DeepCopyInto(*out)
 	}
 }
@@ -237,7 +237,7 @@ func (in *IngressGlobalConfig) DeepCopyInto(out *IngressGlobalConfig) {
 	*out = *in
 	if in.TLS != nil {
 		in, out := &in.TLS, &out.TLS
-		*out = new(sharedtypes.IngressTLS)
+		*out = new(apisv1beta1.IngressTLS)
 		**out = **in
 	}
 	if in.Annotations != nil {
@@ -559,7 +559,7 @@ func (in *StackStatus) DeepCopyInto(out *StackStatus) {
 	in.Status.DeepCopyInto(&out.Status)
 	if in.StaticAuthClients != nil {
 		in, out := &in.StaticAuthClients, &out.StaticAuthClients
-		*out = make(map[string]authv1beta1.StaticClient, len(*in))
+		*out = make(map[string]auth_componentsv1beta1.StaticClient, len(*in))
 		for key, val := range *in {
 			(*out)[key] = *val.DeepCopy()
 		}

@@ -2,11 +2,12 @@ package stack
 
 import (
 	"github.com/google/uuid"
-	"github.com/numary/operator/apis/components/auth/v1beta1"
+	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/apis/stack/v1beta1"
-	. "github.com/numary/operator/internal/testing"
+	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
+	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -19,32 +20,32 @@ var _ = Describe("Stack controller (Auth)", func() {
 	WithMutator(mutator, func() {
 		When("Creating a stack with no configuration object", func() {
 			var (
-				stack           *Stack
+				stack           *stackv1beta2.Stack
 				configurationId string
 			)
 			BeforeEach(func() {
 				name := uuid.NewString()
 				configurationId = uuid.NewString()
 
-				stack = &Stack{
+				stack = &stackv1beta2.Stack{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: name,
 					},
-					Spec: StackSpec{
+					Spec: stackv1beta2.StackSpec{
 						Namespace: name,
 						Seed:      configurationId,
 					},
 				}
 				Expect(Create(stack)).To(Succeed())
-				Eventually(ConditionStatus(stack, ConditionTypeError)).
+				Eventually(ConditionStatus(stack, apisv1beta2.ConditionTypeError)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			Context("Then creating the configuration object", func() {
 				var (
-					configuration *Configuration
+					configuration *stackv1beta2.Configuration
 				)
 				BeforeEach(func() {
-					configuration = &Configuration{
+					configuration = &stackv1beta2.Configuration{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: configurationId,
 						},
@@ -52,17 +53,17 @@ var _ = Describe("Stack controller (Auth)", func() {
 					Expect(Create(configuration)).To(Succeed())
 				})
 				It("Should resolve the error", func() {
-					Eventually(ConditionStatus(stack, ConditionTypeError)).
+					Eventually(ConditionStatus(stack, apisv1beta2.ConditionTypeError)).
 						Should(Equal(metav1.ConditionUnknown))
 				})
 			})
 		})
 		When("Creating a configuration", func() {
 			var (
-				configuration *Configuration
+				configuration *stackv1beta2.Configuration
 			)
 			BeforeEach(func() {
-				configuration = &Configuration{
+				configuration = &stackv1beta2.Configuration{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: uuid.NewString(),
 					},
@@ -71,23 +72,30 @@ var _ = Describe("Stack controller (Auth)", func() {
 			})
 			Context("Then creating a stack", func() {
 				var (
-					stack *Stack
+					stack *stackv1beta2.Stack
 				)
 				BeforeEach(func() {
 					name := uuid.NewString()
 
-					stack = &Stack{
+					stack = &stackv1beta2.Stack{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: name,
 						},
-						Spec: StackSpec{
+						Spec: stackv1beta2.StackSpec{
 							Namespace: name,
 							Seed:      configuration.Name,
+							Auth: stackv1beta2.StackAuthSpec{
+								DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
+									Issuer:       "http://example.net",
+									ClientID:     "clientId",
+									ClientSecret: "clientSecret",
+								},
+							},
 						},
 					}
 
 					Expect(Create(stack)).To(Succeed())
-					Eventually(ConditionStatus(stack, ConditionTypeReady)).
+					Eventually(ConditionStatus(stack, apisv1beta2.ConditionTypeReady)).
 						Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a new namespace", func() {
@@ -97,19 +105,18 @@ var _ = Describe("Stack controller (Auth)", func() {
 				})
 				Context("With ingress", func() {
 					BeforeEach(func() {
-						configuration.Spec.Ingress = IngressGlobalConfig{
-							TLS: &IngressTLS{
+						configuration.Spec.Ingress = &stackv1beta2.IngressGlobalConfig{
+							TLS: &apisv1beta2.IngressTLS{
 								SecretName: uuid.NewString(),
 							},
-							Enabled: true,
 						}
 						Expect(Update(configuration)).To(BeNil())
 					})
 				})
 				Context("With ledger service", func() {
 					BeforeEach(func() {
-						configuration.Spec.Services.Ledger = &LedgerSpec{
-							Postgres: PostgresConfig{
+						configuration.Spec.Services.Ledger = &stackv1beta2.LedgerSpec{
+							Postgres: apisv1beta2.PostgresConfig{
 								Port:     1234,
 								Host:     "XXX",
 								Username: "XXX",
@@ -117,11 +124,11 @@ var _ = Describe("Stack controller (Auth)", func() {
 							},
 						}
 						Expect(Update(configuration)).To(BeNil())
-						Eventually(ConditionStatus(stack, ConditionTypeStackLedgerReady)).
+						Eventually(ConditionStatus(stack, stackv1beta2.ConditionTypeStackLedgerReady)).
 							Should(Equal(metav1.ConditionTrue))
 					})
 					It("Should create a ledger on a new namespace", func() {
-						ledger := &componentsv1beta1.Ledger{
+						ledger := &componentsv1beta2.Ledger{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      stack.ServiceName("ledger"),
 								Namespace: stack.Spec.Namespace,
@@ -132,38 +139,32 @@ var _ = Describe("Stack controller (Auth)", func() {
 				})
 				Context("With auth and control", func() {
 					BeforeEach(func() {
-						configuration.Spec.Auth = &AuthSpec{
-							Postgres: PostgresConfig{
+						configuration.Spec.Services.Auth = &stackv1beta2.AuthSpec{
+							Postgres: apisv1beta2.PostgresConfig{
 								Port:     5432,
 								Host:     "postgres",
 								Username: "admin",
 								Password: "admin",
 							},
-							SigningKey: "XXX",
-							DelegatedOIDCServer: &componentsv1beta1.DelegatedOIDCServerConfiguration{
-								Issuer:       "http://example.net",
-								ClientID:     "clientId",
-								ClientSecret: "clientSecret",
-							},
 						}
-						configuration.Spec.Services.Control = &ControlSpec{}
+						configuration.Spec.Services.Control = &stackv1beta2.ControlSpec{}
 						Expect(Update(configuration)).To(BeNil())
-						Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).
+						Eventually(ConditionStatus(stack, stackv1beta2.ConditionTypeStackAuthReady)).
 							Should(Equal(metav1.ConditionTrue))
-						Eventually(ConditionStatus(stack, ConditionTypeStackControlReady)).
+						Eventually(ConditionStatus(stack, stackv1beta2.ConditionTypeStackControlReady)).
 							Should(Equal(metav1.ConditionTrue))
-						Eventually(ConditionStatus(stack, ConditionTypeReady)).
+						Eventually(ConditionStatus(stack, apisv1beta2.ConditionTypeReady)).
 							Should(Equal(metav1.ConditionTrue))
 					})
 					It("Should register a static auth client into stack status and use it on control", func() {
-						Eventually(func() v1beta1.StaticClient {
+						Eventually(func() authcomponentsv1beta1.StaticClient {
 							Expect(Get(types.NamespacedName{
 								Namespace: stack.Namespace,
 								Name:      stack.Name,
 							}, stack)).To(Succeed())
 							return stack.Status.StaticAuthClients["control"]
 						}).ShouldNot(BeZero())
-						control := &componentsv1beta1.Control{
+						control := &componentsv1beta2.Control{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      stack.ServiceName("control"),
 								Namespace: stack.Spec.Namespace,
@@ -179,28 +180,22 @@ var _ = Describe("Stack controller (Auth)", func() {
 				})
 				Context("With auth configuration", func() {
 					BeforeEach(func() {
-						configuration.Spec.Auth = &AuthSpec{
-							Postgres: PostgresConfig{
+						configuration.Spec.Services.Auth = &stackv1beta2.AuthSpec{
+							Postgres: apisv1beta2.PostgresConfig{
 								Port:     5432,
 								Host:     "postgres",
 								Username: "admin",
 								Password: "admin",
 							},
-							SigningKey: "XXX",
-							DelegatedOIDCServer: &componentsv1beta1.DelegatedOIDCServerConfiguration{
-								Issuer:       "http://example.net",
-								ClientID:     "clientId",
-								ClientSecret: "clientSecret",
-							},
 						}
 						Expect(Update(configuration)).To(BeNil())
-						Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).
+						Eventually(ConditionStatus(stack, stackv1beta2.ConditionTypeStackAuthReady)).
 							Should(Equal(metav1.ConditionTrue))
-						Eventually(ConditionStatus(stack, ConditionTypeReady)).
+						Eventually(ConditionStatus(stack, apisv1beta2.ConditionTypeReady)).
 							Should(Equal(metav1.ConditionTrue))
 					})
 					It("Should create a auth server on a new namespace", func() {
-						Expect(Exists(&componentsv1beta1.Auth{
+						Expect(Exists(&componentsv1beta2.Auth{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      stack.ServiceName("auth"),
 								Namespace: stack.Spec.Namespace,
@@ -209,12 +204,12 @@ var _ = Describe("Stack controller (Auth)", func() {
 					})
 					Context("Then removing auth", func() {
 						BeforeEach(func() {
-							configuration.Spec.Auth = nil
+							configuration.Spec.Services.Auth = nil
 							Expect(Update(configuration)).To(BeNil())
-							Eventually(ConditionStatus(stack, ConditionTypeStackAuthReady)).Should(Equal(metav1.ConditionUnknown))
+							Eventually(ConditionStatus(stack, stackv1beta2.ConditionTypeStackAuthReady)).Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove Auth deployment", func() {
-							Expect(Exists(&componentsv1beta1.Auth{
+							Expect(Exists(&componentsv1beta2.Auth{
 								ObjectMeta: metav1.ObjectMeta{
 									Name:      stack.Name,
 									Namespace: stack.Spec.Namespace,

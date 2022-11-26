@@ -2,8 +2,8 @@ package v1beta1
 
 import (
 	authcomponentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
+	. "github.com/numary/operator/pkg/typeutils"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 

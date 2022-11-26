@@ -1,0 +1,9 @@
+---
+kind: Module
+description: MongoDB operator
+type: helm
+name: mongodb-operator
+namespace: default
+repo: https://mongodb.github.io/helm-charts
+chart: community-operator
+timeout: 3600

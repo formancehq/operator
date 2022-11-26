@@ -1,0 +1,19 @@
+---
+kind: Workflow
+name: deploy
+steps:
+- script: |
+    make generate
+    make manifests
+- command:
+  - deploy
+---
+kind: Workflow
+name: update
+steps:
+- script: |
+      make generate
+      make manifests
+- command:
+  - deploy
+  - operator
