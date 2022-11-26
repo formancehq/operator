@@ -17,9 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/numary/operator/apis/components/auth/v1beta1"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
+	"github.com/numary/operator/apis/auth.components/v1beta1"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
+	. "github.com/numary/operator/pkg/typeutils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -116,6 +116,10 @@ func (a *Auth) GetConditions() *Conditions {
 
 func (in *Auth) HasStaticClients() bool {
 	return in.Spec.StaticClients != nil && len(in.Spec.StaticClients) > 0
+}
+
+func (in *Auth) GetImage() string {
+	return in.Spec.GetImage("auth")
 }
 
 //+kubebuilder:object:root=true

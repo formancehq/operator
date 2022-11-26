@@ -1,7 +1,7 @@
 package v1beta1
 
 import (
-	. "github.com/numary/operator/apis/sharedtypes"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
 )
 
 // +kubebuilder:object:generate=true

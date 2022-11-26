@@ -1,0 +1,123 @@
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-all
+spec:
+  headers:
+    accessControlAllowOriginList:
+    - "*"
+    accessControlAllowHeaders:
+    - "Authorization"
+    - "content-type"
+    accessControlAllowMethods:
+    - "*"
+    accessControlAllowCredentials: true
+    accessControlMaxAge: 100
+    addVaryHeader: true
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: stripprefix
+spec:
+  stripPrefix:
+    prefixes:
+    - /api/auth
+    - /api/dex
+    - /api/jaeger
+    - /api/ledger
+    - /api/webhooks
+---
+apiVersion: stack.formance.com/v1beta2
+kind: Configuration
+metadata:
+  name: stacks
+spec:
+  # Define global ingress configuration
+  ingress:
+    enabled: true
+    annotations:
+      traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
+  monitoring:
+    traces:
+      otlp:
+        endpoint: otel-collector-opentelemetry-collector.default.svc.cluster.local
+        insecure: true
+        mode: grpc
+        port: 4317
+  kafka:
+    brokers:
+      - redpanda.default.svc.cluster.local:9092
+  services:
+    auth:
+      postgres:
+        host: postgres-postgresql.default.svc.cluster.local
+        port: 5432
+        username: formance
+        password: formance
+      staticClients:
+      - id: foo
+        public: true
+        secrets:
+        - bar
+    ledger:
+      postgres:
+        host: postgres-postgresql.default.svc.cluster.local
+        port: 5432
+        username: formance
+        password: formance
+      locking:
+        strategy: redis
+        redis:
+          uri: redis://redis-headless.default.svc.cluster.local:6379
+    payments:
+      mongoDB:
+        host: mongodb-svc.default.svc.cluster.local
+        port: 27017
+        username: root
+        password: very-secured-password
+    search:
+      image: ghcr.io/formancehq/search:f2f51323e23b7e191716b836f89db66f301a5af5
+      elasticSearch:
+        host: elasticsearch-master.default.svc.cluster.local
+        port: 9200
+        scheme: http
+        basicAuth:
+          username: admin
+          password: admin
+    control:
+      image: ghcr.io/formancehq/control:59e871d64514ec01c84ea18b34cf0788d17d7f63
+    webhooks:
+      mongoDB:
+        host: mongodb-svc.default.svc.cluster.local
+        password: very-secured-password
+        port: 27017
+        username: root
+---
+apiVersion: stack.formance.com/v1beta2
+kind: Versions
+metadata:
+  name: default
+spec: {}
+---
+apiVersion: stack.formance.com/v1beta2
+kind: Stack
+metadata:
+  name: stack1
+spec:
+  namespace: stack1
+  debug: true
+  dev: true
+  scheme: http
+  host: host.k3d.internal
+  seed: stacks
+  auth:
+    delegatedOIDCServer:
+      issuer: http://host.k3d.internal/api/dex
+      clientID: dexclient
+      clientSecret: dexclient
+    staticClients:
+    - id: foo2
+      secrets:
+      - bar2

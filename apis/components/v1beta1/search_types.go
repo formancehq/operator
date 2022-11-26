@@ -19,8 +19,8 @@ package v1beta1
 import (
 	"fmt"
 
-	. "github.com/numary/operator/apis/sharedtypes"
-	"github.com/numary/operator/internal/collectionutil"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
+	. "github.com/numary/operator/pkg/typeutils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -78,7 +78,7 @@ func (in *ElasticSearchConfig) Env(prefix string) []corev1.EnvVar {
 }
 
 func (in *ElasticSearchConfig) Validate() field.ErrorList {
-	return collectionutil.MergeAll(
+	return MergeAll(
 		ValidateRequiredConfigValueOrReference("host", in.Host, in.HostFrom),
 		ValidateRequiredConfigValueOrReference("port", in.Port, in.PortFrom),
 	)
@@ -130,6 +130,10 @@ func (in *Search) IsDirty(t Object) bool {
 
 func (in *Search) GetConditions() *Conditions {
 	return &in.Status.Conditions
+}
+
+func (in *Search) GetImage() string {
+	return in.Spec.GetImage("search")
 }
 
 //+kubebuilder:object:root=true

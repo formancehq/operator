@@ -17,7 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	. "github.com/numary/operator/apis/sharedtypes"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -66,6 +66,10 @@ func (in *Control) IsDirty(t Object) bool {
 
 func (in *Control) GetConditions() *Conditions {
 	return &in.Status.Conditions
+}
+
+func (in *Control) GetImage() string {
+	return in.Spec.GetImage("control")
 }
 
 // +kubebuilder:object:root=true

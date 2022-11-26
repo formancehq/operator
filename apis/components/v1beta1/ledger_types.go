@@ -19,8 +19,8 @@ package v1beta1
 import (
 	"time"
 
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
+	. "github.com/numary/operator/pkg/typeutils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -155,6 +155,10 @@ func (a *Ledger) IsDirty(t Object) bool {
 
 func (a *Ledger) GetConditions() *Conditions {
 	return &a.Status.Conditions
+}
+
+func (in *Ledger) GetImage() string {
+	return in.Spec.GetImage("ledger")
 }
 
 //+kubebuilder:object:root=true

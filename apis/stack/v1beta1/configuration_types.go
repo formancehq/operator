@@ -18,8 +18,8 @@ package v1beta1
 
 import (
 	"github.com/imdario/mergo"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
+	. "github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

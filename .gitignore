@@ -84,7 +84,6 @@ tmp
 ./bin/manager
 vendor
 
-example-staging.yaml
-demo.yml
-local-registries.yaml
-.env
+garden/local-registries.yaml
+.garden.env.yaml
+.garden
