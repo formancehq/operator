@@ -19,7 +19,7 @@ package v1beta1
 import (
 	"encoding/json"
 
-	. "github.com/numary/operator/apis/sharedtypes"
+	. "github.com/formancehq/operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

@@ -1,7 +1,7 @@
 package sharedtypes
 
 import (
-	. "github.com/numary/operator/internal/collectionutil"
+	. "github.com/formancehq/operator/internal/collectionutil"
 )
 
 type Status struct {

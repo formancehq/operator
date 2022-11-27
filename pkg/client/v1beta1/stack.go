@@ -3,7 +3,7 @@ package v1beta1
 import (
 	"context"
 
-	"github.com/numary/operator/apis/stack/v1beta1"
+	"github.com/formancehq/operator/apis/stack/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/scheme"

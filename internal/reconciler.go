@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"strings"
 
+	. "github.com/formancehq/operator/apis/sharedtypes"
 	"github.com/go-logr/logr"
-	. "github.com/numary/operator/apis/sharedtypes"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

@@ -20,9 +20,9 @@ import (
 	"reflect"
 	"time"
 
+	. "github.com/formancehq/operator/apis/sharedtypes"
+	. "github.com/formancehq/operator/internal/collectionutil"
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

@@ -17,9 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
+	. "github.com/formancehq/operator/apis/sharedtypes"
+	. "github.com/formancehq/operator/internal/collectionutil"
 	"github.com/imdario/mergo"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"reflect"
 
-	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
-	. "github.com/numary/operator/apis/sharedtypes"
+	authcomponentsv1beta1 "github.com/formancehq/operator/apis/components/auth/v1beta1"
+	. "github.com/formancehq/operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

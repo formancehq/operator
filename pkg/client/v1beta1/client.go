@@ -1,7 +1,7 @@
 package v1beta1
 
 import (
-	"github.com/numary/operator/apis/stack/v1beta1"
+	"github.com/formancehq/operator/apis/stack/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 )

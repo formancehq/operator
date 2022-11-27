@@ -19,8 +19,8 @@ package v1beta1
 import (
 	"time"
 
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
+	. "github.com/formancehq/operator/apis/sharedtypes"
+	. "github.com/formancehq/operator/internal/collectionutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"

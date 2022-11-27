@@ -23,8 +23,9 @@ package v1beta1
 
 import (
 	"encoding/json"
-	authv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
-	"github.com/numary/operator/apis/sharedtypes"
+
+	authv1beta1 "github.com/formancehq/operator/apis/components/auth/v1beta1"
+	"github.com/formancehq/operator/apis/sharedtypes"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 

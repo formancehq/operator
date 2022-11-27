@@ -4,7 +4,7 @@ package sharedtypes
 import (
 	"fmt"
 
-	. "github.com/numary/operator/internal/collectionutil"
+	. "github.com/formancehq/operator/internal/collectionutil"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

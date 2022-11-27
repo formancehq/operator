@@ -3,7 +3,7 @@ package internal
 import (
 	"context"
 
-	"github.com/numary/operator/apis/components/v1beta1"
+	"github.com/formancehq/operator/apis/components/v1beta1"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"

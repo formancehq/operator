@@ -3,7 +3,7 @@ package v1beta1
 import (
 	"testing"
 
-	"github.com/numary/operator/apis/sharedtypes"
+	"github.com/formancehq/operator/apis/sharedtypes"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 )

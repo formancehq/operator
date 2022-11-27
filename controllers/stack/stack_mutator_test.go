@@ -1,12 +1,12 @@
 package stack
 
 import (
+	"github.com/formancehq/operator/apis/components/auth/v1beta1"
+	componentsv1beta1 "github.com/formancehq/operator/apis/components/v1beta1"
+	. "github.com/formancehq/operator/apis/sharedtypes"
+	. "github.com/formancehq/operator/apis/stack/v1beta1"
+	. "github.com/formancehq/operator/internal/testing"
 	"github.com/google/uuid"
-	"github.com/numary/operator/apis/components/auth/v1beta1"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/apis/stack/v1beta1"
-	. "github.com/numary/operator/internal/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"

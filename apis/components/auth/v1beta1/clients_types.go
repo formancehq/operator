@@ -20,8 +20,8 @@ import (
 	"reflect"
 	"sort"
 
+	. "github.com/formancehq/operator/apis/sharedtypes"
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/operator/apis/sharedtypes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

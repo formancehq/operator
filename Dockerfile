@@ -14,7 +14,7 @@ ENTRYPOINT ["/manager"]
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
-LABEL org.opencontainers.image.source https://github.com/numary/operator
+LABEL org.opencontainers.image.source https://github.com/formancehq/operator
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
