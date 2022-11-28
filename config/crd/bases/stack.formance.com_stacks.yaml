@@ -2367,6 +2367,10 @@ spec:
       jsonPath: .spec.versions
       name: Version
       type: string
+    - description: Stack Configuration
+      jsonPath: .spec.seed
+      name: Configuration
+      type: string
     name: v1beta2
     schema:
       openAPIV3Schema:

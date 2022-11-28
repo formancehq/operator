@@ -89,6 +89,7 @@ func (s *StackStatus) IsDirty(reference apisv1beta1.Object) bool {
 //+kubebuilder:resource:scope=Cluster
 //+kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.progress`
 //+kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.versions",description="Stack Version"
+//+kubebuilder:printcolumn:name="Configuration",type="string",JSONPath=".spec.seed",description="Stack Configuration"
 //+kubebuilder:storageversion
 
 // Stack is the Schema for the stacks API
