@@ -129,6 +129,9 @@ spec:
                 x-kubernetes-preserve-unknown-fields: true
               reference:
                 type: string
+              version:
+                default: latest
+                type: string
             required:
             - pipeline
             - reference

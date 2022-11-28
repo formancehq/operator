@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta2
 
 import (
+	"reflect"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -43,6 +45,7 @@ type VersionsStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:storageversion
+//+kubebuilder:resource:scope=Cluster
 
 // Versions is the Schema for the versions API
 type Versions struct {
@@ -51,6 +54,11 @@ type Versions struct {
 
 	Spec   VersionsSpec   `json:"spec,omitempty"`
 	Status VersionsStatus `json:"status,omitempty"`
+}
+
+func (in *Versions) GetFromServiceName(s string) string {
+	fieldByName := reflect.ValueOf(in.Spec).FieldByName(s)
+	return fieldByName.String()
 }
 
 //+kubebuilder:object:root=true

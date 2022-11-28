@@ -1,7 +1,9 @@
 package components
 
 import (
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/testing"
@@ -27,20 +29,15 @@ var _ = Describe("Ledger controller", func() {
 							Name: "ledger",
 						},
 						Spec: componentsv1beta2.LedgerSpec{
-							Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
-								PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
-									Database: "ledger",
-									PostgresConfig: apisv1beta2.PostgresConfig{
-										Port:     5432,
-										Host:     "postgres",
-										Username: "ledger",
-										Password: "ledger",
-									},
+							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+									Database:       "ledger",
+									PostgresConfig: NewDumpPostgresConfig(),
 								},
 								CreateDatabase: true,
 							},
-							Collector: &componentsv1beta2.CollectorConfig{
-								KafkaConfig: apisv1beta2.KafkaConfig{
+							Collector: &componentsv1beta1.CollectorConfig{
+								KafkaConfig: apisv1beta1.KafkaConfig{
 									Brokers: []string{"http://kafka"},
 									TLS:     false,
 									SASL:    nil,
@@ -50,10 +47,10 @@ var _ = Describe("Ledger controller", func() {
 						},
 					}
 					Expect(Create(ledger)).To(BeNil())
-					Eventually(ConditionStatus(ledger, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(ledger, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(ledger, apisv1beta2.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(ledger, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      ledger.Name,
@@ -65,7 +62,7 @@ var _ = Describe("Ledger controller", func() {
 					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(ledger)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(ledger, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(ledger, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      ledger.Name,
@@ -85,7 +82,7 @@ var _ = Describe("Ledger controller", func() {
 						Expect(Update(ledger)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(ledger, apisv1beta2.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(ledger, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      ledger.Name,
@@ -98,11 +95,11 @@ var _ = Describe("Ledger controller", func() {
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(ledger, apisv1beta2.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(ledger, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
 							ledger.Spec.Ingress = nil
 							Expect(Update(ledger)).To(BeNil())
-							Eventually(ConditionStatus(ledger, apisv1beta2.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(ledger, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {

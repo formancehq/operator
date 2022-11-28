@@ -18,18 +18,18 @@ package v1beta2
 
 import (
 	authv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
-	authcomponentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
-	DevProperties `json:",inline"`
-	Scalable      `json:",inline"`
-	ImageHolder   `json:",inline"`
-	Postgres      PostgresConfigCreateDatabase `json:"postgres"`
-	BaseURL       string                       `json:"baseURL"`
+	CommonServiceProperties `json:",inline"`
+	apisv1beta1.Scalable    `json:",inline"`
+	Postgres                componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
+	BaseURL                 string                                         `json:"baseURL"`
 
 	// SigningKey is a private key
 	// The signing key is used by the server to sign JWT tokens
@@ -41,10 +41,10 @@ type AuthSpec struct {
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 
-	DelegatedOIDCServer authcomponentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+	DelegatedOIDCServer componentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 
 	// +optional
-	Monitoring *MonitoringSpec `json:"monitoring"`
+	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring"`
 
 	// +optional
 	StaticClients []authv1beta1.StaticClient `json:"staticClients"`
@@ -60,28 +60,24 @@ type Auth struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AuthSpec          `json:"spec,omitempty"`
-	Status ReplicationStatus `json:"status,omitempty"`
+	Spec   AuthSpec                      `json:"spec,omitempty"`
+	Status apisv1beta1.ReplicationStatus `json:"status,omitempty"`
 }
 
-func (a *Auth) GetStatus() Dirty {
+func (a *Auth) GetStatus() apisv1beta1.Dirty {
 	return &a.Status
 }
 
-func (a *Auth) IsDirty(t Object) bool {
+func (a *Auth) IsDirty(t apisv1beta1.Object) bool {
 	return false
 }
 
-func (a *Auth) GetConditions() *Conditions {
+func (a *Auth) GetConditions() *apisv1beta1.Conditions {
 	return &a.Status.Conditions
 }
 
 func (in *Auth) HasStaticClients() bool {
 	return in.Spec.StaticClients != nil && len(in.Spec.StaticClients) > 0
-}
-
-func (in *Auth) GetImage() string {
-	return in.Spec.GetImage("auth")
 }
 
 //+kubebuilder:object:root=true

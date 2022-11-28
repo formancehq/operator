@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	benthoscomponentsv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -25,16 +25,9 @@ var _ = Describe("Test Search Ingester", func() {
 						Name: uuid.NewString(),
 					},
 					Spec: componentsv1beta2.SearchSpec{
-						ElasticSearch: componentsv1beta2.ElasticSearchConfig{
-							Host:   "elastic",
-							Scheme: "http",
-							Port:   9200,
-						},
-						KafkaConfig: apisv1beta2.KafkaConfig{
-							Brokers: []string{"kafka"},
-							TLS:     false,
-						},
-						Index: "documents",
+						ElasticSearch: NewDumpElasticSearchConfig(),
+						KafkaConfig:   NewDumpKafkaConfig(),
+						Index:         "documents",
 					},
 				}
 				Expect(Create(search)).To(Succeed())
@@ -55,7 +48,7 @@ var _ = Describe("Test Search Ingester", func() {
 						},
 					}
 					Expect(Create(searchIngester)).To(Succeed())
-					Eventually(ConditionStatus(searchIngester, apisv1beta2.ConditionTypeReady)).
+					Eventually(ConditionStatus(searchIngester, apisv1beta1.ConditionTypeReady)).
 						Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a BenthosStream object", func() {

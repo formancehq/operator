@@ -2560,9 +2560,8 @@ spec:
                 type: boolean
               host:
                 type: string
-              namespace:
-                type: string
               scheme:
+                default: http
                 type: string
               seed:
                 type: string
@@ -2571,6 +2570,7 @@ spec:
             required:
             - auth
             - host
+            - seed
             type: object
           status:
             properties:

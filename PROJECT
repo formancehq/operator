@@ -114,6 +114,9 @@ resources:
   kind: Configuration
   path: github.com/numary/operator/apis/stack/v1beta2
   version: v1beta2
+  webhooks:
+    conversion: true
+    webhookVersion: v1
 - api:
     crdVersion: v1
     namespaced: true
@@ -125,7 +128,6 @@ resources:
   version: v1beta2
 - api:
     crdVersion: v1
-    namespaced: true
   controller: true
   domain: formance.com
   group: stack

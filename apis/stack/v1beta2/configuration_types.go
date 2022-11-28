@@ -17,48 +17,51 @@ limitations under the License.
 package v1beta2
 
 import (
-	"github.com/numary/operator/pkg/apis/v1beta1"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	"reflect"
+
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 type ConfigurationServicesSpec struct {
-	// +optional
-	Auth *AuthSpec `json:"auth,omitempty"`
-	// +optional
-	Control *ControlSpec `json:"control,omitempty"`
-	// +optional
-	Ledger *LedgerSpec `json:"ledger,omitempty"`
-	// +optional
-	Payments *PaymentsSpec `json:"payments,omitempty"`
-	// +optional
-	Search *SearchSpec `json:"search,omitempty"`
-	// +optional
-	Webhooks *WebhooksSpec `json:"webhooks,omitempty"`
+	Auth     AuthSpec     `json:"auth,omitempty"`
+	Control  ControlSpec  `json:"control,omitempty"`
+	Ledger   LedgerSpec   `json:"ledger,omitempty"`
+	Payments PaymentsSpec `json:"payments,omitempty"`
+	Search   SearchSpec   `json:"search,omitempty"`
+	Webhooks WebhooksSpec `json:"webhooks,omitempty"`
+}
+
+func GetServiceList() []string {
+	typeOf := reflect.TypeOf(ConfigurationServicesSpec{})
+	res := make([]string, 0)
+	for i := 0; i < typeOf.NumField(); i++ {
+		field := typeOf.Field(i)
+		res = append(res, field.Name)
+	}
+	return res
 }
 
 type ConfigurationSpec struct {
+	Services ConfigurationServicesSpec `json:"services"`
+	Kafka    apisv1beta1.KafkaConfig   `json:"kafka"`
 	// +optional
-	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring,omitempty"`
-	// +optional
-	Services ConfigurationServicesSpec `json:"services,omitempty"`
+	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
 	Ingress *IngressGlobalConfig `json:"ingress,omitempty"`
-	// +optional
-	Kafka *apisv1beta2.KafkaConfig `json:"kafka,omitempty"`
 }
 
 func (in *ConfigurationSpec) Validate() field.ErrorList {
 	return typeutils.MergeAll(
-		typeutils.Map(in.Services.Ledger.Validate(), v1beta1.AddPrefixToFieldError("services.ledger")),
-		typeutils.Map(in.Services.Payments.Validate(), v1beta1.AddPrefixToFieldError("services.payments")),
-		typeutils.Map(in.Services.Search.Validate(), v1beta1.AddPrefixToFieldError("services.search")),
-		typeutils.Map(in.Services.Webhooks.Validate(), v1beta1.AddPrefixToFieldError("services.webhooks")),
-		typeutils.Map(in.Services.Auth.Validate(), v1beta1.AddPrefixToFieldError("services.auth")),
-		typeutils.Map(in.Monitoring.Validate(), v1beta1.AddPrefixToFieldError("monitoring")),
-		typeutils.Map(in.Kafka.Validate(), v1beta1.AddPrefixToFieldError("kafka")),
+		typeutils.Map(in.Services.Ledger.Validate(), apisv1beta1.AddPrefixToFieldError("services.ledger")),
+		typeutils.Map(in.Services.Payments.Validate(), apisv1beta1.AddPrefixToFieldError("services.payments")),
+		typeutils.Map(in.Services.Search.Validate(), apisv1beta1.AddPrefixToFieldError("services.search")),
+		typeutils.Map(in.Services.Webhooks.Validate(), apisv1beta1.AddPrefixToFieldError("services.webhooks")),
+		typeutils.Map(in.Services.Auth.Validate(), apisv1beta1.AddPrefixToFieldError("services.auth")),
+		typeutils.Map(in.Monitoring.Validate(), apisv1beta1.AddPrefixToFieldError("monitoring")),
+		typeutils.Map(in.Kafka.Validate(), apisv1beta1.AddPrefixToFieldError("kafka")),
 	)
 }
 
@@ -73,8 +76,10 @@ type Configuration struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   ConfigurationSpec  `json:"spec,omitempty"`
-	Status apisv1beta2.Status `json:"status,omitempty"`
+	Status apisv1beta1.Status `json:"status,omitempty"`
 }
+
+func (*Configuration) Hub() {}
 
 //+kubebuilder:object:root=true
 

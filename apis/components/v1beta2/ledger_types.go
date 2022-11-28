@@ -17,120 +17,27 @@ limitations under the License.
 package v1beta2
 
 import (
-	"time"
-
-	"github.com/numary/operator/pkg/apis/v1beta1"
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/typeutils"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 )
-
-type LockingStrategyRedisConfig struct {
-	DevProperties `json:",inline"`
-	// +optional
-	Uri string `json:"uri,omitempty"`
-	// +optional
-	UriFrom *v1beta1.ConfigSource `json:"uriFrom,omitempty"`
-	// +optional
-	TLS bool `json:"tls"`
-	// +optional
-	InsecureTLS bool `json:"insecure,omitempty"`
-	// +optional
-	Duration time.Duration `json:"duration,omitempty"`
-	// +optional
-	Retry time.Duration `json:"retry,omitempty"`
-}
-
-func (cfg LockingStrategyRedisConfig) Env(prefix string) []corev1.EnvVar {
-	ret := []corev1.EnvVar{
-		SelectRequiredConfigValueOrReference("LOCK_STRATEGY_REDIS_URL", prefix,
-			cfg.Uri, cfg.UriFrom),
-	}
-	if cfg.Duration != 0 {
-		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_DURATION", cfg.Duration.String()))
-	}
-	if cfg.Retry != 0 {
-		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_RETRY", cfg.Retry.String()))
-	}
-	if cfg.TLS {
-		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_ENABLED", "true"))
-	}
-	if cfg.InsecureTLS {
-		ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY_REDIS_TLS_INSECURE", "true"))
-	}
-	return ret
-}
-
-func (cfg *LockingStrategyRedisConfig) Validate() field.ErrorList {
-	if cfg == nil {
-		return field.ErrorList{}
-	}
-	return ValidateRequiredConfigValueOrReference("uri", cfg.Uri, cfg.UriFrom)
-}
-
-type LockingStrategy struct {
-	// +kubebuilder:Enum:={memory,redis}
-	// +kubebuilder:default:=memory
-	// +optional
-	Strategy string `json:"strategy,omitempty"`
-	// +optional
-	Redis *LockingStrategyRedisConfig `json:"redis"`
-}
-
-func (s LockingStrategy) Env(prefix string) []corev1.EnvVar {
-	ret := make([]corev1.EnvVar, 0)
-	if s.Redis != nil {
-		ret = append(ret, s.Redis.Env(prefix)...)
-	}
-	ret = append(ret, EnvWithPrefix(prefix, "LOCK_STRATEGY", s.Strategy))
-	return ret
-}
-
-func (s *LockingStrategy) Validate() field.ErrorList {
-	ret := field.ErrorList{}
-	switch {
-	case s.Strategy == "redis" && s.Redis == nil:
-		ret = append(ret, field.Required(field.NewPath("redis"), "config must be specified"))
-	case s.Strategy != "redis" && s.Redis != nil:
-		ret = append(ret, field.Required(field.NewPath("redis"), "config must not be specified if locking strategy is memory"))
-	}
-	return typeutils.MergeAll(ret, s.Redis.Validate())
-}
-
-type PostgresConfigCreateDatabase struct {
-	PostgresConfigWithDatabase `json:",inline"`
-	CreateDatabase             bool `json:"createDatabase"`
-}
-
-type CollectorConfig struct {
-	KafkaConfig `json:",inline"`
-	Topic       string `json:"topic"`
-}
-
-func (c CollectorConfig) Env(prefix string) []corev1.EnvVar {
-	ret := c.KafkaConfig.Env(prefix)
-	return append(ret, EnvWithPrefix(prefix, "PUBLISHER_TOPIC_MAPPING", "*:"+c.Topic))
-}
 
 // LedgerSpec defines the desired state of Ledger
 type LedgerSpec struct {
-	DevProperties `json:",inline"`
-	Scalable      `json:",inline"`
-	ImageHolder   `json:",inline"`
+	CommonServiceProperties `json:",inline"`
+	apisv1beta1.Scalable    `json:",inline"`
+
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
-	Postgres PostgresConfigCreateDatabase `json:"postgres"`
+	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
-	Auth *AuthConfigSpec `json:"auth"`
+	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring"`
 	// +optional
-	Monitoring *MonitoringSpec `json:"monitoring"`
-	// +optional
-	Collector *CollectorConfig `json:"collector"`
+	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
 
-	LockingStrategy LockingStrategy `json:"locking"`
+	LockingStrategy componentsv1beta1.LockingStrategy `json:"locking"`
 }
 
 //+kubebuilder:object:root=true
@@ -145,23 +52,19 @@ type Ledger struct {
 
 	Spec LedgerSpec `json:"spec"`
 	// +optional
-	Status ReplicationStatus `json:"status"`
+	Status apisv1beta1.ReplicationStatus `json:"status"`
 }
 
-func (a *Ledger) GetStatus() Dirty {
+func (a *Ledger) GetStatus() apisv1beta1.Dirty {
 	return &a.Status
 }
 
-func (a *Ledger) IsDirty(t Object) bool {
+func (a *Ledger) IsDirty(t apisv1beta1.Object) bool {
 	return false
 }
 
-func (a *Ledger) GetConditions() *Conditions {
+func (a *Ledger) GetConditions() *apisv1beta1.Conditions {
 	return &a.Status.Conditions
-}
-
-func (in *Ledger) GetImage() string {
-	return in.Spec.GetImage("ledger")
 }
 
 //+kubebuilder:object:root=true

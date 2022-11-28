@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta2
 
 import (
+	"github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -28,15 +29,15 @@ type AuthClientConfiguration struct {
 
 // ControlSpec defines the desired state of Control
 type ControlSpec struct {
-	DevProperties `json:",inline"`
-	Scalable      `json:",inline"`
-	ImageHolder   `json:",inline"`
+	CommonServiceProperties `json:",inline"`
+	v1beta1.Scalable        `json:",inline"`
+
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
-	Monitoring  *MonitoringSpec `json:"monitoring"`
-	ApiURLFront string          `json:"apiURLFront"`
-	ApiURLBack  string          `json:"apiURLBack"`
+	Monitoring  *v1beta1.MonitoringSpec `json:"monitoring"`
+	ApiURLFront string                  `json:"apiURLFront"`
+	ApiURLBack  string                  `json:"apiURLBack"`
 
 	// +optional
 	AuthClientConfiguration *AuthClientConfiguration `json:"auth"`
@@ -52,24 +53,20 @@ type Control struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ControlSpec       `json:"spec,omitempty"`
-	Status ReplicationStatus `json:"status,omitempty"`
+	Spec   ControlSpec               `json:"spec,omitempty"`
+	Status v1beta1.ReplicationStatus `json:"status,omitempty"`
 }
 
-func (in *Control) GetStatus() Dirty {
+func (in *Control) GetStatus() v1beta1.Dirty {
 	return &in.Status
 }
 
-func (in *Control) IsDirty(t Object) bool {
+func (in *Control) IsDirty(t v1beta1.Object) bool {
 	return false
 }
 
-func (in *Control) GetConditions() *Conditions {
+func (in *Control) GetConditions() *v1beta1.Conditions {
 	return &in.Status.Conditions
-}
-
-func (in *Control) GetImage() string {
-	return in.Spec.GetImage("control")
 }
 
 // +kubebuilder:object:root=true

@@ -21,32 +21,26 @@ import (
 	"sort"
 
 	"github.com/numary/auth/authclient"
-	"github.com/numary/operator/apis/auth.components/v1beta1"
-	. "github.com/numary/operator/pkg/apis/v1beta2"
+	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ClientSpec defines the desired state of Client
 type ClientSpec struct {
-	v1beta1.ClientConfiguration `json:",inline"`
-	AuthServerReference         string `json:"authServerReference"`
+	authcomponentsv1beta1.ClientConfiguration `json:",inline"`
+	AuthServerReference                       string `json:"authServerReference"`
 }
-
-const (
-	ConditionTypeClientCreated      = "ClientCreated"
-	ConditionTypeClientUpdated      = "ClientUpdated"
-	ConditionTypeScopesSynchronized = "ScopesSynchronized"
-)
 
 // ClientStatus defines the observed state of Client
 type ClientStatus struct {
-	Status       `json:",inline"`
-	AuthServerID string `json:"authServerID,omitempty"`
+	apisv1beta1.Status `json:",inline"`
+	AuthServerID       string `json:"authServerID,omitempty"`
 	// +optional
 	Scopes map[string]string `json:"scopes"`
 }
 
-func (in *ClientStatus) IsDirty(t Object) bool {
+func (in *ClientStatus) IsDirty(t apisv1beta1.Object) bool {
 	if in.Status.IsDirty(t) {
 		return true
 	}
@@ -74,15 +68,15 @@ type Client struct {
 	Status ClientStatus `json:"status,omitempty"`
 }
 
-func (c *Client) IsDirty(t Object) bool {
+func (c *Client) IsDirty(t apisv1beta1.Object) bool {
 	return authServerChanges(t, c, c.Spec.AuthServerReference)
 }
 
-func (c *Client) GetStatus() Dirty {
+func (c *Client) GetStatus() apisv1beta1.Dirty {
 	return &c.Status
 }
 
-func (in *Client) GetConditions() *Conditions {
+func (in *Client) GetConditions() *apisv1beta1.Conditions {
 	return &in.Status.Conditions
 }
 
@@ -137,8 +131,8 @@ func (in *Client) Match(client *authclient.Client) bool {
 }
 
 func (in *Client) SetClientCreated(id string) {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeClientCreated,
+	in.Status.SetCondition(apisv1beta1.Condition{
+		Type:               authcomponentsv1beta1.ConditionTypeClientCreated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: in.Generation,
@@ -147,8 +141,8 @@ func (in *Client) SetClientCreated(id string) {
 }
 
 func (in *Client) SetClientUpdated() {
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeClientUpdated,
+	in.Status.SetCondition(apisv1beta1.Condition{
+		Type:               authcomponentsv1beta1.ConditionTypeClientUpdated,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: in.Generation,
@@ -158,8 +152,8 @@ func (in *Client) SetClientUpdated() {
 func (in *Client) checkScopesSynchronized() {
 
 	notSynchronized := func() {
-		in.Status.SetCondition(Condition{
-			Type:               ConditionTypeScopesSynchronized,
+		in.Status.SetCondition(apisv1beta1.Condition{
+			Type:               authcomponentsv1beta1.ConditionTypeScopesSynchronized,
 			Status:             metav1.ConditionFalse,
 			LastTransitionTime: metav1.Now(),
 			ObservedGeneration: in.Generation,
@@ -177,8 +171,8 @@ func (in *Client) checkScopesSynchronized() {
 		}
 	}
 	// Scopes synchronized
-	in.Status.SetCondition(Condition{
-		Type:               ConditionTypeScopesSynchronized,
+	in.Status.SetCondition(apisv1beta1.Condition{
+		Type:               authcomponentsv1beta1.ConditionTypeScopesSynchronized,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		ObservedGeneration: in.Generation,

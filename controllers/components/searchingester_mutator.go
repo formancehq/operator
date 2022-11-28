@@ -7,7 +7,7 @@ import (
 
 	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,7 +33,7 @@ func (m *SearchIngesterMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl
 
 func (m *SearchIngesterMutator) Mutate(ctx context.Context, ingester *componentsv1beta2.SearchIngester) (*ctrl.Result, error) {
 
-	apisv1beta2.SetProgressing(ingester)
+	apisv1beta1.SetProgressing(ingester)
 
 	search := &componentsv1beta2.Search{}
 	if err := m.client.Get(ctx, types.NamespacedName{
@@ -58,14 +58,14 @@ func (m *SearchIngesterMutator) Mutate(ctx context.Context, ingester *components
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetCondition(ingester, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
+		apisv1beta1.SetCondition(ingester, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
 		return controllerutils.Requeue(), err
 	case ret == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetCondition(ingester, "IngestionStreamReady", metav1.ConditionTrue)
+		apisv1beta1.SetCondition(ingester, "IngestionStreamReady", metav1.ConditionTrue)
 	}
 
-	apisv1beta2.SetReady(ingester)
+	apisv1beta1.SetReady(ingester)
 	return nil, nil
 }
 

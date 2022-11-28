@@ -2,7 +2,7 @@ package benthos_components
 
 import (
 	benthoscomponentsv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
@@ -33,10 +33,10 @@ var _ = Describe("Server controller", func() {
 						},
 					}
 					Expect(Create(server)).To(BeNil())
-					Eventually(ConditionStatus(server, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(server, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a pod", func() {
-					Eventually(ConditionStatus(server, apisv1beta2.ConditionTypePodReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(server, apisv1beta1.ConditionTypePodReady)).Should(Equal(metav1.ConditionTrue))
 
 					pods := &corev1.PodList{}
 					requirement, err := labels.NewRequirement(serverLabel, selection.Equals, []string{server.Name})
@@ -55,7 +55,7 @@ var _ = Describe("Server controller", func() {
 					Expect(pod.Spec.Containers[0].VolumeMounts).NotTo(BeEmpty())
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(server, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(server, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      server.Name,
