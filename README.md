@@ -34,6 +34,10 @@ garden run workflow update
 kubectl apply -f garden/example-v1beta2.yaml
 ```
 
+Add an entry for `host.k3d.internal` inside /etc/hosts file, pointing to 127.0.0.1.
+Go to http://host.k3d.internal.
+Login with admin@formance.com / password
+
 ### Tests
 
 Run command :
