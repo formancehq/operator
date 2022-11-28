@@ -391,7 +391,7 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 			},
 			Collector: &componentsv1beta1.CollectorConfig{
 				KafkaConfig: configuration.Kafka,
-				Topic:       fmt.Sprintf("%s-payments,%s-ledger", stack.Name, stack.Name),
+				Topic:       fmt.Sprintf("%s-payments %s-ledger", stack.Name, stack.Name),
 			},
 			MongoDB: apisv1beta1.MongoDBConfig{
 				UseSrv:       configuration.Services.Webhooks.MongoDB.UseSrv,
