@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -42,12 +42,12 @@ type TransientScopeStatus struct {
 
 // ScopeStatus defines the observed state of Scope
 type ScopeStatus struct {
-	Status       `json:",inline"`
-	AuthServerID string                          `json:"authServerID,omitempty"`
-	Transient    map[string]TransientScopeStatus `json:"transient,omitempty"`
+	apisv1beta1.Status `json:",inline"`
+	AuthServerID       string                          `json:"authServerID,omitempty"`
+	Transient          map[string]TransientScopeStatus `json:"transient,omitempty"`
 }
 
-func (in *ScopeStatus) IsDirty(t Object) bool {
+func (in *ScopeStatus) IsDirty(t apisv1beta1.Object) bool {
 	if in.Status.IsDirty(t) {
 		return true
 	}
@@ -75,15 +75,15 @@ type Scope struct {
 	Status ScopeStatus `json:"status,omitempty"`
 }
 
-func (s *Scope) GetStatus() Dirty {
+func (s *Scope) GetStatus() apisv1beta1.Dirty {
 	return &s.Status
 }
 
-func (s *Scope) IsDirty(t Object) bool {
+func (s *Scope) IsDirty(t apisv1beta1.Object) bool {
 	return authServerChanges(t, s, s.Spec.AuthServerReference)
 }
 
-func (in *Scope) GetConditions() *Conditions {
+func (in *Scope) GetConditions() *apisv1beta1.Conditions {
 	return &in.Status.Conditions
 }
 

@@ -24,7 +24,7 @@ import (
 
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -61,7 +61,7 @@ type PaymentsMutator struct {
 
 func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta2.Payments) (*ctrl.Result, error) {
 
-	apisv1beta2.SetProgressing(payments)
+	apisv1beta1.SetProgressing(payments)
 
 	deployment, err := r.reconcileDeployment(ctx, payments)
 	if err != nil {
@@ -92,10 +92,10 @@ func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta2.RemoveIngressCondition(payments)
+		apisv1beta1.RemoveIngressCondition(payments)
 	}
 
-	apisv1beta2.SetReady(payments)
+	apisv1beta1.SetReady(payments)
 
 	return nil, nil
 }
@@ -105,10 +105,7 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 
 	env := payments.Spec.MongoDB.Env("")
 	if payments.Spec.Debug {
-		env = append(env, apisv1beta2.Env("DEBUG", "true"))
-	}
-	if payments.Spec.Auth != nil {
-		env = append(env, payments.Spec.Auth.Env("")...)
+		env = append(env, apisv1beta1.Env("DEBUG", "true"))
 	}
 	if payments.Spec.Monitoring != nil {
 		env = append(env, payments.Spec.Monitoring.Env("")...)
@@ -127,11 +124,10 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: payments.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "payments",
-						Image:           payments.GetImage(),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(payments),
+						Image:           controllerutils.GetImage("payments", payments.Spec.Version),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "payments",
@@ -162,11 +158,11 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetDeploymentError(payments, err.Error())
+		apisv1beta1.SetDeploymentError(payments, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetDeploymentReady(payments)
+		apisv1beta1.SetDeploymentReady(payments)
 	}
 	return ret, err
 }
@@ -187,11 +183,11 @@ func (r *PaymentsMutator) reconcileService(ctx context.Context, auth *components
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(auth, err.Error())
+		apisv1beta1.SetServiceError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(auth)
+		apisv1beta1.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -236,11 +232,11 @@ func (r *PaymentsMutator) reconcileIngress(ctx context.Context, payments *compon
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetIngressError(payments, err.Error())
+		apisv1beta1.SetIngressError(payments, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetIngressReady(payments)
+		apisv1beta1.SetIngressReady(payments)
 	}
 	return ret, nil
 }
@@ -276,11 +272,11 @@ func (r *PaymentsMutator) reconcileIngestionStream(ctx context.Context, payments
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetCondition(payments, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
+		apisv1beta1.SetCondition(payments, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
 		return err
 	case ret == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetCondition(payments, "IngestionStreamReady", metav1.ConditionTrue)
+		apisv1beta1.SetCondition(payments, "IngestionStreamReady", metav1.ConditionTrue)
 	}
 	return nil
 }

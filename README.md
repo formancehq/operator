@@ -16,6 +16,11 @@ Also, we use [Garden](https://docs.garden.io/) for management.
 garden create-cluster
 ```
 
+Then initialize Garden tooling :
+```
+garden plugins kubernetes cluster-init
+```
+
 2. Deploy:
 
 ```sh

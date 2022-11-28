@@ -35,7 +35,7 @@ patchesStrategicMerge:
 #- patches/webhook_in_servers.yaml
 #- patches/webhook_in_streams.yaml
 #- patches/webhook_in_searchingesters.yaml
-#- patches/webhook_in_stack_configurations.yaml
+- patches/webhook_in_stack_configurations.yaml
 #- patches/webhook_in_webhooks.yaml
 #- patches/webhook_in_versions.yaml
 - patches/webhook_in_stack_stacks.yaml
@@ -54,7 +54,7 @@ patchesStrategicMerge:
 #- patches/cainjection_in_servers.yaml
 #- patches/cainjection_in_streams.yaml
 #- patches/cainjection_in_searchingesters.yaml
-#- patches/cainjection_in_stack_configurations.yaml
+- patches/cainjection_in_stack_configurations.yaml
 #- patches/cainjection_in_webhooks.yaml
 #- patches/cainjection_in_versions.yaml
 - patches/cainjection_in_stack_stacks.yaml

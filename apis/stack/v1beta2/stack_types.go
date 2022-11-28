@@ -19,9 +19,11 @@ package v1beta2
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
 	"github.com/numary/operator/apis/components/v1beta1"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -29,7 +31,7 @@ import (
 type IngressGlobalConfig struct {
 	IngressConfig `json:",inline"`
 	// +optional
-	TLS *IngressTLS `json:"tls"`
+	TLS *apisv1beta1.IngressTLS `json:"tls"`
 }
 
 type StackAuthSpec struct {
@@ -41,17 +43,15 @@ type StackAuthSpec struct {
 // StackSpec defines the desired state of Stack
 type StackSpec struct {
 	DevProperties `json:",inline"`
-	// +required
-	Namespace string `json:"namespace,omitempty"`
-	// +required
-	Host string `json:"host"`
-	// +required
-	Auth StackAuthSpec `json:"auth"`
+	Seed          string        `json:"seed"`
+	Host          string        `json:"host"`
+	Auth          StackAuthSpec `json:"auth"`
+
 	// +optional
 	Versions string `json:"versions"`
+
 	// +optional
-	Seed string `json:"seed"`
-	// +optional
+	// +kubebuilder:default:="http"
 	Scheme string `json:"scheme"`
 }
 
@@ -71,13 +71,13 @@ type ControlAuthentication struct {
 }
 
 type StackStatus struct {
-	Status `json:",inline"`
+	apisv1beta1.Status `json:",inline"`
 
 	// +optional
 	StaticAuthClients map[string]authcomponentsv1beta1.StaticClient `json:"staticAuthClients,omitempty"`
 }
 
-func (s *StackStatus) IsDirty(reference Object) bool {
+func (s *StackStatus) IsDirty(reference apisv1beta1.Object) bool {
 	if s.Status.IsDirty(reference) {
 		return true
 	}
@@ -101,6 +101,15 @@ type Stack struct {
 	Status StackStatus `json:"status,omitempty"`
 }
 
+func NewStack(name string, spec StackSpec) Stack {
+	return Stack{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: spec,
+	}
+}
+
 func (*Stack) Hub() {}
 
 func (s *Stack) GetScheme() string {
@@ -114,76 +123,76 @@ func (s *Stack) URL() string {
 	return fmt.Sprintf("%s://%s", s.GetScheme(), s.Spec.Host)
 }
 
-func (s *Stack) GetStatus() Dirty {
+func (s *Stack) GetStatus() apisv1beta1.Dirty {
 	return &s.Status
 }
 
-func (s *Stack) IsDirty(t Object) bool {
+func (s *Stack) IsDirty(t apisv1beta1.Object) bool {
 	return false
 }
 
-func (s *Stack) GetConditions() *Conditions {
+func (s *Stack) GetConditions() *apisv1beta1.Conditions {
 	return &s.Status.Conditions
 }
 
 func (s *Stack) SetNamespaceCreated() {
-	SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
+	apisv1beta1.SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetNamespaceError(msg string) {
-	SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetAuthReady() {
-	SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionTrue)
+	apisv1beta1.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetAuthError(msg string) {
-	SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetLedgerReady() {
-	SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
+	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetLedgerError(msg string) {
-	SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetSearchReady() {
-	SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionTrue)
+	apisv1beta1.SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetSearchError(msg string) {
-	SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetControlReady() {
-	SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionTrue)
+	apisv1beta1.SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetControlError(msg string) {
-	SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetPaymentError(msg string) {
-	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetWebhooksError(msg string) {
-	SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetMiddlewareError(msg string) {
-	SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
+	apisv1beta1.SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetPaymentReady() {
-	SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
+	apisv1beta1.SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetWebhooksReady() {
-	SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
+	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) RemoveAuthStatus() {
@@ -211,7 +220,7 @@ func (in *Stack) SetMiddlewareReady() {
 }
 
 func (s *Stack) ServiceName(v string) string {
-	return fmt.Sprintf("%s-%s", s.Name, v)
+	return fmt.Sprintf("%s-%s", s.Name, strings.ToLower(v))
 }
 
 //+kubebuilder:object:root=true

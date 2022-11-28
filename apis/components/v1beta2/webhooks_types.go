@@ -14,20 +14,22 @@ limitations under the License.
 package v1beta2
 
 import (
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // WebhooksSpec defines the desired state of Webhooks
 type WebhooksSpec struct {
-	DevProperties `json:",inline"`
-	ImageHolder   `json:",inline"`
-	Collector     *CollectorConfig `json:"collector"`
-	MongoDB       MongoDBConfig    `json:"mongoDB"`
+	CommonServiceProperties `json:",inline"`
+
+	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
+	MongoDB   apisv1beta1.MongoDBConfig          `json:"mongoDB"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
-	Monitoring *MonitoringSpec `json:"monitoring"`
+	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring"`
 }
 
 //+kubebuilder:object:root=true
@@ -39,24 +41,20 @@ type Webhooks struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   WebhooksSpec `json:"spec,omitempty"`
-	Status Status       `json:"status,omitempty"`
+	Spec   WebhooksSpec       `json:"spec,omitempty"`
+	Status apisv1beta1.Status `json:"status,omitempty"`
 }
 
-func (in *Webhooks) GetStatus() Dirty {
+func (in *Webhooks) GetStatus() apisv1beta1.Dirty {
 	return &in.Status
 }
 
-func (in *Webhooks) GetConditions() *Conditions {
+func (in *Webhooks) GetConditions() *apisv1beta1.Conditions {
 	return &in.Status.Conditions
 }
 
-func (in *Webhooks) IsDirty(t Object) bool {
+func (in *Webhooks) IsDirty(t apisv1beta1.Object) bool {
 	return false
-}
-
-func (in *Webhooks) GetImage() string {
-	return in.Spec.GetImage("webhooks")
 }
 
 //+kubebuilder:object:root=true

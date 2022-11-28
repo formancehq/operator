@@ -24,7 +24,7 @@ import (
 
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -65,7 +65,7 @@ type LedgerMutator struct {
 
 func (r *LedgerMutator) Mutate(ctx context.Context, ledger *componentsv1beta2.Ledger) (*ctrl.Result, error) {
 
-	apisv1beta2.SetProgressing(ledger)
+	apisv1beta1.SetProgressing(ledger)
 
 	deployment, err := r.reconcileDeployment(ctx, ledger)
 	if err != nil {
@@ -96,14 +96,14 @@ func (r *LedgerMutator) Mutate(ctx context.Context, ledger *componentsv1beta2.Le
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta2.RemoveIngressCondition(ledger)
+		apisv1beta1.RemoveIngressCondition(ledger)
 	}
 
 	if _, err := r.reconcileHPA(ctx, ledger); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling HPA")
 	}
 
-	apisv1beta2.SetReady(ledger)
+	apisv1beta1.SetReady(ledger)
 
 	return nil, nil
 }
@@ -112,16 +112,13 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 	matchLabels := CreateMap("app.kubernetes.io/name", "ledger")
 
 	env := []corev1.EnvVar{
-		apisv1beta2.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
-		apisv1beta2.Env("NUMARY_STORAGE_DRIVER", "postgres"),
+		apisv1beta1.Env("NUMARY_SERVER_HTTP_BIND_ADDRESS", "0.0.0.0:8080"),
+		apisv1beta1.Env("NUMARY_STORAGE_DRIVER", "postgres"),
 	}
 	env = append(env, ledger.Spec.Postgres.Env("NUMARY_")...)
 	env = append(env, ledger.Spec.LockingStrategy.Env("NUMARY_")...)
-	env = append(env, apisv1beta2.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_DATABASE_URI)"))
+	env = append(env, apisv1beta1.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_DATABASE_URI)"))
 	env = append(env, ledger.Spec.DevProperties.EnvWithPrefix("NUMARY_")...)
-	if ledger.Spec.Auth != nil {
-		env = append(env, ledger.Spec.Auth.Env("NUMARY_")...)
-	}
 	if ledger.Spec.Monitoring != nil {
 		env = append(env, ledger.Spec.Monitoring.Env("NUMARY_")...)
 	}
@@ -140,11 +137,10 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: ledger.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "ledger",
-						Image:           ledger.GetImage(),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(ledger),
+						Image:           controllerutils.GetImage("ledger", ledger.Spec.Version),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(ledger.Spec),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "ledger",
@@ -194,11 +190,11 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetDeploymentError(ledger, err.Error())
+		apisv1beta1.SetDeploymentError(ledger, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetDeploymentReady(ledger)
+		apisv1beta1.SetDeploymentReady(ledger)
 	}
 
 	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
@@ -219,11 +215,11 @@ func (r *LedgerMutator) reconcileHPA(ctx context.Context, ledger *componentsv1be
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetHPAError(ledger, err.Error())
+		apisv1beta1.SetHPAError(ledger, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetHPAReady(ledger)
+		apisv1beta1.SetHPAReady(ledger)
 	}
 	return ret, err
 }
@@ -244,11 +240,11 @@ func (r *LedgerMutator) reconcileService(ctx context.Context, ledger *components
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(ledger, err.Error())
+		apisv1beta1.SetServiceError(ledger, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(ledger)
+		apisv1beta1.SetServiceReady(ledger)
 	}
 	return ret, err
 }
@@ -293,11 +289,11 @@ func (r *LedgerMutator) reconcileIngress(ctx context.Context, ledger *components
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetIngressError(ledger, err.Error())
+		apisv1beta1.SetIngressError(ledger, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetIngressReady(ledger)
+		apisv1beta1.SetIngressReady(ledger)
 	}
 	return ret, nil
 }
@@ -333,11 +329,11 @@ func (r *LedgerMutator) reconcileSearchIngester(ctx context.Context, ledger *com
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetCondition(ledger, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
+		apisv1beta1.SetCondition(ledger, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
 		return err
 	case ret == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetCondition(ledger, "IngestionStreamReady", metav1.ConditionTrue)
+		apisv1beta1.SetCondition(ledger, "IngestionStreamReady", metav1.ConditionTrue)
 	}
 	return nil
 }

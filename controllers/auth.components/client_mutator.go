@@ -7,7 +7,7 @@ import (
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
 	"github.com/numary/operator/controllers/components"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -37,7 +37,7 @@ func (c ClientsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder
 func (r ClientsMutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1beta2.Client) (*ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	apisv1beta2.SetProgressing(actualK8SClient)
+	apisv1beta1.SetProgressing(actualK8SClient)
 
 	api := r.factory.Create(actualK8SClient)
 
@@ -172,7 +172,7 @@ func (r ClientsMutator) Mutate(ctx context.Context, actualK8SClient *authcompone
 	}
 
 	if !needRequeue {
-		apisv1beta2.SetReady(actualK8SClient)
+		apisv1beta1.SetReady(actualK8SClient)
 		return nil, nil
 	}
 

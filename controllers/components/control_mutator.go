@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -38,7 +38,7 @@ func (m *ControlMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builde
 }
 
 func (m *ControlMutator) Mutate(ctx context.Context, control *componentsv1beta2.Control) (*ctrl.Result, error) {
-	apisv1beta2.SetProgressing(control)
+	apisv1beta1.SetProgressing(control)
 
 	deployment, err := m.reconcileDeployment(ctx, control)
 	if err != nil {
@@ -65,14 +65,14 @@ func (m *ControlMutator) Mutate(ctx context.Context, control *componentsv1beta2.
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta2.RemoveIngressCondition(control)
+		apisv1beta1.RemoveIngressCondition(control)
 	}
 
 	if _, err := m.reconcileHPA(ctx, control); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling HPA")
 	}
 
-	apisv1beta2.SetReady(control)
+	apisv1beta1.SetReady(control)
 
 	return nil, nil
 }
@@ -81,13 +81,13 @@ func (m *ControlMutator) reconcileDeployment(ctx context.Context, control *compo
 	matchLabels := CreateMap("app.kubernetes.io/name", "control")
 
 	env := []corev1.EnvVar{
-		apisv1beta2.Env("API_URL_BACK", control.Spec.ApiURLBack),
-		apisv1beta2.Env("API_URL_FRONT", control.Spec.ApiURLFront),
-		apisv1beta2.Env("API_URL", control.Spec.ApiURLFront),
+		apisv1beta1.Env("API_URL_BACK", control.Spec.ApiURLBack),
+		apisv1beta1.Env("API_URL_FRONT", control.Spec.ApiURLFront),
+		apisv1beta1.Env("API_URL", control.Spec.ApiURLFront),
 	}
 
 	if control.Spec.Dev {
-		env = append(env, apisv1beta2.Env("UNSECURE_COOKIES", "true"))
+		env = append(env, apisv1beta1.Env("UNSECURE_COOKIES", "true"))
 	}
 
 	if control.Spec.Monitoring != nil {
@@ -97,12 +97,12 @@ func (m *ControlMutator) reconcileDeployment(ctx context.Context, control *compo
 	// TODO: Generate value
 	if control.Spec.AuthClientConfiguration != nil {
 		env = append(env,
-			apisv1beta2.Env("ENCRYPTION_KEY", "9h44y2ZqrDuUy5R9NGLA9hca7uRUr932"),
-			apisv1beta2.Env("ENCRYPTION_IV", "b6747T6eP9DnMvEw"),
-			apisv1beta2.Env("CLIENT_ID", control.Spec.AuthClientConfiguration.ClientID),
-			apisv1beta2.Env("CLIENT_SECRET", control.Spec.AuthClientConfiguration.ClientSecret),
+			apisv1beta1.Env("ENCRYPTION_KEY", "9h44y2ZqrDuUy5R9NGLA9hca7uRUr932"),
+			apisv1beta1.Env("ENCRYPTION_IV", "b6747T6eP9DnMvEw"),
+			apisv1beta1.Env("CLIENT_ID", control.Spec.AuthClientConfiguration.ClientID),
+			apisv1beta1.Env("CLIENT_SECRET", control.Spec.AuthClientConfiguration.ClientSecret),
 			// TODO: Clean that mess
-			apisv1beta2.Env("REDIRECT_URI", strings.TrimSuffix(control.Spec.ApiURLFront, "/api")),
+			apisv1beta1.Env("REDIRECT_URI", strings.TrimSuffix(control.Spec.ApiURLFront, "/api")),
 		)
 	}
 
@@ -117,11 +117,10 @@ func (m *ControlMutator) reconcileDeployment(ctx context.Context, control *compo
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: control.Spec.ImagePullSecrets,
 					Containers: []corev1.Container{{
 						Name:            "control",
-						Image:           control.GetImage(),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(control),
+						Image:           controllerutils.GetImage("control", control.Spec.Version),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(control.Spec),
 						Env:             env,
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
@@ -141,11 +140,11 @@ func (m *ControlMutator) reconcileDeployment(ctx context.Context, control *compo
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetDeploymentError(control, err.Error())
+		apisv1beta1.SetDeploymentError(control, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetDeploymentReady(control)
+		apisv1beta1.SetDeploymentReady(control)
 	}
 
 	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
@@ -175,11 +174,11 @@ func (m *ControlMutator) reconcileService(ctx context.Context, auth *componentsv
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(auth, err.Error())
+		apisv1beta1.SetServiceError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(auth)
+		apisv1beta1.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -191,11 +190,11 @@ func (m *ControlMutator) reconcileHPA(ctx context.Context, ctrl *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetHPAError(ctrl, err.Error())
+		apisv1beta1.SetHPAError(ctrl, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetHPAReady(ctrl)
+		apisv1beta1.SetHPAReady(ctrl)
 	}
 	return ret, err
 }
@@ -234,11 +233,11 @@ func (m *ControlMutator) reconcileIngress(ctx context.Context, control *componen
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetIngressError(control, err.Error())
+		apisv1beta1.SetIngressError(control, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetIngressReady(control)
+		apisv1beta1.SetIngressReady(control)
 	}
 	return ret, nil
 }

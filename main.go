@@ -42,7 +42,6 @@ import (
 
 	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
 	"github.com/numary/operator/controllers/stack"
-	stackcontrollers "github.com/numary/operator/controllers/stack"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -177,15 +176,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&stackcontrollers.VersionsReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Versions")
-		os.Exit(1)
-	}
 	if err = (&stackv1beta2.Stack{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Stack")
+		os.Exit(1)
+	}
+	if err = (&stackv1beta2.Configuration{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Configuration")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

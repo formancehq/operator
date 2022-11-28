@@ -1,14 +1,14 @@
 package testing
 
 import (
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/typeutils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ConditionStatus(object apisv1beta2.Object, conditionType string) func() v1.ConditionStatus {
+func ConditionStatus(object apisv1beta1.Object, conditionType string) func() v1.ConditionStatus {
 	return func() v1.ConditionStatus {
 		c := GetCondition(object, conditionType)()
 		if c == nil {
@@ -18,13 +18,13 @@ func ConditionStatus(object apisv1beta2.Object, conditionType string) func() v1.
 	}
 }
 
-func GetCondition(object apisv1beta2.Object, conditionType string) func() *apisv1beta2.Condition {
-	return func() *apisv1beta2.Condition {
+func GetCondition(object apisv1beta1.Object, conditionType string) func() *apisv1beta1.Condition {
+	return func() *apisv1beta1.Condition {
 		err := k8sClient.Get(ctx, client.ObjectKeyFromObject(object), object)
 		if err != nil {
 			return nil
 		}
-		return typeutils.First(*object.GetConditions(), func(t apisv1beta2.Condition) bool {
+		return typeutils.First(*object.GetConditions(), func(t apisv1beta1.Condition) bool {
 			return t.Type == conditionType
 		})
 	}

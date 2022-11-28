@@ -77,7 +77,6 @@ spec:
         username: root
         password: very-secured-password
     search:
-      image: ghcr.io/formancehq/search:f2f51323e23b7e191716b836f89db66f301a5af5
       elasticSearch:
         host: elasticsearch-master.default.svc.cluster.local
         port: 9200
@@ -85,8 +84,6 @@ spec:
         basicAuth:
           username: admin
           password: admin
-    control:
-      image: ghcr.io/formancehq/control:59e871d64514ec01c84ea18b34cf0788d17d7f63
     webhooks:
       mongoDB:
         host: mongodb-svc.default.svc.cluster.local
@@ -98,14 +95,15 @@ apiVersion: stack.formance.com/v1beta2
 kind: Versions
 metadata:
   name: default
-spec: {}
+spec:
+  control: 59e871d64514ec01c84ea18b34cf0788d17d7f63
+  search: f2f51323e23b7e191716b836f89db66f301a5af5
 ---
 apiVersion: stack.formance.com/v1beta2
 kind: Stack
 metadata:
   name: stack1
 spec:
-  namespace: stack1
   debug: true
   dev: true
   scheme: http

@@ -27,7 +27,7 @@ import (
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -65,7 +65,7 @@ type Mutator struct {
 
 func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta2.Auth) (*ctrl.Result, error) {
 
-	apisv1beta2.SetProgressing(auth)
+	apisv1beta1.SetProgressing(auth)
 
 	config, err := r.reconcileConfigFile(ctx, auth)
 	if err != nil {
@@ -97,14 +97,14 @@ func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta2.Auth) (*ct
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta2.RemoveIngressCondition(auth)
+		apisv1beta1.RemoveIngressCondition(auth)
 	}
 
 	if _, err := r.reconcileHPA(ctx, auth); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling HPA")
 	}
 
-	apisv1beta2.SetReady(auth)
+	apisv1beta1.SetReady(auth)
 
 	return nil, nil
 }
@@ -119,13 +119,13 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	}
 
 	env := make([]corev1.EnvVar, 0)
-	env = append(env, apisv1beta2.Env("CONFIG", "/config/config.yaml"))
+	env = append(env, apisv1beta1.Env("CONFIG", "/config/config.yaml"))
 	env = append(env, auth.Spec.Postgres.Env("PG_")...)
 	env = append(env, auth.Spec.DelegatedOIDCServer.Env()...)
 	env = append(env,
-		apisv1beta2.Env("POSTGRES_URI", "$(PG_POSTGRES_DATABASE_URI)"),
-		apisv1beta2.Env("BASE_URL", auth.Spec.BaseURL),
-		apisv1beta2.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
+		apisv1beta1.Env("POSTGRES_URI", "$(PG_POSTGRES_DATABASE_URI)"),
+		apisv1beta1.Env("BASE_URL", auth.Spec.BaseURL),
+		apisv1beta1.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secret.Name,
@@ -138,7 +138,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	if auth.Spec.Dev {
 		env = append(env,
 			// TODO: Make auth server respect "DEV" env variable
-			apisv1beta2.Env("CAOS_OIDC_DEV", "1"),
+			apisv1beta1.Env("CAOS_OIDC_DEV", "1"),
 		)
 	}
 	if auth.Spec.Monitoring != nil {
@@ -156,7 +156,6 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 					Labels: matchLabels,
 				},
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: auth.Spec.ImagePullSecrets,
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{
@@ -169,12 +168,12 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 					}},
 					Containers: []corev1.Container{{
 						Name:            "auth",
-						Image:           auth.GetImage(),
+						Image:           controllerutils.GetImage("auth", auth.Spec.Version),
 						Command:         []string{"/main", "serve"},
 						Ports:           controllerutils.SinglePort("http", port),
 						Env:             env,
 						LivenessProbe:   controllerutils.DefaultLiveness(),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(auth),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(auth.Spec),
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
@@ -207,10 +206,10 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetDeploymentError(auth, err.Error())
+		apisv1beta1.SetDeploymentError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetDeploymentReady(auth)
+		apisv1beta1.SetDeploymentReady(auth)
 	}
 
 	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
@@ -240,10 +239,10 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta2.
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(auth, err.Error())
+		apisv1beta1.SetServiceError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(auth)
+		apisv1beta1.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -265,10 +264,10 @@ func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetConfigMapError(auth, err.Error())
+		apisv1beta1.SetConfigMapError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetConfigMapReady(auth)
+		apisv1beta1.SetConfigMapReady(auth)
 	}
 	return ret, err
 }
@@ -348,10 +347,10 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta2.
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetIngressError(auth, err.Error())
+		apisv1beta1.SetIngressError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetIngressReady(auth)
+		apisv1beta1.SetIngressReady(auth)
 	}
 	return ret, nil
 }
@@ -363,11 +362,11 @@ func (r *Mutator) reconcileHPA(ctx context.Context, auth *componentsv1beta2.Auth
 	})
 	switch {
 	case err != nil:
-		apisv1beta2.SetHPAError(auth, err.Error())
+		apisv1beta1.SetHPAError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetHPAReady(auth)
+		apisv1beta1.SetHPAReady(auth)
 	}
 	return ret, err
 }

@@ -19,13 +19,14 @@ package v1beta2
 import (
 	"encoding/json"
 
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // SearchIngesterSpec defines the desired state of SearchIngester
 type SearchIngesterSpec struct {
-	DevProperties `json:",inline"`
+	CommonServiceProperties `json:",inline"`
 
 	Reference string `json:"reference"`
 	//+kubebuilder:pruning:PreserveUnknownFields
@@ -44,18 +45,18 @@ type SearchIngester struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   SearchIngesterSpec `json:"spec,omitempty"`
-	Status Status             `json:"status,omitempty"`
+	Status apisv1beta1.Status `json:"status,omitempty"`
 }
 
-func (in *SearchIngester) GetStatus() Dirty {
+func (in *SearchIngester) GetStatus() apisv1beta1.Dirty {
 	return &in.Status
 }
 
-func (in *SearchIngester) IsDirty(t Object) bool {
+func (in *SearchIngester) IsDirty(t apisv1beta1.Object) bool {
 	return false
 }
 
-func (in *SearchIngester) GetConditions() *Conditions {
+func (in *SearchIngester) GetConditions() *apisv1beta1.Conditions {
 	return &in.Status.Conditions
 }
 

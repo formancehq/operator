@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
+	"github.com/numary/operator/apis/components/v1beta1"
 	"github.com/numary/operator/apis/stack/v1beta2"
 	. "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/typeutils"
@@ -118,9 +119,21 @@ func (src *Stack) ConvertTo(dstRaw conversion.Hub) error {
 	typeutils.MapObject(src, &dst)
 	dst.Spec.Versions = v1beta2.DefaultVersions
 	dst.APIVersion = v1beta2.GroupVersion.Identifier()
+	var (
+		delegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration
+		staticClients       []authcomponentsv1beta1.StaticClient
+	)
+	if src.Spec.Auth != nil {
+		if src.Spec.Auth.StaticClients != nil {
+			staticClients = src.Spec.Auth.StaticClients
+		}
+		if src.Spec.Auth.DelegatedOIDCServer != nil {
+			delegatedOIDCServer = *src.Spec.Auth.DelegatedOIDCServer
+		}
+	}
 	dst.Spec.Auth = v1beta2.StackAuthSpec{
-		DelegatedOIDCServer: *src.Spec.Auth.DelegatedOIDCServer,
-		StaticClients:       src.Spec.Auth.StaticClients,
+		DelegatedOIDCServer: delegatedOIDCServer,
+		StaticClients:       staticClients,
 	}
 
 	return nil

@@ -1304,33 +1304,6 @@ spec:
           spec:
             description: LedgerSpec defines the desired state of Ledger
             properties:
-              auth:
-                properties:
-                  basic:
-                    properties:
-                      credentials:
-                        additionalProperties:
-                          type: string
-                        type: object
-                      enabled:
-                        type: boolean
-                    type: object
-                  oauth2:
-                    properties:
-                      ProtectedByScopes:
-                        type: boolean
-                      audienceWildcard:
-                        type: boolean
-                      audiences:
-                        items:
-                          type: string
-                        type: array
-                      introspectUrl:
-                        type: string
-                    required:
-                    - introspectUrl
-                    type: object
-                type: object
               collector:
                 properties:
                   brokers:
@@ -1480,24 +1453,6 @@ spec:
                 type: boolean
               dev:
                 type: boolean
-              image:
-                type: string
-              imagePullSecrets:
-                description: 'ImagePullSecrets is an optional list of references to
-                  secrets in the same namespace to use for pulling any of the images
-                  used by this PodSpec. If specified, these secrets will be passed
-                  to individual puller implementations for them to use. More info:
-                  https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod'
-                items:
-                  description: LocalObjectReference contains enough information to
-                    let you locate the referenced object inside the same namespace.
-                  properties:
-                    name:
-                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?'
-                      type: string
-                  type: object
-                type: array
               ingress:
                 properties:
                   annotations:
@@ -1527,10 +1482,6 @@ spec:
                 properties:
                   redis:
                     properties:
-                      debug:
-                        type: boolean
-                      dev:
-                        type: boolean
                       duration:
                         description: A Duration represents the elapsed time between
                           two instants as an int64 nanosecond count. The representation
@@ -2491,6 +2442,9 @@ spec:
                 default: 1
                 format: int32
                 type: integer
+              version:
+                default: latest
+                type: string
             required:
             - locking
             type: object

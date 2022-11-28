@@ -7,7 +7,9 @@ import (
 	"strconv"
 
 	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/testing"
@@ -46,7 +48,7 @@ var _ = Describe("Search controller", func() {
 							Name: "search",
 						},
 						Spec: componentsv1beta2.SearchSpec{
-							ElasticSearch: componentsv1beta2.ElasticSearchConfig{
+							ElasticSearch: componentsv1beta1.ElasticSearchConfig{
 								Host:   addr.Hostname(),
 								Scheme: addr.Scheme,
 								Port: func() uint16 {
@@ -57,19 +59,15 @@ var _ = Describe("Search controller", func() {
 									return uint16(port)
 								}(),
 							},
-							KafkaConfig: apisv1beta2.KafkaConfig{
-								Brokers: []string{""},
-								TLS:     false,
-								SASL:    nil,
-							},
-							Index: "documents",
+							KafkaConfig: NewDumpKafkaConfig(),
+							Index:       "documents",
 						},
 					}
 					Expect(Create(search)).To(BeNil())
-					Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      search.Name,
@@ -81,7 +79,7 @@ var _ = Describe("Search controller", func() {
 					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(search)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      search.Name,
@@ -93,7 +91,7 @@ var _ = Describe("Search controller", func() {
 					Expect(service.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(search)))
 				})
 				It("Should create a benthos server", func() {
-					Eventually(ConditionStatus(search, componentsv1beta2.ConditionTypeBenthosReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, componentsv1beta1.ConditionTypeBenthosReady)).Should(Equal(metav1.ConditionTrue))
 					benthosServer := &benthosv1beta2.Server{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      search.Name + "-benthos",
@@ -143,7 +141,7 @@ var _ = Describe("Search controller", func() {
 						Expect(Update(search)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      search.Name,
@@ -156,11 +154,11 @@ var _ = Describe("Search controller", func() {
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
 							search.Spec.Ingress = nil
 							Expect(Update(search)).To(BeNil())
-							Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {

@@ -7,3 +7,6 @@ namespace: default
 repo: https://charts.bitnami.com/bitnami
 chart: redis
 timeout: 3600
+values:
+  replica:
+    replicaCount: 1

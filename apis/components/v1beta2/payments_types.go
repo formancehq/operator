@@ -17,24 +17,24 @@ limitations under the License.
 package v1beta2
 
 import (
+	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // PaymentsSpec defines the desired state of Payments
 type PaymentsSpec struct {
-	DevProperties `json:",inline"`
-	ImageHolder   `json:",inline"`
+	CommonServiceProperties `json:",inline"`
+
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
-	Auth *AuthConfigSpec `json:"auth"`
+	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring"`
 	// +optional
-	Monitoring *MonitoringSpec `json:"monitoring"`
-	// +optional
-	Collector *CollectorConfig `json:"collector"`
+	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
 
-	MongoDB MongoDBConfig `json:"mongoDB"`
+	MongoDB apisv1beta1.MongoDBConfig `json:"mongoDB"`
 }
 
 //+kubebuilder:object:root=true
@@ -46,24 +46,20 @@ type Payments struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PaymentsSpec `json:"spec,omitempty"`
-	Status Status       `json:"status,omitempty"`
+	Spec   PaymentsSpec       `json:"spec,omitempty"`
+	Status apisv1beta1.Status `json:"status,omitempty"`
 }
 
-func (in *Payments) GetStatus() Dirty {
+func (in *Payments) GetStatus() apisv1beta1.Dirty {
 	return &in.Status
 }
 
-func (in *Payments) GetConditions() *Conditions {
+func (in *Payments) GetConditions() *apisv1beta1.Conditions {
 	return &in.Status.Conditions
 }
 
-func (in *Payments) IsDirty(t Object) bool {
+func (in *Payments) IsDirty(t apisv1beta1.Object) bool {
 	return false
-}
-
-func (in *Payments) GetImage() string {
-	return in.Spec.GetImage("payments")
 }
 
 //+kubebuilder:object:root=true
