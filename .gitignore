@@ -86,4 +86,5 @@ vendor
 
 garden/local-registries.yaml
 .garden.env.yaml
+garden.env
 .garden

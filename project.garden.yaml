@@ -10,7 +10,6 @@ environments:
     providers:
     - name: kubernetes
       setupIngressController: false
-    varfile: .garden.env.yaml
 
 providers:
   - name: kubernetes
