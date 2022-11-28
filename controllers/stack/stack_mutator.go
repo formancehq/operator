@@ -216,7 +216,7 @@ func (r *Mutator) reconcileMiddleware(ctx context.Context, stack *stackv1beta2.S
 
 	m := make(map[string]apiextensionv1.JSON)
 	m["auth"] = apiextensionv1.JSON{
-		Raw: []byte(fmt.Sprintf(`{"Issuer": "%s", "RefreshTime": "%s"}`, stack.Spec.Scheme+"://"+stack.Spec.Host+"/api/auth", "10s")),
+		Raw: []byte(fmt.Sprintf(`{"Issuer": "%s", "RefreshTime": "%s", "ExcludePaths": ["/_health", "/_healthcheck"]}`, stack.Spec.Scheme+"://"+stack.Spec.Host+"/api/auth", "10s")),
 	}
 	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Name,
