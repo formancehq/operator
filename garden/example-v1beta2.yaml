@@ -36,7 +36,6 @@ metadata:
 spec:
   # Define global ingress configuration
   ingress:
-    enabled: true
     annotations:
       traefik.ingress.kubernetes.io/router.middlewares: default-stripprefix@kubernetescrd, default-cors-all@kubernetescrd
   monitoring:
