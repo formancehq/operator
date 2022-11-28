@@ -23,8 +23,9 @@ package v1beta1
 
 import (
 	"encoding/json"
-	authv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
-	"github.com/numary/operator/apis/sharedtypes"
+
+	auth_componentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
+	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -110,18 +111,18 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
-		*out = new(sharedtypes.IngressSpec)
+		*out = new(apisv1beta1.IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	in.DelegatedOIDCServer.DeepCopyInto(&out.DelegatedOIDCServer)
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(sharedtypes.MonitoringSpec)
+		*out = new(apisv1beta1.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.StaticClients != nil {
 		in, out := &in.StaticClients, &out.StaticClients
-		*out = make([]authv1beta1.StaticClient, len(*in))
+		*out = make([]auth_componentsv1beta1.StaticClient, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -235,12 +236,12 @@ func (in *ControlSpec) DeepCopyInto(out *ControlSpec) {
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
-		*out = new(sharedtypes.IngressSpec)
+		*out = new(apisv1beta1.IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(sharedtypes.MonitoringSpec)
+		*out = new(apisv1beta1.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.AuthClientConfiguration != nil {
@@ -265,17 +266,17 @@ func (in *DelegatedOIDCServerConfiguration) DeepCopyInto(out *DelegatedOIDCServe
 	*out = *in
 	if in.IssuerFrom != nil {
 		in, out := &in.IssuerFrom, &out.IssuerFrom
-		*out = new(sharedtypes.ConfigSource)
+		*out = new(apisv1beta1.ConfigSource)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.ClientIDFrom != nil {
 		in, out := &in.ClientIDFrom, &out.ClientIDFrom
-		*out = new(sharedtypes.ConfigSource)
+		*out = new(apisv1beta1.ConfigSource)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.ClientSecretFrom != nil {
 		in, out := &in.ClientSecretFrom, &out.ClientSecretFrom
-		*out = new(sharedtypes.ConfigSource)
+		*out = new(apisv1beta1.ConfigSource)
 		(*in).DeepCopyInto(*out)
 	}
 }
@@ -310,12 +311,12 @@ func (in *ElasticSearchConfig) DeepCopyInto(out *ElasticSearchConfig) {
 	*out = *in
 	if in.HostFrom != nil {
 		in, out := &in.HostFrom, &out.HostFrom
-		*out = new(sharedtypes.ConfigSource)
+		*out = new(apisv1beta1.ConfigSource)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.PortFrom != nil {
 		in, out := &in.PortFrom, &out.PortFrom
-		*out = new(sharedtypes.ConfigSource)
+		*out = new(apisv1beta1.ConfigSource)
 		(*in).DeepCopyInto(*out)
 	}
 	out.TLS = in.TLS
@@ -417,18 +418,18 @@ func (in *LedgerSpec) DeepCopyInto(out *LedgerSpec) {
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
-		*out = new(sharedtypes.IngressSpec)
+		*out = new(apisv1beta1.IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Auth != nil {
 		in, out := &in.Auth, &out.Auth
-		*out = new(sharedtypes.AuthConfigSpec)
+		*out = new(apisv1beta1.AuthConfigSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(sharedtypes.MonitoringSpec)
+		*out = new(apisv1beta1.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Collector != nil {
@@ -474,7 +475,7 @@ func (in *LockingStrategyRedisConfig) DeepCopyInto(out *LockingStrategyRedisConf
 	*out = *in
 	if in.UriFrom != nil {
 		in, out := &in.UriFrom, &out.UriFrom
-		*out = new(sharedtypes.ConfigSource)
+		*out = new(apisv1beta1.ConfigSource)
 		(*in).DeepCopyInto(*out)
 	}
 }
@@ -554,17 +555,17 @@ func (in *PaymentsSpec) DeepCopyInto(out *PaymentsSpec) {
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
-		*out = new(sharedtypes.IngressSpec)
+		*out = new(apisv1beta1.IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Auth != nil {
 		in, out := &in.Auth, &out.Auth
-		*out = new(sharedtypes.AuthConfigSpec)
+		*out = new(apisv1beta1.AuthConfigSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(sharedtypes.MonitoringSpec)
+		*out = new(apisv1beta1.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Collector != nil {
@@ -746,17 +747,17 @@ func (in *SearchSpec) DeepCopyInto(out *SearchSpec) {
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
-		*out = new(sharedtypes.IngressSpec)
+		*out = new(apisv1beta1.IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Auth != nil {
 		in, out := &in.Auth, &out.Auth
-		*out = new(sharedtypes.AuthConfigSpec)
+		*out = new(apisv1beta1.AuthConfigSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(sharedtypes.MonitoringSpec)
+		*out = new(apisv1beta1.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	in.ElasticSearch.DeepCopyInto(&out.ElasticSearch)
@@ -839,17 +840,17 @@ func (in *WebhooksSpec) DeepCopyInto(out *WebhooksSpec) {
 	in.ImageHolder.DeepCopyInto(&out.ImageHolder)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
-		*out = new(sharedtypes.IngressSpec)
+		*out = new(apisv1beta1.IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Auth != nil {
 		in, out := &in.Auth, &out.Auth
-		*out = new(sharedtypes.AuthConfigSpec)
+		*out = new(apisv1beta1.AuthConfigSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(sharedtypes.MonitoringSpec)
+		*out = new(apisv1beta1.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Collector != nil {

@@ -20,9 +20,13 @@ import (
 	"fmt"
 	"reflect"
 
-	authcomponentsv1beta1 "github.com/numary/operator/apis/components/auth/v1beta1"
-	. "github.com/numary/operator/apis/sharedtypes"
+	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
+	"github.com/numary/operator/apis/components/v1beta1"
+	"github.com/numary/operator/apis/stack/v1beta2"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
+	"github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 type IngressGlobalConfig struct {
@@ -108,6 +112,42 @@ type Stack struct {
 
 	Spec   StackSpec   `json:"spec,omitempty"`
 	Status StackStatus `json:"status,omitempty"`
+}
+
+func (src *Stack) ConvertTo(dstRaw conversion.Hub) error {
+	dst := dstRaw.(*v1beta2.Stack)
+	typeutils.MapObject(src, &dst)
+	dst.Spec.Versions = v1beta2.DefaultVersions
+	dst.APIVersion = v1beta2.GroupVersion.Identifier()
+	var (
+		delegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration
+		staticClients       []authcomponentsv1beta1.StaticClient
+	)
+	if src.Spec.Auth != nil {
+		if src.Spec.Auth.StaticClients != nil {
+			staticClients = src.Spec.Auth.StaticClients
+		}
+		if src.Spec.Auth.DelegatedOIDCServer != nil {
+			delegatedOIDCServer = *src.Spec.Auth.DelegatedOIDCServer
+		}
+	}
+	dst.Spec.Auth = v1beta2.StackAuthSpec{
+		DelegatedOIDCServer: delegatedOIDCServer,
+		StaticClients:       staticClients,
+	}
+
+	return nil
+}
+
+func (dst *Stack) ConvertFrom(srcRaw conversion.Hub) error {
+	typeutils.MapObject(srcRaw, &dst)
+	dst.APIVersion = GroupVersion.Identifier()
+	dst.Spec.Auth = &AuthSpec{
+		DelegatedOIDCServer: &srcRaw.(*v1beta2.Stack).Spec.Auth.DelegatedOIDCServer,
+		StaticClients:       srcRaw.(*v1beta2.Stack).Spec.Auth.StaticClients,
+	}
+
+	return nil
 }
 
 func (s *Stack) GetScheme() string {

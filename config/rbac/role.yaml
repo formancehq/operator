@@ -434,6 +434,14 @@ rules:
   - patch
   - update
 - apiGroups:
+  - stack.formance.com
+  resources:
+  - versions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - traefik.containo.us
   resources:
   - middlewares

@@ -18,10 +18,13 @@ package v1beta1
 
 import (
 	"github.com/imdario/mergo"
-	. "github.com/numary/operator/apis/sharedtypes"
-	. "github.com/numary/operator/internal/collectionutil"
+	"github.com/numary/operator/apis/stack/v1beta2"
+	. "github.com/numary/operator/pkg/apis/v1beta1"
+	"github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
 type ConfigurationSpec struct {
@@ -46,14 +49,14 @@ func (in *ConfigurationSpec) MergeWith(spec *ConfigurationSpec) *ConfigurationSp
 }
 
 func (in *ConfigurationSpec) Validate() field.ErrorList {
-	return MergeAll(
-		Map(in.Services.Ledger.Validate(), AddPrefixToFieldError("services.ledger")),
-		Map(in.Services.Payments.Validate(), AddPrefixToFieldError("services.payments")),
-		Map(in.Services.Search.Validate(), AddPrefixToFieldError("services.search")),
-		Map(in.Services.Webhooks.Validate(), AddPrefixToFieldError("services.webhooks")),
-		Map(in.Auth.Validate(), AddPrefixToFieldError("auth")),
-		Map(in.Monitoring.Validate(), AddPrefixToFieldError("monitoring")),
-		Map(in.Kafka.Validate(), AddPrefixToFieldError("kafka")),
+	return typeutils.MergeAll(
+		typeutils.Map(in.Services.Ledger.Validate(), AddPrefixToFieldError("services.ledger")),
+		typeutils.Map(in.Services.Payments.Validate(), AddPrefixToFieldError("services.payments")),
+		typeutils.Map(in.Services.Search.Validate(), AddPrefixToFieldError("services.search")),
+		typeutils.Map(in.Services.Webhooks.Validate(), AddPrefixToFieldError("services.webhooks")),
+		typeutils.Map(in.Auth.Validate(), AddPrefixToFieldError("auth")),
+		typeutils.Map(in.Monitoring.Validate(), AddPrefixToFieldError("monitoring")),
+		typeutils.Map(in.Kafka.Validate(), AddPrefixToFieldError("kafka")),
 	)
 }
 
@@ -68,6 +71,52 @@ type Configuration struct {
 
 	Spec   ConfigurationSpec `json:"spec,omitempty"`
 	Status Status            `json:"status,omitempty"`
+}
+
+func (src *Configuration) ConvertTo(dstRaw conversion.Hub) error {
+	dst := dstRaw.(*v1beta2.Configuration)
+	typeutils.MapObject(src, &dst)
+	dst.APIVersion = v1beta2.GroupVersion.Identifier()
+	dst.Spec.Services.Auth = v1beta2.AuthSpec{
+		Postgres: src.Spec.Auth.Postgres,
+		Ingress: func() *v1beta2.IngressConfig {
+			if src.Spec.Auth.Ingress == nil {
+				return nil
+			}
+			return &v1beta2.IngressConfig{
+				Annotations: func() map[string]string {
+					if src.Spec.Auth == nil || src.Spec.Auth.Ingress == nil {
+						return map[string]string{}
+					}
+					return src.Spec.Auth.Ingress.Annotations
+				}(),
+			}
+		}(),
+		StaticClients: src.Spec.Auth.StaticClients,
+	}
+
+	return nil
+}
+
+func (dst *Configuration) ConvertFrom(srcRaw conversion.Hub) error {
+	typeutils.MapObject(srcRaw, &dst)
+	src := srcRaw.(*v1beta2.Configuration)
+	dst.APIVersion = GroupVersion.Identifier()
+	dst.Spec.Auth = &AuthSpec{
+		Postgres: src.Spec.Services.Auth.Postgres,
+		Ingress: &IngressConfig{
+			Enabled: pointer.Bool(true),
+			Annotations: func() map[string]string {
+				if src.Spec.Services.Auth.Ingress == nil {
+					return map[string]string{}
+				}
+				return src.Spec.Services.Auth.Ingress.Annotations
+			}(),
+		},
+		StaticClients: src.Spec.Services.Auth.StaticClients,
+	}
+
+	return nil
 }
 
 //+kubebuilder:object:root=true

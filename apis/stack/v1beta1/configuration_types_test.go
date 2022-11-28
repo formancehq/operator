@@ -3,7 +3,7 @@ package v1beta1
 import (
 	"testing"
 
-	"github.com/numary/operator/apis/sharedtypes"
+	"github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 )
@@ -27,27 +27,27 @@ func TestConfigurationOverride(t *testing.T) {
 		{
 			name: "override",
 			src: &ConfigurationSpec{
-				Monitoring: &sharedtypes.MonitoringSpec{
-					Traces: &sharedtypes.TracesSpec{
-						Otlp: &sharedtypes.TracesOtlpSpec{
+				Monitoring: &v1beta1.MonitoringSpec{
+					Traces: &v1beta1.TracesSpec{
+						Otlp: &v1beta1.TracesOtlpSpec{
 							Endpoint: "remote",
 						},
 					},
 				},
 			},
 			override: &ConfigurationSpec{
-				Monitoring: &sharedtypes.MonitoringSpec{
-					Traces: &sharedtypes.TracesSpec{
-						Otlp: &sharedtypes.TracesOtlpSpec{
+				Monitoring: &v1beta1.MonitoringSpec{
+					Traces: &v1beta1.TracesSpec{
+						Otlp: &v1beta1.TracesOtlpSpec{
 							Endpoint: "localhost",
 						},
 					},
 				},
 			},
 			merged: &ConfigurationSpec{
-				Monitoring: &sharedtypes.MonitoringSpec{
-					Traces: &sharedtypes.TracesSpec{
-						Otlp: &sharedtypes.TracesOtlpSpec{
+				Monitoring: &v1beta1.MonitoringSpec{
+					Traces: &v1beta1.TracesSpec{
+						Otlp: &v1beta1.TracesOtlpSpec{
 							Endpoint: "localhost",
 						},
 					},
@@ -58,7 +58,7 @@ func TestConfigurationOverride(t *testing.T) {
 			name: "override array",
 			src: &ConfigurationSpec{
 				Auth: &AuthSpec{
-					ImageHolder: sharedtypes.ImageHolder{
+					ImageHolder: v1beta1.ImageHolder{
 						ImagePullSecrets: []v1.LocalObjectReference{{
 							Name: "ref1",
 						}},
@@ -67,7 +67,7 @@ func TestConfigurationOverride(t *testing.T) {
 			},
 			override: &ConfigurationSpec{
 				Auth: &AuthSpec{
-					ImageHolder: sharedtypes.ImageHolder{
+					ImageHolder: v1beta1.ImageHolder{
 						ImagePullSecrets: []v1.LocalObjectReference{{
 							Name: "ref2",
 						}},
@@ -76,7 +76,7 @@ func TestConfigurationOverride(t *testing.T) {
 			},
 			merged: &ConfigurationSpec{
 				Auth: &AuthSpec{
-					ImageHolder: sharedtypes.ImageHolder{
+					ImageHolder: v1beta1.ImageHolder{
 						ImagePullSecrets: []v1.LocalObjectReference{{
 							Name: "ref1",
 						}, {
