@@ -2364,12 +2364,8 @@ spec:
       name: Status
       type: string
     - description: Stack Version
-      jsonPath: .spec.version
+      jsonPath: .spec.versions
       name: Version
-      type: string
-    - description: Stack Namespace
-      jsonPath: .spec.namespace
-      name: Namespace
       type: string
     name: v1beta2
     schema:
