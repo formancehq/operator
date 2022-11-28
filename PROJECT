@@ -145,4 +145,8 @@ resources:
   kind: Stack
   path: github.com/numary/operator/apis/stack/v1beta2
   version: v1beta2
+- domain: formance.com
+  group: components
+  kind: Wallets
+  version: v1beta2
 version: "3"

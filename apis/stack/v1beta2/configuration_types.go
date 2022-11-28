@@ -32,6 +32,7 @@ type ConfigurationServicesSpec struct {
 	Payments PaymentsSpec `json:"payments,omitempty"`
 	Search   SearchSpec   `json:"search,omitempty"`
 	Webhooks WebhooksSpec `json:"webhooks,omitempty"`
+	Wallets  WalletsSpec  `json:"wallets,omitempty"`
 }
 
 func GetServiceList() []string {
@@ -59,6 +60,7 @@ func (in *ConfigurationSpec) Validate() field.ErrorList {
 		typeutils.Map(in.Services.Payments.Validate(), apisv1beta1.AddPrefixToFieldError("services.payments")),
 		typeutils.Map(in.Services.Search.Validate(), apisv1beta1.AddPrefixToFieldError("services.search")),
 		typeutils.Map(in.Services.Webhooks.Validate(), apisv1beta1.AddPrefixToFieldError("services.webhooks")),
+		typeutils.Map(in.Services.Wallets.Validate(), apisv1beta1.AddPrefixToFieldError("services.Wallets")),
 		typeutils.Map(in.Services.Auth.Validate(), apisv1beta1.AddPrefixToFieldError("services.auth")),
 		typeutils.Map(in.Monitoring.Validate(), apisv1beta1.AddPrefixToFieldError("monitoring")),
 		typeutils.Map(in.Kafka.Validate(), apisv1beta1.AddPrefixToFieldError("kafka")),

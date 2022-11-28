@@ -304,6 +304,32 @@ rules:
 - apiGroups:
   - components.formance.com
   resources:
+  - wallets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.formance.com
+  resources:
+  - wallets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - wallets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
   - webhooks
   verbs:
   - create

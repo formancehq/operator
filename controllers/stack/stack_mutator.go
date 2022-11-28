@@ -91,6 +91,7 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 		Owns(&componentsv1beta2.Search{}).
 		Owns(&componentsv1beta2.Payments{}).
 		Owns(&componentsv1beta2.Webhooks{}).
+		Owns(&componentsv1beta2.Wallets{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&traefik.Middleware{}).
 		Watches(
@@ -183,6 +184,9 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 	}
 	if err := r.reconcileWebhooks(ctx, stack, &configurationSpec, version.Spec.Webhooks); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
+	}
+	if err := r.reconcileWallets(ctx, stack, &configurationSpec, version.Spec.Wallets); err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Wallets")
 	}
 
 	apisv1beta1.SetReady(stack)
@@ -418,6 +422,43 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 	}
 
 	log.FromContext(ctx).Info("Webhooks ready")
+	return nil
+}
+
+func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
+	log.FromContext(ctx).Info("Reconciling Wallets")
+
+	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Name,
+		Name:      stack.ServiceName("wallets"),
+	}, stack, func(wallets *componentsv1beta2.Wallets) error {
+		wallets.Spec = componentsv1beta2.WalletsSpec{
+			Ingress:    configuration.Services.Wallets.Ingress.Compute(stack, configuration, "/api/wallets"),
+			Monitoring: configuration.Monitoring,
+			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+				DevProperties: stack.Spec.DevProperties,
+				Version:       version,
+			},
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					Database:       fmt.Sprintf("%s-ledger", stack.Name),
+					PostgresConfig: configuration.Services.Ledger.Postgres,
+				},
+				CreateDatabase: true,
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetWalletsError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetWalletsReady()
+	}
+
+	log.FromContext(ctx).Info("Wallets ready")
 	return nil
 }
 

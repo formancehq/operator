@@ -45,6 +45,8 @@ spec:
                 type: string
               search:
                 type: string
+              wallets:
+                type: string
               webhooks:
                 type: string
             type: object

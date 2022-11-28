@@ -183,6 +183,10 @@ func (s *Stack) SetWebhooksError(msg string) {
 	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
 }
 
+func (s *Stack) SetWalletsError(msg string) {
+	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
+}
+
 func (s *Stack) SetMiddlewareError(msg string) {
 	apisv1beta1.SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
 }
@@ -192,6 +196,10 @@ func (s *Stack) SetPaymentReady() {
 }
 
 func (s *Stack) SetWebhooksReady() {
+	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
+}
+
+func (s *Stack) SetWalletsReady() {
 	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
 }
 
@@ -212,6 +220,10 @@ func (in *Stack) RemovePaymentsStatus() {
 }
 
 func (in *Stack) RemoveWebhooksStatus() {
+	in.Status.RemoveCondition(ConditionTypeStackWebhooksReady)
+}
+
+func (in *Stack) RemoveWalletsStatus() {
 	in.Status.RemoveCondition(ConditionTypeStackWebhooksReady)
 }
 

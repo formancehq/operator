@@ -42,8 +42,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// WebhooksMutator reconciles a Auth object
-type WebhooksMutator struct {
+// WalletsMutator reconciles a Auth object
+type WalletsMutator struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -51,82 +51,81 @@ type WebhooksMutator struct {
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=webhooks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=webhooks/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.formance.com,resources=webhooks/finalizers,verbs=update
+// +kubebuilder:rbac:groups=components.formance.com,resources=wallets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.formance.com,resources=wallets/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.formance.com,resources=wallets/finalizers,verbs=update
 
-func (r *WebhooksMutator) Mutate(ctx context.Context, webhooks *componentsv1beta2.Webhooks) (*ctrl.Result, error) {
+func (r *WalletsMutator) Mutate(ctx context.Context, wallets *componentsv1beta2.Wallets) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(webhooks)
+	apisv1beta1.SetProgressing(wallets)
 
-	deployment, err := r.reconcileDeployment(ctx, webhooks)
+	deployment, err := r.reconcileDeployment(ctx, wallets)
 	if err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	_, err = r.reconcileWorkersDeployment(ctx, webhooks)
+	_, err = r.reconcileWorkersDeployment(ctx, wallets)
 	if err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling workers deployment")
 	}
 
-	service, err := r.reconcileService(ctx, webhooks, deployment)
+	service, err := r.reconcileService(ctx, wallets, deployment)
 	if err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if webhooks.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, webhooks, service)
+	if wallets.Spec.Ingress != nil {
+		_, err = r.reconcileIngress(ctx, wallets, service)
 		if err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
 	} else {
 		err = r.Client.Delete(ctx, &networkingv1.Ingress{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      webhooks.Name,
-				Namespace: webhooks.Namespace,
+				Name:      wallets.Name,
+				Namespace: wallets.Namespace,
 			},
 		})
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta1.RemoveIngressCondition(webhooks)
+		apisv1beta1.RemoveIngressCondition(wallets)
 	}
 
-	apisv1beta1.SetReady(webhooks)
+	apisv1beta1.SetReady(wallets)
 
 	return nil, nil
 }
 
-func envVarsWebhooks(webhooks *componentsv1beta2.Webhooks) []corev1.EnvVar {
-	env := webhooks.Spec.MongoDB.Env("")
+func envVars(wallets *componentsv1beta2.Wallets) []corev1.EnvVar {
+	env := wallets.Spec.Postgres.Env("")
 	env = append(env,
-		apisv1beta1.Env("STORAGE_MONGO_CONN_STRING", "$(MONGODB_URI)"),
-		apisv1beta1.Env("STORAGE_MONGO_DATABASE_NAME", "$(MONGODB_DATABASE)"),
-		apisv1beta1.Env("KAFKA_BROKERS", strings.Join(webhooks.Spec.Collector.Brokers, ", ")),
-		apisv1beta1.Env("KAFKA_TOPICS", webhooks.Spec.Collector.Topic),
-		apisv1beta1.Env("KAFKA_TLS_ENABLED", strconv.FormatBool(webhooks.Spec.Collector.TLS)),
+		apisv1beta1.Env("KAFKA_BROKERS", strings.Join(wallets.Spec.Collector.Brokers, ", ")),
+		apisv1beta1.Env("KAFKA_TOPICS", wallets.Spec.Collector.Topic),
+		apisv1beta1.Env("KAFKA_TLS_ENABLED", strconv.FormatBool(wallets.Spec.Collector.TLS)),
 	)
-	if webhooks.Spec.Collector.SASL != nil {
+	env = append(env, wallets.Spec.Postgres.Env("")...)
+	if wallets.Spec.Collector.SASL != nil {
 		env = append(env,
 			apisv1beta1.Env("KAFKA_SASL_ENABLED", "true"),
-			apisv1beta1.Env("KAFKA_SASL_MECHANISM", webhooks.Spec.Collector.SASL.Mechanism),
-			apisv1beta1.Env("KAFKA_USERNAME", webhooks.Spec.Collector.SASL.Username),
-			apisv1beta1.Env("KAFKA_PASSWORD", webhooks.Spec.Collector.SASL.Password),
-			apisv1beta1.Env("KAFKA_CONSUMER_GROUP", webhooks.GetName()),
+			apisv1beta1.Env("KAFKA_SASL_MECHANISM", wallets.Spec.Collector.SASL.Mechanism),
+			apisv1beta1.Env("KAFKA_USERNAME", wallets.Spec.Collector.SASL.Username),
+			apisv1beta1.Env("KAFKA_PASSWORD", wallets.Spec.Collector.SASL.Password),
+			apisv1beta1.Env("KAFKA_CONSUMER_GROUP", wallets.GetName()),
 		)
 	}
 
-	env = append(env, webhooks.Spec.DevProperties.Env()...)
-	if webhooks.Spec.Monitoring != nil {
-		env = append(env, webhooks.Spec.Monitoring.Env("")...)
+	env = append(env, wallets.Spec.DevProperties.Env()...)
+	if wallets.Spec.Monitoring != nil {
+		env = append(env, wallets.Spec.Monitoring.Env("")...)
 	}
 	return env
 }
 
-func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *componentsv1beta2.Webhooks) (*appsv1.Deployment, error) {
-	matchLabels := CreateMap("app.kubernetes.io/name", "webhooks")
+func (r *WalletsMutator) reconcileDeployment(ctx context.Context, wallets *componentsv1beta2.Wallets) (*appsv1.Deployment, error) {
+	matchLabels := CreateMap("app.kubernetes.io/name", "wallets")
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(deployment *appsv1.Deployment) error {
+	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(wallets), wallets, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -137,12 +136,12 @@ func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *com
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:            "webhooks",
-						Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
-						Env:             envVarsWebhooks(webhooks),
+						Name:            "wallets",
+						Image:           controllerutils.GetImage("wallets", wallets.Spec.Version),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(wallets.Spec),
+						Env:             envVars(wallets),
 						Ports: []corev1.ContainerPort{{
-							Name:          "webhooks",
+							Name:          "wallets",
 							ContainerPort: 8080,
 						}},
 						LivenessProbe: &corev1.Probe{
@@ -170,22 +169,22 @@ func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *com
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(webhooks, err.Error())
+		apisv1beta1.SetDeploymentError(wallets, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(webhooks)
+		apisv1beta1.SetDeploymentReady(wallets)
 	}
 	return ret, err
 }
 
-func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta2.Webhooks) (*appsv1.Deployment, error) {
-	matchLabels := CreateMap("app.kubernetes.io/name", "webhooks-workers")
+func (r *WalletsMutator) reconcileWorkersDeployment(ctx context.Context, wallets *componentsv1beta2.Wallets) (*appsv1.Deployment, error) {
+	matchLabels := CreateMap("app.kubernetes.io/name", "wallets-workers")
 
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
-		Namespace: webhooks.Namespace,
-		Name:      webhooks.Name + "-workers",
-	}, webhooks, func(deployment *appsv1.Deployment) error {
+		Namespace: wallets.Namespace,
+		Name:      wallets.Name + "-workers",
+	}, wallets, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -196,11 +195,11 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:            "webhooks-retries",
-						Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
-						Command:         []string{"webhooks", "worker", "retries"},
-						Env:             envVarsWebhooks(webhooks),
+						Name:            "wallets-retries",
+						Image:           controllerutils.GetImage("wallets", wallets.Spec.Version),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(wallets.Spec),
+						Command:         []string{"wallets", "worker", "retries"},
+						Env:             envVars(wallets),
 						Ports: []corev1.ContainerPort{{
 							Name:          "retries",
 							ContainerPort: 8082,
@@ -223,11 +222,11 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 							TerminationGracePeriodSeconds: pointer.Int64(10),
 						},
 					}, {
-						Name:            "webhooks-messages",
-						Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
-						Command:         []string{"webhooks", "worker", "messages"},
-						Env:             envVarsWebhooks(webhooks),
+						Name:            "wallets-messages",
+						Image:           controllerutils.GetImage("wallets", wallets.Spec.Version),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(wallets.Spec),
+						Command:         []string{"wallets", "worker", "messages"},
+						Env:             envVars(wallets),
 						Ports: []corev1.ContainerPort{{
 							Name:          "messages",
 							ContainerPort: 8081,
@@ -257,20 +256,20 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(webhooks, err.Error())
+		apisv1beta1.SetDeploymentError(wallets, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(webhooks)
+		apisv1beta1.SetDeploymentReady(wallets)
 	}
 	return ret, err
 }
 
-func (r *WebhooksMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Webhooks, deployment *appsv1.Deployment) (*corev1.Service, error) {
+func (r *WalletsMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Wallets, deployment *appsv1.Deployment) (*corev1.Service, error) {
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
 		service.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
-				Name:        "webhooks",
+				Name:        "wallets",
 				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
 				Protocol:    "TCP",
 				AppProtocol: pointer.String("http"),
@@ -291,26 +290,26 @@ func (r *WebhooksMutator) reconcileService(ctx context.Context, auth *components
 	return ret, err
 }
 
-func (r *WebhooksMutator) reconcileIngress(ctx context.Context, webhooks *componentsv1beta2.Webhooks, service *corev1.Service) (*networkingv1.Ingress, error) {
-	annotations := webhooks.Spec.Ingress.Annotations
+func (r *WalletsMutator) reconcileIngress(ctx context.Context, wallets *componentsv1beta2.Wallets, service *corev1.Service) (*networkingv1.Ingress, error) {
+	annotations := wallets.Spec.Ingress.Annotations
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
-	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", webhooks.Namespace)
+	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", wallets.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(ingress *networkingv1.Ingress) error {
+	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(wallets), wallets, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = annotations
 		ingress.Spec = networkingv1.IngressSpec{
-			TLS: webhooks.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+			TLS: wallets.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: webhooks.Spec.Ingress.Host,
+					Host: wallets.Spec.Ingress.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path:     webhooks.Spec.Ingress.Path,
+									Path:     wallets.Spec.Ingress.Path,
 									PathType: &pathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
@@ -331,17 +330,17 @@ func (r *WebhooksMutator) reconcileIngress(ctx context.Context, webhooks *compon
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(webhooks, err.Error())
+		apisv1beta1.SetIngressError(wallets, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(webhooks)
+		apisv1beta1.SetIngressReady(wallets)
 	}
 	return ret, nil
 }
 
 // SetupWithBuilder SetupWithManager sets up the controller with the Manager.
-func (r *WebhooksMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
+func (r *WalletsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
@@ -350,8 +349,8 @@ func (r *WebhooksMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Build
 	return nil
 }
 
-func NewWebhooksMutator(client client.Client, scheme *runtime.Scheme) controllerutils.Mutator[*componentsv1beta2.Webhooks] {
-	return &WebhooksMutator{
+func NewWalletsMutator(client client.Client, scheme *runtime.Scheme) controllerutils.Mutator[*componentsv1beta2.Wallets] {
+	return &WalletsMutator{
 		Client: client,
 		Scheme: scheme,
 	}

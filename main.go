@@ -138,6 +138,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Webhooks")
 		os.Exit(1)
 	}
+	walletsMutator := control_components.NewWalletsMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), walletsMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Wallets")
+		os.Exit(1)
+	}
 	searchMutator := control_components.NewSearchMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Search")
