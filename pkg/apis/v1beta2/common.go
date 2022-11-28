@@ -28,7 +28,7 @@ func (d DevProperties) EnvWithPrefix(prefix string) []v1.EnvVar {
 type CommonServiceProperties struct {
 	DevProperties `json:",inline"`
 	// +optional
-	// +kubebuilder:default:="latest"
+	//+kubebuilder:default:="latest"
 	Version string `json:"version,omitempty"`
 }
 
