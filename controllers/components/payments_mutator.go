@@ -18,8 +18,6 @@ package components
 
 import (
 	"context"
-	"embed"
-	"encoding/json"
 	"fmt"
 
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
@@ -28,23 +26,18 @@ import (
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
-
-//go:embed payments-benthos-config.yml
-var paymentsBenthosConfigDir embed.FS
 
 // Mutator reconciles a Auth object
 type PaymentsMutator struct {
@@ -73,7 +66,7 @@ func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if err := r.reconcileIngestionStream(ctx, payments); err != nil {
+	if err := reconcileSearchIngester(ctx, r.Client, r.Scheme, payments); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
@@ -239,46 +232,6 @@ func (r *PaymentsMutator) reconcileIngress(ctx context.Context, payments *compon
 		apisv1beta1.SetIngressReady(payments)
 	}
 	return ret, nil
-}
-
-func (r *PaymentsMutator) reconcileIngestionStream(ctx context.Context, payments *componentsv1beta2.Payments) error {
-	_, ret, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
-		Namespace: payments.Namespace,
-		Name:      payments.Name + "-ingestion-stream",
-	}, payments, func(t *componentsv1beta2.SearchIngester) error {
-		data, err := paymentsBenthosConfigDir.ReadFile("payments-benthos-config.yml")
-		if err != nil {
-			return err
-		}
-
-		stream := map[string]any{}
-		if err := yaml.Unmarshal(data, &stream); err != nil {
-			return err
-		}
-
-		input := stream["input"].(map[string]any)
-		eventBusInput := input["event_bus"].(map[string]any)
-		eventBusInput["topic"] = fmt.Sprintf(payments.Name)
-		eventBusInput["consumer_group"] = payments.Name
-
-		data, err = json.Marshal(stream)
-		if err != nil {
-			return err
-		}
-
-		t.Spec.Pipeline = data
-		t.Spec.Reference = fmt.Sprintf("%s-search", payments.Namespace)
-		return nil
-	})
-	switch {
-	case err != nil:
-		apisv1beta1.SetCondition(payments, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
-		return err
-	case ret == controllerutil.OperationResultNone:
-	default:
-		apisv1beta1.SetCondition(payments, "IngestionStreamReady", metav1.ConditionTrue)
-	}
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

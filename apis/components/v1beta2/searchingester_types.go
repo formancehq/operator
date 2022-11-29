@@ -26,13 +26,13 @@ import (
 
 // SearchIngesterSpec defines the desired state of SearchIngester
 type SearchIngesterSpec struct {
-	CommonServiceProperties `json:",inline"`
+	DevProperties `json:",inline"`
 
 	Reference string `json:"reference"`
 	//+kubebuilder:pruning:PreserveUnknownFields
 	//+kubebuilder:validation:Type=object
 	//+kubebuilder:validation:Schemaless
-	Pipeline json.RawMessage `json:"pipeline"` // Should be a map[string]any but controller-gen does not support it
+	Stream json.RawMessage `json:"stream"` // Should be a map[string]any but controller-gen does not support it
 }
 
 //+kubebuilder:object:root=true

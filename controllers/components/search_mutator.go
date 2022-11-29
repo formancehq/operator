@@ -18,7 +18,6 @@ package components
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -49,9 +48,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
-
-//go:embed search-benthos-config
-var benthosConfigFS embed.FS
 
 // Mutator reconciles a Auth object
 type SearchMutator struct {
@@ -337,7 +333,7 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 }
 
 func copyDir(root, path string, ret *map[string]string) error {
-	dirEntries, err := fs.ReadDir(benthosConfigFS, path)
+	dirEntries, err := fs.ReadDir(benthosConfigDir, path)
 	if err != nil {
 		return err
 	}
@@ -348,7 +344,7 @@ func copyDir(root, path string, ret *map[string]string) error {
 				return err
 			}
 		} else {
-			fileContent, err := fs.ReadFile(benthosConfigFS, dirEntryPath)
+			fileContent, err := fs.ReadFile(benthosConfigDir, dirEntryPath)
 			if err != nil {
 				return err
 			}
@@ -367,7 +363,7 @@ func (r *SearchMutator) reconcileBenthosTemplatesConfig(ctx context.Context, sea
 	}, search, func(configMap *corev1.ConfigMap) error {
 		configMap.Data = map[string]string{}
 
-		rootDir := filepath.Join("search-benthos-config", "templates")
+		rootDir := filepath.Join("benthos", "search", "templates")
 		return copyDir(rootDir, rootDir, &configMap.Data)
 	})
 	switch {
@@ -387,7 +383,7 @@ func (r *SearchMutator) reconcileBenthosResourcesConfig(ctx context.Context, sea
 	}, search, func(configMap *corev1.ConfigMap) error {
 		configMap.Data = map[string]string{}
 
-		rootDir := filepath.Join("search-benthos-config", "resources")
+		rootDir := filepath.Join("benthos", "search", "resources")
 		return copyDir(rootDir, rootDir, &configMap.Data)
 	})
 	switch {

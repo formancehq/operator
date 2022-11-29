@@ -47,7 +47,7 @@ func (m *SearchIngesterMutator) Mutate(ctx context.Context, ingester *components
 		Namespace: ingester.Namespace,
 		Name:      ingester.Name + "-ingestion-stream",
 	}, ingester, func(t *benthosv1beta2.Stream) error {
-		data, err := json.Marshal(ingester.Spec.Pipeline)
+		data, err := json.Marshal(ingester.Spec.Stream)
 		if err != nil {
 			return err
 		}

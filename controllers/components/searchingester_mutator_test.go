@@ -44,7 +44,7 @@ var _ = Describe("Test Search Ingester", func() {
 						},
 						Spec: componentsv1beta2.SearchIngesterSpec{
 							Reference: search.Name,
-							Pipeline:  json.RawMessage(`{"foo": "bar"}`),
+							Stream:    json.RawMessage(`{"foo": "bar"}`),
 						},
 					}
 					Expect(Create(searchIngester)).To(Succeed())

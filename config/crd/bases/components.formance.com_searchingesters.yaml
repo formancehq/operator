@@ -124,17 +124,14 @@ spec:
                 type: boolean
               dev:
                 type: boolean
-              pipeline:
-                type: object
-                x-kubernetes-preserve-unknown-fields: true
               reference:
                 type: string
-              version:
-                default: latest
-                type: string
+              stream:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
             required:
-            - pipeline
             - reference
+            - stream
             type: object
           status:
             properties:
