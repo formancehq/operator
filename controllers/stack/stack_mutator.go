@@ -481,6 +481,12 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *stackv1beta2.Stack
 			KafkaConfig:   configuration.Kafka,
 			Index:         stack.Name,
 			Batching:      configuration.Services.Search.Batching,
+			PostgresConfigs: componentsv1beta2.SearchPostgresConfigs{
+				Ledger: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Ledger.Postgres,
+					Database:       fmt.Sprintf("%s-ledger", stack.Name),
+				},
+			},
 		}
 		return nil
 	})

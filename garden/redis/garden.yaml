@@ -10,3 +10,5 @@ timeout: 3600
 values:
   replica:
     replicaCount: 1
+  auth:
+    enabled: false

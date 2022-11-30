@@ -1,5 +1,15 @@
 ---
 kind: Workflow
+name: create-cluster
+steps:
+- command:
+  - create-cluster
+- command:
+  - plugins
+  - kubernetes
+  - cluster-init
+---
+kind: Workflow
 name: deploy
 steps:
 - script: |

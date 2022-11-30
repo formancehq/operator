@@ -66,6 +66,7 @@ spec:
         port: 5432
         username: formance
         password: formance
+        disableSSLMode: true
       locking:
         strategy: redis
         redis:

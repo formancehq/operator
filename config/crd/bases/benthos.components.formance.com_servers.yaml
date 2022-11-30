@@ -2783,6 +2783,8 @@ spec:
                 type: array
               resourcesConfigMap:
                 type: string
+              streamsConfigMap:
+                type: string
               templatesConfigMap:
                 type: string
               version:

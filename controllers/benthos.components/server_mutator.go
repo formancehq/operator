@@ -96,6 +96,9 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 		command = append(command, "--log.level", "trace")
 	}
 	command = append(command, "streams")
+	if server.Spec.StreamsConfigMap != "" {
+		command = append(command, "/config/streams/*.yaml")
+	}
 
 	expectedContainer := corev1.Container{
 		Name:            "benthos",
@@ -121,6 +124,13 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 			Name:      "resources",
 			ReadOnly:  true,
 			MountPath: "/config/resources",
+		})
+	}
+	if server.Spec.StreamsConfigMap != "" {
+		expectedContainer.VolumeMounts = append(expectedContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      "streams",
+			ReadOnly:  true,
+			MountPath: "/config/streams",
 		})
 	}
 
@@ -191,6 +201,18 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 					ConfigMap: &corev1.ConfigMapVolumeSource{
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: server.Spec.TemplatesConfigMap,
+						},
+					},
+				},
+			})
+		}
+		if server.Spec.StreamsConfigMap != "" {
+			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+				Name: "streams",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: server.Spec.StreamsConfigMap,
 						},
 					},
 				},

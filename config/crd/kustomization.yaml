@@ -12,7 +12,6 @@ resources:
 - bases/auth.components.formance.com_scopes.yaml
 - bases/benthos.components.formance.com_servers.yaml
 - bases/benthos.components.formance.com_streams.yaml
-- bases/components.formance.com_searchingesters.yaml
 - bases/stack.formance.com_configurations.yaml
 - bases/components.formance.com_webhooks.yaml
 - bases/stack.formance.com_versions.yaml
@@ -34,7 +33,6 @@ patchesStrategicMerge:
 #- patches/webhook_in_components_auths.yaml
 #- patches/webhook_in_servers.yaml
 #- patches/webhook_in_streams.yaml
-#- patches/webhook_in_searchingesters.yaml
 - patches/webhook_in_stack_configurations.yaml
 #- patches/webhook_in_webhooks.yaml
 #- patches/webhook_in_versions.yaml
@@ -53,7 +51,6 @@ patchesStrategicMerge:
 #- patches/cainjection_in_scopes.yaml
 #- patches/cainjection_in_servers.yaml
 #- patches/cainjection_in_streams.yaml
-#- patches/cainjection_in_searchingesters.yaml
 - patches/cainjection_in_stack_configurations.yaml
 #- patches/cainjection_in_webhooks.yaml
 #- patches/cainjection_in_versions.yaml

@@ -33,6 +33,8 @@ type ServerSpec struct {
 	// +optional
 	TemplatesConfigMap string `json:"templatesConfigMap"`
 	// +optional
+	StreamsConfigMap string `json:"streamsConfigMap"`
+	// +optional
 	Env []corev1.EnvVar `json:"env"`
 }
 

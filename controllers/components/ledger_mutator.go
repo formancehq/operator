@@ -18,8 +18,6 @@ package components
 
 import (
 	"context"
-	"embed"
-	"encoding/json"
 	"fmt"
 
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
@@ -28,7 +26,6 @@ import (
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscallingv1 "k8s.io/api/autoscaling/v1"
 	autoscallingv2 "k8s.io/api/autoscaling/v2"
@@ -38,16 +35,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
-
-//go:embed ledger-benthos-config.yml
-var benthosConfigDir embed.FS
 
 // Mutator reconciles a Auth object
 type LedgerMutator struct {
@@ -74,10 +67,6 @@ func (r *LedgerMutator) Mutate(ctx context.Context, ledger *componentsv1beta2.Le
 
 	service, err := r.reconcileService(ctx, ledger, deployment)
 	if err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
-	}
-
-	if err := r.reconcileSearchIngester(ctx, ledger); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
@@ -298,46 +287,6 @@ func (r *LedgerMutator) reconcileIngress(ctx context.Context, ledger *components
 	return ret, nil
 }
 
-func (r *LedgerMutator) reconcileSearchIngester(ctx context.Context, ledger *componentsv1beta2.Ledger) error {
-	_, ret, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
-		Namespace: ledger.Namespace,
-		Name:      ledger.Name + "-search-ingester",
-	}, ledger, func(t *componentsv1beta2.SearchIngester) error {
-		data, err := benthosConfigDir.ReadFile("ledger-benthos-config.yml")
-		if err != nil {
-			return err
-		}
-
-		stream := map[string]any{}
-		if err := yaml.Unmarshal(data, &stream); err != nil {
-			return err
-		}
-
-		input := stream["input"].(map[string]any)
-		eventBusInput := input["event_bus"].(map[string]any)
-		eventBusInput["topic"] = fmt.Sprintf(ledger.Name)
-		eventBusInput["consumer_group"] = ledger.Name
-
-		data, err = json.Marshal(stream)
-		if err != nil {
-			return err
-		}
-
-		t.Spec.Pipeline = data
-		t.Spec.Reference = fmt.Sprintf("%s-search", ledger.Namespace)
-		return nil
-	})
-	switch {
-	case err != nil:
-		apisv1beta1.SetCondition(ledger, "IngestionStreamReady", metav1.ConditionFalse, err.Error())
-		return err
-	case ret == controllerutil.OperationResultNone:
-	default:
-		apisv1beta1.SetCondition(ledger, "IngestionStreamReady", metav1.ConditionTrue)
-	}
-	return nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *LedgerMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
@@ -345,7 +294,6 @@ func (r *LedgerMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta2.Scope{}).
-		Owns(&componentsv1beta2.SearchIngester{}).
 		Owns(&autoscallingv1.HorizontalPodAutoscaler{})
 	return nil
 }

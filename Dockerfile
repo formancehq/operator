@@ -13,6 +13,9 @@ COPY pkg pkg
 COPY controllers controllers
 RUN go build -v -a -o manager main.go
 
+FROM builder as reloader
+RUN go install github.com/cosmtrek/air@latest
+
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot as release

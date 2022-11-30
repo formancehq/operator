@@ -18,6 +18,13 @@ type LedgerSpec struct {
 	Ingress *IngressConfig `json:"ingress"`
 }
 
+func (l LedgerSpec) DatabaseSpec() apisv1beta1.PostgresConfigWithDatabase {
+	return apisv1beta1.PostgresConfigWithDatabase{
+		PostgresConfig: l.Postgres,
+		Database:       "",
+	}
+}
+
 func (in *LedgerSpec) Validate() field.ErrorList {
 	if in == nil {
 		return nil

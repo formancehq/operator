@@ -170,11 +170,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Stream")
 		os.Exit(1)
 	}
-	searchIngesterMutator := control_components.NewSearchIngesterMutator(mgr.GetClient(), mgr.GetScheme())
-	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchIngesterMutator).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SearchIngester")
-		os.Exit(1)
-	}
 
 	if err = (&stackv1beta2.Stack{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Stack")

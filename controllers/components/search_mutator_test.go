@@ -61,6 +61,12 @@ var _ = Describe("Search controller", func() {
 							},
 							KafkaConfig: NewDumpKafkaConfig(),
 							Index:       "documents",
+							PostgresConfigs: componentsv1beta2.SearchPostgresConfigs{
+								Ledger: apisv1beta1.PostgresConfigWithDatabase{
+									PostgresConfig: NewDumpPostgresConfig(),
+									Database:       "foo",
+								},
+							},
 						},
 					}
 					Expect(Create(search)).To(BeNil())
@@ -101,36 +107,9 @@ var _ = Describe("Search controller", func() {
 					Expect(Exists(benthosServer)()).To(BeTrue())
 					Expect(benthosServer.OwnerReferences).To(HaveLen(1))
 					Expect(benthosServer.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(search)))
-					Expect(benthosServer.Spec.TemplatesConfigMap).To(Equal(benthosServer.Name + "-templates-config"))
-					Expect(benthosServer.Spec.ResourcesConfigMap).To(Equal(benthosServer.Name + "-resources-config"))
-				})
-				It("Should create a benthos templates config map", func() {
-					Eventually(ConditionStatus(search, "BenthosConfigTemplatesReady")).Should(Equal(metav1.ConditionTrue))
-					configMap := &corev1.ConfigMap{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      search.Name + "-benthos-templates-config",
-							Namespace: search.Namespace,
-						},
-					}
-					Expect(Exists(configMap)()).To(BeTrue())
-					Expect(configMap.OwnerReferences).To(HaveLen(1))
-					Expect(configMap.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(search)))
-					Expect(configMap.Data["event_bus.yaml"]).NotTo(BeEmpty())
-					Expect(configMap.Data["switch_event_type.yaml"]).NotTo(BeEmpty())
-
-				})
-				It("Should create a benthos resources config map", func() {
-					Eventually(ConditionStatus(search, "BenthosConfigResourcesReady")).Should(Equal(metav1.ConditionTrue))
-					configMap := &corev1.ConfigMap{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      search.Name + "-benthos-resources-config",
-							Namespace: search.Namespace,
-						},
-					}
-					Expect(Exists(configMap)()).To(BeTrue())
-					Expect(configMap.OwnerReferences).To(HaveLen(1))
-					Expect(configMap.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(search)))
-					Expect(configMap.Data["output_elasticsearch.yaml"]).NotTo(BeEmpty())
+					Expect(benthosServer.Spec.TemplatesConfigMap).To(Equal("benthos-templates-config"))
+					Expect(benthosServer.Spec.ResourcesConfigMap).To(Equal("benthos-resources-config"))
+					Expect(benthosServer.Spec.StreamsConfigMap).To(Equal("benthos-streams-config"))
 				})
 				Context("Then enable ingress", func() {
 					BeforeEach(func() {
