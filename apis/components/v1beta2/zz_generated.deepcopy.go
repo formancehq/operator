@@ -22,6 +22,7 @@ limitations under the License.
 package v1beta2
 
 import (
+	"encoding/json"
 	auth_componentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	"github.com/numary/operator/pkg/apis/v1beta1"
