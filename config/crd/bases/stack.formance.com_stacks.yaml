@@ -1945,6 +1945,8 @@ spec:
                                 - key
                                 type: object
                             type: object
+                          pathPrefix:
+                            type: string
                           port:
                             type: integer
                           portFrom:

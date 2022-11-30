@@ -59,22 +59,35 @@ type ElasticSearchConfig struct {
 	TLS ElasticSearchTLSConfig `json:"tls"`
 	// +optional
 	BasicAuth *ElasticSearchBasicAuthConfig `json:"basicAuth"`
+	// +optional
+	PathPrefix string `json:"pathPrefix"`
 }
 
+// Deprecated: use env vars
 func (in *ElasticSearchConfig) Endpoint() string {
-	return fmt.Sprintf("%s://%s:%d", in.Scheme, in.Host, in.Port)
+	return fmt.Sprintf("%s://%s:%d%s", in.Scheme, in.Host, in.Port, in.PathPrefix)
 }
 
 func (in *ElasticSearchConfig) Env(prefix string) []corev1.EnvVar {
-	return []corev1.EnvVar{
+	env := []corev1.EnvVar{
 		SelectRequiredConfigValueOrReference("OPEN_SEARCH_HOST", prefix, in.Host, in.HostFrom),
 		SelectRequiredConfigValueOrReference("OPEN_SEARCH_PORT", prefix, in.Port, in.PortFrom),
+		EnvWithPrefix(prefix, "OPEN_SEARCH_PATH_PREFIX", in.PathPrefix),
 		EnvWithPrefix(prefix, "OPEN_SEARCH_SCHEME", in.Scheme),
-		EnvWithPrefix(prefix, "OPEN_SEARCH_SERVICE", ComputeEnvVar(prefix, "%s:%s",
+		EnvWithPrefix(prefix, "OPEN_SEARCH_SERVICE", ComputeEnvVar(prefix, "%s:%s%s",
 			"OPEN_SEARCH_HOST",
 			"OPEN_SEARCH_PORT",
+			"OPEN_SEARCH_PATH_PREFIX",
 		)),
 	}
+	if in.BasicAuth != nil {
+		env = append(env,
+			EnvWithPrefix(prefix, "OPEN_SEARCH_USERNAME", in.BasicAuth.Username),
+			EnvWithPrefix(prefix, "OPEN_SEARCH_PASSWORD", in.BasicAuth.Password),
+		)
+	}
+
+	return env
 }
 
 func (in *ElasticSearchConfig) Validate() field.ErrorList {
