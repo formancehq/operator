@@ -36,6 +36,8 @@ type VersionsSpec struct {
 	Auth string `json:"auth"`
 	// +optional
 	Webhooks string `json:"webhooks"`
+	// +optional
+	Next string `json:"next"`
 }
 
 // VersionsStatus defines the observed state of Versions

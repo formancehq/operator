@@ -172,6 +172,9 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 	if err := r.reconcileLedger(ctx, stack, &configurationSpec, version.Spec.Ledger); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
+	if err := r.reconcileNext(ctx, stack, &configurationSpec, version.Spec.Next); err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Next")
+	}
 	if err := r.reconcilePayment(ctx, stack, &configurationSpec, version.Spec.Payments); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
@@ -326,6 +329,48 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *stackv1beta2.Stack
 	}
 
 	log.FromContext(ctx).Info("Ledger ready")
+	return nil
+}
+
+func (r *Mutator) reconcileNext(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
+	log.FromContext(ctx).Info("Reconciling Next")
+
+	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Name,
+		Name:      stack.ServiceName("next"),
+	}, stack, func(next *componentsv1beta2.Next) error {
+		next.Spec = componentsv1beta2.NextSpec{
+			Scalable: configuration.Services.Next.Scalable.WithReplicas(next.Spec.Replicas),
+			Ingress:  configuration.Services.Next.Ingress.Compute(stack, configuration, "/api/next"),
+			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+				DevProperties: stack.Spec.DevProperties,
+				Version:       version,
+			},
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					Database:       fmt.Sprintf("%s-next", stack.Name),
+					PostgresConfig: configuration.Services.Next.Postgres,
+				},
+				CreateDatabase: true,
+			},
+			Monitoring: configuration.Monitoring,
+			Collector: &componentsv1beta1.CollectorConfig{
+				KafkaConfig: configuration.Kafka,
+				Topic:       fmt.Sprintf("%s-next", stack.Name),
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetNextError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetNextReady()
+	}
+
+	log.FromContext(ctx).Info("Next ready")
 	return nil
 }
 

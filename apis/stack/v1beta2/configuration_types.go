@@ -32,6 +32,7 @@ type ConfigurationServicesSpec struct {
 	Payments PaymentsSpec `json:"payments,omitempty"`
 	Search   SearchSpec   `json:"search,omitempty"`
 	Webhooks WebhooksSpec `json:"webhooks,omitempty"`
+	Next     NextSpec     `json:"next,omitempty"`
 }
 
 func GetServiceList() []string {
