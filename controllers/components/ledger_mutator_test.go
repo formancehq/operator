@@ -73,9 +73,6 @@ var _ = Describe("Ledger controller", func() {
 					Expect(service.OwnerReferences).To(HaveLen(1))
 					Expect(service.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(ledger)))
 				})
-				It("Should create a search ingestion stream", func() {
-					assertSearchIngestionStreamCreated(ledger)
-				})
 				Context("Then enable ingress", func() {
 					BeforeEach(func() {
 						ledger.Spec.Ingress = &apisv1beta2.IngressSpec{

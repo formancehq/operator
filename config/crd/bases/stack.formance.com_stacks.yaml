@@ -211,6 +211,8 @@ spec:
                     type: object
                   postgres:
                     properties:
+                      disableSSLMode:
+                        type: boolean
                       host:
                         type: string
                       hostFrom:
@@ -1455,6 +1457,8 @@ spec:
                         type: integer
                       postgres:
                         properties:
+                          disableSSLMode:
+                            type: boolean
                           host:
                             type: string
                           hostFrom:

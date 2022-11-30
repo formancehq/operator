@@ -1049,6 +1049,8 @@ spec:
                         - key
                         type: object
                     type: object
+                  disableSSLMode:
+                    type: boolean
                   host:
                     type: string
                   hostFrom:
@@ -2275,6 +2277,8 @@ spec:
                         - key
                         type: object
                     type: object
+                  disableSSLMode:
+                    type: boolean
                   host:
                     type: string
                   hostFrom:

@@ -13,12 +13,7 @@ Also, we use [Garden](https://docs.garden.io/) for management.
 1. Create the cluster:
 
 ```sh
-garden create-cluster
-```
-
-Then initialize Garden tooling :
-```
-garden plugins kubernetes cluster-init
+garden run workflow create-cluster
 ```
 
 2. Deploy:

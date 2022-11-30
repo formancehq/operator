@@ -2,6 +2,9 @@
 package v1beta1
 
 import (
+	"fmt"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -39,6 +42,8 @@ type PostgresConfig struct {
 	Password string `json:"password"`
 	// +optional
 	PasswordFrom *ConfigSource `json:"passwordFrom"`
+	// +optional
+	DisableSSLMode bool `json:"disableSSLMode"`
 }
 
 type PostgresConfigWithDatabase struct {
@@ -50,10 +55,21 @@ type PostgresConfigWithDatabase struct {
 }
 
 func (c *PostgresConfigWithDatabase) Env(prefix string) []corev1.EnvVar {
+	return c.EnvWithDiscriminator(prefix, "")
+}
+
+func (c *PostgresConfigWithDatabase) EnvWithDiscriminator(prefix, discriminator string) []corev1.EnvVar {
+	discriminator = strings.ToUpper(discriminator)
+	withDiscriminator := func(v string) string {
+		if discriminator == "" {
+			return v
+		}
+		return fmt.Sprintf("%s_%s", v, discriminator)
+	}
 	ret := make([]corev1.EnvVar, 0)
-	ret = append(ret, SelectRequiredConfigValueOrReference("POSTGRES_DATABASE", prefix,
+	ret = append(ret, SelectRequiredConfigValueOrReference(withDiscriminator("POSTGRES_DATABASE"), prefix,
 		c.Database, c.DatabaseFrom))
-	return append(ret, c.PostgresConfig.Env(prefix)...)
+	return append(ret, c.PostgresConfig.EnvWithDiscriminator(prefix, discriminator)...)
 }
 
 func (c *PostgresConfigWithDatabase) Validate() field.ErrorList {
@@ -74,32 +90,48 @@ func (c *PostgresConfig) Validate() field.ErrorList {
 	return ret
 }
 
-func (c *PostgresConfig) Env(prefix string) []corev1.EnvVar {
+func (c *PostgresConfig) EnvWithDiscriminator(prefix, discriminator string) []corev1.EnvVar {
+
+	discriminator = strings.ToUpper(discriminator)
+	withDiscriminator := func(v string) string {
+		if discriminator == "" {
+			return v
+		}
+		return fmt.Sprintf("%s_%s", v, discriminator)
+	}
 
 	ret := make([]corev1.EnvVar, 0)
-	ret = append(ret, SelectRequiredConfigValueOrReference("POSTGRES_HOST", prefix, c.Host, c.HostFrom))
-	ret = append(ret, SelectRequiredConfigValueOrReference("POSTGRES_PORT", prefix, c.Port, c.PortFrom))
+	ret = append(ret, SelectRequiredConfigValueOrReference(withDiscriminator("POSTGRES_HOST"), prefix, c.Host, c.HostFrom))
+	ret = append(ret, SelectRequiredConfigValueOrReference(withDiscriminator("POSTGRES_PORT"), prefix, c.Port, c.PortFrom))
 
 	if c.Username != "" || c.UsernameFrom != nil {
-		ret = append(ret, SelectRequiredConfigValueOrReference("POSTGRES_USERNAME", prefix, c.Username, c.UsernameFrom))
-		ret = append(ret, SelectRequiredConfigValueOrReference("POSTGRES_PASSWORD", prefix, c.Password, c.PasswordFrom))
+		ret = append(ret, SelectRequiredConfigValueOrReference(withDiscriminator("POSTGRES_USERNAME"), prefix, c.Username, c.UsernameFrom))
+		ret = append(ret, SelectRequiredConfigValueOrReference(withDiscriminator("POSTGRES_PASSWORD"), prefix, c.Password, c.PasswordFrom))
 
-		ret = append(ret, EnvWithPrefix(prefix, "POSTGRES_URI",
+		ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_URI"),
 			ComputeEnvVar(prefix, "postgresql://%s:%s@%s:%s",
-				"POSTGRES_USERNAME",
-				"POSTGRES_PASSWORD",
-				"POSTGRES_HOST",
-				"POSTGRES_PORT",
+				withDiscriminator("POSTGRES_USERNAME"),
+				withDiscriminator("POSTGRES_PASSWORD"),
+				withDiscriminator("POSTGRES_HOST"),
+				withDiscriminator("POSTGRES_PORT"),
 			),
 		))
 	} else {
-		ret = append(ret, EnvWithPrefix(prefix, "POSTGRES_URI",
-			ComputeEnvVar(prefix, "postgresql://%s:%s", "POSTGRES_HOST", "POSTGRES_PORT"),
+		ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_URI"),
+			ComputeEnvVar(prefix, "postgresql://%s:%s", withDiscriminator("POSTGRES_HOST"), withDiscriminator("POSTGRES_PORT")),
 		))
 	}
-	ret = append(ret, EnvWithPrefix(prefix, "POSTGRES_DATABASE_URI",
-		ComputeEnvVar(prefix, "%s/%s", "POSTGRES_URI", "POSTGRES_DATABASE"),
+	fmt := "%s/%s"
+	if c.DisableSSLMode {
+		fmt += "?sslmode=disable"
+	}
+	ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_DATABASE_URI"),
+		ComputeEnvVar(prefix, fmt, withDiscriminator("POSTGRES_URI"), withDiscriminator("POSTGRES_DATABASE")),
 	))
 
 	return ret
+}
+
+func (c *PostgresConfig) Env(prefix string) []corev1.EnvVar {
+	return c.EnvWithDiscriminator(prefix, "")
 }

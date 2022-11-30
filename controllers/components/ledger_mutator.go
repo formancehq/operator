@@ -70,10 +70,6 @@ func (r *LedgerMutator) Mutate(ctx context.Context, ledger *componentsv1beta2.Le
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if err := reconcileSearchIngester(ctx, r.Client, r.Scheme, ledger); err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
-	}
-
 	if ledger.Spec.Ingress != nil {
 		_, err = r.reconcileIngress(ctx, ledger, service)
 		if err != nil {
@@ -298,7 +294,6 @@ func (r *LedgerMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta2.Scope{}).
-		Owns(&componentsv1beta2.SearchIngester{}).
 		Owns(&autoscallingv1.HorizontalPodAutoscaler{})
 	return nil
 }

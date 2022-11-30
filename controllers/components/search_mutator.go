@@ -19,7 +19,6 @@ package components
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 	"strings"
 
@@ -68,12 +67,13 @@ func (r *SearchMutator) Mutate(ctx context.Context, search *componentsv1beta2.Se
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	if _, err = r.reconcileBenthosTemplatesConfig(ctx, search); err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling benthos templates")
-	}
-
-	if _, err = r.reconcileBenthosResourcesConfig(ctx, search); err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling benthos resources")
+	for _, dir := range []string{"templates", "streams", "resources"} {
+		if _, err = controllerutils.CreateConfigMapFromDir(ctx, types.NamespacedName{
+			Namespace: search.Namespace,
+			Name:      fmt.Sprintf("benthos-%s-config", dir),
+		}, r.Client, r.Scheme, search, benthosConfigDir, filepath.Join("benthos", dir)); err != nil {
+			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling benthos config")
+		}
 	}
 
 	if _, err = r.reconcileBenthosStreamServer(ctx, search); err != nil {
@@ -290,8 +290,9 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 		Namespace: search.Namespace,
 		Name:      search.Name + "-benthos",
 	}, search, func(server *benthosv1beta2.Server) error {
-		server.Spec.ResourcesConfigMap = search.Name + "-benthos-resources-config"
-		server.Spec.TemplatesConfigMap = search.Name + "-benthos-templates-config"
+		server.Spec.ResourcesConfigMap = "benthos-resources-config"
+		server.Spec.TemplatesConfigMap = "benthos-templates-config"
+		server.Spec.StreamsConfigMap = "benthos-streams-config"
 		server.Spec.DevProperties = search.Spec.DevProperties
 		server.Spec.Env = []corev1.EnvVar{
 			apisv1beta1.Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
@@ -300,6 +301,7 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 			apisv1beta1.Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
 			apisv1beta1.Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
 		}
+		server.Spec.Env = append(server.Spec.Env, search.Spec.PostgresConfigs.Env()...)
 		if search.Spec.ElasticSearch.BasicAuth != nil {
 			server.Spec.Env = append(server.Spec.Env,
 				apisv1beta1.Env("BASIC_AUTH_ENABLED", "true"),
@@ -332,70 +334,6 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 	return operationResult, nil
 }
 
-func copyDir(root, path string, ret *map[string]string) error {
-	dirEntries, err := fs.ReadDir(benthosConfigDir, path)
-	if err != nil {
-		return err
-	}
-	for _, dirEntry := range dirEntries {
-		dirEntryPath := filepath.Join(path, dirEntry.Name())
-		if dirEntry.IsDir() {
-			if err := copyDir(root, dirEntryPath, ret); err != nil {
-				return err
-			}
-		} else {
-			fileContent, err := fs.ReadFile(benthosConfigDir, dirEntryPath)
-			if err != nil {
-				return err
-			}
-			sanitizedPath := strings.TrimPrefix(dirEntryPath, root)
-			sanitizedPath = strings.TrimPrefix(sanitizedPath, "/")
-			(*ret)[sanitizedPath] = string(fileContent)
-		}
-	}
-	return nil
-}
-
-func (r *SearchMutator) reconcileBenthosTemplatesConfig(ctx context.Context, search *componentsv1beta2.Search) (interface{}, error) {
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
-		Namespace: search.Namespace,
-		Name:      search.Name + "-benthos-templates-config",
-	}, search, func(configMap *corev1.ConfigMap) error {
-		configMap.Data = map[string]string{}
-
-		rootDir := filepath.Join("benthos", "search", "templates")
-		return copyDir(rootDir, rootDir, &configMap.Data)
-	})
-	switch {
-	case err != nil:
-		apisv1beta1.SetCondition(search, "BenthosConfigTemplatesReady", metav1.ConditionFalse, err.Error())
-	case operationResult == controllerutil.OperationResultNone:
-	default:
-		apisv1beta1.SetCondition(search, "BenthosConfigTemplatesReady", metav1.ConditionTrue)
-	}
-	return operationResult, nil
-}
-
-func (r *SearchMutator) reconcileBenthosResourcesConfig(ctx context.Context, search *componentsv1beta2.Search) (interface{}, error) {
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
-		Namespace: search.Namespace,
-		Name:      search.Name + "-benthos-resources-config",
-	}, search, func(configMap *corev1.ConfigMap) error {
-		configMap.Data = map[string]string{}
-
-		rootDir := filepath.Join("benthos", "search", "resources")
-		return copyDir(rootDir, rootDir, &configMap.Data)
-	})
-	switch {
-	case err != nil:
-		apisv1beta1.SetCondition(search, "BenthosConfigResourcesReady", metav1.ConditionFalse, err.Error())
-	case operationResult == controllerutil.OperationResultNone:
-	default:
-		apisv1beta1.SetCondition(search, "BenthosConfigResourcesReady", metav1.ConditionTrue)
-	}
-	return operationResult, nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *SearchMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
@@ -404,7 +342,8 @@ func (r *SearchMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta2.Scope{}).
 		Owns(&corev1.ConfigMap{}).
-		Owns(&benthosv1beta2.Server{})
+		Owns(&benthosv1beta2.Server{}).
+		Owns(&benthosv1beta2.Stream{})
 	return nil
 }
 

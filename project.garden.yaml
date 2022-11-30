@@ -40,6 +40,8 @@ include:
 - main.go
 - go.*
 - Dockerfile
+build:
+  targetImage: "${command.params contains 'dev' && command.params.dev contains 'operator' ? 'reloader': 'release' }"
 ---
 kind: Module
 description: Update operator version
@@ -60,6 +62,12 @@ description: Operator manifests
 type: kubernetes
 include:
 - config
+- main.go
+- vendor
+- pkg
+- controllers
+- apis
+- go.*
 kustomize:
   path: config/default
 dependencies:
@@ -71,3 +79,15 @@ build:
     copy:
     - source: config
       target: config
+serviceResource:
+  kind: Deployment
+  name: formance-operator-controller-manager
+  containerName: manager
+  containerModule: operator-build-image
+devMode:
+  command:
+  - air
+  - --
+  containerName: manager
+  sync:
+  - target: /workspace

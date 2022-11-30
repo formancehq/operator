@@ -66,10 +66,6 @@ func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	if err := reconcileSearchIngester(ctx, r.Client, r.Scheme, payments); err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
-	}
-
 	if payments.Spec.Ingress != nil {
 		_, err = r.reconcileIngress(ctx, payments, service)
 		if err != nil {
@@ -240,8 +236,7 @@ func (r *PaymentsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Build
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta2.Scope{}).
-		Owns(&componentsv1beta2.SearchIngester{})
+		Owns(&authcomponentsv1beta2.Scope{})
 	return nil
 }
 

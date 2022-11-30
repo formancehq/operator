@@ -20,8 +20,17 @@ import (
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type SearchPostgresConfigs struct {
+	Ledger apisv1beta1.PostgresConfigWithDatabase `json:"ledger"`
+}
+
+func (c SearchPostgresConfigs) Env() []corev1.EnvVar {
+	return c.Ledger.EnvWithDiscriminator("", "LEDGER")
+}
 
 // SearchSpec defines the desired state of Search
 type SearchSpec struct {
@@ -31,11 +40,12 @@ type SearchSpec struct {
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional
-	Monitoring    *apisv1beta1.MonitoringSpec           `json:"monitoring"`
-	ElasticSearch componentsv1beta1.ElasticSearchConfig `json:"elasticsearch"`
-	KafkaConfig   apisv1beta1.KafkaConfig               `json:"kafka"`
-	Index         string                                `json:"index"`
-	Batching      componentsv1beta1.Batching            `json:"batching"`
+	Monitoring      *apisv1beta1.MonitoringSpec           `json:"monitoring"`
+	ElasticSearch   componentsv1beta1.ElasticSearchConfig `json:"elasticsearch"`
+	KafkaConfig     apisv1beta1.KafkaConfig               `json:"kafka"`
+	Index           string                                `json:"index"`
+	Batching        componentsv1beta1.Batching            `json:"batching"`
+	PostgresConfigs SearchPostgresConfigs                 `json:"postgres"`
 }
 
 //+kubebuilder:object:root=true
