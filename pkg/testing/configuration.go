@@ -20,6 +20,7 @@ func NewDumbVersions() *v1beta2.Versions {
 			Search:   uuid.NewString(),
 			Auth:     uuid.NewString(),
 			Webhooks: uuid.NewString(),
+			Next:     uuid.NewString(),
 		},
 	}
 }
@@ -36,6 +37,9 @@ func NewDumbConfiguration() *v1beta2.Configuration {
 				},
 				Control: v1beta2.ControlSpec{},
 				Ledger: v1beta2.LedgerSpec{
+					Postgres: NewDumpPostgresConfig(),
+				},
+				Next: v1beta2.NextSpec{
 					Postgres: NewDumpPostgresConfig(),
 				},
 				Payments: v1beta2.PaymentsSpec{
