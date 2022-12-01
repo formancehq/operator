@@ -18,6 +18,7 @@ package components
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,6 @@ import (
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
-	"github.com/opensearch-project/opensearch-go"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscallingv2 "k8s.io/api/autoscaling/v2"
@@ -124,6 +124,7 @@ func (r *SearchMutator) reconcileDeployment(ctx context.Context, search *compone
 	}
 	env = append(env, search.Spec.ElasticSearch.Env("")...)
 	env = append(env, apisv1beta1.Env("ES_INDICES", search.Spec.Index))
+	env = append(env, apisv1beta1.Env("MAPPING_INIT_DISABLED", "true"))
 
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
@@ -267,23 +268,6 @@ func (r *SearchMutator) reconcileHPA(ctx context.Context, search *componentsv1be
 
 func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search *componentsv1beta2.Search) (controllerutil.OperationResult, error) {
 
-	cfg := opensearch.Config{
-		Addresses: []string{search.Spec.ElasticSearch.Endpoint()},
-	}
-	if search.Spec.ElasticSearch.BasicAuth != nil {
-		cfg.Username = search.Spec.ElasticSearch.BasicAuth.Username
-		cfg.Password = search.Spec.ElasticSearch.BasicAuth.Password
-	}
-
-	client, err := opensearch.NewClient(cfg)
-	if err != nil {
-		return controllerutil.OperationResultNone, err
-	}
-
-	if err := LoadMapping(ctx, client, DefaultMapping(search.Spec.Index), search.Name); err != nil {
-		return controllerutil.OperationResultNone, err
-	}
-
 	log.FromContext(ctx).Info("Mapping created es side")
 
 	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
@@ -296,10 +280,13 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 		server.Spec.DevProperties = search.Spec.DevProperties
 		server.Spec.Env = []corev1.EnvVar{
 			apisv1beta1.Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
+			// TODO: Rename search env vars
+			//nolint:staticcheck
 			apisv1beta1.Env("OPENSEARCH_URL", search.Spec.ElasticSearch.Endpoint()),
 			apisv1beta1.Env("OPENSEARCH_INDEX", search.Spec.Index),
 			apisv1beta1.Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
 			apisv1beta1.Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
+			apisv1beta1.Env("TOPIC_PREFIX", search.Namespace+"-"),
 		}
 		server.Spec.Env = append(server.Spec.Env, search.Spec.PostgresConfigs.Env()...)
 		if search.Spec.ElasticSearch.BasicAuth != nil {
@@ -321,6 +308,24 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 				apisv1beta1.Env("KAFKA_TLS_ENABLED", "true"),
 			)
 		}
+
+		mapping, err := json.Marshal(GetMapping())
+		if err != nil {
+			return err
+		}
+
+		server.Spec.InitContainers = []corev1.Container{{
+			Name:    "init-mapping",
+			Image:   "curlimages/curl:7.86.0",
+			Command: []string{"sh"},
+			Args: []string{
+				"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
+					"-X PUT -v -d '%s' "+
+					"-u ${OPEN_SEARCH_USERNAME}:${OPEN_SEARCH_PASSWORD} "+
+					"${OPEN_SEARCH_SERVICE}/%s/_mapping", string(mapping), search.Namespace),
+			},
+			Env: search.Spec.ElasticSearch.Env(""),
+		}}
 
 		return nil
 	})

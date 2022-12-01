@@ -79,12 +79,13 @@ spec:
         password: very-secured-password
     search:
       elasticSearch:
-        host: elasticsearch-master.default.svc.cluster.local
-        port: 9200
+        host: zinc.default.svc.cluster.local
+        port: 4080
         scheme: http
+        pathPrefix: /api
         basicAuth:
           username: admin
-          password: admin
+          password: "Complexpass#123"
     webhooks:
       mongoDB:
         host: mongodb-svc.default.svc.cluster.local
@@ -98,7 +99,7 @@ metadata:
   name: default
 spec:
   control: 59e871d64514ec01c84ea18b34cf0788d17d7f63
-  search: f2f51323e23b7e191716b836f89db66f301a5af5
+  search: fa29fbcfa983990ef1042274e3d928713865b6a7
 ---
 apiVersion: stack.formance.com/v1beta2
 kind: Stack
