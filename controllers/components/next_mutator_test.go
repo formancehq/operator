@@ -36,14 +36,6 @@ var _ = Describe("Next controller", func() {
 								},
 								CreateDatabase: true,
 							},
-							Collector: &componentsv1beta1.CollectorConfig{
-								KafkaConfig: apisv1beta1.KafkaConfig{
-									Brokers: []string{"http://kafka"},
-									TLS:     false,
-									SASL:    nil,
-								},
-								Topic: "xxx",
-							},
 						},
 					}
 					Expect(Create(next)).To(BeNil())
