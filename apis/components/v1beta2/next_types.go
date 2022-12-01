@@ -34,8 +34,6 @@ type NextSpec struct {
 	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
 	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring"`
-	// +optional
-	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
 }
 
 //+kubebuilder:object:root=true

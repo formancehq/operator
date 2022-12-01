@@ -354,10 +354,6 @@ func (r *Mutator) reconcileNext(ctx context.Context, stack *stackv1beta2.Stack, 
 				CreateDatabase: true,
 			},
 			Monitoring: configuration.Monitoring,
-			Collector: &componentsv1beta1.CollectorConfig{
-				KafkaConfig: configuration.Kafka,
-				Topic:       fmt.Sprintf("%s-next", stack.Name),
-			},
 		}
 		return nil
 	})

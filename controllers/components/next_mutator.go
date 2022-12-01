@@ -99,14 +99,11 @@ func (r *NextMutator) Mutate(ctx context.Context, next *componentsv1beta2.Next) 
 func (r *NextMutator) reconcileDeployment(ctx context.Context, next *componentsv1beta2.Next) (*appsv1.Deployment, error) {
 	matchLabels := CreateMap("app.kubernetes.io/name", "next")
 
-	env := []corev1.EnvVar{}
+	var env []corev1.EnvVar
 	env = append(env, next.Spec.Postgres.Env("")...)
 	env = append(env, next.Spec.DevProperties.EnvWithPrefix("")...)
 	if next.Spec.Monitoring != nil {
 		env = append(env, next.Spec.Monitoring.Env("")...)
-	}
-	if next.Spec.Collector != nil {
-		env = append(env, next.Spec.Collector.Env("")...)
 	}
 
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(next), next, func(deployment *appsv1.Deployment) error {
@@ -155,6 +152,19 @@ func (r *NextMutator) reconcileDeployment(ctx context.Context, next *componentsv
 					}},
 				},
 			},
+		}
+		if next.Spec.Postgres.CreateDatabase {
+			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+				Name:            "init-create-next-db",
+				Image:           "postgres:13",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{
+					"sh",
+					"-c",
+					`psql -Atx ${POSTGRES_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+				},
+				Env: next.Spec.Postgres.Env(""),
+			}}
 		}
 		return nil
 	})
