@@ -126,23 +126,23 @@ func (r *NextMutator) reconcileDeployment(ctx context.Context, next *componentsv
 							Name:          "next",
 							ContainerPort: 8080,
 						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_health",
-									Port: intstr.IntOrString{
-										IntVal: 8080,
-									},
-									Scheme: "HTTP",
-								},
-							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
+						//LivenessProbe: &corev1.Probe{
+						//	ProbeHandler: corev1.ProbeHandler{
+						//		HTTPGet: &corev1.HTTPGetAction{
+						//			Path: "/_health",
+						//			Port: intstr.IntOrString{
+						//				IntVal: 8080,
+						//			},
+						//			Scheme: "HTTP",
+						//		},
+						//	},
+						//	InitialDelaySeconds:           1,
+						//	TimeoutSeconds:                30,
+						//	PeriodSeconds:                 2,
+						//	SuccessThreshold:              1,
+						//	FailureThreshold:              10,
+						//	TerminationGracePeriodSeconds: pointer.Int64(10),
+						//},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
