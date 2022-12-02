@@ -102,7 +102,7 @@ func (r *NextMutator) reconcileDeployment(ctx context.Context, next *componentsv
 
 	ledgerName := strings.Replace(next.GetName(), "-next", "-ledger", -1)
 	env := []corev1.EnvVar{
-		apisv1beta1.Env("LEDGER_URI", fmt.Sprintf("http://%s", ledgerName)),
+		apisv1beta1.Env("LEDGER_URI", fmt.Sprintf("http://%s:8080", ledgerName)),
 		apisv1beta1.Env("LEDGER_PREFIX", "next"),
 	}
 	env = append(env, next.Spec.Postgres.Env("")...)
