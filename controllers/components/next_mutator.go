@@ -19,6 +19,7 @@ package components
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
@@ -99,7 +100,11 @@ func (r *NextMutator) Mutate(ctx context.Context, next *componentsv1beta2.Next) 
 func (r *NextMutator) reconcileDeployment(ctx context.Context, next *componentsv1beta2.Next) (*appsv1.Deployment, error) {
 	matchLabels := CreateMap("app.kubernetes.io/name", "next")
 
-	var env []corev1.EnvVar
+	ledgerName := strings.Replace(next.GetName(), "-next", "-ledger", -1)
+	env := []corev1.EnvVar{
+		apisv1beta1.Env("LEDGER_URI", fmt.Sprintf("http://%s", ledgerName)),
+		apisv1beta1.Env("LEDGER_PREFIX", "next"),
+	}
 	env = append(env, next.Spec.Postgres.Env("")...)
 	env = append(env, next.Spec.DevProperties.EnvWithPrefix("")...)
 	if next.Spec.Monitoring != nil {
