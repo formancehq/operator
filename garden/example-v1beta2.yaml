@@ -92,6 +92,13 @@ spec:
         password: very-secured-password
         port: 27017
         username: root
+    next:
+      postgres:
+        host: postgres-postgresql.default.svc.cluster.local
+        port: 5432
+        username: formance
+        password: formance
+        disableSSLMode: true
 ---
 apiVersion: stack.formance.com/v1beta2
 kind: Versions
@@ -100,6 +107,7 @@ metadata:
 spec:
   control: 59e871d64514ec01c84ea18b34cf0788d17d7f63
   search: fa29fbcfa983990ef1042274e3d928713865b6a7
+  next: 4a47bc37e00802242be2d00f4c3e3a91fa251145
 ---
 apiVersion: stack.formance.com/v1beta2
 kind: Stack

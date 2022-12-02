@@ -41,6 +41,8 @@ spec:
                 type: string
               ledger:
                 type: string
+              next:
+                type: string
               payments:
                 type: string
               search:

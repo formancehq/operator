@@ -22,7 +22,7 @@ linters:
     - unused      #Default linter
     - gofmt
 #    - gci
-    - goimports
+#    - goimports
 
 run:
   timeout: 5m

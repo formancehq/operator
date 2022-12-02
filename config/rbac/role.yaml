@@ -226,6 +226,32 @@ rules:
 - apiGroups:
   - components.formance.com
   resources:
+  - nexts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.formance.com
+  resources:
+  - nexts/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - nexts/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
   - payments
   verbs:
   - create

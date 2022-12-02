@@ -63,6 +63,7 @@ const (
 	ConditionTypeStackControlReady    = "ControlReady"
 	ConditionTypeStackPaymentsReady   = "PaymentsReady"
 	ConditionTypeStackWebhooksReady   = "WebhooksReady"
+	ConditionTypeStackNextReady       = "NextReady"
 	ConditionTypeStackMiddlewareReady = "MiddlewareReady"
 )
 
@@ -155,8 +156,16 @@ func (s *Stack) SetLedgerReady() {
 	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
 }
 
+func (s *Stack) SetNextReady() {
+	apisv1beta1.SetCondition(s, ConditionTypeStackNextReady, metav1.ConditionTrue)
+}
+
 func (s *Stack) SetLedgerError(msg string) {
 	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
+}
+
+func (s *Stack) SetNextError(msg string) {
+	apisv1beta1.SetCondition(s, ConditionTypeStackNextReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetSearchReady() {
@@ -201,6 +210,10 @@ func (s *Stack) RemoveAuthStatus() {
 
 func (s *Stack) RemoveSearchStatus() {
 	s.Status.RemoveCondition(ConditionTypeStackSearchReady)
+}
+
+func (s *Stack) RemoveNextStatus() {
+	s.Status.RemoveCondition(ConditionTypeStackNextReady)
 }
 
 func (s *Stack) RemoveControlStatus() {

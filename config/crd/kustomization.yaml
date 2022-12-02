@@ -8,6 +8,7 @@ resources:
 - bases/components.formance.com_payments.yaml
 - bases/components.formance.com_searches.yaml
 - bases/components.formance.com_controls.yaml
+- bases/components.formance.com_nexts.yaml
 - bases/auth.components.formance.com_clients.yaml
 - bases/auth.components.formance.com_scopes.yaml
 - bases/benthos.components.formance.com_servers.yaml
