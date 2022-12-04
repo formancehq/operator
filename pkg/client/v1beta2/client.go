@@ -27,3 +27,15 @@ func (c *Client) Stacks() StackInterface {
 		restClient: c.Interface,
 	}
 }
+
+func (c *Client) Versions() VersionsInterface {
+	return &versionClient{
+		restClient: c.Interface,
+	}
+}
+
+func (c *Client) Configurations() ConfigurationInterface {
+	return &configurationClient{
+		restClient: c.Interface,
+	}
+}
