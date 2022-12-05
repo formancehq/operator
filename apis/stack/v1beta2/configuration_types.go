@@ -20,6 +20,7 @@ import (
 	"reflect"
 
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -49,7 +50,7 @@ type ConfigurationSpec struct {
 	Services ConfigurationServicesSpec `json:"services"`
 	Kafka    apisv1beta1.KafkaConfig   `json:"kafka"`
 	// +optional
-	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring,omitempty"`
+	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
 	Ingress *IngressGlobalConfig `json:"ingress,omitempty"`
 }

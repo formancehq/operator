@@ -13,7 +13,7 @@ COPY pkg pkg
 COPY controllers controllers
 RUN go build -v -a -o manager main.go
 
-FROM builder as reloader
+FROM golang:1.18 as reloader
 RUN go install github.com/cosmtrek/air@latest
 
 # Use distroless as minimal base image to package the manager binary

@@ -22,9 +22,8 @@ limitations under the License.
 package v1beta2
 
 import (
-	auth_componentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
+	"github.com/numary/operator/apis/auth.components/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	"github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -117,12 +116,12 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	in.DelegatedOIDCServer.DeepCopyInto(&out.DelegatedOIDCServer)
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(v1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.StaticClients != nil {
 		in, out := &in.StaticClients, &out.StaticClients
-		*out = make([]auth_componentsv1beta1.StaticClient, len(*in))
+		*out = make([]v1beta1.StaticClient, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -210,7 +209,7 @@ func (in *ControlSpec) DeepCopyInto(out *ControlSpec) {
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(v1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.AuthClientConfiguration != nil {
@@ -302,7 +301,7 @@ func (in *LedgerSpec) DeepCopyInto(out *LedgerSpec) {
 	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(v1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Collector != nil {
@@ -395,7 +394,7 @@ func (in *NextSpec) DeepCopyInto(out *NextSpec) {
 	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(v1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 }
@@ -480,7 +479,7 @@ func (in *PaymentsSpec) DeepCopyInto(out *PaymentsSpec) {
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(v1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Collector != nil {
@@ -588,7 +587,7 @@ func (in *SearchSpec) DeepCopyInto(out *SearchSpec) {
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(v1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	in.ElasticSearch.DeepCopyInto(&out.ElasticSearch)
@@ -683,7 +682,7 @@ func (in *WebhooksSpec) DeepCopyInto(out *WebhooksSpec) {
 	}
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(v1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 }

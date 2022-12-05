@@ -1593,6 +1593,8 @@ spec:
                                 - key
                                 type: object
                             type: object
+                          resourceAttributes:
+                            type: string
                         type: object
                     type: object
                 type: object

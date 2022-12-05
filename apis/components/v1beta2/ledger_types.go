@@ -20,6 +20,7 @@ import (
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -33,7 +34,7 @@ type LedgerSpec struct {
 	// +optional
 	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
-	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring"`
+	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring"`
 	// +optional
 	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
 

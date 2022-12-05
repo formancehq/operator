@@ -1,5 +1,5 @@
 // +kubebuilder:object:generate=true
-package v1beta1
+package v1beta2
 
 import (
 	"fmt"
@@ -44,6 +44,8 @@ type TracesOtlpSpec struct {
 	// +kubebuilder:validation:default:=grpc
 	// +optional
 	Mode string `json:"mode,omitempty"`
+	// +optional
+	ResourceAttributes string `json:"resourceAttributes,omitempty"`
 }
 
 func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
@@ -57,6 +59,7 @@ func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
 			in.Endpoint, in.EndpointFrom),
 		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT",
 			ComputeEnvVar(prefix, "%s:%s", "OTEL_TRACES_ENDPOINT", "OTEL_TRACES_PORT")),
+		EnvWithPrefix(prefix, "OTEL_TRACES_RESOURCE_ATTRIBUTES", in.ResourceAttributes),
 	}
 
 	return env
