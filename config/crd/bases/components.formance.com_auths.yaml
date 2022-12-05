@@ -886,6 +886,8 @@ spec:
                                 - key
                                 type: object
                             type: object
+                          resource_attributes:
+                            type: string
                         type: object
                     type: object
                 type: object
@@ -2061,6 +2063,8 @@ spec:
                                 - key
                                 type: object
                             type: object
+                          resourceAttributes:
+                            type: string
                         type: object
                     type: object
                 type: object

@@ -24,6 +24,7 @@ package v1beta2
 import (
 	"github.com/numary/operator/apis/auth.components/v1beta1"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -143,7 +144,7 @@ func (in *ConfigurationSpec) DeepCopyInto(out *ConfigurationSpec) {
 	in.Kafka.DeepCopyInto(&out.Kafka)
 	if in.Monitoring != nil {
 		in, out := &in.Monitoring, &out.Monitoring
-		*out = new(apisv1beta1.MonitoringSpec)
+		*out = new(apisv1beta2.MonitoringSpec)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Ingress != nil {

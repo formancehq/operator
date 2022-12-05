@@ -21,6 +21,7 @@ import (
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	. "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -44,7 +45,7 @@ type AuthSpec struct {
 	DelegatedOIDCServer componentsv1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 
 	// +optional
-	Monitoring *apisv1beta1.MonitoringSpec `json:"monitoring"`
+	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring"`
 
 	// +optional
 	StaticClients []authv1beta1.StaticClient `json:"staticClients"`
