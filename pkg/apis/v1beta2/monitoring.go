@@ -59,11 +59,8 @@ func (in *TracesOtlpSpec) Env(prefix string) []v1.EnvVar {
 			in.Endpoint, in.EndpointFrom),
 		EnvWithPrefix(prefix, "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT",
 			ComputeEnvVar(prefix, "%s:%s", "OTEL_TRACES_ENDPOINT", "OTEL_TRACES_PORT")),
-		EnvWithPrefix(prefix, "OTEL_TRACES_RESOURCE_ATTRIBUTES", fmt.Sprintf("%s", in.ResourceAttributes)),
+		EnvWithPrefix(prefix, "OTEL_TRACES_RESOURCE_ATTRIBUTES", in.ResourceAttributes),
 	}
-	//if in.ResourceAttributes != "" {
-	//	env = append(env, EnvWithPrefix(prefix, "OTEL_TRACES_RESOURCE_ATTRIBUTES", fmt.Sprintf("%s", in.ResourceAttributes)))
-	//}
 
 	return env
 }
