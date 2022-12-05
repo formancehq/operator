@@ -1048,8 +1048,6 @@ spec:
                                 - key
                                 type: object
                             type: object
-                          resource_attributes:
-                            type: string
                         type: object
                     type: object
                 type: object
