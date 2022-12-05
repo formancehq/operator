@@ -45,6 +45,7 @@ spec:
         insecure: true
         mode: grpc
         port: 4317
+        resourceAttributes: "toto=maxence"
   kafka:
     brokers:
       - redpanda.default.svc.cluster.local:9092
