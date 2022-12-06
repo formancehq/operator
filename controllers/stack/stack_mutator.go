@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
@@ -140,24 +141,21 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 	if stack.Status.StaticAuthClients == nil {
 		stack.Status.StaticAuthClients = map[string]authcomponentsv1beta1.StaticClient{}
 	}
-	stack.Status.StaticAuthClients["control"] = authcomponentsv1beta1.StaticClient{
-		ID: "control",
-		Secrets: []string{
-			// TODO: Need a real secret
-			"control",
-			// When creating Control CRD later in the code, we trigger a new reconciliation loop on the stack as
-			// the Stack object owns Control object, which invalid the current reconciliation (we cannot update the status as the generation as changed).
-			//uuid.NewString(),
-		},
-		ClientConfiguration: authcomponentsv1beta1.ClientConfiguration{
-			Scopes: []string{"openid", "profile", "email", "offline"},
-			RedirectUris: []string{
-				fmt.Sprintf("%s/auth/login", stack.URL()),
+
+	if _, ok := stack.Status.StaticAuthClients["control"]; !ok {
+		stack.Status.StaticAuthClients["control"] = authcomponentsv1beta1.StaticClient{
+			ID:      "control",
+			Secrets: []string{uuid.NewString()},
+			ClientConfiguration: authcomponentsv1beta1.ClientConfiguration{
+				Scopes: []string{"openid", "profile", "email", "offline"},
+				RedirectUris: []string{
+					fmt.Sprintf("%s/auth/login", stack.URL()),
+				},
+				PostLogoutRedirectUris: []string{
+					fmt.Sprintf("%s/auth/destroy", stack.URL()),
+				},
 			},
-			PostLogoutRedirectUris: []string{
-				fmt.Sprintf("%s/auth/destroy", stack.URL()),
-			},
-		},
+		}
 	}
 
 	if err := r.reconcileNamespace(ctx, stack); err != nil {
