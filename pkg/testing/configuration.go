@@ -49,7 +49,7 @@ func NewDumbConfiguration() *v1beta2.Configuration {
 					ElasticSearchConfig: NewDumpElasticSearchConfig(),
 				},
 				Webhooks: v1beta2.WebhooksSpec{
-					MongoDB: NewDumpMongoDBConfig(),
+					Postgres: NewDumpPostgresConfig(),
 				},
 			},
 			Kafka: NewDumpKafkaConfig(),

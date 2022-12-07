@@ -432,17 +432,12 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 				KafkaConfig: configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments %s-ledger", stack.Name, stack.Name),
 			},
-			MongoDB: apisv1beta1.MongoDBConfig{
-				UseSrv:       configuration.Services.Webhooks.MongoDB.UseSrv,
-				Host:         configuration.Services.Webhooks.MongoDB.Host,
-				HostFrom:     configuration.Services.Webhooks.MongoDB.HostFrom,
-				Port:         configuration.Services.Webhooks.MongoDB.Port,
-				PortFrom:     configuration.Services.Webhooks.MongoDB.PortFrom,
-				Database:     stack.Name,
-				Username:     configuration.Services.Webhooks.MongoDB.Username,
-				UsernameFrom: configuration.Services.Webhooks.MongoDB.UsernameFrom,
-				Password:     configuration.Services.Webhooks.MongoDB.Password,
-				PasswordFrom: configuration.Services.Webhooks.MongoDB.PasswordFrom,
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Auth.Postgres,
+					Database:       fmt.Sprintf("%s-webhooks", stack.Name),
+				},
 			},
 		}
 		return nil

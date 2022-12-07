@@ -25,8 +25,8 @@ import (
 type WebhooksSpec struct {
 	CommonServiceProperties `json:",inline"`
 
-	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
-	MongoDB   apisv1beta1.MongoDBConfig          `json:"mongoDB"`
+	Collector *componentsv1beta1.CollectorConfig             `json:"collector"`
+	Postgres  componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`
 	// +optional

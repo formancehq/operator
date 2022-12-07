@@ -674,7 +674,7 @@ func (in *WebhooksSpec) DeepCopyInto(out *WebhooksSpec) {
 		*out = new(componentsv1beta1.CollectorConfig)
 		(*in).DeepCopyInto(*out)
 	}
-	in.MongoDB.DeepCopyInto(&out.MongoDB)
+	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
 		*out = new(apisv1beta2.IngressSpec)

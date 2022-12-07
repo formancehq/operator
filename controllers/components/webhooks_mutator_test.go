@@ -33,8 +33,13 @@ var _ = Describe("Webhooks controller", func() {
 								KafkaConfig: NewDumpKafkaConfig(),
 								Topic:       "xxx",
 							},
-							MongoDB: NewDumpMongoDBConfig(),
-						},
+							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+									Database:       "auth",
+									PostgresConfig: NewDumpPostgresConfig(),
+								},
+								CreateDatabase: false,
+							}},
 					}
 					Expect(Create(webhooks)).To(BeNil())
 					Eventually(ConditionStatus(webhooks, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))

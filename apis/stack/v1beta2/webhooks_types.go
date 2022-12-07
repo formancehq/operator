@@ -15,12 +15,14 @@ type WebhooksSpec struct {
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
 	// +optional
-	MongoDB v1beta1.MongoDBConfig `json:"mongoDB"`
+	Postgres v1beta1.PostgresConfig `json:"postgres"`
 }
 
 func (in *WebhooksSpec) Validate() field.ErrorList {
 	if in == nil {
-		return nil
+		return field.ErrorList{}
 	}
-	return typeutils.Map(in.MongoDB.Validate(), v1beta1.AddPrefixToFieldError("mongoDB."))
+	return typeutils.MergeAll(
+		typeutils.Map(in.Postgres.Validate(), v1beta1.AddPrefixToFieldError("postgres.")),
+	)
 }
