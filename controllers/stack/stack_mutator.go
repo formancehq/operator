@@ -389,7 +389,7 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *stackv1beta2.Stac
 			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
-					PostgresConfig: configuration.Services.Auth.Postgres,
+					PostgresConfig: configuration.Services.Payments.Postgres,
 					Database:       fmt.Sprintf("%s-payments", stack.Name),
 				},
 			},
@@ -430,7 +430,7 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
 				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
-					PostgresConfig: configuration.Services.Auth.Postgres,
+					PostgresConfig: configuration.Services.Webhooks.Postgres,
 					Database:       fmt.Sprintf("%s-webhooks", stack.Name),
 				},
 			},

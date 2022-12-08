@@ -34,7 +34,7 @@ type PaymentsSpec struct {
 	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring"`
 	// +optional
 	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
-
+	// +optional
 	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 }
 
