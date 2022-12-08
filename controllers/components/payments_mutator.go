@@ -125,6 +125,7 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 							Name:          "payments",
 							ContainerPort: 8080,
 						}},
+						Command: []string{"payments", "migrate", "up"},
 						LivenessProbe: &corev1.Probe{
 							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
@@ -157,7 +158,14 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 					`psql -Atx ${POSTGRES_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
 				Env: payments.Spec.Postgres.Env(""),
-			}}
+			},
+				{
+					Name:            "migrate",
+					Image:           controllerutils.GetImage("payments", payments.Spec.Version),
+					ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
+					Env:             env,
+					Command:         []string{"payments", "migrate", "up"},
+				}}
 		}
 		return nil
 	})
