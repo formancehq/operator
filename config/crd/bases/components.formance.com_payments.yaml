@@ -1278,8 +1278,6 @@ spec:
               version:
                 default: latest
                 type: string
-            required:
-            - postgres
             type: object
           status:
             properties:

@@ -1278,7 +1278,6 @@ spec:
                 type: string
             required:
             - collector
-            - postgres
             type: object
           status:
             properties:
