@@ -94,7 +94,7 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 
 	env := payments.Spec.Postgres.Env("")
 	env = append(env,
-		apisv1beta1.Env("POSTGRES_URI", "$(POSTGRES_DATABASE_URI)"),
+		apisv1beta1.Env("POSTGRES_DATABASE_NAME", "$(POSTGRES_DATABASE)"),
 	)
 	if payments.Spec.Debug {
 		env = append(env, apisv1beta1.Env("DEBUG", "true"))
