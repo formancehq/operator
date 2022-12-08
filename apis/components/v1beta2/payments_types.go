@@ -35,7 +35,7 @@ type PaymentsSpec struct {
 	// +optional
 	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
 
-	MongoDB apisv1beta1.MongoDBConfig `json:"mongoDB"`
+	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 }
 
 //+kubebuilder:object:root=true

@@ -33,8 +33,13 @@ var _ = Describe("Payments controller", func() {
 								KafkaConfig: NewDumpKafkaConfig(),
 								Topic:       "xxx",
 							},
-							MongoDB: NewDumpMongoDBConfig(),
-						},
+							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+									Database:       "auth",
+									PostgresConfig: NewDumpPostgresConfig(),
+								},
+								CreateDatabase: false,
+							}},
 					}
 					Expect(Create(payments)).To(BeNil())
 					Eventually(ConditionStatus(payments, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))

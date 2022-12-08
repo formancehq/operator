@@ -4464,10 +4464,10 @@ spec:
                               type: string
                             type: object
                         type: object
-                      mongoDB:
+                      postgres:
                         properties:
-                          database:
-                            type: string
+                          disableSSLMode:
+                            type: boolean
                           host:
                             type: string
                           hostFrom:
@@ -4603,8 +4603,6 @@ spec:
                                 - key
                                 type: object
                             type: object
-                          useSrv:
-                            type: boolean
                           username:
                             type: string
                           usernameFrom:

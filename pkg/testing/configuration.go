@@ -43,7 +43,7 @@ func NewDumbConfiguration() *v1beta2.Configuration {
 					Postgres: NewDumpPostgresConfig(),
 				},
 				Payments: v1beta2.PaymentsSpec{
-					MongoDB: NewDumpMongoDBConfig(),
+					Postgres: NewDumpPostgresConfig(),
 				},
 				Search: v1beta2.SearchSpec{
 					ElasticSearchConfig: NewDumpElasticSearchConfig(),
@@ -68,16 +68,6 @@ func NewDumpElasticSearchConfig() componentsv1beta1.ElasticSearchConfig {
 		Scheme: "http",
 		Host:   "elasticsearch",
 		Port:   9200,
-	}
-}
-
-func NewDumpMongoDBConfig() apisv1beta1.MongoDBConfig {
-	return apisv1beta1.MongoDBConfig{
-		Host:     "mongodb",
-		Port:     27017,
-		Username: "username",
-		Password: "password",
-		Database: "database",
 	}
 }
 

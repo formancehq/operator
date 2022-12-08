@@ -92,7 +92,10 @@ func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta
 func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *componentsv1beta2.Payments) (*appsv1.Deployment, error) {
 	matchLabels := CreateMap("app.kubernetes.io/name", "payments")
 
-	env := payments.Spec.MongoDB.Env("")
+	env := payments.Spec.Postgres.Env("")
+	env = append(env,
+		apisv1beta1.Env("POSTGRES_URI", "$(POSTGRES_DATABASE_URI)"),
+	)
 	if payments.Spec.Debug {
 		env = append(env, apisv1beta1.Env("DEBUG", "true"))
 	}
@@ -142,6 +145,19 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 					}},
 				},
 			},
+		}
+		if payments.Spec.Postgres.CreateDatabase {
+			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+				Name:            "init-create-payments-db",
+				Image:           "postgres:13",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{
+					"sh",
+					"-c",
+					`psql -Atx ${POSTGRES_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+				},
+				Env: payments.Spec.Postgres.Env(""),
+			}}
 		}
 		return nil
 	})

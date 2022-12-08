@@ -386,17 +386,12 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *stackv1beta2.Stac
 				KafkaConfig: configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			},
-			MongoDB: apisv1beta1.MongoDBConfig{
-				UseSrv:       configuration.Services.Payments.MongoDB.UseSrv,
-				Host:         configuration.Services.Payments.MongoDB.Host,
-				HostFrom:     configuration.Services.Payments.MongoDB.HostFrom,
-				Port:         configuration.Services.Payments.MongoDB.Port,
-				PortFrom:     configuration.Services.Payments.MongoDB.PortFrom,
-				Database:     stack.Name,
-				Username:     configuration.Services.Payments.MongoDB.Username,
-				UsernameFrom: configuration.Services.Payments.MongoDB.UsernameFrom,
-				Password:     configuration.Services.Payments.MongoDB.Password,
-				PasswordFrom: configuration.Services.Payments.MongoDB.PasswordFrom,
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Auth.Postgres,
+					Database:       fmt.Sprintf("%s-payments", stack.Name),
+				},
 			},
 		}
 		return nil

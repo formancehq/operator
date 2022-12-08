@@ -867,173 +867,6 @@ spec:
                 - host
                 - path
                 type: object
-              mongoDB:
-                properties:
-                  database:
-                    type: string
-                  host:
-                    type: string
-                  hostFrom:
-                    properties:
-                      configMapKeyRef:
-                        description: Selects a key of a ConfigMap.
-                        properties:
-                          key:
-                            description: The key to select.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the ConfigMap or its key
-                              must be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                      secretKeyRef:
-                        description: Selects a key of a secret in the pod's namespace
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                    type: object
-                  password:
-                    type: string
-                  passwordFrom:
-                    properties:
-                      configMapKeyRef:
-                        description: Selects a key of a ConfigMap.
-                        properties:
-                          key:
-                            description: The key to select.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the ConfigMap or its key
-                              must be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                      secretKeyRef:
-                        description: Selects a key of a secret in the pod's namespace
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                    type: object
-                  port:
-                    type: integer
-                  portFrom:
-                    properties:
-                      configMapKeyRef:
-                        description: Selects a key of a ConfigMap.
-                        properties:
-                          key:
-                            description: The key to select.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the ConfigMap or its key
-                              must be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                      secretKeyRef:
-                        description: Selects a key of a secret in the pod's namespace
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                    type: object
-                  useSrv:
-                    type: boolean
-                  username:
-                    type: string
-                  usernameFrom:
-                    properties:
-                      configMapKeyRef:
-                        description: Selects a key of a ConfigMap.
-                        properties:
-                          key:
-                            description: The key to select.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the ConfigMap or its key
-                              must be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                      secretKeyRef:
-                        description: Selects a key of a secret in the pod's namespace
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                              TODO: Add other useful fields. apiVersion, kind, uid?'
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                    type: object
-                type: object
               monitoring:
                 properties:
                   traces:
@@ -1233,11 +1066,220 @@ spec:
                         type: object
                     type: object
                 type: object
+              postgres:
+                properties:
+                  createDatabase:
+                    type: boolean
+                  database:
+                    type: string
+                  databaseFrom:
+                    properties:
+                      configMapKeyRef:
+                        description: Selects a key of a ConfigMap.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the ConfigMap or its key
+                              must be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                      secretKeyRef:
+                        description: Selects a key of a secret in the pod's namespace
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                    type: object
+                  disableSSLMode:
+                    type: boolean
+                  host:
+                    type: string
+                  hostFrom:
+                    properties:
+                      configMapKeyRef:
+                        description: Selects a key of a ConfigMap.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the ConfigMap or its key
+                              must be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                      secretKeyRef:
+                        description: Selects a key of a secret in the pod's namespace
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                    type: object
+                  password:
+                    type: string
+                  passwordFrom:
+                    properties:
+                      configMapKeyRef:
+                        description: Selects a key of a ConfigMap.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the ConfigMap or its key
+                              must be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                      secretKeyRef:
+                        description: Selects a key of a secret in the pod's namespace
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                    type: object
+                  port:
+                    type: integer
+                  portFrom:
+                    properties:
+                      configMapKeyRef:
+                        description: Selects a key of a ConfigMap.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the ConfigMap or its key
+                              must be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                      secretKeyRef:
+                        description: Selects a key of a secret in the pod's namespace
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                    type: object
+                  username:
+                    type: string
+                  usernameFrom:
+                    properties:
+                      configMapKeyRef:
+                        description: Selects a key of a ConfigMap.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the ConfigMap or its key
+                              must be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                      secretKeyRef:
+                        description: Selects a key of a secret in the pod's namespace
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                    type: object
+                required:
+                - createDatabase
+                type: object
               version:
                 default: latest
                 type: string
             required:
-            - mongoDB
+            - postgres
             type: object
           status:
             properties:
