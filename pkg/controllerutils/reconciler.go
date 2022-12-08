@@ -2,7 +2,9 @@ package controllerutils
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"runtime/debug"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -50,13 +52,30 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	updated := t.DeepCopyObject().(T)
 
 	log.FromContext(ctx).Info("Call mutator")
-	result, reconcileError := r.Mutator.Mutate(ctx, updated)
-	if reconcileError != nil {
-		apisv1beta1.SetError(updated, reconcileError)
-		log.FromContext(ctx).Error(reconcileError, "Reconciling")
-	} else {
-		apisv1beta1.RemoveCondition(updated, apisv1beta1.ConditionTypeError)
-	}
+	var (
+		result         *ctrl.Result
+		reconcileError error
+	)
+	func() {
+		defer func() {
+			if reconcileError != nil {
+				apisv1beta1.SetError(updated, reconcileError)
+			}
+		}()
+		defer func() {
+			if e := recover(); e != nil {
+				reconcileError = fmt.Errorf("%s", e)
+				debug.PrintStack()
+			}
+		}()
+
+		result, reconcileError = r.Mutator.Mutate(ctx, updated)
+		if reconcileError != nil {
+			log.FromContext(ctx).Error(reconcileError, "Reconciling")
+		} else {
+			apisv1beta1.RemoveCondition(updated, apisv1beta1.ConditionTypeError)
+		}
+	}()
 
 	if updated.IsDirty(actual) {
 		log.FromContext(ctx).Info("Object dirty, updating it")
