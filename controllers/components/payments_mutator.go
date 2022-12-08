@@ -95,7 +95,6 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 	env := payments.Spec.Postgres.Env("")
 	env = append(env,
 		apisv1beta1.Env("POSTGRES_DATABASE_NAME", "$(POSTGRES_DATABASE)"),
-		apisv1beta1.Env("POSTGRES_URI", "$(POSTGRES_DATABASE_URI)"),
 	)
 	if payments.Spec.Debug {
 		env = append(env, apisv1beta1.Env("DEBUG", "true"))
@@ -165,7 +164,7 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 					Image:           controllerutils.GetImage("payments", payments.Spec.Version),
 					ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
 					Env:             env,
-					Command:         []string{"payments", "migrate", "up"},
+					Command:         []string{"payments", "migrate", "--postgres-uri ${POSTGRES_DATABASE_URI}", "up"},
 				}}
 		}
 		return nil
