@@ -163,8 +163,11 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 					Name:            "migrate",
 					Image:           controllerutils.GetImage("payments", payments.Spec.Version),
 					ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
-					Env:             env,
-					Command:         []string{"payments", "migrate", "up", "--postgres-uri=${POSTGRES_DATABASE_URI}"},
+					Command: []string{
+						"sh",
+						"-c",
+						`payments migrate up --postgres-uri ${POSTGRES_DATABASE_URI}`,
+					},
 				}}
 		}
 		return nil
