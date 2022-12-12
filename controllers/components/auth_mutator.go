@@ -120,10 +120,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 
 	env := make([]corev1.EnvVar, 0)
 	env = append(env, apisv1beta1.Env("CONFIG", "/config/config.yaml"))
-	env = append(env, auth.Spec.Postgres.Env("PG_")...)
+	env = append(env, auth.Spec.Postgres.Env("")...)
 	env = append(env, auth.Spec.DelegatedOIDCServer.Env()...)
 	env = append(env,
-		apisv1beta1.Env("POSTGRES_NO_DATABASE_URI", "$(PG_POSTGRES_URI)"),
 		apisv1beta1.Env("BASE_URL", auth.Spec.BaseURL),
 		apisv1beta1.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
