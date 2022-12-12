@@ -35,7 +35,7 @@ var _ = Describe("Webhooks controller", func() {
 							},
 							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
-									Database:       "auth",
+									Database:       "webhooks",
 									PostgresConfig: NewDumpPostgresConfig(),
 								},
 								CreateDatabase: false,

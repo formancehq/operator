@@ -133,11 +133,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Payments")
 		os.Exit(1)
 	}
-	nextMutator := control_components.NewNextMutator(mgr.GetClient(), mgr.GetScheme())
-	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), nextMutator).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Next")
-		os.Exit(1)
-	}
 	webhooksMutator := control_components.NewWebhooksMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), webhooksMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Webhooks")
