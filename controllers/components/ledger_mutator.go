@@ -106,7 +106,7 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 	}
 	env = append(env, ledger.Spec.Postgres.Env("NUMARY_")...)
 	env = append(env, ledger.Spec.LockingStrategy.Env("NUMARY_")...)
-	env = append(env, apisv1beta1.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_DATABASE_URI)"))
+	env = append(env, apisv1beta1.Env("NUMARY_STORAGE_POSTGRES_CONN_STRING", "$(NUMARY_POSTGRES_URI)"))
 	env = append(env, ledger.Spec.DevProperties.EnvWithPrefix("NUMARY_")...)
 	if ledger.Spec.Monitoring != nil {
 		env = append(env, ledger.Spec.Monitoring.Env("NUMARY_")...)
@@ -170,7 +170,7 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 				Command: []string{
 					"sh",
 					"-c",
-					`psql -Atx ${POSTGRES_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
 				Env: ledger.Spec.Postgres.Env(""),
 			}}

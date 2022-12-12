@@ -100,7 +100,7 @@ func (r *WebhooksMutator) Mutate(ctx context.Context, webhooks *componentsv1beta
 func envVars(webhooks *componentsv1beta2.Webhooks) []corev1.EnvVar {
 	env := webhooks.Spec.Postgres.Env("")
 	env = append(env,
-		apisv1beta1.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_DATABASE_URI)"),
+		apisv1beta1.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
 		apisv1beta1.Env("KAFKA_BROKERS", strings.Join(webhooks.Spec.Collector.Brokers, ", ")),
 		apisv1beta1.Env("KAFKA_TOPICS", webhooks.Spec.Collector.Topic),
 		apisv1beta1.Env("KAFKA_TLS_ENABLED", strconv.FormatBool(webhooks.Spec.Collector.TLS)),
@@ -173,7 +173,7 @@ func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *com
 				Command: []string{
 					"sh",
 					"-c",
-					`psql -Atx ${POSTGRES_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
 				Env: webhooks.Spec.Postgres.Env(""),
 			}}
@@ -246,7 +246,7 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 				Command: []string{
 					"sh",
 					"-c",
-					`psql -Atx ${POSTGRES_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
 				Env: webhooks.Spec.Postgres.Env(""),
 			}}

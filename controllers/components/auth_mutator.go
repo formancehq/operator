@@ -123,7 +123,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	env = append(env, auth.Spec.Postgres.Env("PG_")...)
 	env = append(env, auth.Spec.DelegatedOIDCServer.Env()...)
 	env = append(env,
-		apisv1beta1.Env("POSTGRES_URI", "$(PG_POSTGRES_DATABASE_URI)"),
+		apisv1beta1.Env("POSTGRES_NO_DATABASE_URI", "$(PG_POSTGRES_URI)"),
 		apisv1beta1.Env("BASE_URL", auth.Spec.BaseURL),
 		apisv1beta1.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
@@ -197,7 +197,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 				Command: []string{
 					"sh",
 					"-c",
-					`psql -Atx ${POSTGRES_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
 				Env: auth.Spec.Postgres.Env(""),
 			}}
