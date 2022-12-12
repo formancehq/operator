@@ -148,6 +148,16 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Control")
 		os.Exit(1)
 	}
+	walletsMutator := control_components.NewWalletsMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), walletsMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Wallets")
+		os.Exit(1)
+	}
+	counterpartiesMutator := control_components.NewCounterpartiesMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), counterpartiesMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Counterparties")
+		os.Exit(1)
+	}
 	clientMutator := auth_components.NewClientsMutator(mgr.GetClient(), mgr.GetScheme(), control_components.DefaultApiFactory)
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clientMutator).
 		SetupWithManager(mgr); err != nil {

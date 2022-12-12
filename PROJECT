@@ -119,6 +119,24 @@ resources:
   version: v1beta2
 - api:
     crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Wallets
+  path: github.com/numary/operator/apis/components/v1beta2
+  version: v1beta2
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: formance.com
+  group: components
+  kind: Counterparties
+  path: github.com/numary/operator/apis/components/v1beta2
+  version: v1beta2
+- api:
+    crdVersion: v1
   controller: true
   domain: formance.com
   group: stack

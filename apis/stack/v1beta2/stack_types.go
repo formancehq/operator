@@ -56,15 +56,16 @@ type StackSpec struct {
 }
 
 const (
-	ConditionTypeStackNamespaceReady  = "NamespaceReady"
-	ConditionTypeStackAuthReady       = "AuthReady"
-	ConditionTypeStackLedgerReady     = "LedgerReady"
-	ConditionTypeStackSearchReady     = "SearchReady"
-	ConditionTypeStackControlReady    = "ControlReady"
-	ConditionTypeStackPaymentsReady   = "PaymentsReady"
-	ConditionTypeStackWebhooksReady   = "WebhooksReady"
-	ConditionTypeStackNextReady       = "NextReady"
-	ConditionTypeStackMiddlewareReady = "MiddlewareReady"
+	ConditionTypeStackNamespaceReady      = "NamespaceReady"
+	ConditionTypeStackAuthReady           = "AuthReady"
+	ConditionTypeStackLedgerReady         = "LedgerReady"
+	ConditionTypeStackSearchReady         = "SearchReady"
+	ConditionTypeStackControlReady        = "ControlReady"
+	ConditionTypeStackPaymentsReady       = "PaymentsReady"
+	ConditionTypeStackWebhooksReady       = "WebhooksReady"
+	ConditionTypeStackWalletsReady        = "WalletsReady"
+	ConditionTypeStackCounterpartiesReady = "CounterpartiesReady"
+	ConditionTypeStackMiddlewareReady     = "MiddlewareReady"
 )
 
 type ControlAuthentication struct {
@@ -148,6 +149,10 @@ func (s *Stack) SetAuthReady() {
 	apisv1beta1.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionTrue)
 }
 
+func (s *Stack) SetWebhooksReady() {
+	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
+}
+
 func (s *Stack) SetAuthError(msg string) {
 	apisv1beta1.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
 }
@@ -156,16 +161,8 @@ func (s *Stack) SetLedgerReady() {
 	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
 }
 
-func (s *Stack) SetNextReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackNextReady, metav1.ConditionTrue)
-}
-
 func (s *Stack) SetLedgerError(msg string) {
 	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
-}
-
-func (s *Stack) SetNextError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackNextReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetSearchReady() {
@@ -200,20 +197,12 @@ func (s *Stack) SetPaymentReady() {
 	apisv1beta1.SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
 }
 
-func (s *Stack) SetWebhooksReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
-}
-
 func (s *Stack) RemoveAuthStatus() {
 	s.Status.RemoveCondition(ConditionTypeStackAuthReady)
 }
 
 func (s *Stack) RemoveSearchStatus() {
 	s.Status.RemoveCondition(ConditionTypeStackSearchReady)
-}
-
-func (s *Stack) RemoveNextStatus() {
-	s.Status.RemoveCondition(ConditionTypeStackNextReady)
 }
 
 func (s *Stack) RemoveControlStatus() {
@@ -234,6 +223,30 @@ func (in *Stack) SetMiddlewareReady() {
 
 func (s *Stack) ServiceName(v string) string {
 	return fmt.Sprintf("%s-%s", s.Name, strings.ToLower(v))
+}
+
+func (in *Stack) RemoveWalletsStatus() {
+	in.Status.RemoveCondition(ConditionTypeStackWalletsReady)
+}
+
+func (s *Stack) SetWalletsError(msg string) {
+	apisv1beta1.SetCondition(s, ConditionTypeStackWalletsReady, metav1.ConditionFalse, msg)
+}
+
+func (s *Stack) SetWalletsReady() {
+	apisv1beta1.SetCondition(s, ConditionTypeStackWalletsReady, metav1.ConditionTrue)
+}
+
+func (in *Stack) RemoveCounterpartiesStatus() {
+	in.Status.RemoveCondition(ConditionTypeStackCounterpartiesReady)
+}
+
+func (s *Stack) SetCounterpartiesError(msg string) {
+	apisv1beta1.SetCondition(s, ConditionTypeStackCounterpartiesReady, metav1.ConditionFalse, msg)
+}
+
+func (s *Stack) SetCounterpartiesReady() {
+	apisv1beta1.SetCondition(s, ConditionTypeStackCounterpartiesReady, metav1.ConditionTrue)
 }
 
 //+kubebuilder:object:root=true

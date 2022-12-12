@@ -39,13 +39,15 @@ spec:
                 type: string
               control:
                 type: string
-              ledger:
+              counterparties:
                 type: string
-              next:
+              ledger:
                 type: string
               payments:
                 type: string
               search:
+                type: string
+              wallets:
                 type: string
               webhooks:
                 type: string

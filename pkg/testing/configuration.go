@@ -14,12 +14,14 @@ func NewDumbVersions() *v1beta2.Versions {
 			Name: uuid.NewString(),
 		},
 		Spec: v1beta2.VersionsSpec{
-			Control:  uuid.NewString(),
-			Ledger:   uuid.NewString(),
-			Payments: uuid.NewString(),
-			Search:   uuid.NewString(),
-			Auth:     uuid.NewString(),
-			Webhooks: uuid.NewString(),
+			Control:        uuid.NewString(),
+			Ledger:         uuid.NewString(),
+			Payments:       uuid.NewString(),
+			Search:         uuid.NewString(),
+			Auth:           uuid.NewString(),
+			Webhooks:       uuid.NewString(),
+			Wallets:        uuid.NewString(),
+			Counterparties: uuid.NewString(),
 		},
 	}
 }
@@ -45,6 +47,12 @@ func NewDumbConfiguration() *v1beta2.Configuration {
 					ElasticSearchConfig: NewDumpElasticSearchConfig(),
 				},
 				Webhooks: v1beta2.WebhooksSpec{
+					Postgres: NewDumpPostgresConfig(),
+				},
+				Wallets: v1beta2.WalletsSpec{
+					Postgres: NewDumpPostgresConfig(),
+				},
+				Counterparties: v1beta2.CounterpartiesSpec{
 					Postgres: NewDumpPostgresConfig(),
 				},
 			},

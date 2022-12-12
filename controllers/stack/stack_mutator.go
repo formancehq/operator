@@ -182,6 +182,12 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 	if err := r.reconcileWebhooks(ctx, stack, &configurationSpec, version.Spec.Webhooks); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
 	}
+	if err := r.reconcileWallets(ctx, stack, &configurationSpec, version.Spec.Wallets); err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Wallets")
+	}
+	if err := r.reconcileCounterparties(ctx, stack, &configurationSpec, version.Spec.Counterparties); err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Counterparties")
+	}
 
 	apisv1beta1.SetReady(stack)
 	return nil, nil
@@ -406,6 +412,80 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 	}
 
 	log.FromContext(ctx).Info("Webhooks ready")
+	return nil
+}
+
+func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
+	log.FromContext(ctx).Info("Reconciling Wallets")
+
+	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Name,
+		Name:      stack.ServiceName("wallets"),
+	}, stack, func(wallets *componentsv1beta2.Wallets) error {
+		wallets.Spec = componentsv1beta2.WalletsSpec{
+			Ingress:    configuration.Services.Wallets.Ingress.Compute(stack, configuration, "/api/wallets"),
+			Monitoring: configuration.Monitoring,
+			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+				DevProperties: stack.Spec.DevProperties,
+				Version:       version,
+			},
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Wallets.Postgres,
+					Database:       fmt.Sprintf("%s-wallets", stack.Name),
+				},
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetWalletsError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetWalletsReady()
+	}
+
+	log.FromContext(ctx).Info("Wallets ready")
+	return nil
+}
+
+func (r *Mutator) reconcileCounterparties(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
+	log.FromContext(ctx).Info("Reconciling Counterparties")
+
+	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Name,
+		Name:      stack.ServiceName("counterparties"),
+	}, stack, func(counterparties *componentsv1beta2.Counterparties) error {
+		counterparties.Spec = componentsv1beta2.CounterpartiesSpec{
+			Ingress:    configuration.Services.Counterparties.Ingress.Compute(stack, configuration, "/api/counterparties"),
+			Monitoring: configuration.Monitoring,
+			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+				DevProperties: stack.Spec.DevProperties,
+				Version:       version,
+			},
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Counterparties.Postgres,
+					Database:       fmt.Sprintf("%s-counterparties", stack.Name),
+				},
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetCounterpartiesError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetCounterpartiesReady()
+	}
+
+	log.FromContext(ctx).Info("Counterparties ready")
 	return nil
 }
 
