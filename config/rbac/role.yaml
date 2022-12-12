@@ -200,6 +200,32 @@ rules:
 - apiGroups:
   - components.formance.com
   resources:
+  - counterparties
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.formance.com
+  resources:
+  - counterparties/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - counterparties/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
   - ledgers
   verbs:
   - create
@@ -219,32 +245,6 @@ rules:
   - components.formance.com
   resources:
   - ledgers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - components.formance.com
-  resources:
-  - nexts
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - components.formance.com
-  resources:
-  - nexts/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - components.formance.com
-  resources:
-  - nexts/status
   verbs:
   - get
   - patch
@@ -297,6 +297,32 @@ rules:
   - components.formance.com
   resources:
   - searches/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - wallets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.formance.com
+  resources:
+  - wallets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - wallets/status
   verbs:
   - get
   - patch
