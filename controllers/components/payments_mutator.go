@@ -125,7 +125,6 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 							Name:          "payments",
 							ContainerPort: 8080,
 						}},
-						Command: []string{"payments", "migrate", "up"},
 						LivenessProbe: &corev1.Probe{
 							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
