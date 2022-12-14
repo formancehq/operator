@@ -29,6 +29,7 @@ var _ = Describe("Counterparties controller", func() {
 							Name: "counterparties",
 						},
 						Spec: componentsv1beta2.CounterpartiesSpec{
+							Enabled: true,
 							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
 									Database:       "counterparties",

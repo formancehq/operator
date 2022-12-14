@@ -29,6 +29,7 @@ var _ = Describe("Wallets controller", func() {
 							Name: "wallets",
 						},
 						Spec: componentsv1beta2.WalletsSpec{
+							Enabled: true,
 							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
 									Database:       "wallets",

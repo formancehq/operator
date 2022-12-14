@@ -3032,6 +3032,8 @@ spec:
                     properties:
                       debug:
                         type: boolean
+                      enabled:
+                        type: boolean
                       ingress:
                         properties:
                           annotations:
@@ -4422,6 +4424,8 @@ spec:
                   wallets:
                     properties:
                       debug:
+                        type: boolean
+                      enabled:
                         type: boolean
                       ingress:
                         properties:
