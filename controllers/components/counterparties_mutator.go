@@ -56,32 +56,34 @@ func (r *CounterpartiesMutator) Mutate(ctx context.Context, counterparties *comp
 
 	apisv1beta1.SetProgressing(counterparties)
 
-	deployment, err := r.reconcileDeployment(ctx, counterparties)
-	if err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
-	}
+	if counterparties.Spec.Enabled {
+		deployment, err := r.reconcileDeployment(ctx, counterparties)
+		if err != nil {
+			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
+		}
 
-	service, err := r.reconcileService(ctx, counterparties, deployment)
-	if err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
-	}
-
-	if counterparties.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, counterparties, service)
+		service, err := r.reconcileService(ctx, counterparties, deployment)
 		if err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
-	} else {
-		err = r.Client.Delete(ctx, &networkingv1.Ingress{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      counterparties.Name,
-				Namespace: counterparties.Namespace,
-			},
-		})
-		if err != nil && !errors.IsNotFound(err) {
-			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
+
+		if counterparties.Spec.Ingress != nil {
+			_, err = r.reconcileIngress(ctx, counterparties, service)
+			if err != nil {
+				return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
+			}
+		} else {
+			err = r.Client.Delete(ctx, &networkingv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      counterparties.Name,
+					Namespace: counterparties.Namespace,
+				},
+			})
+			if err != nil && !errors.IsNotFound(err) {
+				return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
+			}
+			apisv1beta1.RemoveIngressCondition(counterparties)
 		}
-		apisv1beta1.RemoveIngressCondition(counterparties)
 	}
 
 	apisv1beta1.SetReady(counterparties)

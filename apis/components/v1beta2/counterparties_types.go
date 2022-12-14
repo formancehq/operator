@@ -26,6 +26,8 @@ type CounterpartiesSpec struct {
 	CommonServiceProperties `json:",inline"`
 
 	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
 	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
 	Ingress *IngressSpec `json:"ingress"`

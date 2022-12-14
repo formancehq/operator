@@ -57,32 +57,34 @@ func (r *WalletsMutator) Mutate(ctx context.Context, wallets *componentsv1beta2.
 
 	apisv1beta1.SetProgressing(wallets)
 
-	deployment, err := r.reconcileDeployment(ctx, wallets)
-	if err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
-	}
+	if wallets.Spec.Enabled {
+		deployment, err := r.reconcileDeployment(ctx, wallets)
+		if err != nil {
+			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
+		}
 
-	service, err := r.reconcileService(ctx, wallets, deployment)
-	if err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
-	}
-
-	if wallets.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, wallets, service)
+		service, err := r.reconcileService(ctx, wallets, deployment)
 		if err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
-	} else {
-		err = r.Client.Delete(ctx, &networkingv1.Ingress{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      wallets.Name,
-				Namespace: wallets.Namespace,
-			},
-		})
-		if err != nil && !errors.IsNotFound(err) {
-			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
+
+		if wallets.Spec.Ingress != nil {
+			_, err = r.reconcileIngress(ctx, wallets, service)
+			if err != nil {
+				return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
+			}
+		} else {
+			err = r.Client.Delete(ctx, &networkingv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      wallets.Name,
+					Namespace: wallets.Namespace,
+				},
+			})
+			if err != nil && !errors.IsNotFound(err) {
+				return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
+			}
+			apisv1beta1.RemoveIngressCondition(wallets)
 		}
-		apisv1beta1.RemoveIngressCondition(wallets)
 	}
 
 	apisv1beta1.SetReady(wallets)

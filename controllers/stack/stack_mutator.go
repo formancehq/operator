@@ -423,6 +423,7 @@ func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stac
 		Name:      stack.ServiceName("wallets"),
 	}, stack, func(wallets *componentsv1beta2.Wallets) error {
 		wallets.Spec = componentsv1beta2.WalletsSpec{
+			Enabled:    configuration.Services.Wallets.Enabled,
 			Ingress:    configuration.Services.Wallets.Ingress.Compute(stack, configuration, "/api/wallets"),
 			Monitoring: configuration.Monitoring,
 			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
@@ -460,6 +461,7 @@ func (r *Mutator) reconcileCounterparties(ctx context.Context, stack *stackv1bet
 		Name:      stack.ServiceName("counterparties"),
 	}, stack, func(counterparties *componentsv1beta2.Counterparties) error {
 		counterparties.Spec = componentsv1beta2.CounterpartiesSpec{
+			Enabled:    configuration.Services.Counterparties.Enabled,
 			Ingress:    configuration.Services.Counterparties.Ingress.Compute(stack, configuration, "/api/counterparties"),
 			Monitoring: configuration.Monitoring,
 			CommonServiceProperties: apisv1beta2.CommonServiceProperties{

@@ -9,6 +9,8 @@ import (
 // +kubebuilder:object:generate=true
 type WalletsSpec struct {
 	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
 	Debug bool `json:"debug,omitempty"`
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
