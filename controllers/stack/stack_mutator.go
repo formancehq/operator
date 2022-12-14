@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
+	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"

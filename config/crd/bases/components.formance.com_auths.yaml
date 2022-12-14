@@ -1137,33 +1137,7 @@ spec:
                   secret mapping. If not specified, a key will be automatically generated.
                 type: string
               staticClients:
-                items:
-                  properties:
-                    description:
-                      type: string
-                    id:
-                      type: string
-                    postLogoutRedirectUris:
-                      items:
-                        type: string
-                      type: array
-                    public:
-                      type: boolean
-                    redirectUris:
-                      items:
-                        type: string
-                      type: array
-                    scopes:
-                      items:
-                        type: string
-                      type: array
-                    secrets:
-                      items:
-                        type: string
-                      type: array
-                  required:
-                  - id
-                  type: object
+                items: {}
                 type: array
             required:
             - baseURL

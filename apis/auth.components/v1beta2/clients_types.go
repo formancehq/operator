@@ -21,10 +21,30 @@ import (
 	"sort"
 
 	"github.com/numary/auth/authclient"
-	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
+	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta2"
 	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type ClientConfiguration struct {
+	// +optional
+	Public bool `json:"public"`
+	// +optional
+	Description *string `json:"description,omitempty"`
+	// +optional
+	RedirectUris []string `json:"redirectUris,omitempty"`
+	// +optional
+	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty"`
+	// +optional
+	Scopes []string `json:"scopes,omitempty"`
+}
+
+type StaticClient struct {
+	ClientConfiguration `json:",inline" yaml:",inline"`
+	ID                  string `json:"id" yaml:"id"`
+	// +optional
+	Secrets []string `json:"secrets" yaml:"secrets"`
+}
 
 // ClientSpec defines the desired state of Client
 type ClientSpec struct {
