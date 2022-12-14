@@ -21,11 +21,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// WebhooksSpec defines the desired state of Webhooks
-type WebhooksSpec struct {
+// CounterpartiesSpec defines the desired state of Counterparties
+type CounterpartiesSpec struct {
 	CommonServiceProperties `json:",inline"`
 
-	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
 	// +optional
 	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
@@ -38,36 +39,36 @@ type WebhooksSpec struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:storageversion
 
-// Webhooks is the Schema for the Webhooks API
-type Webhooks struct {
+// Counterparties is the Schema for the Counterparties API
+type Counterparties struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   WebhooksSpec       `json:"spec,omitempty"`
+	Spec   CounterpartiesSpec `json:"spec,omitempty"`
 	Status apisv1beta1.Status `json:"status,omitempty"`
 }
 
-func (in *Webhooks) GetStatus() apisv1beta1.Dirty {
+func (in *Counterparties) GetStatus() apisv1beta1.Dirty {
 	return &in.Status
 }
 
-func (in *Webhooks) GetConditions() *apisv1beta1.Conditions {
+func (in *Counterparties) GetConditions() *apisv1beta1.Conditions {
 	return &in.Status.Conditions
 }
 
-func (in *Webhooks) IsDirty(t apisv1beta1.Object) bool {
+func (in *Counterparties) IsDirty(t apisv1beta1.Object) bool {
 	return false
 }
 
 //+kubebuilder:object:root=true
 
-// WebhooksList contains a list of Webhooks
-type WebhooksList struct {
+// CounterpartiesList contains a list of Counterparties
+type CounterpartiesList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Webhooks `json:"items"`
+	Items           []Counterparties `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Webhooks{}, &WebhooksList{})
+	SchemeBuilder.Register(&Counterparties{}, &CounterpartiesList{})
 }

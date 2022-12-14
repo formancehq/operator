@@ -37,7 +37,9 @@ type VersionsSpec struct {
 	// +optional
 	Webhooks string `json:"webhooks"`
 	// +optional
-	Next string `json:"next"`
+	Wallets string `json:"wallets"`
+	// +optional
+	Counterparties string `json:"counterparties"`
 }
 
 // VersionsStatus defines the observed state of Versions

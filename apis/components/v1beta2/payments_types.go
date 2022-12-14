@@ -34,8 +34,8 @@ type PaymentsSpec struct {
 	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring"`
 	// +optional
 	Collector *componentsv1beta1.CollectorConfig `json:"collector"`
-
-	MongoDB apisv1beta1.MongoDBConfig `json:"mongoDB"`
+	// +optional
+	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
 }
 
 //+kubebuilder:object:root=true

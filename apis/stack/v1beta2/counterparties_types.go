@@ -7,7 +7,11 @@ import (
 )
 
 // +kubebuilder:object:generate=true
-type PaymentsSpec struct {
+type CounterpartiesSpec struct {
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+	// +optional
+	Debug bool `json:"debug,omitempty"`
 	// +optional
 	Scaling ScalingSpec `json:"scaling,omitempty"`
 	// +optional
@@ -16,7 +20,7 @@ type PaymentsSpec struct {
 	Postgres v1beta1.PostgresConfig `json:"postgres"`
 }
 
-func (in *PaymentsSpec) Validate() field.ErrorList {
+func (in *CounterpartiesSpec) Validate() field.ErrorList {
 	if in == nil {
 		return field.ErrorList{}
 	}

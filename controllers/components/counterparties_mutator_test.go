@@ -15,93 +15,90 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("Webhooks controller", func() {
-	mutator := NewWebhooksMutator(GetClient(), GetScheme())
+var _ = Describe("Counterparties controller", func() {
+	mutator := NewCounterpartiesMutator(GetClient(), GetScheme())
 	WithMutator(mutator, func() {
 		WithNewNamespace(func() {
-			Context("When creating a webhooks server", func() {
+			Context("When creating a counterparties server", func() {
 				var (
-					webhooks *componentsv1beta2.Webhooks
+					counterparties *componentsv1beta2.Counterparties
 				)
 				BeforeEach(func() {
-					webhooks = &componentsv1beta2.Webhooks{
+					counterparties = &componentsv1beta2.Counterparties{
 						ObjectMeta: metav1.ObjectMeta{
-							Name: "webhooks",
+							Name: "counterparties",
 						},
-						Spec: componentsv1beta2.WebhooksSpec{
-							Collector: &componentsv1beta1.CollectorConfig{
-								KafkaConfig: NewDumpKafkaConfig(),
-								Topic:       "xxx",
-							},
+						Spec: componentsv1beta2.CounterpartiesSpec{
+							Enabled: true,
 							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
-									Database:       "webhooks",
+									Database:       "counterparties",
 									PostgresConfig: NewDumpPostgresConfig(),
 								},
 								CreateDatabase: false,
 							}},
 					}
-					Expect(Create(webhooks)).To(BeNil())
-					Eventually(ConditionStatus(webhooks, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Expect(Create(counterparties)).To(BeNil())
+					Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(webhooks, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      webhooks.Name,
-							Namespace: webhooks.Namespace,
+							Name:      counterparties.Name,
+							Namespace: counterparties.Namespace,
 						},
 					}
 					Expect(Exists(deployment)()).To(BeTrue())
 					Expect(deployment.OwnerReferences).To(HaveLen(1))
-					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(webhooks)))
+					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(counterparties)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(webhooks, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      webhooks.Name,
-							Namespace: webhooks.Namespace,
+							Name:      counterparties.Name,
+							Namespace: counterparties.Namespace,
 						},
 					}
 					Expect(Exists(service)()).To(BeTrue())
 					Expect(service.OwnerReferences).To(HaveLen(1))
-					Expect(service.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(webhooks)))
+					Expect(service.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(counterparties)))
 				})
 				Context("Then enable ingress", func() {
 					BeforeEach(func() {
-						webhooks.Spec.Ingress = &apisv1beta2.IngressSpec{
-							Path: "/webhooks",
+						counterparties.Spec.Ingress = &apisv1beta2.IngressSpec{
+							Path: "/counterparties",
 							Host: "localhost",
 						}
-						Expect(Update(webhooks)).To(BeNil())
+						Expect(Update(counterparties)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(webhooks, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      webhooks.Name,
-								Namespace: webhooks.Namespace,
+								Name:      counterparties.Name,
+								Namespace: counterparties.Namespace,
 							},
 						}
 						Expect(Exists(ingress)()).To(BeTrue())
 						Expect(ingress.OwnerReferences).To(HaveLen(1))
-						Expect(ingress.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(webhooks)))
+						Expect(ingress.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(counterparties)))
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(webhooks, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
-							webhooks.Spec.Ingress = nil
-							Expect(Update(webhooks)).To(BeNil())
-							Eventually(ConditionStatus(webhooks, apisv1beta1.ConditionTypeIngressReady)).
+							counterparties.Spec.Ingress = nil
+							Expect(Update(counterparties)).To(BeNil())
+							Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {
 							Eventually(NotFound(&networkingv1.Ingress{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:      webhooks.Name,
-									Namespace: webhooks.Namespace,
+									Name:      counterparties.Name,
+									Namespace: counterparties.Namespace,
 								},
 							})).Should(BeTrue())
 						})

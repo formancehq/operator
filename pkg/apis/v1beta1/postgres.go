@@ -108,7 +108,7 @@ func (c *PostgresConfig) EnvWithDiscriminator(prefix, discriminator string) []co
 		ret = append(ret, SelectRequiredConfigValueOrReference(withDiscriminator("POSTGRES_USERNAME"), prefix, c.Username, c.UsernameFrom))
 		ret = append(ret, SelectRequiredConfigValueOrReference(withDiscriminator("POSTGRES_PASSWORD"), prefix, c.Password, c.PasswordFrom))
 
-		ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_URI"),
+		ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_NO_DATABASE_URI"),
 			ComputeEnvVar(prefix, "postgresql://%s:%s@%s:%s",
 				withDiscriminator("POSTGRES_USERNAME"),
 				withDiscriminator("POSTGRES_PASSWORD"),
@@ -117,7 +117,7 @@ func (c *PostgresConfig) EnvWithDiscriminator(prefix, discriminator string) []co
 			),
 		))
 	} else {
-		ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_URI"),
+		ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_NO_DATABASE_URI"),
 			ComputeEnvVar(prefix, "postgresql://%s:%s", withDiscriminator("POSTGRES_HOST"), withDiscriminator("POSTGRES_PORT")),
 		))
 	}
@@ -125,8 +125,8 @@ func (c *PostgresConfig) EnvWithDiscriminator(prefix, discriminator string) []co
 	if c.DisableSSLMode {
 		fmt += "?sslmode=disable"
 	}
-	ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_DATABASE_URI"),
-		ComputeEnvVar(prefix, fmt, withDiscriminator("POSTGRES_URI"), withDiscriminator("POSTGRES_DATABASE")),
+	ret = append(ret, EnvWithPrefix(prefix, withDiscriminator("POSTGRES_URI"),
+		ComputeEnvVar(prefix, fmt, withDiscriminator("POSTGRES_NO_DATABASE_URI"), withDiscriminator("POSTGRES_DATABASE")),
 	))
 
 	return ret

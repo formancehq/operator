@@ -98,10 +98,9 @@ func (r *WebhooksMutator) Mutate(ctx context.Context, webhooks *componentsv1beta
 }
 
 func envVars(webhooks *componentsv1beta2.Webhooks) []corev1.EnvVar {
-	env := webhooks.Spec.MongoDB.Env("")
+	env := webhooks.Spec.Postgres.Env("")
 	env = append(env,
-		apisv1beta1.Env("STORAGE_MONGO_CONN_STRING", "$(MONGODB_URI)"),
-		apisv1beta1.Env("STORAGE_MONGO_DATABASE_NAME", "$(MONGODB_DATABASE)"),
+		apisv1beta1.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
 		apisv1beta1.Env("KAFKA_BROKERS", strings.Join(webhooks.Spec.Collector.Brokers, ", ")),
 		apisv1beta1.Env("KAFKA_TOPICS", webhooks.Spec.Collector.Topic),
 		apisv1beta1.Env("KAFKA_TLS_ENABLED", strconv.FormatBool(webhooks.Spec.Collector.TLS)),
@@ -166,6 +165,19 @@ func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *com
 				},
 			},
 		}
+		if webhooks.Spec.Postgres.CreateDatabase {
+			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+				Name:            "init-create-webhooks-db",
+				Image:           "postgres:13",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{
+					"sh",
+					"-c",
+					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+				},
+				Env: webhooks.Spec.Postgres.Env(""),
+			}}
+		}
 		return nil
 	})
 	switch {
@@ -196,40 +208,13 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:            "webhooks-retries",
+						Name:            "webhooks-worker",
 						Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
 						ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
-						Command:         []string{"webhooks", "worker", "retries"},
+						Command:         []string{"webhooks", "worker"},
 						Env:             envVars(webhooks),
 						Ports: []corev1.ContainerPort{{
-							Name:          "retries",
-							ContainerPort: 8082,
-						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_healthcheck",
-									Port: intstr.IntOrString{
-										IntVal: 8082,
-									},
-									Scheme: "HTTP",
-								},
-							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
-					}, {
-						Name:            "webhooks-messages",
-						Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
-						Command:         []string{"webhooks", "worker", "messages"},
-						Env:             envVars(webhooks),
-						Ports: []corev1.ContainerPort{{
-							Name:          "messages",
+							Name:          "worker",
 							ContainerPort: 8081,
 						}},
 						LivenessProbe: &corev1.Probe{
@@ -252,6 +237,19 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 					}},
 				},
 			},
+		}
+		if webhooks.Spec.Postgres.CreateDatabase {
+			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+				Name:            "init-create-webhooks-db",
+				Image:           "postgres:13",
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command: []string{
+					"sh",
+					"-c",
+					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+				},
+				Env: webhooks.Spec.Postgres.Env(""),
+			}}
 		}
 		return nil
 	})

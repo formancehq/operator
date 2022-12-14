@@ -15,90 +15,90 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("Next controller", func() {
-	mutator := NewNextMutator(GetClient(), GetScheme())
+var _ = Describe("Wallets controller", func() {
+	mutator := NewWalletsMutator(GetClient(), GetScheme())
 	WithMutator(mutator, func() {
 		WithNewNamespace(func() {
-			Context("When creating a next server", func() {
+			Context("When creating a wallets server", func() {
 				var (
-					next *componentsv1beta2.Next
+					wallets *componentsv1beta2.Wallets
 				)
 				BeforeEach(func() {
-					next = &componentsv1beta2.Next{
+					wallets = &componentsv1beta2.Wallets{
 						ObjectMeta: metav1.ObjectMeta{
-							Name: "next",
+							Name: "wallets",
 						},
-						Spec: componentsv1beta2.NextSpec{
+						Spec: componentsv1beta2.WalletsSpec{
+							Enabled: true,
 							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
 								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
-									Database:       "next",
+									Database:       "wallets",
 									PostgresConfig: NewDumpPostgresConfig(),
 								},
-								CreateDatabase: true,
-							},
-						},
+								CreateDatabase: false,
+							}},
 					}
-					Expect(Create(next)).To(BeNil())
-					Eventually(ConditionStatus(next, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Expect(Create(wallets)).To(BeNil())
+					Eventually(ConditionStatus(wallets, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(next, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(wallets, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      next.Name,
-							Namespace: next.Namespace,
+							Name:      wallets.Name,
+							Namespace: wallets.Namespace,
 						},
 					}
 					Expect(Exists(deployment)()).To(BeTrue())
 					Expect(deployment.OwnerReferences).To(HaveLen(1))
-					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(next)))
+					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(wallets)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(next, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(wallets, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      next.Name,
-							Namespace: next.Namespace,
+							Name:      wallets.Name,
+							Namespace: wallets.Namespace,
 						},
 					}
 					Expect(Exists(service)()).To(BeTrue())
 					Expect(service.OwnerReferences).To(HaveLen(1))
-					Expect(service.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(next)))
+					Expect(service.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(wallets)))
 				})
 				Context("Then enable ingress", func() {
 					BeforeEach(func() {
-						next.Spec.Ingress = &apisv1beta2.IngressSpec{
-							Path: "/next",
+						wallets.Spec.Ingress = &apisv1beta2.IngressSpec{
+							Path: "/wallets",
 							Host: "localhost",
 						}
-						Expect(Update(next)).To(BeNil())
+						Expect(Update(wallets)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(next, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(wallets, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
-								Name:      next.Name,
-								Namespace: next.Namespace,
+								Name:      wallets.Name,
+								Namespace: wallets.Namespace,
 							},
 						}
 						Expect(Exists(ingress)()).To(BeTrue())
 						Expect(ingress.OwnerReferences).To(HaveLen(1))
-						Expect(ingress.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(next)))
+						Expect(ingress.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(wallets)))
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(next, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(wallets, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
-							next.Spec.Ingress = nil
-							Expect(Update(next)).To(BeNil())
-							Eventually(ConditionStatus(next, apisv1beta1.ConditionTypeIngressReady)).
+							wallets.Spec.Ingress = nil
+							Expect(Update(wallets)).To(BeNil())
+							Eventually(ConditionStatus(wallets, apisv1beta1.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {
 							Eventually(NotFound(&networkingv1.Ingress{
 								ObjectMeta: metav1.ObjectMeta{
-									Name:      next.Name,
-									Namespace: next.Namespace,
+									Name:      wallets.Name,
+									Namespace: wallets.Namespace,
 								},
 							})).Should(BeTrue())
 						})

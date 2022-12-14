@@ -14,13 +14,14 @@ func NewDumbVersions() *v1beta2.Versions {
 			Name: uuid.NewString(),
 		},
 		Spec: v1beta2.VersionsSpec{
-			Control:  uuid.NewString(),
-			Ledger:   uuid.NewString(),
-			Payments: uuid.NewString(),
-			Search:   uuid.NewString(),
-			Auth:     uuid.NewString(),
-			Webhooks: uuid.NewString(),
-			Next:     uuid.NewString(),
+			Control:        uuid.NewString(),
+			Ledger:         uuid.NewString(),
+			Payments:       uuid.NewString(),
+			Search:         uuid.NewString(),
+			Auth:           uuid.NewString(),
+			Webhooks:       uuid.NewString(),
+			Wallets:        uuid.NewString(),
+			Counterparties: uuid.NewString(),
 		},
 	}
 }
@@ -39,17 +40,20 @@ func NewDumbConfiguration() *v1beta2.Configuration {
 				Ledger: v1beta2.LedgerSpec{
 					Postgres: NewDumpPostgresConfig(),
 				},
-				Next: v1beta2.NextSpec{
-					Postgres: NewDumpPostgresConfig(),
-				},
 				Payments: v1beta2.PaymentsSpec{
-					MongoDB: NewDumpMongoDBConfig(),
+					Postgres: NewDumpPostgresConfig(),
 				},
 				Search: v1beta2.SearchSpec{
 					ElasticSearchConfig: NewDumpElasticSearchConfig(),
 				},
 				Webhooks: v1beta2.WebhooksSpec{
-					MongoDB: NewDumpMongoDBConfig(),
+					Postgres: NewDumpPostgresConfig(),
+				},
+				Wallets: v1beta2.WalletsSpec{
+					Postgres: NewDumpPostgresConfig(),
+				},
+				Counterparties: v1beta2.CounterpartiesSpec{
+					Postgres: NewDumpPostgresConfig(),
 				},
 			},
 			Kafka: NewDumpKafkaConfig(),
@@ -68,16 +72,6 @@ func NewDumpElasticSearchConfig() componentsv1beta1.ElasticSearchConfig {
 		Scheme: "http",
 		Host:   "elasticsearch",
 		Port:   9200,
-	}
-}
-
-func NewDumpMongoDBConfig() apisv1beta1.MongoDBConfig {
-	return apisv1beta1.MongoDBConfig{
-		Host:     "mongodb",
-		Port:     27017,
-		Username: "username",
-		Password: "password",
-		Database: "database",
 	}
 }
 

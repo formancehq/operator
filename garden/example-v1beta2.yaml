@@ -88,11 +88,11 @@ spec:
           username: admin
           password: "Complexpass#123"
     webhooks:
-      mongoDB:
-        host: mongodb-svc.default.svc.cluster.local
-        password: very-secured-password
-        port: 27017
-        username: root
+      postgres:
+        host: postgres-postgresql.default.svc.cluster.local
+        port: 5432
+        username: formance
+        password: formance
     next:
       postgres:
         host: postgres-postgresql.default.svc.cluster.local

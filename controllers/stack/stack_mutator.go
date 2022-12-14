@@ -170,9 +170,6 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 	if err := r.reconcileLedger(ctx, stack, &configurationSpec, version.Spec.Ledger); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Ledger")
 	}
-	if err := r.reconcileNext(ctx, stack, &configurationSpec, version.Spec.Next); err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Next")
-	}
 	if err := r.reconcilePayment(ctx, stack, &configurationSpec, version.Spec.Payments); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Payment")
 	}
@@ -184,6 +181,12 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 	}
 	if err := r.reconcileWebhooks(ctx, stack, &configurationSpec, version.Spec.Webhooks); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
+	}
+	if err := r.reconcileWallets(ctx, stack, &configurationSpec, version.Spec.Wallets); err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Wallets")
+	}
+	if err := r.reconcileCounterparties(ctx, stack, &configurationSpec, version.Spec.Counterparties); err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Counterparties")
 	}
 
 	apisv1beta1.SetReady(stack)
@@ -330,44 +333,6 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *stackv1beta2.Stack
 	return nil
 }
 
-func (r *Mutator) reconcileNext(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
-	log.FromContext(ctx).Info("Reconciling Next")
-
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
-		Namespace: stack.Name,
-		Name:      stack.ServiceName("next"),
-	}, stack, func(next *componentsv1beta2.Next) error {
-		next.Spec = componentsv1beta2.NextSpec{
-			Scalable: configuration.Services.Next.Scalable.WithReplicas(next.Spec.Replicas),
-			Ingress:  configuration.Services.Next.Ingress.Compute(stack, configuration, "/api/next"),
-			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
-				DevProperties: stack.Spec.DevProperties,
-				Version:       version,
-			},
-			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
-					Database:       fmt.Sprintf("%s-next", stack.Name),
-					PostgresConfig: configuration.Services.Next.Postgres,
-				},
-				CreateDatabase: true,
-			},
-			Monitoring: configuration.Monitoring,
-		}
-		return nil
-	})
-	switch {
-	case err != nil:
-		stack.SetNextError(err.Error())
-		return err
-	case operationResult == controllerutil.OperationResultNone:
-	default:
-		stack.SetNextReady()
-	}
-
-	log.FromContext(ctx).Info("Next ready")
-	return nil
-}
-
 func (r *Mutator) reconcilePayment(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Payment")
 
@@ -386,17 +351,12 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *stackv1beta2.Stac
 				KafkaConfig: configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			},
-			MongoDB: apisv1beta1.MongoDBConfig{
-				UseSrv:       configuration.Services.Payments.MongoDB.UseSrv,
-				Host:         configuration.Services.Payments.MongoDB.Host,
-				HostFrom:     configuration.Services.Payments.MongoDB.HostFrom,
-				Port:         configuration.Services.Payments.MongoDB.Port,
-				PortFrom:     configuration.Services.Payments.MongoDB.PortFrom,
-				Database:     stack.Name,
-				Username:     configuration.Services.Payments.MongoDB.Username,
-				UsernameFrom: configuration.Services.Payments.MongoDB.UsernameFrom,
-				Password:     configuration.Services.Payments.MongoDB.Password,
-				PasswordFrom: configuration.Services.Payments.MongoDB.PasswordFrom,
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Payments.Postgres,
+					Database:       fmt.Sprintf("%s-payments", stack.Name),
+				},
 			},
 		}
 		return nil
@@ -432,17 +392,12 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 				KafkaConfig: configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments %s-ledger", stack.Name, stack.Name),
 			},
-			MongoDB: apisv1beta1.MongoDBConfig{
-				UseSrv:       configuration.Services.Webhooks.MongoDB.UseSrv,
-				Host:         configuration.Services.Webhooks.MongoDB.Host,
-				HostFrom:     configuration.Services.Webhooks.MongoDB.HostFrom,
-				Port:         configuration.Services.Webhooks.MongoDB.Port,
-				PortFrom:     configuration.Services.Webhooks.MongoDB.PortFrom,
-				Database:     stack.Name,
-				Username:     configuration.Services.Webhooks.MongoDB.Username,
-				UsernameFrom: configuration.Services.Webhooks.MongoDB.UsernameFrom,
-				Password:     configuration.Services.Webhooks.MongoDB.Password,
-				PasswordFrom: configuration.Services.Webhooks.MongoDB.PasswordFrom,
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Webhooks.Postgres,
+					Database:       fmt.Sprintf("%s-webhooks", stack.Name),
+				},
 			},
 		}
 		return nil
@@ -457,6 +412,82 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 	}
 
 	log.FromContext(ctx).Info("Webhooks ready")
+	return nil
+}
+
+func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
+	log.FromContext(ctx).Info("Reconciling Wallets")
+
+	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Name,
+		Name:      stack.ServiceName("wallets"),
+	}, stack, func(wallets *componentsv1beta2.Wallets) error {
+		wallets.Spec = componentsv1beta2.WalletsSpec{
+			Enabled:    configuration.Services.Wallets.Enabled,
+			Ingress:    configuration.Services.Wallets.Ingress.Compute(stack, configuration, "/api/wallets"),
+			Monitoring: configuration.Monitoring,
+			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+				DevProperties: stack.Spec.DevProperties,
+				Version:       version,
+			},
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Wallets.Postgres,
+					Database:       fmt.Sprintf("%s-wallets", stack.Name),
+				},
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetWalletsError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetWalletsReady()
+	}
+
+	log.FromContext(ctx).Info("Wallets ready")
+	return nil
+}
+
+func (r *Mutator) reconcileCounterparties(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
+	log.FromContext(ctx).Info("Reconciling Counterparties")
+
+	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+		Namespace: stack.Name,
+		Name:      stack.ServiceName("counterparties"),
+	}, stack, func(counterparties *componentsv1beta2.Counterparties) error {
+		counterparties.Spec = componentsv1beta2.CounterpartiesSpec{
+			Enabled:    configuration.Services.Counterparties.Enabled,
+			Ingress:    configuration.Services.Counterparties.Ingress.Compute(stack, configuration, "/api/counterparties"),
+			Monitoring: configuration.Monitoring,
+			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+				DevProperties: stack.Spec.DevProperties,
+				Version:       version,
+			},
+			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Counterparties.Postgres,
+					Database:       fmt.Sprintf("%s-counterparties", stack.Name),
+				},
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetCounterpartiesError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetCounterpartiesReady()
+	}
+
+	log.FromContext(ctx).Info("Counterparties ready")
 	return nil
 }
 

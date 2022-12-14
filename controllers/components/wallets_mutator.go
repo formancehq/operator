@@ -19,6 +19,7 @@ package components
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
@@ -39,8 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// Mutator reconciles a Auth object
-type PaymentsMutator struct {
+// WalletsMutator reconciles a Auth object
+type WalletsMutator struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -48,65 +49,68 @@ type PaymentsMutator struct {
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=payments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.formance.com,resources=payments/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.formance.com,resources=payments/finalizers,verbs=update
+// +kubebuilder:rbac:groups=components.formance.com,resources=wallets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.formance.com,resources=wallets/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.formance.com,resources=wallets/finalizers,verbs=update
 
-func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta2.Payments) (*ctrl.Result, error) {
+func (r *WalletsMutator) Mutate(ctx context.Context, wallets *componentsv1beta2.Wallets) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(payments)
+	apisv1beta1.SetProgressing(wallets)
 
-	deployment, err := r.reconcileDeployment(ctx, payments)
-	if err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
-	}
+	if wallets.Spec.Enabled {
+		deployment, err := r.reconcileDeployment(ctx, wallets)
+		if err != nil {
+			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
+		}
 
-	service, err := r.reconcileService(ctx, payments, deployment)
-	if err != nil {
-		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
-	}
-
-	if payments.Spec.Ingress != nil {
-		_, err = r.reconcileIngress(ctx, payments, service)
+		service, err := r.reconcileService(ctx, wallets, deployment)
 		if err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
-	} else {
-		err = r.Client.Delete(ctx, &networkingv1.Ingress{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      payments.Name,
-				Namespace: payments.Namespace,
-			},
-		})
-		if err != nil && !errors.IsNotFound(err) {
-			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
+
+		if wallets.Spec.Ingress != nil {
+			_, err = r.reconcileIngress(ctx, wallets, service)
+			if err != nil {
+				return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
+			}
+		} else {
+			err = r.Client.Delete(ctx, &networkingv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      wallets.Name,
+					Namespace: wallets.Namespace,
+				},
+			})
+			if err != nil && !errors.IsNotFound(err) {
+				return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
+			}
+			apisv1beta1.RemoveIngressCondition(wallets)
 		}
-		apisv1beta1.RemoveIngressCondition(payments)
 	}
 
-	apisv1beta1.SetReady(payments)
+	apisv1beta1.SetReady(wallets)
 
 	return nil, nil
 }
 
-func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *componentsv1beta2.Payments) (*appsv1.Deployment, error) {
-	matchLabels := CreateMap("app.kubernetes.io/name", "payments")
-
-	env := payments.Spec.Postgres.Env("")
+func walletsEnvVars(wallets *componentsv1beta2.Wallets) []corev1.EnvVar {
+	env := wallets.Spec.Postgres.Env("")
+	ledgerName := strings.Replace(wallets.GetName(), "-next", "-ledger", -1)
 	env = append(env,
-		apisv1beta1.Env("POSTGRES_DATABASE_NAME", "$(POSTGRES_DATABASE)"),
+		apisv1beta1.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
+		apisv1beta1.Env("LEDGER_URI", fmt.Sprintf("http://%s:8080", ledgerName)),
 	)
-	if payments.Spec.Debug {
-		env = append(env, apisv1beta1.Env("DEBUG", "true"))
-	}
-	if payments.Spec.Monitoring != nil {
-		env = append(env, payments.Spec.Monitoring.Env("")...)
-	}
-	if payments.Spec.Collector != nil {
-		env = append(env, payments.Spec.Collector.Env("")...)
-	}
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payments), payments, func(deployment *appsv1.Deployment) error {
+	env = append(env, wallets.Spec.DevProperties.Env()...)
+	if wallets.Spec.Monitoring != nil {
+		env = append(env, wallets.Spec.Monitoring.Env("")...)
+	}
+	return env
+}
+
+func (r *WalletsMutator) reconcileDeployment(ctx context.Context, wallets *componentsv1beta2.Wallets) (*appsv1.Deployment, error) {
+	matchLabels := CreateMap("app.kubernetes.io/name", "wallets")
+
+	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(wallets), wallets, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchLabels,
@@ -117,73 +121,50 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:            "payments",
-						Image:           controllerutils.GetImage("payments", payments.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
-						Env:             env,
+						Name:            "wallets",
+						Image:           controllerutils.GetImage("wallets", wallets.Spec.Version),
+						ImagePullPolicy: controllerutils.ImagePullPolicy(wallets.Spec),
+						Env:             walletsEnvVars(wallets),
 						Ports: []corev1.ContainerPort{{
-							Name:          "payments",
+							Name:          "wallets",
 							ContainerPort: 8080,
 						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_health",
-									Port: intstr.IntOrString{
-										IntVal: 8080,
-									},
-									Scheme: "HTTP",
-								},
-							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
+						LivenessProbe: controllerutils.DefaultLiveness(),
 					}},
 				},
 			},
 		}
-		if payments.Spec.Postgres.CreateDatabase {
+		if wallets.Spec.Postgres.CreateDatabase {
 			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-payments-db",
+				Name:            "init-create-wallets-db",
 				Image:           "postgres:13",
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Env:             env,
 				Command: []string{
 					"sh",
 					"-c",
 					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
 				},
-			},
-				{
-					Name:            "migrate",
-					Image:           controllerutils.GetImage("payments", payments.Spec.Version),
-					ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
-					Env:             env,
-					Command:         []string{"payments", "migrate", "up"},
-				}}
+				Env: wallets.Spec.Postgres.Env(""),
+			}}
 		}
 		return nil
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(payments, err.Error())
+		apisv1beta1.SetDeploymentError(wallets, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(payments)
+		apisv1beta1.SetDeploymentReady(wallets)
 	}
 	return ret, err
 }
 
-func (r *PaymentsMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Payments, deployment *appsv1.Deployment) (*corev1.Service, error) {
+func (r *WalletsMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Wallets, deployment *appsv1.Deployment) (*corev1.Service, error) {
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
 		service.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
-				Name:        "http",
+				Name:        "wallets",
 				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
 				Protocol:    "TCP",
 				AppProtocol: pointer.String("http"),
@@ -204,26 +185,26 @@ func (r *PaymentsMutator) reconcileService(ctx context.Context, auth *components
 	return ret, err
 }
 
-func (r *PaymentsMutator) reconcileIngress(ctx context.Context, payments *componentsv1beta2.Payments, service *corev1.Service) (*networkingv1.Ingress, error) {
-	annotations := payments.Spec.Ingress.Annotations
+func (r *WalletsMutator) reconcileIngress(ctx context.Context, wallets *componentsv1beta2.Wallets, service *corev1.Service) (*networkingv1.Ingress, error) {
+	annotations := wallets.Spec.Ingress.Annotations
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
-	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", payments.Namespace)
+	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", wallets.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payments), payments, func(ingress *networkingv1.Ingress) error {
+	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(wallets), wallets, func(ingress *networkingv1.Ingress) error {
 		pathType := networkingv1.PathTypePrefix
 		ingress.ObjectMeta.Annotations = annotations
 		ingress.Spec = networkingv1.IngressSpec{
-			TLS: payments.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+			TLS: wallets.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: payments.Spec.Ingress.Host,
+					Host: wallets.Spec.Ingress.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path:     payments.Spec.Ingress.Path,
+									Path:     wallets.Spec.Ingress.Path,
 									PathType: &pathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
@@ -244,17 +225,17 @@ func (r *PaymentsMutator) reconcileIngress(ctx context.Context, payments *compon
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(payments, err.Error())
+		apisv1beta1.SetIngressError(wallets, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(payments)
+		apisv1beta1.SetIngressReady(wallets)
 	}
 	return ret, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *PaymentsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
+// SetupWithBuilder SetupWithManager sets up the controller with the Manager.
+func (r *WalletsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
@@ -263,8 +244,8 @@ func (r *PaymentsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Build
 	return nil
 }
 
-func NewPaymentsMutator(client client.Client, scheme *runtime.Scheme) controllerutils.Mutator[*componentsv1beta2.Payments] {
-	return &PaymentsMutator{
+func NewWalletsMutator(client client.Client, scheme *runtime.Scheme) controllerutils.Mutator[*componentsv1beta2.Wallets] {
+	return &WalletsMutator{
 		Client: client,
 		Scheme: scheme,
 	}

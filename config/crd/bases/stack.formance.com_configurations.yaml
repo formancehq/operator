@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: configurations.stack.formance.com
 spec:
@@ -60,6 +60,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -79,6 +80,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       clientSecret:
                         type: string
@@ -102,6 +104,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -121,6 +124,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       issuer:
                         type: string
@@ -144,6 +148,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -163,6 +168,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                     type: object
                   host:
@@ -184,6 +190,7 @@ spec:
                             TODO: Add other useful fields. apiVersion, kind, uid?'
                           type: string
                       type: object
+                      x-kubernetes-map-type: atomic
                     type: array
                   ingress:
                     properties:
@@ -222,6 +229,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -241,6 +249,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       password:
                         type: string
@@ -264,6 +273,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -283,6 +293,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       port:
                         type: integer
@@ -306,6 +317,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -325,6 +337,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       username:
                         type: string
@@ -348,6 +361,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -367,6 +381,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                     type: object
                   scheme:
@@ -448,6 +463,7 @@ spec:
                         required:
                         - key
                         type: object
+                        x-kubernetes-map-type: atomic
                       secretKeyRef:
                         description: Selects a key of a secret in the pod's namespace
                         properties:
@@ -466,6 +482,7 @@ spec:
                         required:
                         - key
                         type: object
+                        x-kubernetes-map-type: atomic
                     type: object
                   sasl:
                     properties:
@@ -493,6 +510,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -512,6 +530,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       scramSHASize:
                         type: string
@@ -537,6 +556,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -556,6 +576,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                     required:
                     - mechanism
@@ -595,6 +616,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               fieldRef:
                                 description: 'Selects a field of the pod: supports
                                   metadata.name, metadata.namespace, `metadata.labels[''<KEY>'']`,
@@ -613,6 +635,7 @@ spec:
                                 required:
                                 - fieldPath
                                 type: object
+                                x-kubernetes-map-type: atomic
                               resourceFieldRef:
                                 description: 'Selects a resource of the container:
                                   only resources limits and requests (limits.cpu,
@@ -638,6 +661,7 @@ spec:
                                 required:
                                 - resource
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -659,6 +683,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           insecure:
                             type: boolean
@@ -693,6 +718,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               fieldRef:
                                 description: 'Selects a field of the pod: supports
                                   metadata.name, metadata.namespace, `metadata.labels[''<KEY>'']`,
@@ -711,6 +737,7 @@ spec:
                                 required:
                                 - fieldPath
                                 type: object
+                                x-kubernetes-map-type: atomic
                               resourceFieldRef:
                                 description: 'Selects a resource of the container:
                                   only resources limits and requests (limits.cpu,
@@ -736,6 +763,7 @@ spec:
                                 required:
                                 - resource
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -757,6 +785,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                     type: object
@@ -783,6 +812,7 @@ spec:
                                 TODO: Add other useful fields. apiVersion, kind, uid?'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       ingress:
                         properties:
@@ -827,6 +857,7 @@ spec:
                                 TODO: Add other useful fields. apiVersion, kind, uid?'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       ingress:
                         properties:
@@ -884,6 +915,7 @@ spec:
                                     required:
                                     - key
                                     type: object
+                                    x-kubernetes-map-type: atomic
                                   secretKeyRef:
                                     description: Selects a key of a secret in the
                                       pod's namespace
@@ -905,6 +937,7 @@ spec:
                                     required:
                                     - key
                                     type: object
+                                    x-kubernetes-map-type: atomic
                                 type: object
                             type: object
                           strategy:
@@ -1066,6 +1099,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                   required:
                                   - name
                                   type: object
@@ -1198,6 +1232,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                   required:
                                   - name
                                   type: object
@@ -1313,6 +1348,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                   required:
                                   - name
                                   type: object
@@ -1459,6 +1495,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1480,6 +1517,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           password:
                             type: string
@@ -1504,6 +1542,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1525,6 +1564,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           port:
                             type: integer
@@ -1549,6 +1589,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1570,6 +1611,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           username:
                             type: string
@@ -1594,6 +1636,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1615,6 +1658,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       replicas:
@@ -1642,6 +1686,7 @@ spec:
                                 TODO: Add other useful fields. apiVersion, kind, uid?'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       ingress:
                         properties:
@@ -1681,6 +1726,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1702,6 +1748,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           password:
                             type: string
@@ -1726,6 +1773,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1747,6 +1795,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           port:
                             type: integer
@@ -1771,6 +1820,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1792,6 +1842,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           useSrv:
                             type: boolean
@@ -1818,6 +1869,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1839,6 +1891,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       scaling:
@@ -1900,6 +1953,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1921,6 +1975,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           pathPrefix:
                             type: string
@@ -1947,6 +2002,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -1968,6 +2024,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           scheme:
                             enum:
@@ -2000,6 +2057,7 @@ spec:
                                 TODO: Add other useful fields. apiVersion, kind, uid?'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       ingress:
                         properties:
@@ -2046,6 +2104,7 @@ spec:
                                 TODO: Add other useful fields. apiVersion, kind, uid?'
                               type: string
                           type: object
+                          x-kubernetes-map-type: atomic
                         type: array
                       ingress:
                         properties:
@@ -2085,6 +2144,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2106,6 +2166,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           password:
                             type: string
@@ -2130,6 +2191,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2151,6 +2213,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           port:
                             type: integer
@@ -2175,6 +2238,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2196,6 +2260,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           useSrv:
                             type: boolean
@@ -2222,6 +2287,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2243,6 +2309,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       scaling:
@@ -2375,6 +2442,7 @@ spec:
                         required:
                         - key
                         type: object
+                        x-kubernetes-map-type: atomic
                       secretKeyRef:
                         description: Selects a key of a secret in the pod's namespace
                         properties:
@@ -2393,6 +2461,7 @@ spec:
                         required:
                         - key
                         type: object
+                        x-kubernetes-map-type: atomic
                     type: object
                   sasl:
                     properties:
@@ -2420,6 +2489,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -2439,6 +2509,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                       scramSHASize:
                         type: string
@@ -2464,6 +2535,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                           secretKeyRef:
                             description: Selects a key of a secret in the pod's namespace
                             properties:
@@ -2483,6 +2555,7 @@ spec:
                             required:
                             - key
                             type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                     required:
                     - mechanism
@@ -2522,6 +2595,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               fieldRef:
                                 description: 'Selects a field of the pod: supports
                                   metadata.name, metadata.namespace, `metadata.labels[''<KEY>'']`,
@@ -2540,6 +2614,7 @@ spec:
                                 required:
                                 - fieldPath
                                 type: object
+                                x-kubernetes-map-type: atomic
                               resourceFieldRef:
                                 description: 'Selects a resource of the container:
                                   only resources limits and requests (limits.cpu,
@@ -2565,6 +2640,7 @@ spec:
                                 required:
                                 - resource
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2586,6 +2662,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           insecure:
                             type: boolean
@@ -2620,6 +2697,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               fieldRef:
                                 description: 'Selects a field of the pod: supports
                                   metadata.name, metadata.namespace, `metadata.labels[''<KEY>'']`,
@@ -2638,6 +2716,7 @@ spec:
                                 required:
                                 - fieldPath
                                 type: object
+                                x-kubernetes-map-type: atomic
                               resourceFieldRef:
                                 description: 'Selects a resource of the container:
                                   only resources limits and requests (limits.cpu,
@@ -2663,6 +2742,7 @@ spec:
                                 required:
                                 - resource
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2684,6 +2764,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           resourceAttributes:
                             type: string
@@ -2728,6 +2809,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2749,6 +2831,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           password:
                             type: string
@@ -2773,6 +2856,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2794,6 +2878,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           port:
                             type: integer
@@ -2818,6 +2903,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2839,6 +2925,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           username:
                             type: string
@@ -2863,6 +2950,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -2884,6 +2972,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       staticClients:
@@ -2925,6 +3014,224 @@ spec:
                           annotations:
                             additionalProperties:
                               type: string
+                            type: object
+                        type: object
+                      scaling:
+                        properties:
+                          cpuLimit:
+                            type: integer
+                          enabled:
+                            type: boolean
+                          maxReplica:
+                            type: integer
+                          minReplica:
+                            type: integer
+                        type: object
+                    type: object
+                  counterparties:
+                    properties:
+                      debug:
+                        type: boolean
+                      enabled:
+                        type: boolean
+                      ingress:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      postgres:
+                        properties:
+                          disableSSLMode:
+                            type: boolean
+                          host:
+                            type: string
+                          hostFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                          password:
+                            type: string
+                          passwordFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                          port:
+                            type: integer
+                          portFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                          username:
+                            type: string
+                          usernameFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       scaling:
@@ -2993,6 +3300,7 @@ spec:
                                     required:
                                     - key
                                     type: object
+                                    x-kubernetes-map-type: atomic
                                   secretKeyRef:
                                     description: Selects a key of a secret in the
                                       pod's namespace
@@ -3014,6 +3322,7 @@ spec:
                                     required:
                                     - key
                                     type: object
+                                    x-kubernetes-map-type: atomic
                                 type: object
                             type: object
                           strategy:
@@ -3175,6 +3484,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                   required:
                                   - name
                                   type: object
@@ -3307,6 +3617,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                   required:
                                   - name
                                   type: object
@@ -3422,6 +3733,7 @@ spec:
                                             only "value". The requirements are ANDed.
                                           type: object
                                       type: object
+                                      x-kubernetes-map-type: atomic
                                   required:
                                   - name
                                   type: object
@@ -3568,6 +3880,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -3589,6 +3902,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           password:
                             type: string
@@ -3613,6 +3927,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -3634,6 +3949,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           port:
                             type: integer
@@ -3658,6 +3974,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -3679,6 +3996,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           username:
                             type: string
@@ -3703,6 +4021,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -3724,728 +4043,7 @@ spec:
                                 required:
                                 - key
                                 type: object
-                            type: object
-                        type: object
-                      replicas:
-                        default: 1
-                        format: int32
-                        type: integer
-                    required:
-                    - postgres
-                    type: object
-                  next:
-                    properties:
-                      ingress:
-                        properties:
-                          annotations:
-                            additionalProperties:
-                              type: string
-                            type: object
-                        type: object
-                      maxReplicas:
-                        default: 10
-                        description: upper limit for the number of pods that can be
-                          set by the autoscaler; cannot be smaller than MinReplicas.
-                          If not specified, the default will be 10
-                        format: int32
-                        type: integer
-                      metrics:
-                        description: metrics contains the specifications for which
-                          to use to calculate the desired replica count (the maximum
-                          replica count across all metrics will be used).  The desired
-                          replica count is calculated multiplying the ratio between
-                          the target value and the current value by the current number
-                          of pods.  Ergo, metrics used must decrease as the pod count
-                          is increased, and vice-versa.  See the individual metric
-                          source types for more information about how each type of
-                          metric must respond.
-                        items:
-                          description: MetricSpec specifies how to scale based on
-                            a single metric (only `type` and one other matching field
-                            should be set at once).
-                          properties:
-                            containerResource:
-                              description: containerResource refers to a resource
-                                metric (such as those specified in requests and limits)
-                                known to Kubernetes describing a single container
-                                in each pod of the current scale target (e.g. CPU
-                                or memory). Such metrics are built in to Kubernetes,
-                                and have special scaling options on top of those available
-                                to normal per-pod metrics using the "pods" source.
-                                This is an alpha feature and can be enabled by the
-                                HPAContainerMetrics feature flag.
-                              properties:
-                                container:
-                                  description: container is the name of the container
-                                    in the pods of the scaling target
-                                  type: string
-                                name:
-                                  description: name is the name of the resource in
-                                    question.
-                                  type: string
-                                target:
-                                  description: target specifies the target value for
-                                    the given metric
-                                  properties:
-                                    averageUtilization:
-                                      description: averageUtilization is the target
-                                        value of the average of the resource metric
-                                        across all relevant pods, represented as a
-                                        percentage of the requested value of the resource
-                                        for the pods. Currently only valid for Resource
-                                        metric source type
-                                      format: int32
-                                      type: integer
-                                    averageValue:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: averageValue is the target value
-                                        of the average of the metric across all relevant
-                                        pods (as a quantity)
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                    type:
-                                      description: type represents whether the metric
-                                        type is Utilization, Value, or AverageValue
-                                      type: string
-                                    value:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: value is the target value of the
-                                        metric (as a quantity).
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                  required:
-                                  - type
-                                  type: object
-                              required:
-                              - container
-                              - name
-                              - target
-                              type: object
-                            external:
-                              description: external refers to a global metric that
-                                is not associated with any Kubernetes object. It allows
-                                autoscaling based on information coming from components
-                                running outside of cluster (for example length of
-                                queue in cloud messaging service, or QPS from loadbalancer
-                                running outside of cluster).
-                              properties:
-                                metric:
-                                  description: metric identifies the target metric
-                                    by name and selector
-                                  properties:
-                                    name:
-                                      description: name is the name of the given metric
-                                      type: string
-                                    selector:
-                                      description: selector is the string-encoded
-                                        form of a standard kubernetes label selector
-                                        for the given metric When set, it is passed
-                                        as an additional parameter to the metrics
-                                        server for more specific metrics scoping.
-                                        When unset, just the metricName will be used
-                                        to gather metrics.
-                                      properties:
-                                        matchExpressions:
-                                          description: matchExpressions is a list
-                                            of label selector requirements. The requirements
-                                            are ANDed.
-                                          items:
-                                            description: A label selector requirement
-                                              is a selector that contains values,
-                                              a key, and an operator that relates
-                                              the key and values.
-                                            properties:
-                                              key:
-                                                description: key is the label key
-                                                  that the selector applies to.
-                                                type: string
-                                              operator:
-                                                description: operator represents a
-                                                  key's relationship to a set of values.
-                                                  Valid operators are In, NotIn, Exists
-                                                  and DoesNotExist.
-                                                type: string
-                                              values:
-                                                description: values is an array of
-                                                  string values. If the operator is
-                                                  In or NotIn, the values array must
-                                                  be non-empty. If the operator is
-                                                  Exists or DoesNotExist, the values
-                                                  array must be empty. This array
-                                                  is replaced during a strategic merge
-                                                  patch.
-                                                items:
-                                                  type: string
-                                                type: array
-                                            required:
-                                            - key
-                                            - operator
-                                            type: object
-                                          type: array
-                                        matchLabels:
-                                          additionalProperties:
-                                            type: string
-                                          description: matchLabels is a map of {key,value}
-                                            pairs. A single {key,value} in the matchLabels
-                                            map is equivalent to an element of matchExpressions,
-                                            whose key field is "key", the operator
-                                            is "In", and the values array contains
-                                            only "value". The requirements are ANDed.
-                                          type: object
-                                      type: object
-                                  required:
-                                  - name
-                                  type: object
-                                target:
-                                  description: target specifies the target value for
-                                    the given metric
-                                  properties:
-                                    averageUtilization:
-                                      description: averageUtilization is the target
-                                        value of the average of the resource metric
-                                        across all relevant pods, represented as a
-                                        percentage of the requested value of the resource
-                                        for the pods. Currently only valid for Resource
-                                        metric source type
-                                      format: int32
-                                      type: integer
-                                    averageValue:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: averageValue is the target value
-                                        of the average of the metric across all relevant
-                                        pods (as a quantity)
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                    type:
-                                      description: type represents whether the metric
-                                        type is Utilization, Value, or AverageValue
-                                      type: string
-                                    value:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: value is the target value of the
-                                        metric (as a quantity).
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                  required:
-                                  - type
-                                  type: object
-                              required:
-                              - metric
-                              - target
-                              type: object
-                            object:
-                              description: object refers to a metric describing a
-                                single kubernetes object (for example, hits-per-second
-                                on an Ingress object).
-                              properties:
-                                describedObject:
-                                  description: describedObject specifies the descriptions
-                                    of a object,such as kind,name apiVersion
-                                  properties:
-                                    apiVersion:
-                                      description: API version of the referent
-                                      type: string
-                                    kind:
-                                      description: 'Kind of the referent; More info:
-                                        https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"'
-                                      type: string
-                                    name:
-                                      description: 'Name of the referent; More info:
-                                        http://kubernetes.io/docs/user-guide/identifiers#names'
-                                      type: string
-                                  required:
-                                  - kind
-                                  - name
-                                  type: object
-                                metric:
-                                  description: metric identifies the target metric
-                                    by name and selector
-                                  properties:
-                                    name:
-                                      description: name is the name of the given metric
-                                      type: string
-                                    selector:
-                                      description: selector is the string-encoded
-                                        form of a standard kubernetes label selector
-                                        for the given metric When set, it is passed
-                                        as an additional parameter to the metrics
-                                        server for more specific metrics scoping.
-                                        When unset, just the metricName will be used
-                                        to gather metrics.
-                                      properties:
-                                        matchExpressions:
-                                          description: matchExpressions is a list
-                                            of label selector requirements. The requirements
-                                            are ANDed.
-                                          items:
-                                            description: A label selector requirement
-                                              is a selector that contains values,
-                                              a key, and an operator that relates
-                                              the key and values.
-                                            properties:
-                                              key:
-                                                description: key is the label key
-                                                  that the selector applies to.
-                                                type: string
-                                              operator:
-                                                description: operator represents a
-                                                  key's relationship to a set of values.
-                                                  Valid operators are In, NotIn, Exists
-                                                  and DoesNotExist.
-                                                type: string
-                                              values:
-                                                description: values is an array of
-                                                  string values. If the operator is
-                                                  In or NotIn, the values array must
-                                                  be non-empty. If the operator is
-                                                  Exists or DoesNotExist, the values
-                                                  array must be empty. This array
-                                                  is replaced during a strategic merge
-                                                  patch.
-                                                items:
-                                                  type: string
-                                                type: array
-                                            required:
-                                            - key
-                                            - operator
-                                            type: object
-                                          type: array
-                                        matchLabels:
-                                          additionalProperties:
-                                            type: string
-                                          description: matchLabels is a map of {key,value}
-                                            pairs. A single {key,value} in the matchLabels
-                                            map is equivalent to an element of matchExpressions,
-                                            whose key field is "key", the operator
-                                            is "In", and the values array contains
-                                            only "value". The requirements are ANDed.
-                                          type: object
-                                      type: object
-                                  required:
-                                  - name
-                                  type: object
-                                target:
-                                  description: target specifies the target value for
-                                    the given metric
-                                  properties:
-                                    averageUtilization:
-                                      description: averageUtilization is the target
-                                        value of the average of the resource metric
-                                        across all relevant pods, represented as a
-                                        percentage of the requested value of the resource
-                                        for the pods. Currently only valid for Resource
-                                        metric source type
-                                      format: int32
-                                      type: integer
-                                    averageValue:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: averageValue is the target value
-                                        of the average of the metric across all relevant
-                                        pods (as a quantity)
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                    type:
-                                      description: type represents whether the metric
-                                        type is Utilization, Value, or AverageValue
-                                      type: string
-                                    value:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: value is the target value of the
-                                        metric (as a quantity).
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                  required:
-                                  - type
-                                  type: object
-                              required:
-                              - describedObject
-                              - metric
-                              - target
-                              type: object
-                            pods:
-                              description: pods refers to a metric describing each
-                                pod in the current scale target (for example, transactions-processed-per-second).  The
-                                values will be averaged together before being compared
-                                to the target value.
-                              properties:
-                                metric:
-                                  description: metric identifies the target metric
-                                    by name and selector
-                                  properties:
-                                    name:
-                                      description: name is the name of the given metric
-                                      type: string
-                                    selector:
-                                      description: selector is the string-encoded
-                                        form of a standard kubernetes label selector
-                                        for the given metric When set, it is passed
-                                        as an additional parameter to the metrics
-                                        server for more specific metrics scoping.
-                                        When unset, just the metricName will be used
-                                        to gather metrics.
-                                      properties:
-                                        matchExpressions:
-                                          description: matchExpressions is a list
-                                            of label selector requirements. The requirements
-                                            are ANDed.
-                                          items:
-                                            description: A label selector requirement
-                                              is a selector that contains values,
-                                              a key, and an operator that relates
-                                              the key and values.
-                                            properties:
-                                              key:
-                                                description: key is the label key
-                                                  that the selector applies to.
-                                                type: string
-                                              operator:
-                                                description: operator represents a
-                                                  key's relationship to a set of values.
-                                                  Valid operators are In, NotIn, Exists
-                                                  and DoesNotExist.
-                                                type: string
-                                              values:
-                                                description: values is an array of
-                                                  string values. If the operator is
-                                                  In or NotIn, the values array must
-                                                  be non-empty. If the operator is
-                                                  Exists or DoesNotExist, the values
-                                                  array must be empty. This array
-                                                  is replaced during a strategic merge
-                                                  patch.
-                                                items:
-                                                  type: string
-                                                type: array
-                                            required:
-                                            - key
-                                            - operator
-                                            type: object
-                                          type: array
-                                        matchLabels:
-                                          additionalProperties:
-                                            type: string
-                                          description: matchLabels is a map of {key,value}
-                                            pairs. A single {key,value} in the matchLabels
-                                            map is equivalent to an element of matchExpressions,
-                                            whose key field is "key", the operator
-                                            is "In", and the values array contains
-                                            only "value". The requirements are ANDed.
-                                          type: object
-                                      type: object
-                                  required:
-                                  - name
-                                  type: object
-                                target:
-                                  description: target specifies the target value for
-                                    the given metric
-                                  properties:
-                                    averageUtilization:
-                                      description: averageUtilization is the target
-                                        value of the average of the resource metric
-                                        across all relevant pods, represented as a
-                                        percentage of the requested value of the resource
-                                        for the pods. Currently only valid for Resource
-                                        metric source type
-                                      format: int32
-                                      type: integer
-                                    averageValue:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: averageValue is the target value
-                                        of the average of the metric across all relevant
-                                        pods (as a quantity)
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                    type:
-                                      description: type represents whether the metric
-                                        type is Utilization, Value, or AverageValue
-                                      type: string
-                                    value:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: value is the target value of the
-                                        metric (as a quantity).
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                  required:
-                                  - type
-                                  type: object
-                              required:
-                              - metric
-                              - target
-                              type: object
-                            resource:
-                              description: resource refers to a resource metric (such
-                                as those specified in requests and limits) known to
-                                Kubernetes describing each pod in the current scale
-                                target (e.g. CPU or memory). Such metrics are built
-                                in to Kubernetes, and have special scaling options
-                                on top of those available to normal per-pod metrics
-                                using the "pods" source.
-                              properties:
-                                name:
-                                  description: name is the name of the resource in
-                                    question.
-                                  type: string
-                                target:
-                                  description: target specifies the target value for
-                                    the given metric
-                                  properties:
-                                    averageUtilization:
-                                      description: averageUtilization is the target
-                                        value of the average of the resource metric
-                                        across all relevant pods, represented as a
-                                        percentage of the requested value of the resource
-                                        for the pods. Currently only valid for Resource
-                                        metric source type
-                                      format: int32
-                                      type: integer
-                                    averageValue:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: averageValue is the target value
-                                        of the average of the metric across all relevant
-                                        pods (as a quantity)
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                    type:
-                                      description: type represents whether the metric
-                                        type is Utilization, Value, or AverageValue
-                                      type: string
-                                    value:
-                                      anyOf:
-                                      - type: integer
-                                      - type: string
-                                      description: value is the target value of the
-                                        metric (as a quantity).
-                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                                      x-kubernetes-int-or-string: true
-                                  required:
-                                  - type
-                                  type: object
-                              required:
-                              - name
-                              - target
-                              type: object
-                            type:
-                              description: 'type is the type of metric source.  It
-                                should be one of "ContainerResource", "External",
-                                "Object", "Pods" or "Resource", each mapping to a
-                                matching field in the object. Note: "ContainerResource"
-                                type is available on when the feature-gate HPAContainerMetrics
-                                is enabled'
-                              type: string
-                          required:
-                          - type
-                          type: object
-                        type: array
-                      minReplicas:
-                        description: minReplicas is the lower limit for the number
-                          of replicas to which the autoscaler can scale down.  It
-                          defaults to 1 pod.  minReplicas is allowed to be 0 if the
-                          alpha feature gate HPAScaleToZero is enabled and at least
-                          one Object or External metric is configured.  Scaling is
-                          active as long as at least one metric value is available.
-                        format: int32
-                        type: integer
-                      postgres:
-                        properties:
-                          disableSSLMode:
-                            type: boolean
-                          host:
-                            type: string
-                          hostFrom:
-                            properties:
-                              configMapKeyRef:
-                                description: Selects a key of a ConfigMap.
-                                properties:
-                                  key:
-                                    description: The key to select.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the ConfigMap or
-                                      its key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
-                              secretKeyRef:
-                                description: Selects a key of a secret in the pod's
-                                  namespace
-                                properties:
-                                  key:
-                                    description: The key of the secret to select from.  Must
-                                      be a valid secret key.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the Secret or its
-                                      key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
-                            type: object
-                          password:
-                            type: string
-                          passwordFrom:
-                            properties:
-                              configMapKeyRef:
-                                description: Selects a key of a ConfigMap.
-                                properties:
-                                  key:
-                                    description: The key to select.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the ConfigMap or
-                                      its key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
-                              secretKeyRef:
-                                description: Selects a key of a secret in the pod's
-                                  namespace
-                                properties:
-                                  key:
-                                    description: The key of the secret to select from.  Must
-                                      be a valid secret key.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the Secret or its
-                                      key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
-                            type: object
-                          port:
-                            type: integer
-                          portFrom:
-                            properties:
-                              configMapKeyRef:
-                                description: Selects a key of a ConfigMap.
-                                properties:
-                                  key:
-                                    description: The key to select.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the ConfigMap or
-                                      its key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
-                              secretKeyRef:
-                                description: Selects a key of a secret in the pod's
-                                  namespace
-                                properties:
-                                  key:
-                                    description: The key of the secret to select from.  Must
-                                      be a valid secret key.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the Secret or its
-                                      key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
-                            type: object
-                          username:
-                            type: string
-                          usernameFrom:
-                            properties:
-                              configMapKeyRef:
-                                description: Selects a key of a ConfigMap.
-                                properties:
-                                  key:
-                                    description: The key to select.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the ConfigMap or
-                                      its key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
-                              secretKeyRef:
-                                description: Selects a key of a secret in the pod's
-                                  namespace
-                                properties:
-                                  key:
-                                    description: The key of the secret to select from.  Must
-                                      be a valid secret key.
-                                    type: string
-                                  name:
-                                    description: 'Name of the referent. More info:
-                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                                      TODO: Add other useful fields. apiVersion, kind,
-                                      uid?'
-                                    type: string
-                                  optional:
-                                    description: Specify whether the Secret or its
-                                      key must be defined
-                                    type: boolean
-                                required:
-                                - key
-                                type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       replicas:
@@ -4464,10 +4062,10 @@ spec:
                               type: string
                             type: object
                         type: object
-                      mongoDB:
+                      postgres:
                         properties:
-                          database:
-                            type: string
+                          disableSSLMode:
+                            type: boolean
                           host:
                             type: string
                           hostFrom:
@@ -4491,6 +4089,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4512,6 +4111,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           password:
                             type: string
@@ -4536,6 +4136,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4557,6 +4158,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           port:
                             type: integer
@@ -4581,6 +4183,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4602,9 +4205,8 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
-                          useSrv:
-                            type: boolean
                           username:
                             type: string
                           usernameFrom:
@@ -4628,6 +4230,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4649,6 +4252,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       scaling:
@@ -4710,6 +4314,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4731,6 +4336,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           pathPrefix:
                             type: string
@@ -4757,6 +4363,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4778,6 +4385,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           scheme:
                             enum:
@@ -4813,9 +4421,11 @@ spec:
                     required:
                     - elasticSearch
                     type: object
-                  webhooks:
+                  wallets:
                     properties:
                       debug:
+                        type: boolean
+                      enabled:
                         type: boolean
                       ingress:
                         properties:
@@ -4824,10 +4434,10 @@ spec:
                               type: string
                             type: object
                         type: object
-                      mongoDB:
+                      postgres:
                         properties:
-                          database:
-                            type: string
+                          disableSSLMode:
+                            type: boolean
                           host:
                             type: string
                           hostFrom:
@@ -4851,6 +4461,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4872,6 +4483,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           password:
                             type: string
@@ -4896,6 +4508,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4917,6 +4530,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                           port:
                             type: integer
@@ -4941,6 +4555,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -4962,9 +4577,8 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                             type: object
-                          useSrv:
-                            type: boolean
                           username:
                             type: string
                           usernameFrom:
@@ -4988,6 +4602,7 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
                               secretKeyRef:
                                 description: Selects a key of a secret in the pod's
                                   namespace
@@ -5009,6 +4624,223 @@ spec:
                                 required:
                                 - key
                                 type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                        type: object
+                      scaling:
+                        properties:
+                          cpuLimit:
+                            type: integer
+                          enabled:
+                            type: boolean
+                          maxReplica:
+                            type: integer
+                          minReplica:
+                            type: integer
+                        type: object
+                    type: object
+                  webhooks:
+                    properties:
+                      debug:
+                        type: boolean
+                      ingress:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      postgres:
+                        properties:
+                          disableSSLMode:
+                            type: boolean
+                          host:
+                            type: string
+                          hostFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                          password:
+                            type: string
+                          passwordFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                          port:
+                            type: integer
+                          portFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            type: object
+                          username:
+                            type: string
+                          usernameFrom:
+                            properties:
+                              configMapKeyRef:
+                                description: Selects a key of a ConfigMap.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the ConfigMap or
+                                      its key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              secretKeyRef:
+                                description: Selects a key of a secret in the pod's
+                                  namespace
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must
+                                      be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: 'Name of the referent. More info:
+                                      https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      TODO: Add other useful fields. apiVersion, kind,
+                                      uid?'
+                                    type: string
+                                  optional:
+                                    description: Specify whether the Secret or its
+                                      key must be defined
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
                             type: object
                         type: object
                       scaling:

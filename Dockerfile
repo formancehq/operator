@@ -3,14 +3,9 @@ FROM golang:1.18 as builder
 WORKDIR /workspace
 ENV CGO_ENABLED=0
 ENV GOOS=linux
-COPY go.mod .
-COPY go.sum .
+COPY . .
 RUN go mod download
 RUN go install -v -installsuffix cgo -a std
-COPY main.go .
-COPY apis apis
-COPY pkg pkg
-COPY controllers controllers
 RUN go build -v -a -o manager main.go
 
 FROM golang:1.18 as reloader

@@ -1,12 +1,9 @@
 /*
 Copyright 2022.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,55 +21,54 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NextSpec defines the desired state of Next
-type NextSpec struct {
+// WalletsSpec defines the desired state of Wallets
+type WalletsSpec struct {
 	CommonServiceProperties `json:",inline"`
-	apisv1beta1.Scalable    `json:",inline"`
 
 	// +optional
-	Ingress *IngressSpec `json:"ingress"`
+	Enabled bool `json:"enabled,omitempty"`
 	// +optional
 	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
+	// +optional
+	Ingress *IngressSpec `json:"ingress"`
 	// +optional
 	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 //+kubebuilder:storageversion
 
-// Next is the Schema for the nexts API
-type Next struct {
+// Wallets is the Schema for the Wallets API
+type Wallets struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec NextSpec `json:"spec"`
-	// +optional
-	Status apisv1beta1.ReplicationStatus `json:"status"`
+	Spec   WalletsSpec        `json:"spec,omitempty"`
+	Status apisv1beta1.Status `json:"status,omitempty"`
 }
 
-func (a *Next) GetStatus() apisv1beta1.Dirty {
-	return &a.Status
+func (in *Wallets) GetStatus() apisv1beta1.Dirty {
+	return &in.Status
 }
 
-func (a *Next) IsDirty(t apisv1beta1.Object) bool {
+func (in *Wallets) GetConditions() *apisv1beta1.Conditions {
+	return &in.Status.Conditions
+}
+
+func (in *Wallets) IsDirty(t apisv1beta1.Object) bool {
 	return false
-}
-
-func (a *Next) GetConditions() *apisv1beta1.Conditions {
-	return &a.Status.Conditions
 }
 
 //+kubebuilder:object:root=true
 
-// NextList contains a list of Next
-type NextList struct {
+// WalletsList contains a list of Wallets
+type WalletsList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Next `json:"items"`
+	Items           []Wallets `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Next{}, &NextList{})
+	SchemeBuilder.Register(&Wallets{}, &WalletsList{})
 }
