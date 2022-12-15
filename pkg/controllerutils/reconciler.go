@@ -7,8 +7,8 @@ import (
 	"runtime/debug"
 	"strings"
 
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	"github.com/go-logr/logr"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

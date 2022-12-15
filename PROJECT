@@ -3,7 +3,7 @@ layout:
 - go.kubebuilder.io/v3
 multigroup: true
 projectName: formance-operator
-repo: github.com/numary/operator
+repo: github.com/formancehq/operator
 resources:
 - api:
     crdVersion: v1
@@ -11,7 +11,7 @@ resources:
   domain: formance.com
   group: stack
   kind: Stack
-  path: github.com/numary/operator/apis/stack/v1beta2
+  path: github.com/formancehq/operator/apis/stack/v1beta2
   version: v1beta2
   webhooks:
     conversion: true
@@ -23,7 +23,7 @@ resources:
   domain: formance.com
   group: components
   kind: Auth
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -32,7 +32,7 @@ resources:
   domain: formance.com
   group: components
   kind: Ledger
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -41,7 +41,7 @@ resources:
   domain: formance.com
   group: components
   kind: Payments
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -50,7 +50,7 @@ resources:
   domain: formance.com
   group: components
   kind: Search
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -59,7 +59,7 @@ resources:
   domain: formance.com
   group: components
   kind: Control
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -68,7 +68,7 @@ resources:
   domain: formance.com
   group: auth
   kind: Client
-  path: github.com/numary/operator/apis/auth.components/v1beta2
+  path: github.com/formancehq/operator/apis/auth.components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -77,7 +77,7 @@ resources:
   domain: formance.com
   group: auth
   kind: Scope
-  path: github.com/numary/operator/apis/auth.components/v1beta2
+  path: github.com/formancehq/operator/apis/auth.components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -86,7 +86,7 @@ resources:
   domain: formance.com
   group: benthos.components.formance.com
   kind: Server
-  path: github.com/numary/operator/apis/benthos.components/v1beta2
+  path: github.com/formancehq/operator/apis/benthos.components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -95,7 +95,7 @@ resources:
   domain: formance.com
   group: benthos.components.formance.com
   kind: Stream
-  path: github.com/numary/operator/apis/benthos.components/v1beta2
+  path: github.com/formancehq/operator/apis/benthos.components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -103,7 +103,7 @@ resources:
   domain: formance.com
   group: stack
   kind: Configuration
-  path: github.com/numary/operator/apis/stack/v1beta2
+  path: github.com/formancehq/operator/apis/stack/v1beta2
   version: v1beta2
   webhooks:
     conversion: true
@@ -115,7 +115,7 @@ resources:
   domain: formance.com
   group: components
   kind: Webhooks
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -124,7 +124,7 @@ resources:
   domain: formance.com
   group: components
   kind: Wallets
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -133,7 +133,7 @@ resources:
   domain: formance.com
   group: components
   kind: Counterparties
-  path: github.com/numary/operator/apis/components/v1beta2
+  path: github.com/formancehq/operator/apis/components/v1beta2
   version: v1beta2
 - api:
     crdVersion: v1
@@ -141,7 +141,7 @@ resources:
   domain: formance.com
   group: stack
   kind: Versions
-  path: github.com/numary/operator/apis/stack/v1beta2
+  path: github.com/formancehq/operator/apis/stack/v1beta2
   version: v1beta2
   webhooks:
     defaulting: true
@@ -152,6 +152,6 @@ resources:
   domain: formance.com
   group: stack
   kind: Stack
-  path: github.com/numary/operator/apis/stack/v1beta2
+  path: github.com/formancehq/operator/apis/stack/v1beta2
   version: v1beta2
 version: "3"

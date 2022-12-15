@@ -21,9 +21,9 @@ import (
 	"reflect"
 	"strings"
 
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	"github.com/numary/operator/apis/components/v1beta2"
-	pkgapisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	"github.com/formancehq/operator/apis/components/v1beta2"
+	pkgapisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

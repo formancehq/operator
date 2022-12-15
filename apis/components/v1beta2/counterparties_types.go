@@ -14,7 +14,7 @@ limitations under the License.
 package v1beta2
 
 import (
-	pkgapisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	pkgapisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

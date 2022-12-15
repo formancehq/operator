@@ -1,8 +1,8 @@
 package v1beta2
 
 import (
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/typeutils"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/typeutils"
 )
 
 type ScalingSpec struct {

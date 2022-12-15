@@ -1,10 +1,10 @@
 package testing
 
 import (
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	"github.com/formancehq/operator/apis/stack/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	"github.com/google/uuid"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	"github.com/numary/operator/apis/stack/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

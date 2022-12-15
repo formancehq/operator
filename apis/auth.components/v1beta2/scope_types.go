@@ -20,9 +20,9 @@ import (
 	"reflect"
 	"time"
 
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/typeutils"
 	"github.com/numary/auth/authclient"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

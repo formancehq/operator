@@ -1,7 +1,7 @@
 package v1beta2
 
 import (
-	pkgapisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	pkgapisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 )
 

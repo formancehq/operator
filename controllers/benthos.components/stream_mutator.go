@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"time"
 
-	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
+	benthosv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	"github.com/formancehq/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
@@ -57,7 +57,7 @@ func (s *StreamMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 				return nil
 			}
 			mgr.GetLogger().Info(fmt.Sprintf("Found %d items to reconcile", len(list.Items)))
-			return Map(list.Items, func(stream benthosv1beta2.Stream) reconcile.Request {
+			return typeutils.Map(list.Items, func(stream benthosv1beta2.Stream) reconcile.Request {
 				mgr.GetLogger().Info("Trigger reconcile", "namespace",
 					object.GetNamespace(), "name", object.GetName())
 				return reconcile.Request{

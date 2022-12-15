@@ -22,8 +22,8 @@ limitations under the License.
 package v1beta2
 
 import (
-	auth_componentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	auth_componentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 

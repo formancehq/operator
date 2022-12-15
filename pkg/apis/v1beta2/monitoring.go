@@ -4,7 +4,7 @@ package v1beta2
 import (
 	"fmt"
 
-	"github.com/numary/operator/pkg/typeutils"
+	"github.com/formancehq/operator/pkg/typeutils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

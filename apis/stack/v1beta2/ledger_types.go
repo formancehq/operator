@@ -1,10 +1,10 @@
 package v1beta2
 
 import (
-	authcomponentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	"github.com/numary/operator/pkg/apis/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/typeutils"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	"github.com/formancehq/operator/pkg/apis/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/typeutils"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 

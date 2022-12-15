@@ -19,8 +19,8 @@ package v1beta2
 import (
 	"reflect"
 
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/typeutils"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

@@ -1,7 +1,7 @@
 package v1beta2
 
 import (
-	"github.com/numary/operator/pkg/typeutils"
+	"github.com/formancehq/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

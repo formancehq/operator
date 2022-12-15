@@ -1,12 +1,12 @@
 package stack
 
 import (
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	stackv1beta2 "github.com/formancehq/operator/apis/stack/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	. "github.com/formancehq/operator/pkg/testing"
 	"github.com/google/uuid"
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"

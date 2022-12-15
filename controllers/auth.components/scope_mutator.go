@@ -3,13 +3,13 @@ package auth_components
 import (
 	"context"
 
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	"github.com/formancehq/operator/controllers/components"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	"github.com/formancehq/operator/pkg/typeutils"
 	"github.com/numary/auth/authclient"
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	"github.com/numary/operator/controllers/components"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -132,7 +132,7 @@ func (s ScopesMutator) Mutate(ctx context.Context, actualK8SScope *authcomponent
 		transientScopeIds = append(transientScopeIds, transientK8SScope.Status.AuthServerID)
 	}
 
-	extraTransientScopes := Filter(actualAuthServerScope.Transient, NotIn(transientScopeIds...))
+	extraTransientScopes := typeutils.Filter(actualAuthServerScope.Transient, typeutils.NotIn(transientScopeIds...))
 	for _, extraScope := range extraTransientScopes {
 		if err = api.RemoveTransientScope(ctx, actualAuthServerScope.Id, extraScope); err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Removing transient scope auth server side")

@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	"github.com/formancehq/operator/pkg/typeutils"
 	"github.com/google/uuid"
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
-	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
+	stackv1beta2 "github.com/formancehq/operator/apis/stack/v1beta2"
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -58,7 +58,7 @@ func watch(mgr ctrl.Manager, field string) handler.EventHandler {
 			return []reconcile.Request{}
 		}
 
-		return Map(stacks.Items, func(s stackv1beta2.Stack) reconcile.Request {
+		return typeutils.Map(stacks.Items, func(s stackv1beta2.Stack) reconcile.Request {
 			return reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      s.GetName(),
@@ -246,7 +246,7 @@ func (r *Mutator) reconcileMiddleware(ctx context.Context, stack *stackv1beta2.S
 func (r *Mutator) reconcileAuth(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Auth")
 
-	staticClients := append(configuration.Services.Auth.StaticClients, SliceFromMap(stack.Status.StaticAuthClients)...)
+	staticClients := append(configuration.Services.Auth.StaticClients, typeutils.SliceFromMap(stack.Status.StaticAuthClients)...)
 	staticClients = append(staticClients, stack.Spec.Auth.StaticClients...)
 	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Name,

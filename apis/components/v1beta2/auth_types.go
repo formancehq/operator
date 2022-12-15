@@ -17,10 +17,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	authv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	pkgapisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/typeutils"
+	authv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	pkgapisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/typeutils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"

@@ -3,10 +3,10 @@ package benthos_components
 import (
 	"encoding/json"
 
+	benthosv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	. "github.com/formancehq/operator/pkg/testing"
 	"github.com/google/uuid"
-	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
