@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	pkgError "github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,13 +20,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-type Mutator[T apisv1beta1.Object] interface {
+type Mutator[T apisv1beta2.Object] interface {
 	SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error
 	Mutate(ctx context.Context, t T) (*ctrl.Result, error)
 }
 
 // Reconciler reconciles a Stack object
-type Reconciler[T apisv1beta1.Object] struct {
+type Reconciler[T apisv1beta2.Object] struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	Mutator Mutator[T]
@@ -59,7 +59,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	func() {
 		defer func() {
 			if reconcileError != nil {
-				apisv1beta1.SetError(updated, reconcileError)
+				apisv1beta2.SetError(updated, reconcileError)
 			}
 		}()
 		defer func() {
@@ -73,7 +73,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		if reconcileError != nil {
 			log.FromContext(ctx).Error(reconcileError, "Reconciling")
 		} else {
-			apisv1beta1.RemoveCondition(updated, apisv1beta1.ConditionTypeError)
+			apisv1beta2.RemoveCondition(updated, apisv1beta2.ConditionTypeError)
 		}
 	}()
 
@@ -137,7 +137,7 @@ func (r *Reconciler[T]) SetupWithManager(mgr ctrl.Manager) error {
 	return builder.Complete(r)
 }
 
-func NewReconciler[T apisv1beta1.Object](client client.Client, scheme *runtime.Scheme, mutator Mutator[T]) *Reconciler[T] {
+func NewReconciler[T apisv1beta2.Object](client client.Client, scheme *runtime.Scheme, mutator Mutator[T]) *Reconciler[T] {
 	return &Reconciler[T]{
 		Client:  client,
 		Scheme:  scheme,

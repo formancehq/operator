@@ -1,9 +1,7 @@
 package components
 
 import (
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/testing"
@@ -29,12 +27,12 @@ var _ = Describe("Payments controller", func() {
 							Name: "payments",
 						},
 						Spec: componentsv1beta2.PaymentsSpec{
-							Collector: &componentsv1beta1.CollectorConfig{
+							Collector: &componentsv1beta2.CollectorConfig{
 								KafkaConfig: NewDumpKafkaConfig(),
 								Topic:       "xxx",
 							},
-							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+							Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+								PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 									Database:       "payments",
 									PostgresConfig: NewDumpPostgresConfig(),
 								},
@@ -42,10 +40,10 @@ var _ = Describe("Payments controller", func() {
 							}},
 					}
 					Expect(Create(payments)).To(BeNil())
-					Eventually(ConditionStatus(payments, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(payments, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(payments, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(payments, apisv1beta2.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      payments.Name,
@@ -57,7 +55,7 @@ var _ = Describe("Payments controller", func() {
 					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(payments)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(payments, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(payments, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      payments.Name,
@@ -77,7 +75,7 @@ var _ = Describe("Payments controller", func() {
 						Expect(Update(payments)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(payments, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(payments, apisv1beta2.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      payments.Name,
@@ -90,11 +88,11 @@ var _ = Describe("Payments controller", func() {
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(payments, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(payments, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
 							payments.Spec.Ingress = nil
 							Expect(Update(payments)).To(BeNil())
-							Eventually(ConditionStatus(payments, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(payments, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {

@@ -7,7 +7,7 @@ import (
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
 	"github.com/numary/operator/controllers/components"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -51,7 +51,7 @@ func (s ScopesMutator) Mutate(ctx context.Context, actualK8SScope *authcomponent
 		return controllerutils.Requeue(), err
 	}
 
-	apisv1beta1.SetProgressing(actualK8SScope)
+	apisv1beta2.SetProgressing(actualK8SScope)
 
 	if err := controllerutils.DefineOwner(ctx, s.client, s.scheme, actualK8SScope, types.NamespacedName{
 		Namespace: actualK8SScope.GetNamespace(),
@@ -140,7 +140,7 @@ func (s ScopesMutator) Mutate(ctx context.Context, actualK8SScope *authcomponent
 	}
 
 	if !needRequeue {
-		apisv1beta1.SetReady(actualK8SScope)
+		apisv1beta2.SetReady(actualK8SScope)
 		return nil, nil
 	}
 

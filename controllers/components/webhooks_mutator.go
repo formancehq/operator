@@ -24,7 +24,7 @@ import (
 
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -57,7 +57,7 @@ type WebhooksMutator struct {
 
 func (r *WebhooksMutator) Mutate(ctx context.Context, webhooks *componentsv1beta2.Webhooks) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(webhooks)
+	apisv1beta2.SetProgressing(webhooks)
 
 	deployment, err := r.reconcileDeployment(ctx, webhooks)
 	if err != nil {
@@ -89,10 +89,10 @@ func (r *WebhooksMutator) Mutate(ctx context.Context, webhooks *componentsv1beta
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta1.RemoveIngressCondition(webhooks)
+		apisv1beta2.RemoveIngressCondition(webhooks)
 	}
 
-	apisv1beta1.SetReady(webhooks)
+	apisv1beta2.SetReady(webhooks)
 
 	return nil, nil
 }
@@ -100,18 +100,18 @@ func (r *WebhooksMutator) Mutate(ctx context.Context, webhooks *componentsv1beta
 func envVars(webhooks *componentsv1beta2.Webhooks) []corev1.EnvVar {
 	env := webhooks.Spec.Postgres.Env("")
 	env = append(env,
-		apisv1beta1.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
-		apisv1beta1.Env("KAFKA_BROKERS", strings.Join(webhooks.Spec.Collector.Brokers, ", ")),
-		apisv1beta1.Env("KAFKA_TOPICS", webhooks.Spec.Collector.Topic),
-		apisv1beta1.Env("KAFKA_TLS_ENABLED", strconv.FormatBool(webhooks.Spec.Collector.TLS)),
+		apisv1beta2.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
+		apisv1beta2.Env("KAFKA_BROKERS", strings.Join(webhooks.Spec.Collector.Brokers, ", ")),
+		apisv1beta2.Env("KAFKA_TOPICS", webhooks.Spec.Collector.Topic),
+		apisv1beta2.Env("KAFKA_TLS_ENABLED", strconv.FormatBool(webhooks.Spec.Collector.TLS)),
 	)
 	if webhooks.Spec.Collector.SASL != nil {
 		env = append(env,
-			apisv1beta1.Env("KAFKA_SASL_ENABLED", "true"),
-			apisv1beta1.Env("KAFKA_SASL_MECHANISM", webhooks.Spec.Collector.SASL.Mechanism),
-			apisv1beta1.Env("KAFKA_USERNAME", webhooks.Spec.Collector.SASL.Username),
-			apisv1beta1.Env("KAFKA_PASSWORD", webhooks.Spec.Collector.SASL.Password),
-			apisv1beta1.Env("KAFKA_CONSUMER_GROUP", webhooks.GetName()),
+			apisv1beta2.Env("KAFKA_SASL_ENABLED", "true"),
+			apisv1beta2.Env("KAFKA_SASL_MECHANISM", webhooks.Spec.Collector.SASL.Mechanism),
+			apisv1beta2.Env("KAFKA_USERNAME", webhooks.Spec.Collector.SASL.Username),
+			apisv1beta2.Env("KAFKA_PASSWORD", webhooks.Spec.Collector.SASL.Password),
+			apisv1beta2.Env("KAFKA_CONSUMER_GROUP", webhooks.GetName()),
 		)
 	}
 
@@ -182,11 +182,11 @@ func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *com
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(webhooks, err.Error())
+		apisv1beta2.SetDeploymentError(webhooks, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(webhooks)
+		apisv1beta2.SetDeploymentReady(webhooks)
 	}
 	return ret, err
 }
@@ -255,11 +255,11 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(webhooks, err.Error())
+		apisv1beta2.SetDeploymentError(webhooks, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(webhooks)
+		apisv1beta2.SetDeploymentReady(webhooks)
 	}
 	return ret, err
 }
@@ -280,11 +280,11 @@ func (r *WebhooksMutator) reconcileService(ctx context.Context, auth *components
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -329,11 +329,11 @@ func (r *WebhooksMutator) reconcileIngress(ctx context.Context, webhooks *compon
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(webhooks, err.Error())
+		apisv1beta2.SetIngressError(webhooks, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(webhooks)
+		apisv1beta2.SetIngressReady(webhooks)
 	}
 	return ret, nil
 }

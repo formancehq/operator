@@ -12,7 +12,7 @@ import (
 	benthoscomponentsv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
 	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -101,7 +101,7 @@ var _ = SynchronizedAfterSuite(func() {
 	Expect(testEnv.Stop()).To(BeNil())
 }, func() {})
 
-func WithMutator[T apisv1beta1.Object](mutator controllerutils.Mutator[T], fn func()) {
+func WithMutator[T apisv1beta2.Object](mutator controllerutils.Mutator[T], fn func()) {
 	var (
 		ctx    context.Context
 		cancel func()

@@ -1,9 +1,7 @@
 package components
 
 import (
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/testing"
@@ -29,8 +27,8 @@ var _ = Describe("Auth controller", func() {
 							Name: "auth",
 						},
 						Spec: componentsv1beta2.AuthSpec{
-							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+							Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+								PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 									Database:       "auth",
 									PostgresConfig: NewDumpPostgresConfig(),
 								},
@@ -38,7 +36,7 @@ var _ = Describe("Auth controller", func() {
 							},
 							BaseURL:    "http://localhost/auth",
 							SigningKey: "XXXXX",
-							DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
+							DelegatedOIDCServer: componentsv1beta2.DelegatedOIDCServerConfiguration{
 								Issuer:       "http://oidc.server",
 								ClientID:     "foo",
 								ClientSecret: "bar",
@@ -46,10 +44,10 @@ var _ = Describe("Auth controller", func() {
 						},
 					}
 					Expect(Create(auth)).To(BeNil())
-					Eventually(ConditionStatus(auth, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(auth, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      auth.Name,
@@ -61,7 +59,7 @@ var _ = Describe("Auth controller", func() {
 					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(auth)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(auth, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      auth.Name,
@@ -74,7 +72,7 @@ var _ = Describe("Auth controller", func() {
 				})
 				Context("Then enable ingress", func() {
 					BeforeEach(func() {
-						Eventually(ConditionStatus(auth, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 						auth.Spec.Ingress = &apisv1beta2.IngressSpec{
 							Path: "/auth",
 							Host: "localhost",
@@ -82,7 +80,7 @@ var _ = Describe("Auth controller", func() {
 						Expect(Update(auth)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(auth, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      auth.Name,
@@ -95,11 +93,11 @@ var _ = Describe("Auth controller", func() {
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(auth, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
 							auth.Spec.Ingress = nil
 							Expect(Update(auth)).To(BeNil())
-							Eventually(ConditionStatus(auth, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {

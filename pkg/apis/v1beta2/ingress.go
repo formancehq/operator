@@ -1,7 +1,10 @@
 // +kubebuilder:object:generate=true
 package v1beta2
 
-import networkingv1 "k8s.io/api/networking/v1"
+import (
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 type IngressSpec struct {
 	// +optional
@@ -10,6 +13,22 @@ type IngressSpec struct {
 	Host        string            `json:"host"`
 	// +optional
 	TLS *IngressTLS `json:"tls"`
+}
+
+const (
+	ConditionTypeIngressReady = "IngressReady"
+)
+
+func SetIngressReady(object Object, msg ...string) {
+	SetCondition(object, ConditionTypeIngressReady, metav1.ConditionTrue, msg...)
+}
+
+func SetIngressError(object Object, msg ...string) {
+	SetCondition(object, ConditionTypeIngressReady, metav1.ConditionFalse, msg...)
+}
+
+func RemoveIngressCondition(object Object) {
+	object.GetConditions().Remove(ConditionTypeIngressReady)
 }
 
 type IngressTLS struct {

@@ -2,11 +2,10 @@ package stack
 
 import (
 	"github.com/google/uuid"
-	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
+	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
 	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -39,7 +38,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					Versions: versions.Name,
 				})
 				Expect(Create(&stack)).To(Succeed())
-				Eventually(ConditionStatus(&stack, apisv1beta1.ConditionTypeError)).
+				Eventually(ConditionStatus(&stack, apisv1beta2.ConditionTypeError)).
 					Should(Equal(metav1.ConditionTrue))
 			})
 			Context("Then save the configuration object", func() {
@@ -48,7 +47,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					Expect(Create(versions)).To(Succeed())
 				})
 				It("Should resolve the error", func() {
-					Eventually(ConditionStatus(&stack, apisv1beta1.ConditionTypeError)).
+					Eventually(ConditionStatus(&stack, apisv1beta2.ConditionTypeError)).
 						Should(Equal(metav1.ConditionUnknown))
 				})
 			})
@@ -68,7 +67,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 						Seed:     configuration.Name,
 						Versions: versions.Name,
 						Auth: stackv1beta2.StackAuthSpec{
-							DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
+							DelegatedOIDCServer: componentsv1beta2.DelegatedOIDCServerConfiguration{
 								Issuer:       "http://example.net",
 								ClientID:     "clientId",
 								ClientSecret: "clientSecret",
@@ -77,7 +76,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					})
 
 					Expect(Create(&stack)).To(Succeed())
-					Eventually(ConditionStatus(&stack, apisv1beta1.ConditionTypeReady)).
+					Eventually(ConditionStatus(&stack, apisv1beta2.ConditionTypeReady)).
 						Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a new namespace", func() {
@@ -103,7 +102,7 @@ var _ = Describe("Stack controller (Auth)", func() {
 					}
 				})
 				It("Should register a static auth client into stack status and use it on control", func() {
-					Eventually(func() authcomponentsv1beta1.StaticClient {
+					Eventually(func() authcomponentsv1beta2.StaticClient {
 						Expect(Get(types.NamespacedName{
 							Namespace: stack.Namespace,
 							Name:      stack.Name,

@@ -5,10 +5,9 @@ import (
 
 	"github.com/google/uuid"
 	. "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
 	"github.com/numary/operator/controllers/components"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -37,15 +36,15 @@ var _ = Describe("Client reconciler", func() {
 						Name: fmt.Sprintf("%s-%s", ActualNamespace().Name, authServerReference),
 					},
 					Spec: componentsv1beta2.AuthSpec{
-						Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-							PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+						Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+							PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 								PostgresConfig: NewDumpPostgresConfig(),
 								Database:       "xxx",
 							},
 						},
 						BaseURL:    "http://localhost:8080",
 						SigningKey: "XXX",
-						DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
+						DelegatedOIDCServer: componentsv1beta2.DelegatedOIDCServerConfiguration{
 							Issuer:       "http://issuer",
 							ClientID:     "xxx",
 							ClientSecret: "xxx",
@@ -63,7 +62,7 @@ var _ = Describe("Client reconciler", func() {
 				BeforeEach(func() {
 					actualClient = newClient()
 					Expect(Create(actualClient)).To(BeNil())
-					Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeReady)).
+					Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeReady)).
 						Should(Equal(metav1.ConditionTrue))
 				})
 				AfterEach(func() {
@@ -104,18 +103,18 @@ var _ = Describe("Client reconciler", func() {
 						Expect(Update(actualClient)).To(BeNil())
 					})
 					It("Should set the client to not ready state", func() {
-						Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeProgressing)).
+						Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeProgressing)).
 							Should(Equal(metav1.ConditionTrue))
 					})
 					Context("Then creating the scope", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeProgressing)).
+							Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeProgressing)).
 								Should(Equal(metav1.ConditionTrue))
 							Expect(Create(scope)).To(BeNil())
 							scope.Status.AuthServerID = "XXX"
 							Expect(GetClient().Status().Update(ActualContext(), scope)).To(BeNil())
 
-							Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeReady)).
+							Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeReady)).
 								Should(Equal(metav1.ConditionTrue))
 							Expect(actualClient.Status.Scopes).To(Equal(map[string]string{
 								scope.Name: scope.Status.AuthServerID,

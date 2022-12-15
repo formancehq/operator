@@ -42,6 +42,22 @@ spec:
             properties:
               authServerReference:
                 type: string
+              description:
+                type: string
+              postLogoutRedirectUris:
+                items:
+                  type: string
+                type: array
+              public:
+                type: boolean
+              redirectUris:
+                items:
+                  type: string
+                type: array
+              scopes:
+                items:
+                  type: string
+                type: array
             required:
             - authServerReference
             type: object

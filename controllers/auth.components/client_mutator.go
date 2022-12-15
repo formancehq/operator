@@ -7,7 +7,7 @@ import (
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
 	"github.com/numary/operator/controllers/components"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/controllerutils"
 	. "github.com/numary/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
@@ -34,15 +34,15 @@ type ClientsMutator struct {
 
 func (c ClientsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error { return nil }
 
-func (r ClientsMutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1beta2.Client) (*ctrl.Result, error) {
+func (c ClientsMutator) Mutate(ctx context.Context, actualK8SClient *authcomponentsv1beta2.Client) (*ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	apisv1beta1.SetProgressing(actualK8SClient)
+	apisv1beta2.SetProgressing(actualK8SClient)
 
-	api := r.factory.Create(actualK8SClient)
+	api := c.factory.Create(actualK8SClient)
 
 	// Handle finalizer
-	if isHandledByFinalizer, err := clientFinalizer.Handle(ctx, r.client, actualK8SClient, func() error {
+	if isHandledByFinalizer, err := clientFinalizer.Handle(ctx, c.client, actualK8SClient, func() error {
 		// If the scope was created auth server side, we have to remove it
 		if actualK8SClient.IsCreatedOnAuthServer() {
 			err := api.DeleteClient(ctx, actualK8SClient.Status.AuthServerID)
@@ -56,7 +56,7 @@ func (r ClientsMutator) Mutate(ctx context.Context, actualK8SClient *authcompone
 		return controllerutils.Requeue(), err
 	}
 
-	if err := controllerutils.DefineOwner(ctx, r.client, r.scheme, actualK8SClient, types.NamespacedName{
+	if err := controllerutils.DefineOwner(ctx, c.client, c.scheme, actualK8SClient, types.NamespacedName{
 		Namespace: actualK8SClient.GetNamespace(),
 		Name:      actualK8SClient.GetNamespace() + "-" + actualK8SClient.Spec.AuthServerReference,
 	}, &componentsv1beta2.Auth{}); err != nil {
@@ -128,7 +128,7 @@ func (r ClientsMutator) Mutate(ctx context.Context, actualK8SClient *authcompone
 
 		logger.Info("Checking scope presence on auth server client")
 		scope := &authcomponentsv1beta2.Scope{}
-		err := r.client.Get(ctx, types.NamespacedName{
+		err := c.client.Get(ctx, types.NamespacedName{
 			Namespace: actualK8SClient.Namespace,
 			Name:      k8sScopeName,
 		}, scope)
@@ -172,7 +172,7 @@ func (r ClientsMutator) Mutate(ctx context.Context, actualK8SClient *authcompone
 	}
 
 	if !needRequeue {
-		apisv1beta1.SetReady(actualK8SClient)
+		apisv1beta2.SetReady(actualK8SClient)
 		return nil, nil
 	}
 
