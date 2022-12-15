@@ -19,7 +19,6 @@ package v1beta2
 import (
 	"reflect"
 
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,7 +48,7 @@ func GetServiceList() []string {
 
 type ConfigurationSpec struct {
 	Services ConfigurationServicesSpec `json:"services"`
-	Kafka    apisv1beta1.KafkaConfig   `json:"kafka"`
+	Kafka    apisv1beta2.KafkaConfig   `json:"kafka"`
 	// +optional
 	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
@@ -58,15 +57,15 @@ type ConfigurationSpec struct {
 
 func (in *ConfigurationSpec) Validate() field.ErrorList {
 	return typeutils.MergeAll(
-		typeutils.Map(in.Services.Ledger.Validate(), apisv1beta1.AddPrefixToFieldError("services.ledger")),
-		typeutils.Map(in.Services.Payments.Validate(), apisv1beta1.AddPrefixToFieldError("services.payments")),
-		typeutils.Map(in.Services.Search.Validate(), apisv1beta1.AddPrefixToFieldError("services.search")),
-		typeutils.Map(in.Services.Webhooks.Validate(), apisv1beta1.AddPrefixToFieldError("services.webhooks")),
-		typeutils.Map(in.Services.Wallets.Validate(), apisv1beta1.AddPrefixToFieldError("services.wallets")),
-		typeutils.Map(in.Services.Counterparties.Validate(), apisv1beta1.AddPrefixToFieldError("services.counterparties")),
-		typeutils.Map(in.Services.Auth.Validate(), apisv1beta1.AddPrefixToFieldError("services.auth")),
-		typeutils.Map(in.Monitoring.Validate(), apisv1beta1.AddPrefixToFieldError("monitoring")),
-		typeutils.Map(in.Kafka.Validate(), apisv1beta1.AddPrefixToFieldError("kafka")),
+		typeutils.Map(in.Services.Ledger.Validate(), apisv1beta2.AddPrefixToFieldError("services.ledger")),
+		typeutils.Map(in.Services.Payments.Validate(), apisv1beta2.AddPrefixToFieldError("services.payments")),
+		typeutils.Map(in.Services.Search.Validate(), apisv1beta2.AddPrefixToFieldError("services.search")),
+		typeutils.Map(in.Services.Webhooks.Validate(), apisv1beta2.AddPrefixToFieldError("services.webhooks")),
+		typeutils.Map(in.Services.Wallets.Validate(), apisv1beta2.AddPrefixToFieldError("services.wallets")),
+		typeutils.Map(in.Services.Counterparties.Validate(), apisv1beta2.AddPrefixToFieldError("services.counterparties")),
+		typeutils.Map(in.Services.Auth.Validate(), apisv1beta2.AddPrefixToFieldError("services.auth")),
+		typeutils.Map(in.Monitoring.Validate(), apisv1beta2.AddPrefixToFieldError("monitoring")),
+		typeutils.Map(in.Kafka.Validate(), apisv1beta2.AddPrefixToFieldError("kafka")),
 	)
 }
 
@@ -81,7 +80,7 @@ type Configuration struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   ConfigurationSpec  `json:"spec,omitempty"`
-	Status apisv1beta1.Status `json:"status,omitempty"`
+	Status apisv1beta2.Status `json:"status,omitempty"`
 }
 
 func (*Configuration) Hub() {}

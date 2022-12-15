@@ -1,7 +1,6 @@
 package v1beta2
 
 import (
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	"github.com/numary/operator/pkg/typeutils"
 )
@@ -37,7 +36,7 @@ func (cfg *IngressConfig) Compute(stack *Stack, config *ConfigurationSpec, path 
 	if cfg != nil && cfg.Annotations != nil {
 		annotations = typeutils.MergeMaps(annotations, cfg.Annotations)
 	}
-	var ingressTLS *apisv1beta1.IngressTLS
+	var ingressTLS *apisv1beta2.IngressTLS
 	if config.Ingress != nil {
 		ingressTLS = config.Ingress.TLS
 	}
