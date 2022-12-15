@@ -25,8 +25,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	stackv1beta1 "github.com/numary/operator/apis/stack/v1beta1"
-
 	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
 	benthoscomponentsv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
 	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
@@ -52,7 +50,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(stackv1beta1.AddToScheme(scheme))
 	utilruntime.Must(componentsv1beta2.AddToScheme(scheme))
 	utilruntime.Must(authcomponentsv1beta2.AddToScheme(scheme))
 	utilruntime.Must(traefik.AddToScheme(scheme))

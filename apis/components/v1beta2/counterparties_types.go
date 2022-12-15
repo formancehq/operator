@@ -14,25 +14,22 @@ limitations under the License.
 package v1beta2
 
 import (
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	. "github.com/numary/operator/pkg/apis/v1beta2"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	pkgapisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CounterpartiesSpec defines the desired state of Counterparties
 type CounterpartiesSpec struct {
-	CommonServiceProperties `json:",inline"`
+	pkgapisv1beta2.CommonServiceProperties `json:",inline"`
 
 	// +optional
 	Enabled bool `json:"enabled,omitempty"`
 	// +optional
-	Postgres componentsv1beta1.PostgresConfigCreateDatabase `json:"postgres"`
+	Postgres PostgresConfigCreateDatabase `json:"postgres"`
 	// +optional
-	Ingress *IngressSpec `json:"ingress"`
+	Ingress *pkgapisv1beta2.IngressSpec `json:"ingress"`
 	// +optional
-	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring"`
+	Monitoring *pkgapisv1beta2.MonitoringSpec `json:"monitoring"`
 }
 
 //+kubebuilder:object:root=true
@@ -44,19 +41,19 @@ type Counterparties struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   CounterpartiesSpec `json:"spec,omitempty"`
-	Status apisv1beta1.Status `json:"status,omitempty"`
+	Spec   CounterpartiesSpec    `json:"spec,omitempty"`
+	Status pkgapisv1beta2.Status `json:"status,omitempty"`
 }
 
-func (in *Counterparties) GetStatus() apisv1beta1.Dirty {
+func (in *Counterparties) GetStatus() pkgapisv1beta2.Dirty {
 	return &in.Status
 }
 
-func (in *Counterparties) GetConditions() *apisv1beta1.Conditions {
+func (in *Counterparties) GetConditions() *pkgapisv1beta2.Conditions {
 	return &in.Status.Conditions
 }
 
-func (in *Counterparties) IsDirty(t apisv1beta1.Object) bool {
+func (in *Counterparties) IsDirty(t pkgapisv1beta2.Object) bool {
 	return false
 }
 

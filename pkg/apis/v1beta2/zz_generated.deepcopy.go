@@ -22,7 +22,7 @@ limitations under the License.
 package v1beta2
 
 import (
-	"github.com/numary/operator/pkg/apis/v1beta1"
+	"github.com/numary/operator/pkg/apis/v1beta2"
 	"k8s.io/api/core/v1"
 )
 
@@ -94,7 +94,7 @@ func (in *IngressSpec) DeepCopyInto(out *IngressSpec) {
 	}
 	if in.TLS != nil {
 		in, out := &in.TLS, &out.TLS
-		*out = new(v1beta1.IngressTLS)
+		*out = new(v1beta2.IngressTLS)
 		**out = **in
 	}
 }

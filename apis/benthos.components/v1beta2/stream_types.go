@@ -19,7 +19,7 @@ package v1beta2
 import (
 	"encoding/json"
 
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
+	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -43,18 +43,18 @@ type Stream struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   StreamSpec         `json:"spec,omitempty"`
-	Status apisv1beta1.Status `json:"status,omitempty"`
+	Status apisv1beta2.Status `json:"status,omitempty"`
 }
 
-func (in *Stream) GetStatus() apisv1beta1.Dirty {
+func (in *Stream) GetStatus() apisv1beta2.Dirty {
 	return &in.Status
 }
 
-func (in *Stream) IsDirty(t apisv1beta1.Object) bool {
+func (in *Stream) IsDirty(t apisv1beta2.Object) bool {
 	return false
 }
 
-func (in *Stream) GetConditions() *apisv1beta1.Conditions {
+func (in *Stream) GetConditions() *apisv1beta2.Conditions {
 	return &in.Status.Conditions
 }
 
