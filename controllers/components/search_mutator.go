@@ -309,7 +309,11 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 			)
 		}
 
-		mapping, err := json.Marshal(GetMapping())
+		mapping, err := json.Marshal(struct {
+			Mappings any `json:"mappings"`
+		}{
+			Mappings: GetMapping(),
+		})
 		if err != nil {
 			return err
 		}
@@ -326,7 +330,7 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 				"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
 					"-X PUT -v -d '%s' "+
 					credentialsStr+
-					"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/%s/_mapping", string(mapping), search.Namespace),
+					"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/%s", string(mapping), search.Namespace),
 			},
 			Env: search.Spec.ElasticSearch.Env(""),
 		}}
