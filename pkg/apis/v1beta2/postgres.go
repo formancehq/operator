@@ -1,5 +1,5 @@
 // +kubebuilder:object:generate=true
-package v1beta1
+package v1beta2
 
 import (
 	"fmt"

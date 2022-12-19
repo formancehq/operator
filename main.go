@@ -25,23 +25,21 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	stackv1beta1 "github.com/numary/operator/apis/stack/v1beta1"
-
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	benthoscomponentsv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	auth_components "github.com/numary/operator/controllers/auth.components"
-	benthos_components "github.com/numary/operator/controllers/benthos.components"
-	control_components "github.com/numary/operator/controllers/components"
-	"github.com/numary/operator/pkg/controllerutils"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	benthoscomponentsv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	auth_components "github.com/formancehq/operator/controllers/auth.components"
+	benthos_components "github.com/formancehq/operator/controllers/benthos.components"
+	control_components "github.com/formancehq/operator/controllers/components"
+	"github.com/formancehq/operator/pkg/controllerutils"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
-	"github.com/numary/operator/controllers/stack"
+	stackv1beta2 "github.com/formancehq/operator/apis/stack/v1beta2"
+	"github.com/formancehq/operator/controllers/stack"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -52,7 +50,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(stackv1beta1.AddToScheme(scheme))
 	utilruntime.Must(componentsv1beta2.AddToScheme(scheme))
 	utilruntime.Must(authcomponentsv1beta2.AddToScheme(scheme))
 	utilruntime.Must(traefik.AddToScheme(scheme))

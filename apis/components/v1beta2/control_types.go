@@ -17,8 +17,7 @@ limitations under the License.
 package v1beta2
 
 import (
-	"github.com/numary/operator/pkg/apis/v1beta1"
-	. "github.com/numary/operator/pkg/apis/v1beta2"
+	pkgapisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,15 +28,15 @@ type AuthClientConfiguration struct {
 
 // ControlSpec defines the desired state of Control
 type ControlSpec struct {
-	CommonServiceProperties `json:",inline"`
-	v1beta1.Scalable        `json:",inline"`
+	pkgapisv1beta2.CommonServiceProperties `json:",inline"`
+	pkgapisv1beta2.Scalable                `json:",inline"`
 
 	// +optional
-	Ingress *IngressSpec `json:"ingress"`
+	Ingress *pkgapisv1beta2.IngressSpec `json:"ingress"`
 	// +optional
-	Monitoring  *MonitoringSpec `json:"monitoring"`
-	ApiURLFront string          `json:"apiURLFront"`
-	ApiURLBack  string          `json:"apiURLBack"`
+	Monitoring  *pkgapisv1beta2.MonitoringSpec `json:"monitoring"`
+	ApiURLFront string                         `json:"apiURLFront"`
+	ApiURLBack  string                         `json:"apiURLBack"`
 
 	// +optional
 	AuthClientConfiguration *AuthClientConfiguration `json:"auth"`
@@ -53,19 +52,19 @@ type Control struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ControlSpec               `json:"spec,omitempty"`
-	Status v1beta1.ReplicationStatus `json:"status,omitempty"`
+	Spec   ControlSpec                      `json:"spec,omitempty"`
+	Status pkgapisv1beta2.ReplicationStatus `json:"status,omitempty"`
 }
 
-func (in *Control) GetStatus() v1beta1.Dirty {
+func (in *Control) GetStatus() pkgapisv1beta2.Dirty {
 	return &in.Status
 }
 
-func (in *Control) IsDirty(t v1beta1.Object) bool {
+func (in *Control) IsDirty(t pkgapisv1beta2.Object) bool {
 	return false
 }
 
-func (in *Control) GetConditions() *v1beta1.Conditions {
+func (in *Control) GetConditions() *pkgapisv1beta2.Conditions {
 	return &in.Status.Conditions
 }
 

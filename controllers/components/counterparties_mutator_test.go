@@ -1,12 +1,10 @@
 package components
 
 import (
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/testing"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,8 +28,8 @@ var _ = Describe("Counterparties controller", func() {
 						},
 						Spec: componentsv1beta2.CounterpartiesSpec{
 							Enabled: true,
-							Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-								PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+							Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+								PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 									Database:       "counterparties",
 									PostgresConfig: NewDumpPostgresConfig(),
 								},
@@ -39,10 +37,10 @@ var _ = Describe("Counterparties controller", func() {
 							}},
 					}
 					Expect(Create(counterparties)).To(BeNil())
-					Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(counterparties, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(counterparties, apisv1beta2.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      counterparties.Name,
@@ -54,7 +52,7 @@ var _ = Describe("Counterparties controller", func() {
 					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(counterparties)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(counterparties, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      counterparties.Name,
@@ -74,7 +72,7 @@ var _ = Describe("Counterparties controller", func() {
 						Expect(Update(counterparties)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(counterparties, apisv1beta2.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      counterparties.Name,
@@ -87,11 +85,11 @@ var _ = Describe("Counterparties controller", func() {
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(counterparties, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
 							counterparties.Spec.Ingress = nil
 							Expect(Update(counterparties)).To(BeNil())
-							Eventually(ConditionStatus(counterparties, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(counterparties, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {

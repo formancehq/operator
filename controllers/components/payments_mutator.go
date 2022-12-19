@@ -20,11 +20,11 @@ import (
 	"context"
 	"fmt"
 
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -54,7 +54,7 @@ type PaymentsMutator struct {
 
 func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta2.Payments) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(payments)
+	apisv1beta2.SetProgressing(payments)
 
 	deployment, err := r.reconcileDeployment(ctx, payments)
 	if err != nil {
@@ -81,10 +81,10 @@ func (r *PaymentsMutator) Mutate(ctx context.Context, payments *componentsv1beta
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta1.RemoveIngressCondition(payments)
+		apisv1beta2.RemoveIngressCondition(payments)
 	}
 
-	apisv1beta1.SetReady(payments)
+	apisv1beta2.SetReady(payments)
 
 	return nil, nil
 }
@@ -94,10 +94,10 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 
 	env := payments.Spec.Postgres.Env("")
 	env = append(env,
-		apisv1beta1.Env("POSTGRES_DATABASE_NAME", "$(POSTGRES_DATABASE)"),
+		apisv1beta2.Env("POSTGRES_DATABASE_NAME", "$(POSTGRES_DATABASE)"),
 	)
 	if payments.Spec.Debug {
-		env = append(env, apisv1beta1.Env("DEBUG", "true"))
+		env = append(env, apisv1beta2.Env("DEBUG", "true"))
 	}
 	if payments.Spec.Monitoring != nil {
 		env = append(env, payments.Spec.Monitoring.Env("")...)
@@ -170,11 +170,11 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(payments, err.Error())
+		apisv1beta2.SetDeploymentError(payments, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(payments)
+		apisv1beta2.SetDeploymentReady(payments)
 	}
 	return ret, err
 }
@@ -195,11 +195,11 @@ func (r *PaymentsMutator) reconcileService(ctx context.Context, auth *components
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -244,11 +244,11 @@ func (r *PaymentsMutator) reconcileIngress(ctx context.Context, payments *compon
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(payments, err.Error())
+		apisv1beta2.SetIngressError(payments, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(payments)
+		apisv1beta2.SetIngressReady(payments)
 	}
 	return ret, nil
 }

@@ -17,15 +17,14 @@ limitations under the License.
 package v1beta2
 
 import (
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	. "github.com/numary/operator/pkg/apis/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ServerSpec defines the desired state of Server
 type ServerSpec struct {
-	CommonServiceProperties `json:",inline"`
+	apisv1beta2.CommonServiceProperties `json:",inline"`
 	// +optional
 	InitContainers []corev1.Container `json:"containers,omitempty"`
 	// +optional
@@ -40,11 +39,11 @@ type ServerSpec struct {
 
 // ServerStatus defines the observed state of Server
 type ServerStatus struct {
-	apisv1beta1.Status `json:",inline"`
+	apisv1beta2.Status `json:",inline"`
 	PodIP              string `json:"podIP,omitempty"`
 }
 
-func (in *ServerStatus) IsDirty(t apisv1beta1.Object) bool {
+func (in *ServerStatus) IsDirty(t apisv1beta2.Object) bool {
 	if in.Status.IsDirty(t) {
 		return true
 	}
@@ -65,15 +64,15 @@ type Server struct {
 	Status ServerStatus `json:"status,omitempty"`
 }
 
-func (in *Server) GetStatus() apisv1beta1.Dirty {
+func (in *Server) GetStatus() apisv1beta2.Dirty {
 	return &in.Status
 }
 
-func (in *Server) IsDirty(t apisv1beta1.Object) bool {
+func (in *Server) IsDirty(t apisv1beta2.Object) bool {
 	return false
 }
 
-func (in *Server) GetConditions() *apisv1beta1.Conditions {
+func (in *Server) GetConditions() *apisv1beta2.Conditions {
 	return &in.Status.Conditions
 }
 

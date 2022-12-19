@@ -3,13 +3,12 @@ package auth_components
 import (
 	"fmt"
 
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	"github.com/formancehq/operator/controllers/components"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	. "github.com/formancehq/operator/pkg/testing"
 	"github.com/google/uuid"
-	. "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	"github.com/numary/operator/controllers/components"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,15 +36,15 @@ var _ = Describe("Client reconciler", func() {
 						Name: fmt.Sprintf("%s-%s", ActualNamespace().Name, authServerReference),
 					},
 					Spec: componentsv1beta2.AuthSpec{
-						Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-							PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+						Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+							PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 								PostgresConfig: NewDumpPostgresConfig(),
 								Database:       "xxx",
 							},
 						},
 						BaseURL:    "http://localhost:8080",
 						SigningKey: "XXX",
-						DelegatedOIDCServer: componentsv1beta1.DelegatedOIDCServerConfiguration{
+						DelegatedOIDCServer: componentsv1beta2.DelegatedOIDCServerConfiguration{
 							Issuer:       "http://issuer",
 							ClientID:     "xxx",
 							ClientSecret: "xxx",
@@ -54,16 +53,16 @@ var _ = Describe("Client reconciler", func() {
 				}
 				Expect(Create(auth)).To(BeNil())
 			})
-			newClient := func() *Client {
-				return NewClient(uuid.NewString(), authServerReference)
+			newClient := func() *authcomponentsv1beta2.Client {
+				return authcomponentsv1beta2.NewClient(uuid.NewString(), authServerReference)
 			}
 
 			When("Creating a new client object", func() {
-				var actualClient *Client
+				var actualClient *authcomponentsv1beta2.Client
 				BeforeEach(func() {
 					actualClient = newClient()
 					Expect(Create(actualClient)).To(BeNil())
-					Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeReady)).
+					Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeReady)).
 						Should(Equal(metav1.ConditionTrue))
 				})
 				AfterEach(func() {
@@ -96,26 +95,26 @@ var _ = Describe("Client reconciler", func() {
 					})
 				})
 				Context("Then adding an unknown scope without creating it", func() {
-					var scope *Scope
+					var scope *authcomponentsv1beta2.Scope
 					BeforeEach(func() {
-						scope = NewScope(uuid.NewString(), uuid.NewString(), auth.Name)
+						scope = authcomponentsv1beta2.NewScope(uuid.NewString(), uuid.NewString(), auth.Name)
 
 						actualClient.AddScopeSpec(scope)
 						Expect(Update(actualClient)).To(BeNil())
 					})
 					It("Should set the client to not ready state", func() {
-						Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeProgressing)).
+						Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeProgressing)).
 							Should(Equal(metav1.ConditionTrue))
 					})
 					Context("Then creating the scope", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeProgressing)).
+							Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeProgressing)).
 								Should(Equal(metav1.ConditionTrue))
 							Expect(Create(scope)).To(BeNil())
 							scope.Status.AuthServerID = "XXX"
 							Expect(GetClient().Status().Update(ActualContext(), scope)).To(BeNil())
 
-							Eventually(ConditionStatus(actualClient, apisv1beta1.ConditionTypeReady)).
+							Eventually(ConditionStatus(actualClient, apisv1beta2.ConditionTypeReady)).
 								Should(Equal(metav1.ConditionTrue))
 							Expect(actualClient.Status.Scopes).To(Equal(map[string]string{
 								scope.Name: scope.Status.AuthServerID,

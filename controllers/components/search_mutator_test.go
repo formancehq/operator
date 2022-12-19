@@ -6,13 +6,11 @@ import (
 	"net/url"
 	"strconv"
 
-	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/testing"
+	benthosv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -48,7 +46,7 @@ var _ = Describe("Search controller", func() {
 							Name: "search",
 						},
 						Spec: componentsv1beta2.SearchSpec{
-							ElasticSearch: componentsv1beta1.ElasticSearchConfig{
+							ElasticSearch: componentsv1beta2.ElasticSearchConfig{
 								Host:   addr.Hostname(),
 								Scheme: addr.Scheme,
 								Port: func() uint16 {
@@ -62,7 +60,7 @@ var _ = Describe("Search controller", func() {
 							KafkaConfig: NewDumpKafkaConfig(),
 							Index:       "documents",
 							PostgresConfigs: componentsv1beta2.SearchPostgresConfigs{
-								Ledger: apisv1beta1.PostgresConfigWithDatabase{
+								Ledger: apisv1beta2.PostgresConfigWithDatabase{
 									PostgresConfig: NewDumpPostgresConfig(),
 									Database:       "foo",
 								},
@@ -70,10 +68,10 @@ var _ = Describe("Search controller", func() {
 						},
 					}
 					Expect(Create(search)).To(BeNil())
-					Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a deployment", func() {
-					Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeDeploymentReady)).Should(Equal(metav1.ConditionTrue))
 					deployment := &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      search.Name,
@@ -85,7 +83,7 @@ var _ = Describe("Search controller", func() {
 					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(search)))
 				})
 				It("Should create a service", func() {
-					Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))
 					service := &corev1.Service{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      search.Name,
@@ -97,7 +95,7 @@ var _ = Describe("Search controller", func() {
 					Expect(service.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(search)))
 				})
 				It("Should create a benthos server", func() {
-					Eventually(ConditionStatus(search, componentsv1beta1.ConditionTypeBenthosReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(search, componentsv1beta2.ConditionTypeBenthosReady)).Should(Equal(metav1.ConditionTrue))
 					benthosServer := &benthosv1beta2.Server{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      search.Name + "-benthos",
@@ -120,7 +118,7 @@ var _ = Describe("Search controller", func() {
 						Expect(Update(search)).To(BeNil())
 					})
 					It("Should create a ingress", func() {
-						Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeIngressReady)).Should(Equal(metav1.ConditionTrue))
 						ingress := &networkingv1.Ingress{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      search.Name,
@@ -133,11 +131,11 @@ var _ = Describe("Search controller", func() {
 					})
 					Context("Then disabling ingress support", func() {
 						BeforeEach(func() {
-							Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionTrue))
 							search.Spec.Ingress = nil
 							Expect(Update(search)).To(BeNil())
-							Eventually(ConditionStatus(search, apisv1beta1.ConditionTypeIngressReady)).
+							Eventually(ConditionStatus(search, apisv1beta2.ConditionTypeIngressReady)).
 								Should(Equal(metav1.ConditionUnknown))
 						})
 						It("Should remove the ingress", func() {

@@ -21,31 +21,30 @@ import (
 	"reflect"
 	"strings"
 
-	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
-	"github.com/numary/operator/apis/components/v1beta1"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	. "github.com/numary/operator/pkg/apis/v1beta2"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	"github.com/formancehq/operator/apis/components/v1beta2"
+	pkgapisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type IngressGlobalConfig struct {
 	IngressConfig `json:",inline"`
 	// +optional
-	TLS *apisv1beta1.IngressTLS `json:"tls"`
+	TLS *pkgapisv1beta2.IngressTLS `json:"tls"`
 }
 
 type StackAuthSpec struct {
-	DelegatedOIDCServer v1beta1.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
+	DelegatedOIDCServer v1beta2.DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer"`
 	// +optional
-	StaticClients []authcomponentsv1beta1.StaticClient `json:"staticClients,omitempty"`
+	StaticClients []authcomponentsv1beta2.StaticClient `json:"staticClients,omitempty"`
 }
 
 // StackSpec defines the desired state of Stack
 type StackSpec struct {
-	DevProperties `json:",inline"`
-	Seed          string        `json:"seed"`
-	Host          string        `json:"host"`
-	Auth          StackAuthSpec `json:"auth"`
+	pkgapisv1beta2.DevProperties `json:",inline"`
+	Seed                         string        `json:"seed"`
+	Host                         string        `json:"host"`
+	Auth                         StackAuthSpec `json:"auth"`
 
 	// +optional
 	Versions string `json:"versions"`
@@ -73,13 +72,13 @@ type ControlAuthentication struct {
 }
 
 type StackStatus struct {
-	apisv1beta1.Status `json:",inline"`
+	pkgapisv1beta2.Status `json:",inline"`
 
 	// +optional
-	StaticAuthClients map[string]authcomponentsv1beta1.StaticClient `json:"staticAuthClients,omitempty"`
+	StaticAuthClients map[string]authcomponentsv1beta2.StaticClient `json:"staticAuthClients,omitempty"`
 }
 
-func (s *StackStatus) IsDirty(reference apisv1beta1.Object) bool {
+func (s *StackStatus) IsDirty(reference pkgapisv1beta2.Object) bool {
 	if s.Status.IsDirty(reference) {
 		return true
 	}
@@ -125,76 +124,76 @@ func (s *Stack) URL() string {
 	return fmt.Sprintf("%s://%s", s.GetScheme(), s.Spec.Host)
 }
 
-func (s *Stack) GetStatus() apisv1beta1.Dirty {
+func (s *Stack) GetStatus() pkgapisv1beta2.Dirty {
 	return &s.Status
 }
 
-func (s *Stack) IsDirty(t apisv1beta1.Object) bool {
+func (s *Stack) IsDirty(t pkgapisv1beta2.Object) bool {
 	return false
 }
 
-func (s *Stack) GetConditions() *apisv1beta1.Conditions {
+func (s *Stack) GetConditions() *pkgapisv1beta2.Conditions {
 	return &s.Status.Conditions
 }
 
 func (s *Stack) SetNamespaceCreated() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetNamespaceError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackNamespaceReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetAuthReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetWebhooksReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetAuthError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackAuthReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetLedgerReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetLedgerError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackLedgerReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetSearchReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetSearchError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackSearchReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetControlReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) SetControlError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackControlReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetPaymentError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetWebhooksError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetMiddlewareError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetPaymentReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackPaymentsReady, metav1.ConditionTrue)
 }
 
 func (s *Stack) RemoveAuthStatus() {
@@ -230,11 +229,11 @@ func (in *Stack) RemoveWalletsStatus() {
 }
 
 func (s *Stack) SetWalletsError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackWalletsReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackWalletsReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetWalletsReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackWalletsReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackWalletsReady, metav1.ConditionTrue)
 }
 
 func (in *Stack) RemoveCounterpartiesStatus() {
@@ -242,11 +241,11 @@ func (in *Stack) RemoveCounterpartiesStatus() {
 }
 
 func (s *Stack) SetCounterpartiesError(msg string) {
-	apisv1beta1.SetCondition(s, ConditionTypeStackCounterpartiesReady, metav1.ConditionFalse, msg)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackCounterpartiesReady, metav1.ConditionFalse, msg)
 }
 
 func (s *Stack) SetCounterpartiesReady() {
-	apisv1beta1.SetCondition(s, ConditionTypeStackCounterpartiesReady, metav1.ConditionTrue)
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackCounterpartiesReady, metav1.ConditionTrue)
 }
 
 //+kubebuilder:object:root=true

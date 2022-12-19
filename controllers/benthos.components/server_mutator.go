@@ -6,10 +6,10 @@ import (
 	"math/rand"
 	"time"
 
-	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
+	benthosv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -64,7 +64,7 @@ func (m *ServerMutator) SetupWithBuilder(mgr ctrl.Manager, blder *ctrl.Builder) 
 
 func (m *ServerMutator) Mutate(ctx context.Context, server *benthosv1beta2.Server) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(server)
+	apisv1beta2.SetProgressing(server)
 
 	pod, err := m.reconcilePod(ctx, server)
 	if err != nil {
@@ -76,14 +76,14 @@ func (m *ServerMutator) Mutate(ctx context.Context, server *benthosv1beta2.Serve
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 	}
 
-	apisv1beta1.SetReady(server)
+	apisv1beta2.SetReady(server)
 
 	return nil, nil
 }
 
 func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2.Server) (*corev1.Pod, error) {
 
-	apisv1beta1.SetProgressing(server)
+	apisv1beta2.SetProgressing(server)
 
 	command := []string{"/benthos"}
 	if server.Spec.ResourcesConfigMap != "" {
@@ -158,18 +158,18 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 			if pod.Status.PodIP != "" {
 				log.FromContext(ctx).Info("Detect pod ip, assign to server object", "ip", pod.Status.PodIP)
 				server.Status.PodIP = pod.Status.PodIP
-				apisv1beta1.SetCondition(server, "AssignedIP", metav1.ConditionTrue)
+				apisv1beta2.SetCondition(server, "AssignedIP", metav1.ConditionTrue)
 			}
 			return &pod, nil
 		}
 		if err := r.client.Delete(ctx, &pod); err != nil {
 			return nil, err
 		}
-		apisv1beta1.RemoveCondition(server, "AssignedIP")
+		apisv1beta2.RemoveCondition(server, "AssignedIP")
 		server.Status.PodIP = ""
 	}
 
-	apisv1beta1.RemovePodCondition(server)
+	apisv1beta2.RemovePodCondition(server)
 
 	name := fmt.Sprintf("%s-%s", server.Name, randPodIdentifier())
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
@@ -227,7 +227,7 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetPodError(server, err.Error())
+		apisv1beta2.SetPodError(server, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
 		if err = r.client.Get(ctx, client.ObjectKeyFromObject(ret), ret); err != nil {
@@ -236,7 +236,7 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 
 		log.FromContext(ctx).Info("Register pod ip", "ip", ret.Status.PodIP)
 		server.Status.PodIP = ret.Status.PodIP
-		apisv1beta1.SetPodReady(server)
+		apisv1beta2.SetPodReady(server)
 	}
 	return ret, err
 }
@@ -257,10 +257,10 @@ func (r *ServerMutator) reconcileService(ctx context.Context, srv *benthosv1beta
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetServiceError(srv, err.Error())
+		apisv1beta2.SetServiceError(srv, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetServiceReady(srv)
+		apisv1beta2.SetServiceReady(srv)
 	}
 	return ret, err
 }

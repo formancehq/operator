@@ -22,9 +22,8 @@ limitations under the License.
 package v1beta2
 
 import (
-	"github.com/numary/operator/apis/auth.components/v1beta1"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
+	auth_componentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -39,7 +38,7 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	}
 	if in.StaticClients != nil {
 		in, out := &in.StaticClients, &out.StaticClients
-		*out = make([]v1beta1.StaticClient, len(*in))
+		*out = make([]auth_componentsv1beta2.StaticClient, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -266,7 +265,7 @@ func (in *IngressGlobalConfig) DeepCopyInto(out *IngressGlobalConfig) {
 	in.IngressConfig.DeepCopyInto(&out.IngressConfig)
 	if in.TLS != nil {
 		in, out := &in.TLS, &out.TLS
-		*out = new(apisv1beta1.IngressTLS)
+		*out = new(apisv1beta2.IngressTLS)
 		**out = **in
 	}
 }
@@ -397,7 +396,7 @@ func (in *StackAuthSpec) DeepCopyInto(out *StackAuthSpec) {
 	in.DelegatedOIDCServer.DeepCopyInto(&out.DelegatedOIDCServer)
 	if in.StaticClients != nil {
 		in, out := &in.StaticClients, &out.StaticClients
-		*out = make([]v1beta1.StaticClient, len(*in))
+		*out = make([]auth_componentsv1beta2.StaticClient, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
@@ -469,7 +468,7 @@ func (in *StackStatus) DeepCopyInto(out *StackStatus) {
 	in.Status.DeepCopyInto(&out.Status)
 	if in.StaticAuthClients != nil {
 		in, out := &in.StaticAuthClients, &out.StaticAuthClients
-		*out = make(map[string]v1beta1.StaticClient, len(*in))
+		*out = make(map[string]auth_componentsv1beta2.StaticClient, len(*in))
 		for key, val := range *in {
 			(*out)[key] = *val.DeepCopy()
 		}

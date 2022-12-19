@@ -1,9 +1,9 @@
-package v1beta1
+package v1beta2
 
 import (
 	"strings"
 
-	"github.com/numary/operator/pkg/typeutils"
+	"github.com/formancehq/operator/pkg/typeutils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

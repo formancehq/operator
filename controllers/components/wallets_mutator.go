@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"strings"
 
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -55,7 +55,7 @@ type WalletsMutator struct {
 
 func (r *WalletsMutator) Mutate(ctx context.Context, wallets *componentsv1beta2.Wallets) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(wallets)
+	apisv1beta2.SetProgressing(wallets)
 
 	if wallets.Spec.Enabled {
 		deployment, err := r.reconcileDeployment(ctx, wallets)
@@ -83,11 +83,11 @@ func (r *WalletsMutator) Mutate(ctx context.Context, wallets *componentsv1beta2.
 			if err != nil && !errors.IsNotFound(err) {
 				return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 			}
-			apisv1beta1.RemoveIngressCondition(wallets)
+			apisv1beta2.RemoveIngressCondition(wallets)
 		}
 	}
 
-	apisv1beta1.SetReady(wallets)
+	apisv1beta2.SetReady(wallets)
 
 	return nil, nil
 }
@@ -96,8 +96,8 @@ func walletsEnvVars(wallets *componentsv1beta2.Wallets) []corev1.EnvVar {
 	env := wallets.Spec.Postgres.Env("")
 	ledgerName := strings.Replace(wallets.GetName(), "-next", "-ledger", -1)
 	env = append(env,
-		apisv1beta1.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
-		apisv1beta1.Env("LEDGER_URI", fmt.Sprintf("http://%s:8080", ledgerName)),
+		apisv1beta2.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
+		apisv1beta2.Env("LEDGER_URI", fmt.Sprintf("http://%s:8080", ledgerName)),
 	)
 
 	env = append(env, wallets.Spec.DevProperties.Env()...)
@@ -151,11 +151,11 @@ func (r *WalletsMutator) reconcileDeployment(ctx context.Context, wallets *compo
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(wallets, err.Error())
+		apisv1beta2.SetDeploymentError(wallets, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(wallets)
+		apisv1beta2.SetDeploymentReady(wallets)
 	}
 	return ret, err
 }
@@ -176,11 +176,11 @@ func (r *WalletsMutator) reconcileService(ctx context.Context, auth *componentsv
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -225,11 +225,11 @@ func (r *WalletsMutator) reconcileIngress(ctx context.Context, wallets *componen
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(wallets, err.Error())
+		apisv1beta2.SetIngressError(wallets, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(wallets)
+		apisv1beta2.SetIngressReady(wallets)
 	}
 	return ret, nil
 }

@@ -1,8 +1,8 @@
 package v1beta2
 
 import (
-	"github.com/numary/operator/pkg/apis/v1beta1"
-	"github.com/numary/operator/pkg/typeutils"
+	"github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/typeutils"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -13,7 +13,7 @@ type PaymentsSpec struct {
 	// +optional
 	Ingress *IngressConfig `json:"ingress"`
 	// +optional
-	Postgres v1beta1.PostgresConfig `json:"postgres"`
+	Postgres v1beta2.PostgresConfig `json:"postgres"`
 }
 
 func (in *PaymentsSpec) Validate() field.ErrorList {
@@ -21,6 +21,6 @@ func (in *PaymentsSpec) Validate() field.ErrorList {
 		return field.ErrorList{}
 	}
 	return typeutils.MergeAll(
-		typeutils.Map(in.Postgres.Validate(), v1beta1.AddPrefixToFieldError("postgres.")),
+		typeutils.Map(in.Postgres.Validate(), v1beta2.AddPrefixToFieldError("postgres.")),
 	)
 }

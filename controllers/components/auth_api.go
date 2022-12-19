@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/formancehq/operator/pkg/typeutils"
 	"github.com/google/uuid"
 	"github.com/numary/auth/authclient"
-	. "github.com/numary/operator/pkg/typeutils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -18,7 +18,7 @@ type API interface {
 	ReadScope(ctx context.Context, id string) (*authclient.Scope, error)
 	CreateScope(ctx context.Context, label string, metadata map[string]string) (*authclient.Scope, error)
 	UpdateScope(ctx context.Context, id string, label string, metadata map[string]string) error
-	ListScopes(ctx context.Context) (Array[authclient.Scope], error)
+	ListScopes(ctx context.Context) (typeutils.Array[authclient.Scope], error)
 	ReadScopeByMetadata(ctx context.Context, metadata map[string]string) (*authclient.Scope, error)
 	AddTransientScope(ctx context.Context, scope, transientScope string) error
 	RemoveTransientScope(ctx context.Context, scope, transientScope string) error
@@ -43,11 +43,11 @@ func ConvertError(err error) error {
 	return err
 }
 
-type defaultApi struct {
+type DefaultApi struct {
 	API *authclient.APIClient
 }
 
-func (d *defaultApi) AddTransientScope(ctx context.Context, scope, transientScope string) error {
+func (d *DefaultApi) AddTransientScope(ctx context.Context, scope, transientScope string) error {
 	httpResponse, err := d.API.DefaultApi.AddTransientScope(ctx, scope, transientScope).Execute()
 	if err != nil && httpResponse != nil && httpResponse.StatusCode == http.StatusNotFound {
 		return ErrNotFound
@@ -55,7 +55,7 @@ func (d *defaultApi) AddTransientScope(ctx context.Context, scope, transientScop
 	return ConvertError(err)
 }
 
-func (d *defaultApi) RemoveTransientScope(ctx context.Context, scope, transientScope string) error {
+func (d *DefaultApi) RemoveTransientScope(ctx context.Context, scope, transientScope string) error {
 	httpResponse, err := d.API.DefaultApi.DeleteTransientScope(ctx, scope, transientScope).Execute()
 	if err != nil && httpResponse != nil && httpResponse.StatusCode == http.StatusNotFound {
 		return ErrNotFound
@@ -63,7 +63,7 @@ func (d *defaultApi) RemoveTransientScope(ctx context.Context, scope, transientS
 	return ConvertError(err)
 }
 
-func (d *defaultApi) ReadScopeByMetadata(ctx context.Context, metadata map[string]string) (*authclient.Scope, error) {
+func (d *DefaultApi) ReadScopeByMetadata(ctx context.Context, metadata map[string]string) (*authclient.Scope, error) {
 	allScopes, err := d.ListScopes(ctx)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ l:
 	return nil, ErrNotFound
 }
 
-func (d *defaultApi) ReadScope(ctx context.Context, id string) (*authclient.Scope, error) {
+func (d *DefaultApi) ReadScope(ctx context.Context, id string) (*authclient.Scope, error) {
 	ret, httpResponse, err := d.API.DefaultApi.
 		ReadScope(ctx, id).
 		Execute()
@@ -97,7 +97,7 @@ func (d *defaultApi) ReadScope(ctx context.Context, id string) (*authclient.Scop
 	return ret.Data, nil
 }
 
-func (d *defaultApi) DeleteScope(ctx context.Context, id string) error {
+func (d *DefaultApi) DeleteScope(ctx context.Context, id string) error {
 	httpResponse, err := d.API.DefaultApi.
 		DeleteScope(ctx, id).
 		Execute()
@@ -107,7 +107,7 @@ func (d *defaultApi) DeleteScope(ctx context.Context, id string) error {
 	return ConvertError(err)
 }
 
-func (d *defaultApi) CreateScope(ctx context.Context, label string, metadata map[string]string) (*authclient.Scope, error) {
+func (d *DefaultApi) CreateScope(ctx context.Context, label string, metadata map[string]string) (*authclient.Scope, error) {
 	ret, httpResponse, err := d.API.DefaultApi.CreateScope(ctx).Body(authclient.ScopeOptions{
 		Label:    label,
 		Metadata: &metadata,
@@ -121,7 +121,7 @@ func (d *defaultApi) CreateScope(ctx context.Context, label string, metadata map
 	return ret.Data, nil
 }
 
-func (d *defaultApi) UpdateScope(ctx context.Context, id string, label string, metadata map[string]string) error {
+func (d *DefaultApi) UpdateScope(ctx context.Context, id string, label string, metadata map[string]string) error {
 	_, httpResponse, err := d.API.DefaultApi.UpdateScope(ctx, id).Body(authclient.ScopeOptions{
 		Label:    label,
 		Metadata: &metadata,
@@ -132,7 +132,7 @@ func (d *defaultApi) UpdateScope(ctx context.Context, id string, label string, m
 	return ConvertError(err)
 }
 
-func (d *defaultApi) ListScopes(ctx context.Context) (Array[authclient.Scope], error) {
+func (d *DefaultApi) ListScopes(ctx context.Context) (typeutils.Array[authclient.Scope], error) {
 	scopes, _, err := d.API.DefaultApi.ListScopes(ctx).Execute()
 	if err != nil {
 		return nil, ConvertError(err)
@@ -140,7 +140,7 @@ func (d *defaultApi) ListScopes(ctx context.Context) (Array[authclient.Scope], e
 	return scopes.Data, nil
 }
 
-func (d *defaultApi) CreateClient(ctx context.Context, options authclient.ClientOptions) (*authclient.Client, error) {
+func (d *DefaultApi) CreateClient(ctx context.Context, options authclient.ClientOptions) (*authclient.Client, error) {
 	ret, _, err := d.API.DefaultApi.CreateClient(ctx).Body(options).Execute()
 	if err != nil {
 		return nil, ConvertError(err)
@@ -148,7 +148,7 @@ func (d *defaultApi) CreateClient(ctx context.Context, options authclient.Client
 	return ret.Data, nil
 }
 
-func (d *defaultApi) UpdateClient(ctx context.Context, id string, options authclient.ClientOptions) error {
+func (d *DefaultApi) UpdateClient(ctx context.Context, id string, options authclient.ClientOptions) error {
 	_, httpResponse, err := d.API.DefaultApi.UpdateClient(ctx, id).Body(options).Execute()
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode == http.StatusNotFound {
@@ -159,7 +159,7 @@ func (d *defaultApi) UpdateClient(ctx context.Context, id string, options authcl
 	return nil
 }
 
-func (d *defaultApi) DeleteClient(ctx context.Context, id string) error {
+func (d *DefaultApi) DeleteClient(ctx context.Context, id string) error {
 	httpResponse, err := d.API.DefaultApi.DeleteClient(ctx, id).Execute()
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode == http.StatusNotFound {
@@ -170,7 +170,7 @@ func (d *defaultApi) DeleteClient(ctx context.Context, id string) error {
 	return nil
 }
 
-func (d *defaultApi) ReadClient(ctx context.Context, id string) (*authclient.Client, error) {
+func (d *DefaultApi) ReadClient(ctx context.Context, id string) (*authclient.Client, error) {
 	ret, httpResponse, err := d.API.DefaultApi.ReadClient(ctx, id).Execute()
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode == http.StatusNotFound {
@@ -181,27 +181,27 @@ func (d *defaultApi) ReadClient(ctx context.Context, id string) (*authclient.Cli
 	return ret.Data, nil
 }
 
-func (d *defaultApi) ReadClientByMetadata(ctx context.Context, metadata map[string]string) (*authclient.Client, error) {
+func (d *DefaultApi) ReadClientByMetadata(ctx context.Context, metadata map[string]string) (*authclient.Client, error) {
 	clients, _, err := d.API.DefaultApi.ListClients(ctx).Execute()
 	if err != nil {
 		return nil, err
 	}
 l:
-	for _, client := range clients.Data {
-		if client.Metadata == nil {
+	for _, datum := range clients.Data {
+		if datum.Metadata == nil {
 			continue
 		}
 		for k, v := range metadata {
-			if (*client.Metadata)[k] != v {
+			if (*datum.Metadata)[k] != v {
 				continue l
 			}
 		}
-		return &client, nil
+		return &datum, nil
 	}
 	return nil, ErrNotFound
 }
 
-func (d *defaultApi) AddScopeToClient(ctx context.Context, clientId, scopeId string) error {
+func (d *DefaultApi) AddScopeToClient(ctx context.Context, clientId, scopeId string) error {
 	httpResponse, err := d.API.DefaultApi.AddScopeToClient(ctx, clientId, scopeId).Execute()
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode == http.StatusNotFound {
@@ -212,7 +212,7 @@ func (d *defaultApi) AddScopeToClient(ctx context.Context, clientId, scopeId str
 	return nil
 }
 
-func (d *defaultApi) DeleteScopeFromClient(ctx context.Context, clientId, scopeId string) error {
+func (d *DefaultApi) DeleteScopeFromClient(ctx context.Context, clientId, scopeId string) error {
 	httpResponse, err := d.API.DefaultApi.DeleteScopeFromClient(ctx, clientId, scopeId).Execute()
 	if err != nil {
 		if httpResponse != nil && httpResponse.StatusCode == http.StatusNotFound {
@@ -223,10 +223,10 @@ func (d *defaultApi) DeleteScopeFromClient(ctx context.Context, clientId, scopeI
 	return nil
 }
 
-var _ API = &defaultApi{}
+var _ API = &DefaultApi{}
 
-func NewDefaultServerApi(api *authclient.APIClient) *defaultApi {
-	return &defaultApi{
+func NewDefaultServerApi(api *authclient.APIClient) *DefaultApi {
+	return &DefaultApi{
 		API: api,
 	}
 }
@@ -287,7 +287,7 @@ func (i *InMemoryApi) RemoveTransientScope(ctx context.Context, scope, transient
 	if !ok {
 		return ErrNotFound
 	}
-	firstScope.Transient = Array[string](firstScope.Transient).Filter(func(t string) bool {
+	firstScope.Transient = typeutils.Array[string](firstScope.Transient).Filter(func(t string) bool {
 		return t != transientScope
 	})
 	return nil
@@ -355,10 +355,10 @@ func (i *InMemoryApi) UpdateScope(ctx context.Context, id string, label string, 
 	return nil
 }
 
-func (i *InMemoryApi) ListScopes(ctx context.Context) (Array[authclient.Scope], error) {
+func (i *InMemoryApi) ListScopes(ctx context.Context) (typeutils.Array[authclient.Scope], error) {
 	i.lock.Lock()
 	defer i.lock.Unlock()
-	ret := Array[authclient.Scope]{}
+	ret := typeutils.Array[authclient.Scope]{}
 	for _, scope := range i.scopes {
 		ret = append(ret, *scope)
 	}
@@ -455,7 +455,7 @@ func (i *InMemoryApi) DeleteScopeFromClient(ctx context.Context, clientId, scope
 	if !ok {
 		return ErrNotFound
 	}
-	v.Scopes = Filter(v.Scopes, NotEqual(scopeId))
+	v.Scopes = typeutils.Filter(v.Scopes, typeutils.NotEqual(scopeId))
 	return nil
 }
 

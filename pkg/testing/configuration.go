@@ -1,10 +1,10 @@
 package testing
 
 import (
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	"github.com/formancehq/operator/apis/stack/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	"github.com/google/uuid"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	"github.com/numary/operator/apis/stack/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -61,22 +61,22 @@ func NewDumbConfiguration() *v1beta2.Configuration {
 	}
 }
 
-func NewDumpKafkaConfig() apisv1beta1.KafkaConfig {
-	return apisv1beta1.KafkaConfig{
+func NewDumpKafkaConfig() apisv1beta2.KafkaConfig {
+	return apisv1beta2.KafkaConfig{
 		Brokers: []string{"kafka:1234"},
 	}
 }
 
-func NewDumpElasticSearchConfig() componentsv1beta1.ElasticSearchConfig {
-	return componentsv1beta1.ElasticSearchConfig{
+func NewDumpElasticSearchConfig() componentsv1beta2.ElasticSearchConfig {
+	return componentsv1beta2.ElasticSearchConfig{
 		Scheme: "http",
 		Host:   "elasticsearch",
 		Port:   9200,
 	}
 }
 
-func NewDumpPostgresConfig() apisv1beta1.PostgresConfig {
-	return apisv1beta1.PostgresConfig{
+func NewDumpPostgresConfig() apisv1beta2.PostgresConfig {
+	return apisv1beta2.PostgresConfig{
 		Port:     5432,
 		Host:     "postgres",
 		Username: "username",

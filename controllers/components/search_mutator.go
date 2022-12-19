@@ -23,13 +23,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	benthosv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscallingv2 "k8s.io/api/autoscaling/v2"
@@ -100,14 +99,14 @@ func (r *SearchMutator) Mutate(ctx context.Context, search *componentsv1beta2.Se
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta1.RemoveIngressCondition(search)
+		apisv1beta2.RemoveIngressCondition(search)
 	}
 
 	if _, err := r.reconcileHPA(ctx, search); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling HPA")
 	}
 
-	apisv1beta1.SetReady(search)
+	apisv1beta2.SetReady(search)
 
 	return nil, nil
 }
@@ -120,11 +119,11 @@ func (r *SearchMutator) reconcileDeployment(ctx context.Context, search *compone
 		env = append(env, search.Spec.Monitoring.Env("")...)
 	}
 	if search.Spec.Debug {
-		env = append(env, apisv1beta1.Env("DEBUG", "true"))
+		env = append(env, apisv1beta2.Env("DEBUG", "true"))
 	}
 	env = append(env, search.Spec.ElasticSearch.Env("")...)
-	env = append(env, apisv1beta1.Env("ES_INDICES", search.Spec.Index))
-	env = append(env, apisv1beta1.Env("MAPPING_INIT_DISABLED", "true"))
+	env = append(env, apisv1beta2.Env("ES_INDICES", search.Spec.Index))
+	env = append(env, apisv1beta2.Env("MAPPING_INIT_DISABLED", "true"))
 
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(deployment *appsv1.Deployment) error {
 		deployment.Spec = appsv1.DeploymentSpec{
@@ -161,10 +160,10 @@ func (r *SearchMutator) reconcileDeployment(ctx context.Context, search *compone
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(search, err.Error())
+		apisv1beta2.SetDeploymentError(search, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(search)
+		apisv1beta2.SetDeploymentReady(search)
 	}
 
 	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
@@ -194,10 +193,10 @@ func (r *SearchMutator) reconcileService(ctx context.Context, auth *componentsv1
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -242,10 +241,10 @@ func (r *SearchMutator) reconcileIngress(ctx context.Context, search *components
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(search, err.Error())
+		apisv1beta2.SetIngressError(search, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(search)
+		apisv1beta2.SetIngressReady(search)
 	}
 	return ret, nil
 }
@@ -257,11 +256,11 @@ func (r *SearchMutator) reconcileHPA(ctx context.Context, search *componentsv1be
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetHPAError(search, err.Error())
+		apisv1beta2.SetHPAError(search, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetHPAReady(search)
+		apisv1beta2.SetHPAReady(search)
 	}
 	return ret, err
 }
@@ -279,33 +278,33 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 		server.Spec.StreamsConfigMap = "benthos-streams-config"
 		server.Spec.DevProperties = search.Spec.DevProperties
 		server.Spec.Env = []corev1.EnvVar{
-			apisv1beta1.Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
+			apisv1beta2.Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
 			// TODO: Rename search env vars
 			//nolint:staticcheck
-			apisv1beta1.Env("OPENSEARCH_URL", search.Spec.ElasticSearch.Endpoint()),
-			apisv1beta1.Env("OPENSEARCH_INDEX", search.Spec.Index),
-			apisv1beta1.Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
-			apisv1beta1.Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
-			apisv1beta1.Env("TOPIC_PREFIX", search.Namespace+"-"),
+			apisv1beta2.Env("OPENSEARCH_URL", search.Spec.ElasticSearch.Endpoint()),
+			apisv1beta2.Env("OPENSEARCH_INDEX", search.Spec.Index),
+			apisv1beta2.Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
+			apisv1beta2.Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
+			apisv1beta2.Env("TOPIC_PREFIX", search.Namespace+"-"),
 		}
 		server.Spec.Env = append(server.Spec.Env, search.Spec.PostgresConfigs.Env()...)
 		if search.Spec.ElasticSearch.BasicAuth != nil {
 			server.Spec.Env = append(server.Spec.Env,
-				apisv1beta1.Env("BASIC_AUTH_ENABLED", "true"),
-				apisv1beta1.Env("BASIC_AUTH_USERNAME", search.Spec.ElasticSearch.BasicAuth.Username),
-				apisv1beta1.Env("BASIC_AUTH_PASSWORD", search.Spec.ElasticSearch.BasicAuth.Password),
+				apisv1beta2.Env("BASIC_AUTH_ENABLED", "true"),
+				apisv1beta2.Env("BASIC_AUTH_USERNAME", search.Spec.ElasticSearch.BasicAuth.Username),
+				apisv1beta2.Env("BASIC_AUTH_PASSWORD", search.Spec.ElasticSearch.BasicAuth.Password),
 			)
 		}
 		if search.Spec.KafkaConfig.SASL != nil {
 			server.Spec.Env = append(server.Spec.Env,
-				apisv1beta1.Env("KAFKA_SASL_USERNAME", search.Spec.KafkaConfig.SASL.Username),
-				apisv1beta1.Env("KAFKA_SASL_PASSWORD", search.Spec.KafkaConfig.SASL.Password),
-				apisv1beta1.Env("KAFKA_SASL_MECHANISM", search.Spec.KafkaConfig.SASL.Mechanism),
+				apisv1beta2.Env("KAFKA_SASL_USERNAME", search.Spec.KafkaConfig.SASL.Username),
+				apisv1beta2.Env("KAFKA_SASL_PASSWORD", search.Spec.KafkaConfig.SASL.Password),
+				apisv1beta2.Env("KAFKA_SASL_MECHANISM", search.Spec.KafkaConfig.SASL.Mechanism),
 			)
 		}
 		if search.Spec.KafkaConfig.TLS {
 			server.Spec.Env = append(server.Spec.Env,
-				apisv1beta1.Env("KAFKA_TLS_ENABLED", "true"),
+				apisv1beta2.Env("KAFKA_TLS_ENABLED", "true"),
 			)
 		}
 
@@ -339,10 +338,10 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetCondition(search, componentsv1beta1.ConditionTypeBenthosReady, metav1.ConditionFalse, err.Error())
+		apisv1beta2.SetCondition(search, componentsv1beta2.ConditionTypeBenthosReady, metav1.ConditionFalse, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetCondition(search, componentsv1beta1.ConditionTypeBenthosReady, metav1.ConditionTrue)
+		apisv1beta2.SetCondition(search, componentsv1beta2.ConditionTypeBenthosReady, metav1.ConditionTrue)
 	}
 	return operationResult, nil
 }

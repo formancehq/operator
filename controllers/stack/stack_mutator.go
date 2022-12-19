@@ -4,18 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	"github.com/formancehq/operator/pkg/typeutils"
 	"github.com/google/uuid"
-	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
-	componentsv1beta1 "github.com/numary/operator/apis/components/v1beta1"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	apisv1beta2 "github.com/numary/operator/pkg/apis/v1beta2"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
 	traefik "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
 	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	stackv1beta2 "github.com/numary/operator/apis/stack/v1beta2"
+	stackv1beta2 "github.com/formancehq/operator/apis/stack/v1beta2"
 	pkgError "github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -60,7 +58,7 @@ func watch(mgr ctrl.Manager, field string) handler.EventHandler {
 			return []reconcile.Request{}
 		}
 
-		return Map(stacks.Items, func(s stackv1beta2.Stack) reconcile.Request {
+		return typeutils.Map(stacks.Items, func(s stackv1beta2.Stack) reconcile.Request {
 			return reconcile.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      s.GetName(),
@@ -109,7 +107,7 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 }
 
 func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.Result, error) {
-	apisv1beta1.SetProgressing(stack)
+	apisv1beta2.SetProgressing(stack)
 
 	configuration := &stackv1beta2.Configuration{}
 	if err := r.client.Get(ctx, types.NamespacedName{
@@ -139,14 +137,14 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 
 	// Add static clients for app needing it (Actually, control)
 	if stack.Status.StaticAuthClients == nil {
-		stack.Status.StaticAuthClients = map[string]authcomponentsv1beta1.StaticClient{}
+		stack.Status.StaticAuthClients = map[string]authcomponentsv1beta2.StaticClient{}
 	}
 
 	if _, ok := stack.Status.StaticAuthClients["control"]; !ok {
-		stack.Status.StaticAuthClients["control"] = authcomponentsv1beta1.StaticClient{
+		stack.Status.StaticAuthClients["control"] = authcomponentsv1beta2.StaticClient{
 			ID:      "control",
 			Secrets: []string{uuid.NewString()},
-			ClientConfiguration: authcomponentsv1beta1.ClientConfiguration{
+			ClientConfiguration: authcomponentsv1beta2.ClientConfiguration{
 				Scopes: []string{"openid", "profile", "email", "offline"},
 				RedirectUris: []string{
 					fmt.Sprintf("%s/auth/login", stack.URL()),
@@ -189,7 +187,7 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Counterparties")
 	}
 
-	apisv1beta1.SetReady(stack)
+	apisv1beta2.SetReady(stack)
 	return nil, nil
 }
 
@@ -248,19 +246,19 @@ func (r *Mutator) reconcileMiddleware(ctx context.Context, stack *stackv1beta2.S
 func (r *Mutator) reconcileAuth(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Auth")
 
-	staticClients := append(configuration.Services.Auth.StaticClients, SliceFromMap(stack.Status.StaticAuthClients)...)
+	staticClients := append(configuration.Services.Auth.StaticClients, typeutils.SliceFromMap(stack.Status.StaticAuthClients)...)
 	staticClients = append(staticClients, stack.Spec.Auth.StaticClients...)
 	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("auth"),
 	}, stack, func(auth *componentsv1beta2.Auth) error {
 		auth.Spec = componentsv1beta2.AuthSpec{
-			Scalable: apisv1beta1.Scalable{
+			Scalable: apisv1beta2.Scalable{
 				Replicas: auth.Spec.Replicas,
 			},
-			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 					PostgresConfig: configuration.Services.Auth.Postgres,
 					Database:       fmt.Sprintf("%s-auth", stack.Name),
 				},
@@ -305,15 +303,15 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *stackv1beta2.Stack
 				Version:       version,
 			},
 			LockingStrategy: configuration.Services.Ledger.LockingStrategy,
-			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
-				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 					Database:       fmt.Sprintf("%s-ledger", stack.Name),
 					PostgresConfig: configuration.Services.Ledger.Postgres,
 				},
 				CreateDatabase: true,
 			},
 			Monitoring: configuration.Monitoring,
-			Collector: &componentsv1beta1.CollectorConfig{
+			Collector: &componentsv1beta2.CollectorConfig{
 				KafkaConfig: configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-ledger", stack.Name),
 			},
@@ -347,13 +345,13 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *stackv1beta2.Stac
 				Version:       version,
 			},
 			Monitoring: configuration.Monitoring,
-			Collector: &componentsv1beta1.CollectorConfig{
+			Collector: &componentsv1beta2.CollectorConfig{
 				KafkaConfig: configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments", stack.Name),
 			},
-			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 					PostgresConfig: configuration.Services.Payments.Postgres,
 					Database:       fmt.Sprintf("%s-payments", stack.Name),
 				},
@@ -388,13 +386,13 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 				DevProperties: stack.Spec.DevProperties,
 				Version:       version,
 			},
-			Collector: &componentsv1beta1.CollectorConfig{
+			Collector: &componentsv1beta2.CollectorConfig{
 				KafkaConfig: configuration.Kafka,
 				Topic:       fmt.Sprintf("%s-payments %s-ledger", stack.Name, stack.Name),
 			},
-			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 					PostgresConfig: configuration.Services.Webhooks.Postgres,
 					Database:       fmt.Sprintf("%s-webhooks", stack.Name),
 				},
@@ -430,9 +428,9 @@ func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stac
 				DevProperties: stack.Spec.DevProperties,
 				Version:       version,
 			},
-			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 					PostgresConfig: configuration.Services.Wallets.Postgres,
 					Database:       fmt.Sprintf("%s-wallets", stack.Name),
 				},
@@ -468,9 +466,9 @@ func (r *Mutator) reconcileCounterparties(ctx context.Context, stack *stackv1bet
 				DevProperties: stack.Spec.DevProperties,
 				Version:       version,
 			},
-			Postgres: componentsv1beta1.PostgresConfigCreateDatabase{
+			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
 				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta1.PostgresConfigWithDatabase{
+				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
 					PostgresConfig: configuration.Services.Counterparties.Postgres,
 					Database:       fmt.Sprintf("%s-counterparties", stack.Name),
 				},
@@ -499,7 +497,7 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *stackv1beta2.Stac
 		Name:      stack.ServiceName("control"),
 	}, stack, func(control *componentsv1beta2.Control) error {
 		control.Spec = componentsv1beta2.ControlSpec{
-			Scalable: apisv1beta1.Scalable{
+			Scalable: apisv1beta2.Scalable{
 				Replicas: control.Spec.Replicas,
 			},
 			Ingress: configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
@@ -538,7 +536,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *stackv1beta2.Stack
 		Name:      stack.ServiceName("search"),
 	}, stack, func(search *componentsv1beta2.Search) error {
 		search.Spec = componentsv1beta2.SearchSpec{
-			Scalable: apisv1beta1.Scalable{
+			Scalable: apisv1beta2.Scalable{
 				Replicas: search.Spec.Replicas,
 			},
 			Ingress:    configuration.Services.Search.Ingress.Compute(stack, configuration, "/api/search"),
@@ -552,7 +550,7 @@ func (r *Mutator) reconcileSearch(ctx context.Context, stack *stackv1beta2.Stack
 			Index:         stack.Name,
 			Batching:      configuration.Services.Search.Batching,
 			PostgresConfigs: componentsv1beta2.SearchPostgresConfigs{
-				Ledger: apisv1beta1.PostgresConfigWithDatabase{
+				Ledger: apisv1beta2.PostgresConfigWithDatabase{
 					PostgresConfig: configuration.Services.Ledger.Postgres,
 					Database:       fmt.Sprintf("%s-ledger", stack.Name),
 				},

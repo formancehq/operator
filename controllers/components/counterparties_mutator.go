@@ -20,11 +20,11 @@ import (
 	"context"
 	"fmt"
 
-	authcomponentsv1beta2 "github.com/numary/operator/apis/auth.components/v1beta2"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -54,7 +54,7 @@ type CounterpartiesMutator struct {
 
 func (r *CounterpartiesMutator) Mutate(ctx context.Context, counterparties *componentsv1beta2.Counterparties) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(counterparties)
+	apisv1beta2.SetProgressing(counterparties)
 
 	if counterparties.Spec.Enabled {
 		deployment, err := r.reconcileDeployment(ctx, counterparties)
@@ -82,11 +82,11 @@ func (r *CounterpartiesMutator) Mutate(ctx context.Context, counterparties *comp
 			if err != nil && !errors.IsNotFound(err) {
 				return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 			}
-			apisv1beta1.RemoveIngressCondition(counterparties)
+			apisv1beta2.RemoveIngressCondition(counterparties)
 		}
 	}
 
-	apisv1beta1.SetReady(counterparties)
+	apisv1beta2.SetReady(counterparties)
 
 	return nil, nil
 }
@@ -145,11 +145,11 @@ func (r *CounterpartiesMutator) reconcileDeployment(ctx context.Context, counter
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(counterparties, err.Error())
+		apisv1beta2.SetDeploymentError(counterparties, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(counterparties)
+		apisv1beta2.SetDeploymentReady(counterparties)
 	}
 	return ret, err
 }
@@ -170,11 +170,11 @@ func (r *CounterpartiesMutator) reconcileService(ctx context.Context, auth *comp
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -219,11 +219,11 @@ func (r *CounterpartiesMutator) reconcileIngress(ctx context.Context, counterpar
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(counterparties, err.Error())
+		apisv1beta2.SetIngressError(counterparties, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(counterparties)
+		apisv1beta2.SetIngressReady(counterparties)
 	}
 	return ret, nil
 }

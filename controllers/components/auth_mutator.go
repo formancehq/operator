@@ -25,11 +25,11 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	authcomponentsv1beta1 "github.com/numary/operator/apis/auth.components/v1beta1"
-	componentsv1beta2 "github.com/numary/operator/apis/components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	"github.com/numary/operator/pkg/controllerutils"
-	. "github.com/numary/operator/pkg/typeutils"
+	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
+	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	"github.com/formancehq/operator/pkg/controllerutils"
+	. "github.com/formancehq/operator/pkg/typeutils"
 	pkgError "github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	appsv1 "k8s.io/api/apps/v1"
@@ -65,7 +65,7 @@ type Mutator struct {
 
 func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta2.Auth) (*ctrl.Result, error) {
 
-	apisv1beta1.SetProgressing(auth)
+	apisv1beta2.SetProgressing(auth)
 
 	config, err := r.reconcileConfigFile(ctx, auth)
 	if err != nil {
@@ -97,14 +97,14 @@ func (r *Mutator) Mutate(ctx context.Context, auth *componentsv1beta2.Auth) (*ct
 		if err != nil && !errors.IsNotFound(err) {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
-		apisv1beta1.RemoveIngressCondition(auth)
+		apisv1beta2.RemoveIngressCondition(auth)
 	}
 
 	if _, err := r.reconcileHPA(ctx, auth); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling HPA")
 	}
 
-	apisv1beta1.SetReady(auth)
+	apisv1beta2.SetReady(auth)
 
 	return nil, nil
 }
@@ -119,12 +119,12 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	}
 
 	env := make([]corev1.EnvVar, 0)
-	env = append(env, apisv1beta1.Env("CONFIG", "/config/config.yaml"))
+	env = append(env, apisv1beta2.Env("CONFIG", "/config/config.yaml"))
 	env = append(env, auth.Spec.Postgres.Env("")...)
 	env = append(env, auth.Spec.DelegatedOIDCServer.Env()...)
 	env = append(env,
-		apisv1beta1.Env("BASE_URL", auth.Spec.BaseURL),
-		apisv1beta1.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
+		apisv1beta2.Env("BASE_URL", auth.Spec.BaseURL),
+		apisv1beta2.EnvFrom("SIGNING_KEY", &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: secret.Name,
@@ -137,7 +137,7 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	if auth.Spec.Dev {
 		env = append(env,
 			// TODO: Make auth server respect "DEV" env variable
-			apisv1beta1.Env("CAOS_OIDC_DEV", "1"),
+			apisv1beta2.Env("CAOS_OIDC_DEV", "1"),
 		)
 	}
 	if auth.Spec.Monitoring != nil {
@@ -205,10 +205,10 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetDeploymentError(auth, err.Error())
+		apisv1beta2.SetDeploymentError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetDeploymentReady(auth)
+		apisv1beta2.SetDeploymentReady(auth)
 	}
 
 	selector, err := metav1.LabelSelectorAsSelector(ret.Spec.Selector)
@@ -238,10 +238,10 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta2.
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(auth)
 	}
 	return ret, err
 }
@@ -249,7 +249,7 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta2.
 func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1beta2.Auth) (*corev1.ConfigMap, error) {
 	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(configMap *corev1.ConfigMap) error {
 		yaml, err := yaml.Marshal(struct {
-			Clients []authcomponentsv1beta1.StaticClient `yaml:"clients"`
+			Clients []authcomponentsv1beta2.StaticClient `yaml:"clients"`
 		}{
 			Clients: auth.Spec.StaticClients,
 		})
@@ -263,10 +263,10 @@ func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1bet
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetConfigMapError(auth, err.Error())
+		apisv1beta2.SetConfigMapError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetConfigMapReady(auth)
+		apisv1beta2.SetConfigMapReady(auth)
 	}
 	return ret, err
 }
@@ -346,10 +346,10 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta2.
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetIngressError(auth, err.Error())
+		apisv1beta2.SetIngressError(auth, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetIngressReady(auth)
+		apisv1beta2.SetIngressReady(auth)
 	}
 	return ret, nil
 }
@@ -361,11 +361,11 @@ func (r *Mutator) reconcileHPA(ctx context.Context, auth *componentsv1beta2.Auth
 	})
 	switch {
 	case err != nil:
-		apisv1beta1.SetHPAError(auth, err.Error())
+		apisv1beta2.SetHPAError(auth, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta1.SetHPAReady(auth)
+		apisv1beta2.SetHPAReady(auth)
 	}
 	return ret, err
 }

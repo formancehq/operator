@@ -3,10 +3,10 @@ package benthos_components
 import (
 	"encoding/json"
 
+	benthosv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
+	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
+	. "github.com/formancehq/operator/pkg/testing"
 	"github.com/google/uuid"
-	benthosv1beta2 "github.com/numary/operator/apis/benthos.components/v1beta2"
-	apisv1beta1 "github.com/numary/operator/pkg/apis/v1beta1"
-	. "github.com/numary/operator/pkg/testing"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,7 +50,7 @@ var _ = Describe("Stream Controller", func() {
 						},
 					}
 					Expect(Create(stream)).To(Succeed())
-					Eventually(ConditionStatus(stream, apisv1beta1.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
+					Eventually(ConditionStatus(stream, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))
 				})
 				It("Should create a stream benthos side", func() {
 					Eventually(func() int {
@@ -72,7 +72,7 @@ var _ = Describe("Stream Controller", func() {
 						Eventually(Exists(server)).Should(BeFalse())
 					})
 					It("Should set stream to error state", func() {
-						Eventually(ConditionStatus(stream, apisv1beta1.ConditionTypeError)).Should(Equal(metav1.ConditionTrue))
+						Eventually(ConditionStatus(stream, apisv1beta2.ConditionTypeError)).Should(Equal(metav1.ConditionTrue))
 					})
 					Context("Then removing the stream", func() {
 						BeforeEach(func() {
