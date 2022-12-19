@@ -322,7 +322,7 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 				"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
 					"-X PUT -v -d '%s' "+
 					"-u ${OPEN_SEARCH_USERNAME}:${OPEN_SEARCH_PASSWORD} "+
-					"${OPEN_SEARCH_SERVICE}/%s/_mapping", string(mapping), search.Namespace),
+					"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/%s/_mapping", string(mapping), search.Namespace),
 			},
 			Env: search.Spec.ElasticSearch.Env(""),
 		}}
