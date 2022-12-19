@@ -309,11 +309,19 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 			)
 		}
 
-		mapping, err := json.Marshal(GetMapping())
+		mapping, err := json.Marshal(struct {
+			Mappings any `json:"mappings"`
+		}{
+			Mappings: GetMapping(),
+		})
 		if err != nil {
 			return err
 		}
 
+		credentialsStr := ""
+		if search.Spec.ElasticSearch.BasicAuth != nil {
+			credentialsStr = "-u ${OPEN_SEARCH_USERNAME}:${OPEN_SEARCH_PASSWORD} "
+		}
 		server.Spec.InitContainers = []corev1.Container{{
 			Name:    "init-mapping",
 			Image:   "curlimages/curl:7.86.0",
@@ -321,8 +329,8 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 			Args: []string{
 				"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
 					"-X PUT -v -d '%s' "+
-					"-u ${OPEN_SEARCH_USERNAME}:${OPEN_SEARCH_PASSWORD} "+
-					"${OPEN_SEARCH_SERVICE}/%s/_mapping", string(mapping), search.Namespace),
+					credentialsStr+
+					"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/%s", string(mapping), search.Namespace),
 			},
 			Env: search.Spec.ElasticSearch.Env(""),
 		}}
