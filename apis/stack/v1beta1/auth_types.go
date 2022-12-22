@@ -3,9 +3,8 @@ package v1beta1
 import (
 	authv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
 	"github.com/formancehq/operator/apis/components/v1beta1"
+	. "github.com/formancehq/operator/pkg/apis/v1beta2"
 )
-
-type PostgresConfig struct{}
 
 type AuthSpec struct {
 	ImageHolder `json:",inline"`

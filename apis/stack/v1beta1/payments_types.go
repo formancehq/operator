@@ -1,8 +1,10 @@
 package v1beta1
 
-type MongoDBConfig struct{}
+import (
+	. "github.com/formancehq/operator/pkg/apis/v1beta2"
+)
 
-type ImageHolder struct{}
+type MongoDBConfig struct{}
 
 // +kubebuilder:object:generate=true
 type PaymentsSpec struct {

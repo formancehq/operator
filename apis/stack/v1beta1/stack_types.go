@@ -18,10 +18,9 @@ package v1beta1
 
 import (
 	authcomponentsv1beta1 "github.com/formancehq/operator/apis/auth.components/v1beta1"
+	. "github.com/formancehq/operator/pkg/apis/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-type IngressTLS struct{}
 
 type IngressGlobalConfig struct {
 	// +optional
@@ -78,16 +77,11 @@ type ControlAuthentication struct {
 	ClientID string
 }
 
-type Status struct{}
-
 type StackStatus struct {
 	Status `json:",inline"`
 
 	// +optional
 	StaticAuthClients map[string]authcomponentsv1beta1.StaticClient `json:"staticAuthClients,omitempty"`
-}
-
-type Object struct {
 }
 
 // +kubebuilder:object:root=true

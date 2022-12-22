@@ -18,11 +18,9 @@ linters:
     - govet       #Default linter
     - ineffassign #Default linter
     - staticcheck #Default linter
-    - typecheck   #Default linter
     - unused      #Default linter
     - gofmt
-#    - gci
-#    - goimports
+    - typecheck
 
 run:
   timeout: 5m

@@ -26,17 +26,3 @@ type IngressConfig struct {
 	// +optional
 	Host string `json:"host"`
 }
-
-func (cfg *IngressConfig) IsEnabled(configuration *ConfigurationSpec) bool {
-	if cfg == nil || cfg.Enabled == nil {
-		return configuration.Ingress.Enabled
-	}
-	return *cfg.Enabled
-}
-
-type IngressSpec struct {
-	Path        string
-	Host        string
-	Annotations map[string]string
-	TLS         string
-}
