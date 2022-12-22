@@ -1,8 +1,7 @@
 package v1beta1
 
 import (
-	. "github.com/formancehq/operator/pkg/typeutils"
-	"k8s.io/apimachinery/pkg/util/validation/field"
+	. "github.com/formancehq/operator/pkg/apis/v1beta2"
 )
 
 // +kubebuilder:object:generate=true
@@ -16,11 +15,4 @@ type WebhooksSpec struct {
 	Ingress *IngressConfig `json:"ingress"`
 	// +optional
 	MongoDB MongoDBConfig `json:"mongoDB"`
-}
-
-func (in *WebhooksSpec) Validate() field.ErrorList {
-	if in == nil {
-		return nil
-	}
-	return Map(in.MongoDB.Validate(), AddPrefixToFieldError("mongoDB."))
 }
