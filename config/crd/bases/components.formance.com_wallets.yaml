@@ -35,6 +35,16 @@ spec:
           spec:
             description: WalletsSpec defines the desired state of Wallets
             properties:
+              auth:
+                properties:
+                  clientId:
+                    type: string
+                  clientSecret:
+                    type: string
+                required:
+                - clientId
+                - clientSecret
+                type: object
               debug:
                 type: boolean
               dev:
@@ -492,9 +502,14 @@ spec:
                 required:
                 - createDatabase
                 type: object
+              stackUrl:
+                type: string
               version:
                 default: latest
                 type: string
+            required:
+            - auth
+            - stackUrl
             type: object
           status:
             properties:

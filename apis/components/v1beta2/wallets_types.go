@@ -18,9 +18,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type WalletAuthentication struct {
+	ClientID     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+}
+
 // WalletsSpec defines the desired state of Wallets
 type WalletsSpec struct {
 	pkgapisv1beta2.CommonServiceProperties `json:",inline"`
+	Auth                                   WalletAuthentication `json:"auth"`
+	StackURL                               string               `json:"stackUrl"`
 
 	// +optional
 	Enabled bool `json:"enabled,omitempty"`
