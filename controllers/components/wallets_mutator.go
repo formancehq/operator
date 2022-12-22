@@ -98,6 +98,9 @@ func walletsEnvVars(wallets *componentsv1beta2.Wallets) []corev1.EnvVar {
 	env = append(env,
 		apisv1beta2.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
 		apisv1beta2.Env("LEDGER_URI", fmt.Sprintf("http://%s:8080", ledgerName)),
+		apisv1beta2.Env("STACK_CLIENT_ID", wallets.Spec.Auth.ClientID),
+		apisv1beta2.Env("STACK_CLIENT_SECRET", wallets.Spec.Auth.ClientSecret),
+		apisv1beta2.Env("STACK_URL", wallets.Spec.StackURL),
 	)
 
 	env = append(env, wallets.Spec.DevProperties.Env()...)

@@ -18,12 +18,15 @@ linters:
     - govet       #Default linter
     - ineffassign #Default linter
     - staticcheck #Default linter
-    - typecheck   #Default linter
     - unused      #Default linter
     - gofmt
-#    - gci
-#    - goimports
+    - typecheck
 
 run:
   timeout: 5m
   go: '1.18'
+  skip-dirs:
+    - apis/stack/v1beta1
+    - apis/components/v1beta1
+    - apis/benthos.components/v1beta1
+    - apis/auth.components/v1beta1

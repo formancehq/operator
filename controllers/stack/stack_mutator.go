@@ -90,6 +90,7 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 		Owns(&componentsv1beta2.Search{}).
 		Owns(&componentsv1beta2.Payments{}).
 		Owns(&componentsv1beta2.Webhooks{}).
+		Owns(&componentsv1beta2.Wallets{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&traefik.Middleware{}).
 		Watches(
@@ -152,6 +153,15 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 				PostLogoutRedirectUris: []string{
 					fmt.Sprintf("%s/auth/destroy", stack.URL()),
 				},
+			},
+		}
+	}
+	if _, ok := stack.Status.StaticAuthClients["wallets"]; !ok {
+		stack.Status.StaticAuthClients["wallets"] = authcomponentsv1beta2.StaticClient{
+			ID:      "wallets",
+			Secrets: []string{uuid.NewString()},
+			ClientConfiguration: authcomponentsv1beta2.ClientConfiguration{
+				Scopes: []string{"openid"},
 			},
 		}
 	}
@@ -435,6 +445,11 @@ func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stac
 					Database:       fmt.Sprintf("%s-wallets", stack.Name),
 				},
 			},
+			Auth: componentsv1beta2.WalletAuthentication{
+				ClientID:     stack.Status.StaticAuthClients["wallets"].ID,
+				ClientSecret: stack.Status.StaticAuthClients["wallets"].Secrets[0],
+			},
+			StackURL: stack.URL(),
 		}
 		return nil
 	})
