@@ -1,126 +1,48 @@
 {
   "account" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "address" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "amount" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "asset" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "createdAt" : {
     "type" : "date"
   },
   "destination" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "id" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "initialAmount" : {
     "type" : "long"
   },
   "ledger" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "name" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "provider" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "reference" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "scheme" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "source" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "status" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   },
   "timestamp" : {
     "type" : "date"
@@ -129,12 +51,6 @@
     "type" : "long"
   },
   "type" : {
-    "type" : "text",
-    "fields" : {
-      "keyword" : {
-        "type" : "keyword",
-        "ignore_above" : 256
-      }
-    }
+    "type": "keyword"
   }
 }
