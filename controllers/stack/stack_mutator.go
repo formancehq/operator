@@ -431,19 +431,11 @@ func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stac
 		Name:      stack.ServiceName("wallets"),
 	}, stack, func(wallets *componentsv1beta2.Wallets) error {
 		wallets.Spec = componentsv1beta2.WalletsSpec{
-			Enabled:    configuration.Services.Wallets.Enabled,
 			Ingress:    configuration.Services.Wallets.Ingress.Compute(stack, configuration, "/api/wallets"),
 			Monitoring: configuration.Monitoring,
 			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
 				DevProperties: stack.Spec.DevProperties,
 				Version:       version,
-			},
-			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
-				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
-					PostgresConfig: configuration.Services.Wallets.Postgres,
-					Database:       fmt.Sprintf("%s-wallets", stack.Name),
-				},
 			},
 			Auth: componentsv1beta2.WalletAuthentication{
 				ClientID:     stack.Status.StaticAuthClients["wallets"].ID,

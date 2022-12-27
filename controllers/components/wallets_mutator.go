@@ -57,34 +57,32 @@ func (r *WalletsMutator) Mutate(ctx context.Context, wallets *componentsv1beta2.
 
 	apisv1beta2.SetProgressing(wallets)
 
-	if wallets.Spec.Enabled {
-		deployment, err := r.reconcileDeployment(ctx, wallets)
-		if err != nil {
-			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
-		}
+	deployment, err := r.reconcileDeployment(ctx, wallets)
+	if err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling deployment")
+	}
 
-		service, err := r.reconcileService(ctx, wallets, deployment)
+	service, err := r.reconcileService(ctx, wallets, deployment)
+	if err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
+	}
+
+	if wallets.Spec.Ingress != nil {
+		_, err = r.reconcileIngress(ctx, wallets, service)
 		if err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
 		}
-
-		if wallets.Spec.Ingress != nil {
-			_, err = r.reconcileIngress(ctx, wallets, service)
-			if err != nil {
-				return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling service")
-			}
-		} else {
-			err = r.Client.Delete(ctx, &networkingv1.Ingress{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      wallets.Name,
-					Namespace: wallets.Namespace,
-				},
-			})
-			if err != nil && !errors.IsNotFound(err) {
-				return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
-			}
-			apisv1beta2.RemoveIngressCondition(wallets)
+	} else {
+		err = r.Client.Delete(ctx, &networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      wallets.Name,
+				Namespace: wallets.Namespace,
+			},
+		})
+		if err != nil && !errors.IsNotFound(err) {
+			return controllerutils.Requeue(), pkgError.Wrap(err, "Deleting ingress")
 		}
+		apisv1beta2.RemoveIngressCondition(wallets)
 	}
 
 	apisv1beta2.SetReady(wallets)
@@ -93,8 +91,8 @@ func (r *WalletsMutator) Mutate(ctx context.Context, wallets *componentsv1beta2.
 }
 
 func walletsEnvVars(wallets *componentsv1beta2.Wallets) []corev1.EnvVar {
-	env := wallets.Spec.Postgres.Env("")
 	ledgerName := strings.Replace(wallets.GetName(), "-next", "-ledger", -1)
+	env := make([]corev1.EnvVar, 0)
 	env = append(env,
 		apisv1beta2.Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"),
 		apisv1beta2.Env("LEDGER_URI", fmt.Sprintf("http://%s:8080", ledgerName)),
@@ -136,19 +134,6 @@ func (r *WalletsMutator) reconcileDeployment(ctx context.Context, wallets *compo
 					}},
 				},
 			},
-		}
-		if wallets.Spec.Postgres.CreateDatabase {
-			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-wallets-db",
-				Image:           "postgres:13",
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Command: []string{
-					"sh",
-					"-c",
-					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-				},
-				Env: wallets.Spec.Postgres.Env(""),
-			}}
 		}
 		return nil
 	})

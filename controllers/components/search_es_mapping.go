@@ -1,13 +1,19 @@
 package components
 
+import (
+	"encoding/json"
+	"io/fs"
+)
+
 // TODO: Code copied from search project, import it when the project will be public
 
 type Property struct {
 	Mappings
-	Type    string `json:"type,omitempty"`
-	Store   bool   `json:"store,omitempty"`
-	CopyTo  string `json:"copy_to,omitempty"`
-	Enabled *bool  `json:"enabled,omitempty"`
+	Type       string              `json:"type,omitempty"`
+	Store      bool                `json:"store,omitempty"`
+	CopyTo     string              `json:"copy_to,omitempty"`
+	Enabled    *bool               `json:"enabled,omitempty"`
+	Properties map[string]Property `json:"properties,omitempty"`
 }
 
 type DynamicTemplate map[string]interface{}
@@ -18,6 +24,16 @@ type Mappings struct {
 }
 
 func GetMapping() Mappings {
+	data, err := fs.ReadFile(benthosConfigDir, "benthos/indexed_mapping.json")
+	if err != nil {
+		panic(err)
+	}
+
+	indexedMapping := map[string]Property{}
+	if err := json.Unmarshal(data, &indexedMapping); err != nil {
+		panic(err)
+	}
+
 	f := false
 	return Mappings{
 		DynamicTemplates: []DynamicTemplate{
@@ -45,7 +61,8 @@ func GetMapping() Mappings {
 				Enabled: &f,
 			},
 			"indexed": {
-				Type: "object",
+				Type:       "object",
+				Properties: indexedMapping,
 			},
 		},
 	}

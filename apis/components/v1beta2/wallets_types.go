@@ -30,10 +30,6 @@ type WalletsSpec struct {
 	StackURL                               string               `json:"stackUrl"`
 
 	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-	// +optional
-	Postgres PostgresConfigCreateDatabase `json:"postgres"`
-	// +optional
 	Ingress *pkgapisv1beta2.IngressSpec `json:"ingress"`
 	// +optional
 	Monitoring *pkgapisv1beta2.MonitoringSpec `json:"monitoring"`

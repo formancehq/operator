@@ -73,17 +73,19 @@ spec:
         redis:
           uri: redis://redis-headless.default.svc.cluster.local:6379
     payments:
-      mongoDB:
-        host: mongodb-svc.default.svc.cluster.local
-        port: 27017
-        username: root
-        password: very-secured-password
+      postgres:
+        host: postgres-postgresql.default.svc.cluster.local
+        port: 5432
+        username: formance
+        password: formance
+        disableSSLMode: true
     search:
       elasticSearch:
         host: zinc.default.svc.cluster.local
         port: 4080
         scheme: http
         pathPrefix: /api
+        useZinc: true
         basicAuth:
           username: admin
           password: "Complexpass#123"
@@ -93,7 +95,8 @@ spec:
         port: 5432
         username: formance
         password: formance
-    next:
+        disableSSLMode: true
+    counterparties:
       postgres:
         host: postgres-postgresql.default.svc.cluster.local
         port: 5432
@@ -108,7 +111,6 @@ metadata:
 spec:
   control: 59e871d64514ec01c84ea18b34cf0788d17d7f63
   search: fa29fbcfa983990ef1042274e3d928713865b6a7
-  next: 4a47bc37e00802242be2d00f4c3e3a91fa251145
 ---
 apiVersion: stack.formance.com/v1beta2
 kind: Stack
