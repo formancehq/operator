@@ -1292,6 +1292,8 @@ spec:
                       skipCertVerify:
                         type: boolean
                     type: object
+                  useZinc:
+                    type: boolean
                 type: object
               index:
                 type: string

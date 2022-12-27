@@ -26,15 +26,7 @@ var _ = Describe("Wallets controller", func() {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "wallets",
 						},
-						Spec: componentsv1beta2.WalletsSpec{
-							Enabled: true,
-							Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
-								PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
-									Database:       "wallets",
-									PostgresConfig: NewDumpPostgresConfig(),
-								},
-								CreateDatabase: false,
-							}},
+						Spec: componentsv1beta2.WalletsSpec{},
 					}
 					Expect(Create(wallets)).To(BeNil())
 					Eventually(ConditionStatus(wallets, apisv1beta2.ConditionTypeReady)).Should(Equal(metav1.ConditionTrue))

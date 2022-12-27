@@ -49,9 +49,7 @@ func NewDumbConfiguration() *v1beta2.Configuration {
 				Webhooks: v1beta2.WebhooksSpec{
 					Postgres: NewDumpPostgresConfig(),
 				},
-				Wallets: v1beta2.WalletsSpec{
-					Postgres: NewDumpPostgresConfig(),
-				},
+				Wallets: v1beta2.WalletsSpec{},
 				Counterparties: v1beta2.CounterpartiesSpec{
 					Postgres: NewDumpPostgresConfig(),
 				},

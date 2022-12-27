@@ -861,7 +861,6 @@ func (in *WalletsSpec) DeepCopyInto(out *WalletsSpec) {
 	*out = *in
 	out.CommonServiceProperties = in.CommonServiceProperties
 	out.Auth = in.Auth
-	in.Postgres.DeepCopyInto(&out.Postgres)
 	if in.Ingress != nil {
 		in, out := &in.Ingress, &out.Ingress
 		*out = new(apisv1beta2.IngressSpec)

@@ -1,0 +1,140 @@
+{
+  "account" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "address" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "amount" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "asset" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "createdAt" : {
+    "type" : "date"
+  },
+  "destination" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "id" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "initialAmount" : {
+    "type" : "long"
+  },
+  "ledger" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "name" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "provider" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "reference" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "scheme" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "source" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "status" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  },
+  "timestamp" : {
+    "type" : "date"
+  },
+  "txid" : {
+    "type" : "long"
+  },
+  "type" : {
+    "type" : "text",
+    "fields" : {
+      "keyword" : {
+        "type" : "keyword",
+        "ignore_above" : 256
+      }
+    }
+  }
+}

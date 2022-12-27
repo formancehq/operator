@@ -61,6 +61,8 @@ type ElasticSearchConfig struct {
 	BasicAuth *ElasticSearchBasicAuthConfig `json:"basicAuth"`
 	// +optional
 	PathPrefix string `json:"pathPrefix"`
+	// +optional
+	UseZinc bool `json:"useZinc,omitempty"`
 }
 
 // Deprecated: use env vars
