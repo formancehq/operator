@@ -85,6 +85,7 @@ jobs:
     needs:
       - Docker
     steps:
+      - uses: azure/setup-kubectl@v3
       - name: Install InfraHQ CLI
         run: | 
           wget https://github.com/infrahq/infra/releases/download/v0.20.0/infra_0.20.0_amd64.deb
@@ -101,7 +102,9 @@ jobs:
           curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           chmod +x /usr/local/bin/argocd
       - name: Login to ArgoCD
-        run: argocd login argocd.internal.formance.cloud --core
+        run: |
+          kubectl config set-context --current --namespace=argocd
+          argocd login argocd.internal.formance.cloud --core
       - name: Change image in ArgoCD
         run: argocd app set staging-eu-west-1-hosting-operator --kustomize-image localhost:30100/formancehq/operator=ghcr.io/formancehq/operator:${{ github.sha }}
       - name: 🚀 Deploy
