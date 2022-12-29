@@ -79,3 +79,33 @@ jobs:
           build-args: |
             APP_SHA=${{ github.sha }}
             VERSION=develop
+
+
+  Deploy:
+    if: github.event.action == 'push' && github.ref == 'refs/heads/main'
+    name: 'Deploy to Staging'
+    runs-on: ubuntu-latest
+    needs:
+      - Docker
+    steps:
+      - name: Install InfraHQ CLI
+        run: | 
+          wget https://github.com/infrahq/infra/releases/download/v0.20.0/infra_0.20.0_amd64.deb
+          sudo dpkg -i infra_0.20.0_amd64.deb
+      - name: Login to InfraHQ
+        run: infra login
+        env:
+          INFRA_ACCESS_KEY: ${{ secrets.INFRA_ACCESS_KEY }}
+          INFRA_SERVER: "https://formance.infrahq.com"
+      - name: InfraHQ use Admin server
+        run: infra use production-eu-west-1-admin
+      - name: Install ArgoCD
+        run: |
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+      - name: Login to ArgoCD
+        run: argocd login argocd.internal.formance.cloud --core
+      - name: Change image in ArgoCD
+        run: argocd app set staging-eu-west-1-hosting-operator --kustomize-image localhost:30100/formancehq/operator=ghcr.io/formancehq/operator:${{ github.sha }}
+      - name: 🚀 Deploy
+        run: argocd app sync staging-eu-west-1-hosting-operator --prune
