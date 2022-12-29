@@ -1468,6 +1468,8 @@ spec:
           spec:
             description: ServerSpec defines the desired state of Server
             properties:
+              configurationFile:
+                type: string
               containers:
                 items:
                   description: A single application container that you want to run
@@ -2802,6 +2804,8 @@ spec:
                   - name
                   type: object
                 type: array
+              globalConfigMap:
+                type: string
               resourcesConfigMap:
                 type: string
               streamsConfigMap:

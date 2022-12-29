@@ -37,6 +37,7 @@ include:
 - internal
 - controllers
 - apis
+- vendor
 - main.go
 - go.*
 - Dockerfile

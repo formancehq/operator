@@ -32,6 +32,7 @@ manifests:
           ports:
           - containerPort: 16686
           - containerPort: 14250
+          - containerPort: 14268
 -
   apiVersion: v1
   kind: Service
@@ -49,6 +50,10 @@ manifests:
       protocol: TCP
       port: 14250
       targetPort: 14250
+    - name: collector-thrift
+      protocol: TCP
+      port: 14268
+      targetPort: 14268
 -
   apiVersion: networking.k8s.io/v1
   kind: Ingress

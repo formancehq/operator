@@ -34,7 +34,11 @@ type ServerSpec struct {
 	// +optional
 	StreamsConfigMap string `json:"streamsConfigMap"`
 	// +optional
+	GlobalConfigMap string `json:"globalConfigMap"`
+	// +optional
 	Env []corev1.EnvVar `json:"env"`
+	// +optional
+	ConfigurationFile string `json:"configurationFile"`
 }
 
 // ServerStatus defines the observed state of Server

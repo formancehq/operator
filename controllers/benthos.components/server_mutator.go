@@ -92,6 +92,9 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 	if server.Spec.TemplatesConfigMap != "" {
 		command = append(command, "-t", "/config/templates/*.yaml")
 	}
+	if server.Spec.GlobalConfigMap != "" {
+		command = append(command, "-c", "/config/global/config.yaml")
+	}
 	if server.Spec.Dev {
 		command = append(command, "--log.level", "trace")
 	}
@@ -112,26 +115,25 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 		VolumeMounts: []corev1.VolumeMount{},
 		Env:          server.Spec.Env,
 	}
-	if server.Spec.TemplatesConfigMap != "" {
+
+	addVolumeMount := func(name string) {
 		expectedContainer.VolumeMounts = append(expectedContainer.VolumeMounts, corev1.VolumeMount{
-			Name:      "templates",
+			Name:      name,
 			ReadOnly:  true,
-			MountPath: "/config/templates",
+			MountPath: fmt.Sprintf("/config/%s", name),
 		})
+	}
+	if server.Spec.TemplatesConfigMap != "" {
+		addVolumeMount("templates")
 	}
 	if server.Spec.ResourcesConfigMap != "" {
-		expectedContainer.VolumeMounts = append(expectedContainer.VolumeMounts, corev1.VolumeMount{
-			Name:      "resources",
-			ReadOnly:  true,
-			MountPath: "/config/resources",
-		})
+		addVolumeMount("resources")
 	}
 	if server.Spec.StreamsConfigMap != "" {
-		expectedContainer.VolumeMounts = append(expectedContainer.VolumeMounts, corev1.VolumeMount{
-			Name:      "streams",
-			ReadOnly:  true,
-			MountPath: "/config/streams",
-		})
+		addVolumeMount("streams")
+	}
+	if server.Spec.GlobalConfigMap != "" {
+		addVolumeMount("global")
 	}
 
 	pods := &corev1.PodList{}
@@ -182,41 +184,31 @@ func (r *ServerMutator) reconcilePod(ctx context.Context, server *benthosv1beta2
 		)
 
 		pod.Spec.Volumes = []corev1.Volume{}
-		if server.Spec.ResourcesConfigMap != "" {
+
+		addVolume := func(name, configMap string) {
 			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-				Name: "resources",
+				Name: name,
 				VolumeSource: corev1.VolumeSource{
 					ConfigMap: &corev1.ConfigMapVolumeSource{
 						LocalObjectReference: corev1.LocalObjectReference{
-							Name: server.Spec.ResourcesConfigMap,
+							Name: configMap,
 						},
 					},
 				},
 			})
+		}
+
+		if server.Spec.ResourcesConfigMap != "" {
+			addVolume("resources", server.Spec.ResourcesConfigMap)
 		}
 		if server.Spec.TemplatesConfigMap != "" {
-			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-				Name: "templates",
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: server.Spec.TemplatesConfigMap,
-						},
-					},
-				},
-			})
+			addVolume("templates", server.Spec.TemplatesConfigMap)
 		}
 		if server.Spec.StreamsConfigMap != "" {
-			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-				Name: "streams",
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: server.Spec.StreamsConfigMap,
-						},
-					},
-				},
-			})
+			addVolume("streams", server.Spec.StreamsConfigMap)
+		}
+		if server.Spec.GlobalConfigMap != "" {
+			addVolume("global", server.Spec.GlobalConfigMap)
 		}
 
 		pod.Labels = matchLabels
