@@ -3,9 +3,12 @@ FROM golang:1.18-alpine as builder
 WORKDIR /workspace
 ENV CGO_ENABLED=0
 ENV GOOS=linux
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+RUN go install -v -installsuffix cgo -a std
 COPY . .
 RUN go mod vendor
-RUN go install -v -installsuffix cgo -a std
 RUN go build -v -a -o manager main.go
 
 FROM golang:1.18-alpine as reloader

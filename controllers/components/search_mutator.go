@@ -66,10 +66,10 @@ func (r *SearchMutator) Mutate(ctx context.Context, search *componentsv1beta2.Se
 		return nil, pkgError.Wrap(err, "Reconciling deployment")
 	}
 
-	for _, dir := range []string{"templates", "streams", "resources"} {
+	for _, dir := range []string{"templates", "streams", "resources", "global"} {
 		if _, err = controllerutils.CreateConfigMapFromDir(ctx, types.NamespacedName{
 			Namespace: search.Namespace,
-			Name:      fmt.Sprintf("benthos-%s-config", dir),
+			Name:      configMapName(dir),
 		}, r.Client, r.Scheme, search, benthosConfigDir, filepath.Join("benthos", dir)); err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling benthos config")
 		}
@@ -273,9 +273,11 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 		Namespace: search.Namespace,
 		Name:      search.Name + "-benthos",
 	}, search, func(server *benthosv1beta2.Server) error {
-		server.Spec.ResourcesConfigMap = "benthos-resources-config"
-		server.Spec.TemplatesConfigMap = "benthos-templates-config"
-		server.Spec.StreamsConfigMap = "benthos-streams-config"
+		server.Spec.ResourcesConfigMap = configMapName("resources")
+		server.Spec.TemplatesConfigMap = configMapName("templates")
+		server.Spec.StreamsConfigMap = configMapName("streams")
+		server.Spec.GlobalConfigMap = configMapName("global")
+		server.Spec.ConfigurationFile = "config.yaml"
 		server.Spec.DevProperties = search.Spec.DevProperties
 		server.Spec.Env = []corev1.EnvVar{
 			apisv1beta2.Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
@@ -286,6 +288,9 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 			apisv1beta2.Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
 			apisv1beta2.Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
 			apisv1beta2.Env("TOPIC_PREFIX", search.Namespace+"-"),
+		}
+		if search.Spec.Monitoring != nil {
+			server.Spec.Env = append(server.Spec.Env, search.Spec.Monitoring.Env("")...)
 		}
 		server.Spec.Env = append(server.Spec.Env, search.Spec.PostgresConfigs.Env()...)
 		if search.Spec.ElasticSearch.BasicAuth != nil {
@@ -383,4 +388,8 @@ func NewSearchMutator(client client.Client, scheme *runtime.Scheme) controllerut
 		Client: client,
 		Scheme: scheme,
 	}
+}
+
+func configMapName(directory string) string {
+	return fmt.Sprintf("benthos-%s-config", directory)
 }

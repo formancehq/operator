@@ -22,6 +22,7 @@ mapping: |
       },
       "tls": {
         "enabled": env("KAFKA_TLS_ENABLED") == "true"
-      }
+      },
+      "extract_tracing_map": "root = meta()"
     }
   }
