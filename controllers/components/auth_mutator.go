@@ -144,65 +144,68 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 		env = append(env, auth.Spec.Monitoring.Env("")...)
 	}
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(deployment *appsv1.Deployment) error {
-		deployment.Spec = appsv1.DeploymentSpec{
-			Replicas: auth.Spec.GetReplicas(),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(auth),
+		controllerutils.WithController[*appsv1.Deployment](auth, r.Scheme),
+		controllerutils.WithReloaderAnnotations[*appsv1.Deployment](),
+		func(deployment *appsv1.Deployment) error {
+			deployment.Spec = appsv1.DeploymentSpec{
+				Replicas: auth.Spec.GetReplicas(),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: matchLabels,
 				},
-				Spec: corev1.PodSpec{
-					Volumes: []corev1.Volume{{
-						Name: "config",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: config.Name,
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: matchLabels,
+					},
+					Spec: corev1.PodSpec{
+						Volumes: []corev1.Volume{{
+							Name: "config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: config.Name,
+									},
 								},
 							},
-						},
-					}},
-					Containers: []corev1.Container{{
-						Name:            "auth",
-						Image:           controllerutils.GetImage("auth", auth.Spec.Version),
-						Command:         []string{"/main", "serve"},
-						Ports:           controllerutils.SinglePort("http", port),
-						Env:             env,
-						LivenessProbe:   controllerutils.DefaultLiveness(),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(auth.Spec),
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-								corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
-							},
-						},
-						VolumeMounts: []corev1.VolumeMount{{
-							Name:      "config",
-							ReadOnly:  true,
-							MountPath: "/config",
 						}},
-					}},
+						Containers: []corev1.Container{{
+							Name:            "auth",
+							Image:           controllerutils.GetImage("auth", auth.Spec.Version),
+							Command:         []string{"/main", "serve"},
+							Ports:           controllerutils.SinglePort("http", port),
+							Env:             env,
+							LivenessProbe:   controllerutils.DefaultLiveness(),
+							ImagePullPolicy: controllerutils.ImagePullPolicy(auth.Spec),
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{{
+								Name:      "config",
+								ReadOnly:  true,
+								MountPath: "/config",
+							}},
+						}},
+					},
 				},
-			},
-		}
-		if auth.Spec.Postgres.CreateDatabase {
-			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-auth-db",
-				Image:           "postgres:13",
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Command: []string{
-					"sh",
-					"-c",
-					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-				},
-				Env: auth.Spec.Postgres.Env(""),
-			}}
-		}
-		return nil
-	})
+			}
+			if auth.Spec.Postgres.CreateDatabase {
+				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+					Name:            "init-create-auth-db",
+					Image:           "postgres:13",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command: []string{
+						"sh",
+						"-c",
+						`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					},
+					Env: auth.Spec.Postgres.Env(""),
+				}}
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetDeploymentError(auth, err.Error())
@@ -223,19 +226,21 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 }
 
 func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Auth, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
-		service.Spec = corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:        "http",
-				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
-				Protocol:    "TCP",
-				AppProtocol: pointer.String("http"),
-				TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
-			}},
-			Selector: deployment.Spec.Template.Labels,
-		}
-		return nil
-	})
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(auth),
+		controllerutils.WithController[*corev1.Service](auth, r.Scheme),
+		func(service *corev1.Service) error {
+			service.Spec = corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:        "http",
+					Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
+					Protocol:    "TCP",
+					AppProtocol: pointer.String("http"),
+					TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
+				}},
+				Selector: deployment.Spec.Template.Labels,
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetServiceError(auth, err.Error())
@@ -247,20 +252,22 @@ func (r *Mutator) reconcileService(ctx context.Context, auth *componentsv1beta2.
 }
 
 func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1beta2.Auth) (*corev1.ConfigMap, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(configMap *corev1.ConfigMap) error {
-		yaml, err := yaml.Marshal(struct {
-			Clients []authcomponentsv1beta2.StaticClient `yaml:"clients"`
-		}{
-			Clients: auth.Spec.StaticClients,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(auth),
+		controllerutils.WithController[*corev1.ConfigMap](auth, r.Scheme),
+		func(configMap *corev1.ConfigMap) error {
+			yaml, err := yaml.Marshal(struct {
+				Clients []authcomponentsv1beta2.StaticClient `yaml:"clients"`
+			}{
+				Clients: auth.Spec.StaticClients,
+			})
+			if err != nil {
+				panic(err)
+			}
+			configMap.Data = map[string]string{
+				"config.yaml": string(yaml),
+			}
+			return nil
 		})
-		if err != nil {
-			panic(err)
-		}
-		configMap.Data = map[string]string{
-			"config.yaml": string(yaml),
-		}
-		return nil
-	})
 	switch {
 	case err != nil:
 		apisv1beta2.SetConfigMapError(auth, err.Error())
@@ -272,36 +279,37 @@ func (r *Mutator) reconcileConfigFile(ctx context.Context, auth *componentsv1bet
 }
 
 func (r *Mutator) reconcileSigningKeySecret(ctx context.Context, auth *componentsv1beta2.Auth) (*corev1.Secret, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, types.NamespacedName{
 		Namespace: auth.Namespace,
 		Name:      fmt.Sprintf("%s-signing-key", auth.Name),
-	}, auth, func(t *corev1.Secret) error {
-		signingKey := auth.Spec.SigningKey
-		if signingKey == "" {
-			if _, ok := t.Data["signingKey"]; ok {
-				return nil
+	}, controllerutils.WithController[*corev1.Secret](auth, r.Scheme),
+		func(t *corev1.Secret) error {
+			signingKey := auth.Spec.SigningKey
+			if signingKey == "" {
+				if _, ok := t.Data["signingKey"]; ok {
+					return nil
+				}
+				privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+				if err != nil {
+					return err
+				}
+				var privateKeyBytes = x509.MarshalPKCS1PrivateKey(privateKey)
+				privateKeyBlock := &pem.Block{
+					Type:  "RSA PRIVATE KEY",
+					Bytes: privateKeyBytes,
+				}
+				buf := bytes.NewBufferString("")
+				err = pem.Encode(buf, privateKeyBlock)
+				if err != nil {
+					return err
+				}
+				signingKey = buf.String()
 			}
-			privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-			if err != nil {
-				return err
+			t.StringData = map[string]string{
+				"signingKey": signingKey,
 			}
-			var privateKeyBytes = x509.MarshalPKCS1PrivateKey(privateKey)
-			privateKeyBlock := &pem.Block{
-				Type:  "RSA PRIVATE KEY",
-				Bytes: privateKeyBytes,
-			}
-			buf := bytes.NewBufferString("")
-			err = pem.Encode(buf, privateKeyBlock)
-			if err != nil {
-				return err
-			}
-			signingKey = buf.String()
-		}
-		t.StringData = map[string]string{
-			"signingKey": signingKey,
-		}
-		return nil
-	})
+			return nil
+		})
 	switch {
 	case err != nil:
 		controllerutils.SetSecretError(auth, err.Error())
@@ -313,25 +321,28 @@ func (r *Mutator) reconcileSigningKeySecret(ctx context.Context, auth *component
 }
 
 func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta2.Auth, service *corev1.Service) (*networkingv1.Ingress, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(ingress *networkingv1.Ingress) error {
-		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = auth.Spec.Ingress.Annotations
-		ingress.Spec = networkingv1.IngressSpec{
-			TLS: auth.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: auth.Spec.Ingress.Host,
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path:     auth.Spec.Ingress.Path,
-									PathType: &pathType,
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: service.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Name: service.Spec.Ports[0].Name,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(auth),
+		controllerutils.WithController[*networkingv1.Ingress](auth, r.Scheme),
+		func(ingress *networkingv1.Ingress) error {
+			pathType := networkingv1.PathTypePrefix
+			ingress.ObjectMeta.Annotations = auth.Spec.Ingress.Annotations
+			ingress.Spec = networkingv1.IngressSpec{
+				TLS: auth.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: auth.Spec.Ingress.Host,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     auth.Spec.Ingress.Path,
+										PathType: &pathType,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: service.Name,
+												Port: networkingv1.ServiceBackendPort{
+													Name: service.Spec.Ports[0].Name,
+												},
 											},
 										},
 									},
@@ -340,10 +351,9 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta2.
 						},
 					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetIngressError(auth, err.Error())
@@ -355,10 +365,12 @@ func (r *Mutator) reconcileIngress(ctx context.Context, auth *componentsv1beta2.
 }
 
 func (r *Mutator) reconcileHPA(ctx context.Context, auth *componentsv1beta2.Auth) (*autoscallingv2.HorizontalPodAutoscaler, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
-		hpa.Spec = auth.Spec.GetHPASpec(auth)
-		return nil
-	})
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(auth),
+		controllerutils.WithController[*autoscallingv2.HorizontalPodAutoscaler](auth, r.Scheme),
+		func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+			hpa.Spec = auth.Spec.GetHPASpec(auth)
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetHPAError(auth, err.Error())

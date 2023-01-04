@@ -125,61 +125,63 @@ func envVars(webhooks *componentsv1beta2.Webhooks) []corev1.EnvVar {
 func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *componentsv1beta2.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := CreateMap("app.kubernetes.io/name", "webhooks")
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(deployment *appsv1.Deployment) error {
-		deployment.Spec = appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(webhooks),
+		controllerutils.WithController[*appsv1.Deployment](webhooks, r.Scheme),
+		func(deployment *appsv1.Deployment) error {
+			deployment.Spec = appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: matchLabels,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            "webhooks",
-						Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
-						Env:             envVars(webhooks),
-						Ports: []corev1.ContainerPort{{
-							Name:          "webhooks",
-							ContainerPort: 8080,
-						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_healthcheck",
-									Port: intstr.IntOrString{
-										IntVal: 8080,
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: matchLabels,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:            "webhooks",
+							Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
+							ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
+							Env:             envVars(webhooks),
+							Ports: []corev1.ContainerPort{{
+								Name:          "webhooks",
+								ContainerPort: 8080,
+							}},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/_healthcheck",
+										Port: intstr.IntOrString{
+											IntVal: 8080,
+										},
+										Scheme: "HTTP",
 									},
-									Scheme: "HTTP",
 								},
+								InitialDelaySeconds:           1,
+								TimeoutSeconds:                30,
+								PeriodSeconds:                 2,
+								SuccessThreshold:              1,
+								FailureThreshold:              10,
+								TerminationGracePeriodSeconds: pointer.Int64(10),
 							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
-					}},
+						}},
+					},
 				},
-			},
-		}
-		if webhooks.Spec.Postgres.CreateDatabase {
-			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-webhooks-db",
-				Image:           "postgres:13",
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Command: []string{
-					"sh",
-					"-c",
-					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-				},
-				Env: webhooks.Spec.Postgres.Env(""),
-			}}
-		}
-		return nil
-	})
+			}
+			if webhooks.Spec.Postgres.CreateDatabase {
+				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+					Name:            "init-create-webhooks-db",
+					Image:           "postgres:13",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command: []string{
+						"sh",
+						"-c",
+						`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					},
+					Env: webhooks.Spec.Postgres.Env(""),
+				}}
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetDeploymentError(webhooks, err.Error())
@@ -194,65 +196,66 @@ func (r *WebhooksMutator) reconcileDeployment(ctx context.Context, webhooks *com
 func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhooks *componentsv1beta2.Webhooks) (*appsv1.Deployment, error) {
 	matchLabels := CreateMap("app.kubernetes.io/name", "webhooks-workers")
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, types.NamespacedName{
 		Namespace: webhooks.Namespace,
 		Name:      webhooks.Name + "-workers",
-	}, webhooks, func(deployment *appsv1.Deployment) error {
-		deployment.Spec = appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
+	}, controllerutils.WithController[*appsv1.Deployment](webhooks, r.Scheme),
+		func(deployment *appsv1.Deployment) error {
+			deployment.Spec = appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: matchLabels,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            "webhooks-worker",
-						Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
-						Command:         []string{"webhooks", "worker"},
-						Env:             envVars(webhooks),
-						Ports: []corev1.ContainerPort{{
-							Name:          "worker",
-							ContainerPort: 8081,
-						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_healthcheck",
-									Port: intstr.IntOrString{
-										IntVal: 8081,
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: matchLabels,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:            "webhooks-worker",
+							Image:           controllerutils.GetImage("webhooks", webhooks.Spec.Version),
+							ImagePullPolicy: controllerutils.ImagePullPolicy(webhooks.Spec),
+							Command:         []string{"webhooks", "worker"},
+							Env:             envVars(webhooks),
+							Ports: []corev1.ContainerPort{{
+								Name:          "worker",
+								ContainerPort: 8081,
+							}},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/_healthcheck",
+										Port: intstr.IntOrString{
+											IntVal: 8081,
+										},
+										Scheme: "HTTP",
 									},
-									Scheme: "HTTP",
 								},
+								InitialDelaySeconds:           1,
+								TimeoutSeconds:                30,
+								PeriodSeconds:                 2,
+								SuccessThreshold:              1,
+								FailureThreshold:              10,
+								TerminationGracePeriodSeconds: pointer.Int64(10),
 							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
-					}},
+						}},
+					},
 				},
-			},
-		}
-		if webhooks.Spec.Postgres.CreateDatabase {
-			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-webhooks-db",
-				Image:           "postgres:13",
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Command: []string{
-					"sh",
-					"-c",
-					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-				},
-				Env: webhooks.Spec.Postgres.Env(""),
-			}}
-		}
-		return nil
-	})
+			}
+			if webhooks.Spec.Postgres.CreateDatabase {
+				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+					Name:            "init-create-webhooks-db",
+					Image:           "postgres:13",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command: []string{
+						"sh",
+						"-c",
+						`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					},
+					Env: webhooks.Spec.Postgres.Env(""),
+				}}
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetDeploymentError(webhooks, err.Error())
@@ -264,27 +267,29 @@ func (r *WebhooksMutator) reconcileWorkersDeployment(ctx context.Context, webhoo
 	return ret, err
 }
 
-func (r *WebhooksMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Webhooks, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
-		service.Spec = corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:        "webhooks",
-				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
-				Protocol:    "TCP",
-				AppProtocol: pointer.String("http"),
-				TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
-			}},
-			Selector: deployment.Spec.Template.Labels,
-		}
-		return nil
-	})
+func (r *WebhooksMutator) reconcileService(ctx context.Context, webhooks *componentsv1beta2.Webhooks, deployment *appsv1.Deployment) (*corev1.Service, error) {
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(webhooks),
+		controllerutils.WithController[*corev1.Service](webhooks, r.Scheme),
+		func(service *corev1.Service) error {
+			service.Spec = corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:        "webhooks",
+					Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
+					Protocol:    "TCP",
+					AppProtocol: pointer.String("http"),
+					TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
+				}},
+				Selector: deployment.Spec.Template.Labels,
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(webhooks, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(webhooks)
 	}
 	return ret, err
 }
@@ -296,25 +301,28 @@ func (r *WebhooksMutator) reconcileIngress(ctx context.Context, webhooks *compon
 	}
 	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", webhooks.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(webhooks), webhooks, func(ingress *networkingv1.Ingress) error {
-		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = annotations
-		ingress.Spec = networkingv1.IngressSpec{
-			TLS: webhooks.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: webhooks.Spec.Ingress.Host,
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path:     webhooks.Spec.Ingress.Path,
-									PathType: &pathType,
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: service.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Name: service.Spec.Ports[0].Name,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(webhooks),
+		controllerutils.WithController[*networkingv1.Ingress](webhooks, r.Scheme),
+		func(ingress *networkingv1.Ingress) error {
+			pathType := networkingv1.PathTypePrefix
+			ingress.ObjectMeta.Annotations = annotations
+			ingress.Spec = networkingv1.IngressSpec{
+				TLS: webhooks.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: webhooks.Spec.Ingress.Host,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     webhooks.Spec.Ingress.Path,
+										PathType: &pathType,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: service.Name,
+												Port: networkingv1.ServiceBackendPort{
+													Name: service.Spec.Ports[0].Name,
+												},
 											},
 										},
 									},
@@ -323,10 +331,9 @@ func (r *WebhooksMutator) reconcileIngress(ctx context.Context, webhooks *compon
 						},
 					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetIngressError(webhooks, err.Error())

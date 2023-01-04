@@ -204,9 +204,9 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 func (r *Mutator) reconcileNamespace(ctx context.Context, stack *stackv1beta2.Stack) error {
 	log.FromContext(ctx).Info("Reconciling Namespace")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Name: stack.Name,
-	}, stack, func(ns *corev1.Namespace) error {
+	}, controllerutils.WithController[*corev1.Namespace](stack, r.scheme), func(ns *corev1.Namespace) error {
 		// No additional mutate needed
 		return nil
 	})
@@ -230,10 +230,10 @@ func (r *Mutator) reconcileMiddleware(ctx context.Context, stack *stackv1beta2.S
 	m["auth"] = apiextensionv1.JSON{
 		Raw: []byte(fmt.Sprintf(`{"Issuer": "%s", "RefreshTime": "%s", "ExcludePaths": ["/_health", "/_healthcheck", "/.well-known/openid-configuration"]}`, stack.Spec.Scheme+"://"+stack.Spec.Host+"/api/auth", "10s")),
 	}
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      "auth-middleware",
-	}, stack, func(middleware *traefik.Middleware) error {
+	}, controllerutils.WithController[*traefik.Middleware](stack, r.scheme), func(middleware *traefik.Middleware) error {
 		middleware.Spec = traefik.MiddlewareSpec{
 			Plugin: m,
 		}
@@ -258,33 +258,35 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *stackv1beta2.Stack, 
 
 	staticClients := append(configuration.Services.Auth.StaticClients, typeutils.SliceFromMap(stack.Status.StaticAuthClients)...)
 	staticClients = append(staticClients, stack.Spec.Auth.StaticClients...)
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("auth"),
-	}, stack, func(auth *componentsv1beta2.Auth) error {
-		auth.Spec = componentsv1beta2.AuthSpec{
-			Scalable: apisv1beta2.Scalable{
-				Replicas: auth.Spec.Replicas,
-			},
-			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
-				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
-					PostgresConfig: configuration.Services.Auth.Postgres,
-					Database:       fmt.Sprintf("%s-auth", stack.Name),
+	},
+		controllerutils.WithController[*componentsv1beta2.Auth](stack, r.scheme),
+		func(auth *componentsv1beta2.Auth) error {
+			auth.Spec = componentsv1beta2.AuthSpec{
+				Scalable: apisv1beta2.Scalable{
+					Replicas: auth.Spec.Replicas,
 				},
-			},
-			BaseURL: fmt.Sprintf("%s://%s/api/auth", stack.Spec.Scheme, stack.Spec.Host),
-			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
-				DevProperties: stack.Spec.DevProperties,
-				Version:       version, //TODO
-			},
-			Ingress:             configuration.Services.Auth.Ingress.Compute(stack, configuration, "/api/auth"),
-			DelegatedOIDCServer: stack.Spec.Auth.DelegatedOIDCServer,
-			Monitoring:          configuration.Monitoring,
-			StaticClients:       staticClients,
-		}
-		return nil
-	})
+				Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+					CreateDatabase: true,
+					PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
+						PostgresConfig: configuration.Services.Auth.Postgres,
+						Database:       fmt.Sprintf("%s-auth", stack.Name),
+					},
+				},
+				BaseURL: fmt.Sprintf("%s://%s/api/auth", stack.Spec.Scheme, stack.Spec.Host),
+				CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+					DevProperties: stack.Spec.DevProperties,
+					Version:       version, //TODO
+				},
+				Ingress:             configuration.Services.Auth.Ingress.Compute(stack, configuration, "/api/auth"),
+				DelegatedOIDCServer: stack.Spec.Auth.DelegatedOIDCServer,
+				Monitoring:          configuration.Monitoring,
+				StaticClients:       staticClients,
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		stack.SetAuthError(err.Error())
@@ -301,10 +303,10 @@ func (r *Mutator) reconcileAuth(ctx context.Context, stack *stackv1beta2.Stack, 
 func (r *Mutator) reconcileLedger(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Ledger")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("ledger"),
-	}, stack, func(ledger *componentsv1beta2.Ledger) error {
+	}, controllerutils.WithController[*componentsv1beta2.Ledger](stack, r.scheme), func(ledger *componentsv1beta2.Ledger) error {
 		ledger.Spec = componentsv1beta2.LedgerSpec{
 			Scalable: configuration.Services.Ledger.Scalable.WithReplicas(ledger.Spec.Replicas),
 			Ingress:  configuration.Services.Ledger.Ingress.Compute(stack, configuration, "/api/ledger"),
@@ -344,10 +346,10 @@ func (r *Mutator) reconcileLedger(ctx context.Context, stack *stackv1beta2.Stack
 func (r *Mutator) reconcilePayment(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Payment")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("payments"),
-	}, stack, func(payment *componentsv1beta2.Payments) error {
+	}, controllerutils.WithController[*componentsv1beta2.Payments](stack, r.scheme), func(payment *componentsv1beta2.Payments) error {
 		payment.Spec = componentsv1beta2.PaymentsSpec{
 			Ingress: configuration.Services.Payments.Ingress.Compute(stack, configuration, "/api/payments"),
 			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
@@ -385,10 +387,10 @@ func (r *Mutator) reconcilePayment(ctx context.Context, stack *stackv1beta2.Stac
 func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Webhooks")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("webhooks"),
-	}, stack, func(webhooks *componentsv1beta2.Webhooks) error {
+	}, controllerutils.WithController[*componentsv1beta2.Webhooks](stack, r.scheme), func(webhooks *componentsv1beta2.Webhooks) error {
 		webhooks.Spec = componentsv1beta2.WebhooksSpec{
 			Ingress:    configuration.Services.Webhooks.Ingress.Compute(stack, configuration, "/api/webhooks"),
 			Monitoring: configuration.Monitoring,
@@ -426,10 +428,10 @@ func (r *Mutator) reconcileWebhooks(ctx context.Context, stack *stackv1beta2.Sta
 func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Wallets")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("wallets"),
-	}, stack, func(wallets *componentsv1beta2.Wallets) error {
+	}, controllerutils.WithController[*componentsv1beta2.Wallets](stack, r.scheme), func(wallets *componentsv1beta2.Wallets) error {
 		wallets.Spec = componentsv1beta2.WalletsSpec{
 			Ingress:    configuration.Services.Wallets.Ingress.Compute(stack, configuration, "/api/wallets"),
 			Monitoring: configuration.Monitoring,
@@ -461,28 +463,30 @@ func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stac
 func (r *Mutator) reconcileCounterparties(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Counterparties")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("counterparties"),
-	}, stack, func(counterparties *componentsv1beta2.Counterparties) error {
-		counterparties.Spec = componentsv1beta2.CounterpartiesSpec{
-			Enabled:    configuration.Services.Counterparties.Enabled,
-			Ingress:    configuration.Services.Counterparties.Ingress.Compute(stack, configuration, "/api/counterparties"),
-			Monitoring: configuration.Monitoring,
-			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
-				DevProperties: stack.Spec.DevProperties,
-				Version:       version,
-			},
-			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
-				CreateDatabase: true,
-				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
-					PostgresConfig: configuration.Services.Counterparties.Postgres,
-					Database:       fmt.Sprintf("%s-counterparties", stack.Name),
+	},
+		controllerutils.WithController[*componentsv1beta2.Counterparties](stack, r.scheme),
+		func(counterparties *componentsv1beta2.Counterparties) error {
+			counterparties.Spec = componentsv1beta2.CounterpartiesSpec{
+				Enabled:    configuration.Services.Counterparties.Enabled,
+				Ingress:    configuration.Services.Counterparties.Ingress.Compute(stack, configuration, "/api/counterparties"),
+				Monitoring: configuration.Monitoring,
+				CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+					DevProperties: stack.Spec.DevProperties,
+					Version:       version,
 				},
-			},
-		}
-		return nil
-	})
+				Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+					CreateDatabase: true,
+					PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
+						PostgresConfig: configuration.Services.Counterparties.Postgres,
+						Database:       fmt.Sprintf("%s-counterparties", stack.Name),
+					},
+				},
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		stack.SetCounterpartiesError(err.Error())
@@ -499,29 +503,31 @@ func (r *Mutator) reconcileCounterparties(ctx context.Context, stack *stackv1bet
 func (r *Mutator) reconcileControl(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Control")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("control"),
-	}, stack, func(control *componentsv1beta2.Control) error {
-		control.Spec = componentsv1beta2.ControlSpec{
-			Scalable: apisv1beta2.Scalable{
-				Replicas: control.Spec.Replicas,
-			},
-			Ingress: configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
-			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
-				DevProperties: stack.Spec.DevProperties,
-				Version:       version,
-			},
-			Monitoring:  configuration.Monitoring,
-			ApiURLFront: fmt.Sprintf("%s/api", stack.URL()),
-			ApiURLBack:  fmt.Sprintf("%s/api", stack.URL()),
-			AuthClientConfiguration: &componentsv1beta2.AuthClientConfiguration{
-				ClientID:     stack.Status.StaticAuthClients["control"].ID,
-				ClientSecret: stack.Status.StaticAuthClients["control"].Secrets[0],
-			},
-		}
-		return nil
-	})
+	},
+		controllerutils.WithController[*componentsv1beta2.Control](stack, r.scheme),
+		func(control *componentsv1beta2.Control) error {
+			control.Spec = componentsv1beta2.ControlSpec{
+				Scalable: apisv1beta2.Scalable{
+					Replicas: control.Spec.Replicas,
+				},
+				Ingress: configuration.Services.Control.Ingress.Compute(stack, configuration, "/"),
+				CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+					DevProperties: stack.Spec.DevProperties,
+					Version:       version,
+				},
+				Monitoring:  configuration.Monitoring,
+				ApiURLFront: fmt.Sprintf("%s/api", stack.URL()),
+				ApiURLBack:  fmt.Sprintf("%s/api", stack.URL()),
+				AuthClientConfiguration: &componentsv1beta2.AuthClientConfiguration{
+					ClientID:     stack.Status.StaticAuthClients["control"].ID,
+					ClientSecret: stack.Status.StaticAuthClients["control"].Secrets[0],
+				},
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		stack.SetControlError(err.Error())
@@ -538,10 +544,10 @@ func (r *Mutator) reconcileControl(ctx context.Context, stack *stackv1beta2.Stac
 func (r *Mutator) reconcileSearch(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
 	log.FromContext(ctx).Info("Reconciling Search")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.client, r.scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
 		Namespace: stack.Name,
 		Name:      stack.ServiceName("search"),
-	}, stack, func(search *componentsv1beta2.Search) error {
+	}, controllerutils.WithController[*componentsv1beta2.Search](stack, r.scheme), func(search *componentsv1beta2.Search) error {
 		search.Spec = componentsv1beta2.SearchSpec{
 			Scalable: apisv1beta2.Scalable{
 				Replicas: search.Spec.Replicas,
