@@ -172,11 +172,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Server")
 		os.Exit(1)
 	}
-	streamMutator := benthos_components.NewStreamMutator(mgr.GetClient(), mgr.GetScheme(), benthos_components.NewDefaultApi())
-	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), streamMutator).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Stream")
-		os.Exit(1)
-	}
 
 	if err = (&stackv1beta2.Stack{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Stack")

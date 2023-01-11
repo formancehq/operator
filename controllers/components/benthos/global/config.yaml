@@ -6,3 +6,4 @@ tracer:
       service.version: latest
     grpc:
     - url: ${OTEL_TRACES_EXPORTER_OTLP_ENDPOINT}
+  # a useless comment

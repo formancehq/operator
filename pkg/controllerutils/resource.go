@@ -11,19 +11,50 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func CreateOrUpdateWithController[T client.Object](ctx context.Context, client client.Client, scheme *runtime.Scheme,
-	key types.NamespacedName, owner client.Object, mutate func(t T) error) (T, controllerutil.OperationResult, error) {
+const ReloaderAnnotationKey = "reloader.stakater.com/auto"
+
+type ObjectMutator[T any] func(t T) error
+
+func WithController[T client.Object](owner client.Object, scheme *runtime.Scheme) ObjectMutator[T] {
+	return func(t T) error {
+		if !metav1.IsControlledBy(t, owner) {
+			return controllerutil.SetControllerReference(owner, t, scheme)
+		}
+		return nil
+	}
+}
+
+func WithAnnotations[T client.Object](newAnnotations map[string]string) ObjectMutator[T] {
+	return func(t T) error {
+		annotations := t.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		for k, v := range newAnnotations {
+			annotations[k] = v
+		}
+		t.SetAnnotations(annotations)
+		return nil
+	}
+}
+
+func WithReloaderAnnotations[T client.Object]() ObjectMutator[T] {
+	return WithAnnotations[T](map[string]string{
+		ReloaderAnnotationKey: "true",
+	})
+}
+
+func CreateOrUpdate[T client.Object](ctx context.Context, client client.Client,
+	key types.NamespacedName, mutators ...ObjectMutator[T]) (T, controllerutil.OperationResult, error) {
 	var ret T
 	ret = reflect.New(reflect.TypeOf(ret).Elem()).Interface().(T)
 	ret.SetNamespace(key.Namespace)
 	ret.SetName(key.Name)
 	operationResult, err := controllerutil.CreateOrUpdate(ctx, client, ret, func() error {
-		err := mutate(ret)
-		if err != nil {
-			return err
-		}
-		if !metav1.IsControlledBy(ret, owner) {
-			return controllerutil.SetControllerReference(owner, ret, scheme)
+		for _, mutate := range mutators {
+			if err := mutate(ret); err != nil {
+				return err
+			}
 		}
 		return nil
 	})

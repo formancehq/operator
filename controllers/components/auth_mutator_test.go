@@ -57,6 +57,7 @@ var _ = Describe("Auth controller", func() {
 					Expect(Exists(deployment)()).To(BeTrue())
 					Expect(deployment.OwnerReferences).To(HaveLen(1))
 					Expect(deployment.OwnerReferences).To(ContainElement(controllerutils.OwnerReference(auth)))
+					Expect(deployment.Annotations).To(HaveKey(controllerutils.ReloaderAnnotationKey))
 				})
 				It("Should create a service", func() {
 					Eventually(ConditionStatus(auth, apisv1beta2.ConditionTypeServiceReady)).Should(Equal(metav1.ConditionTrue))

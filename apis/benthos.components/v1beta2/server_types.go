@@ -41,20 +41,6 @@ type ServerSpec struct {
 	ConfigurationFile string `json:"configurationFile"`
 }
 
-// ServerStatus defines the observed state of Server
-type ServerStatus struct {
-	apisv1beta2.Status `json:",inline"`
-	PodIP              string `json:"podIP,omitempty"`
-}
-
-func (in *ServerStatus) IsDirty(t apisv1beta2.Object) bool {
-	if in.Status.IsDirty(t) {
-		return true
-	}
-	server := t.(*Server)
-	return in.PodIP != server.Status.PodIP
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:storageversion
@@ -64,8 +50,8 @@ type Server struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ServerSpec   `json:"spec,omitempty"`
-	Status ServerStatus `json:"status,omitempty"`
+	Spec   ServerSpec         `json:"spec,omitempty"`
+	Status apisv1beta2.Status `json:"status,omitempty"`
 }
 
 func (in *Server) GetStatus() apisv1beta2.Dirty {

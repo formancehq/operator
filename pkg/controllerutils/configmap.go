@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -37,13 +36,12 @@ func copyDir(f fs.FS, root, path string, ret *map[string]string) error {
 	return nil
 }
 
-func CreateConfigMapFromDir(ctx context.Context, name types.NamespacedName, client client.Client, scheme *runtime.Scheme,
-	owner client.Object, fs fs.FS, rootDir string) (controllerutil.OperationResult, error) {
-	_, operationResult, err := CreateOrUpdateWithController(ctx, client, scheme, name,
-		owner, func(configMap *corev1.ConfigMap) error {
-			configMap.Data = map[string]string{}
+func CreateConfigMapFromDir(ctx context.Context, name types.NamespacedName, client client.Client, fs fs.FS,
+	rootDir string, mutators ...ObjectMutator[*corev1.ConfigMap]) (controllerutil.OperationResult, error) {
+	_, operationResult, err := CreateOrUpdate(ctx, client, name, append(mutators, func(configMap *corev1.ConfigMap) error {
+		configMap.Data = map[string]string{}
 
-			return copyDir(fs, rootDir, rootDir, &configMap.Data)
-		})
+		return copyDir(fs, rootDir, rootDir, &configMap.Data)
+	})...)
 	return operationResult, err
 }

@@ -70,7 +70,8 @@ func (r *SearchMutator) Mutate(ctx context.Context, search *componentsv1beta2.Se
 		if _, err = controllerutils.CreateConfigMapFromDir(ctx, types.NamespacedName{
 			Namespace: search.Namespace,
 			Name:      configMapName(dir),
-		}, r.Client, r.Scheme, search, benthosConfigDir, filepath.Join("benthos", dir)); err != nil {
+		}, r.Client, benthosConfigDir, filepath.Join("benthos", dir),
+			controllerutils.WithController[*corev1.ConfigMap](search, r.Scheme)); err != nil {
 			return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling benthos config")
 		}
 	}
@@ -125,39 +126,41 @@ func (r *SearchMutator) reconcileDeployment(ctx context.Context, search *compone
 	env = append(env, apisv1beta2.Env("ES_INDICES", search.Spec.Index))
 	env = append(env, apisv1beta2.Env("MAPPING_INIT_DISABLED", "true"))
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(deployment *appsv1.Deployment) error {
-		deployment.Spec = appsv1.DeploymentSpec{
-			Replicas: search.Spec.GetReplicas(),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(search),
+		controllerutils.WithController[*appsv1.Deployment](search, r.Scheme),
+		func(deployment *appsv1.Deployment) error {
+			deployment.Spec = appsv1.DeploymentSpec{
+				Replicas: search.Spec.GetReplicas(),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: matchLabels,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            "search",
-						Image:           controllerutils.GetImage("search", search.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(search.Spec),
-						Env:             env,
-						Ports: []corev1.ContainerPort{{
-							Name:          "http",
-							ContainerPort: 8080,
-						}},
-						LivenessProbe: controllerutils.DefaultLiveness(),
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-								corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: matchLabels,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:            "search",
+							Image:           controllerutils.GetImage("search", search.Spec.Version),
+							ImagePullPolicy: controllerutils.ImagePullPolicy(search.Spec),
+							Env:             env,
+							Ports: []corev1.ContainerPort{{
+								Name:          "http",
+								ContainerPort: 8080,
+							}},
+							LivenessProbe: controllerutils.DefaultLiveness(),
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
+								},
 							},
-						},
-					}},
+						}},
+					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetDeploymentError(search, err.Error())
@@ -177,26 +180,28 @@ func (r *SearchMutator) reconcileDeployment(ctx context.Context, search *compone
 	return ret, err
 }
 
-func (r *SearchMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Search, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
-		service.Spec = corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:        "http",
-				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
-				Protocol:    "TCP",
-				AppProtocol: pointer.String("http"),
-				TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
-			}},
-			Selector: deployment.Spec.Template.Labels,
-		}
-		return nil
-	})
+func (r *SearchMutator) reconcileService(ctx context.Context, search *componentsv1beta2.Search, deployment *appsv1.Deployment) (*corev1.Service, error) {
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(search),
+		controllerutils.WithController[*corev1.Service](search, r.Scheme),
+		func(service *corev1.Service) error {
+			service.Spec = corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:        "http",
+					Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
+					Protocol:    "TCP",
+					AppProtocol: pointer.String("http"),
+					TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
+				}},
+				Selector: deployment.Spec.Template.Labels,
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(search, err.Error())
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(search)
 	}
 	return ret, err
 }
@@ -208,25 +213,28 @@ func (r *SearchMutator) reconcileIngress(ctx context.Context, search *components
 	}
 	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", search.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(ingress *networkingv1.Ingress) error {
-		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = annotations
-		ingress.Spec = networkingv1.IngressSpec{
-			TLS: search.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: search.Spec.Ingress.Host,
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path:     search.Spec.Ingress.Path,
-									PathType: &pathType,
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: service.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Name: service.Spec.Ports[0].Name,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(search),
+		controllerutils.WithController[*networkingv1.Ingress](search, r.Scheme),
+		func(ingress *networkingv1.Ingress) error {
+			pathType := networkingv1.PathTypePrefix
+			ingress.ObjectMeta.Annotations = annotations
+			ingress.Spec = networkingv1.IngressSpec{
+				TLS: search.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: search.Spec.Ingress.Host,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     search.Spec.Ingress.Path,
+										PathType: &pathType,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: service.Name,
+												Port: networkingv1.ServiceBackendPort{
+													Name: service.Spec.Ports[0].Name,
+												},
 											},
 										},
 									},
@@ -235,10 +243,9 @@ func (r *SearchMutator) reconcileIngress(ctx context.Context, search *components
 						},
 					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetIngressError(search, err.Error())
@@ -250,10 +257,12 @@ func (r *SearchMutator) reconcileIngress(ctx context.Context, search *components
 }
 
 func (r *SearchMutator) reconcileHPA(ctx context.Context, search *componentsv1beta2.Search) (*autoscallingv2.HorizontalPodAutoscaler, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(search), search, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
-		hpa.Spec = search.Spec.GetHPASpec(search)
-		return nil
-	})
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(search),
+		controllerutils.WithController[*autoscallingv2.HorizontalPodAutoscaler](search, r.Scheme),
+		func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+			hpa.Spec = search.Spec.GetHPASpec(search)
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetHPAError(search, err.Error())
@@ -269,97 +278,98 @@ func (r *SearchMutator) reconcileBenthosStreamServer(ctx context.Context, search
 
 	log.FromContext(ctx).Info("Mapping created es side")
 
-	_, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, types.NamespacedName{
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, types.NamespacedName{
 		Namespace: search.Namespace,
 		Name:      search.Name + "-benthos",
-	}, search, func(server *benthosv1beta2.Server) error {
-		server.Spec.ResourcesConfigMap = configMapName("resources")
-		server.Spec.TemplatesConfigMap = configMapName("templates")
-		server.Spec.StreamsConfigMap = configMapName("streams")
-		server.Spec.GlobalConfigMap = configMapName("global")
-		server.Spec.ConfigurationFile = "config.yaml"
-		server.Spec.DevProperties = search.Spec.DevProperties
-		server.Spec.Env = []corev1.EnvVar{
-			apisv1beta2.Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
-			// TODO: Rename search env vars
-			//nolint:staticcheck
-			apisv1beta2.Env("OPENSEARCH_URL", search.Spec.ElasticSearch.Endpoint()),
-			apisv1beta2.Env("OPENSEARCH_INDEX", search.Spec.Index),
-			apisv1beta2.Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
-			apisv1beta2.Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
-			apisv1beta2.Env("TOPIC_PREFIX", search.Namespace+"-"),
-		}
-		if search.Spec.Monitoring != nil {
-			server.Spec.Env = append(server.Spec.Env, search.Spec.Monitoring.Env("")...)
-		}
-		server.Spec.Env = append(server.Spec.Env, search.Spec.PostgresConfigs.Env()...)
-		if search.Spec.ElasticSearch.BasicAuth != nil {
-			server.Spec.Env = append(server.Spec.Env,
-				apisv1beta2.Env("BASIC_AUTH_ENABLED", "true"),
-				apisv1beta2.Env("BASIC_AUTH_USERNAME", search.Spec.ElasticSearch.BasicAuth.Username),
-				apisv1beta2.Env("BASIC_AUTH_PASSWORD", search.Spec.ElasticSearch.BasicAuth.Password),
-			)
-		}
-		if search.Spec.KafkaConfig.SASL != nil {
-			server.Spec.Env = append(server.Spec.Env,
-				apisv1beta2.Env("KAFKA_SASL_USERNAME", search.Spec.KafkaConfig.SASL.Username),
-				apisv1beta2.Env("KAFKA_SASL_PASSWORD", search.Spec.KafkaConfig.SASL.Password),
-				apisv1beta2.Env("KAFKA_SASL_MECHANISM", search.Spec.KafkaConfig.SASL.Mechanism),
-			)
-		}
-		if search.Spec.KafkaConfig.TLS {
-			server.Spec.Env = append(server.Spec.Env,
-				apisv1beta2.Env("KAFKA_TLS_ENABLED", "true"),
-			)
-		}
+	}, controllerutils.WithController[*benthosv1beta2.Server](search, r.Scheme),
+		func(server *benthosv1beta2.Server) error {
+			server.Spec.ResourcesConfigMap = configMapName("resources")
+			server.Spec.TemplatesConfigMap = configMapName("templates")
+			server.Spec.StreamsConfigMap = configMapName("streams")
+			server.Spec.GlobalConfigMap = configMapName("global")
+			server.Spec.ConfigurationFile = "config.yaml"
+			server.Spec.DevProperties = search.Spec.DevProperties
+			server.Spec.Env = []corev1.EnvVar{
+				apisv1beta2.Env("KAFKA_ADDRESS", strings.Join(search.Spec.KafkaConfig.Brokers, ",")),
+				// TODO: Rename search env vars
+				//nolint:staticcheck
+				apisv1beta2.Env("OPENSEARCH_URL", search.Spec.ElasticSearch.Endpoint()),
+				apisv1beta2.Env("OPENSEARCH_INDEX", search.Spec.Index),
+				apisv1beta2.Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(search.Spec.Batching.Count)),
+				apisv1beta2.Env("OPENSEARCH_BATCHING_PERIOD", search.Spec.Batching.Period),
+				apisv1beta2.Env("TOPIC_PREFIX", search.Namespace+"-"),
+			}
+			if search.Spec.Monitoring != nil {
+				server.Spec.Env = append(server.Spec.Env, search.Spec.Monitoring.Env("")...)
+			}
+			server.Spec.Env = append(server.Spec.Env, search.Spec.PostgresConfigs.Env()...)
+			if search.Spec.ElasticSearch.BasicAuth != nil {
+				server.Spec.Env = append(server.Spec.Env,
+					apisv1beta2.Env("BASIC_AUTH_ENABLED", "true"),
+					apisv1beta2.Env("BASIC_AUTH_USERNAME", search.Spec.ElasticSearch.BasicAuth.Username),
+					apisv1beta2.Env("BASIC_AUTH_PASSWORD", search.Spec.ElasticSearch.BasicAuth.Password),
+				)
+			}
+			if search.Spec.KafkaConfig.SASL != nil {
+				server.Spec.Env = append(server.Spec.Env,
+					apisv1beta2.Env("KAFKA_SASL_USERNAME", search.Spec.KafkaConfig.SASL.Username),
+					apisv1beta2.Env("KAFKA_SASL_PASSWORD", search.Spec.KafkaConfig.SASL.Password),
+					apisv1beta2.Env("KAFKA_SASL_MECHANISM", search.Spec.KafkaConfig.SASL.Mechanism),
+				)
+			}
+			if search.Spec.KafkaConfig.TLS {
+				server.Spec.Env = append(server.Spec.Env,
+					apisv1beta2.Env("KAFKA_TLS_ENABLED", "true"),
+				)
+			}
 
-		credentialsStr := ""
-		if search.Spec.ElasticSearch.BasicAuth != nil {
-			credentialsStr = "-u ${OPEN_SEARCH_USERNAME}:${OPEN_SEARCH_PASSWORD} "
-		}
-		initContainer := corev1.Container{
-			Name:    "init-mapping",
-			Image:   "curlimages/curl:7.86.0",
-			Command: []string{"sh"},
-			Env:     search.Spec.ElasticSearch.Env(""),
-		}
-		if search.Spec.ElasticSearch.UseZinc {
-			mapping, err := json.Marshal(struct {
-				Mappings any    `json:"mappings"`
-				Name     string `json:"name"`
-			}{
-				Mappings: GetMapping(),
-				Name:     search.Namespace,
-			})
-			if err != nil {
-				return err
+			credentialsStr := ""
+			if search.Spec.ElasticSearch.BasicAuth != nil {
+				credentialsStr = "-u ${OPEN_SEARCH_USERNAME}:${OPEN_SEARCH_PASSWORD} "
 			}
-			initContainer.Args = []string{
-				"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
-					"-X POST -v -d '%s' "+
-					credentialsStr+
-					"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/index", string(mapping)),
+			initContainer := corev1.Container{
+				Name:    "init-mapping",
+				Image:   "curlimages/curl:7.86.0",
+				Command: []string{"sh"},
+				Env:     search.Spec.ElasticSearch.Env(""),
 			}
-		} else {
-			mapping, err := json.Marshal(struct {
-				Mappings any `json:"mappings"`
-			}{
-				Mappings: GetMapping(),
-			})
-			if err != nil {
-				return err
+			if search.Spec.ElasticSearch.UseZinc {
+				mapping, err := json.Marshal(struct {
+					Mappings any    `json:"mappings"`
+					Name     string `json:"name"`
+				}{
+					Mappings: GetMapping(),
+					Name:     search.Namespace,
+				})
+				if err != nil {
+					return err
+				}
+				initContainer.Args = []string{
+					"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
+						"-X POST -v -d '%s' "+
+						credentialsStr+
+						"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/index", string(mapping)),
+				}
+			} else {
+				mapping, err := json.Marshal(struct {
+					Mappings any `json:"mappings"`
+				}{
+					Mappings: GetMapping(),
+				})
+				if err != nil {
+					return err
+				}
+				initContainer.Args = []string{
+					"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
+						"-X PUT -v -d '%s' "+
+						credentialsStr+
+						"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/%s", string(mapping), search.Namespace),
+				}
 			}
-			initContainer.Args = []string{
-				"-c", fmt.Sprintf("curl -H 'Content-Type: application/json' "+
-					"-X PUT -v -d '%s' "+
-					credentialsStr+
-					"${OPEN_SEARCH_SCHEME}://${OPEN_SEARCH_SERVICE}/%s", string(mapping), search.Namespace),
-			}
-		}
-		server.Spec.InitContainers = []corev1.Container{initContainer}
+			server.Spec.InitContainers = []corev1.Container{initContainer}
 
-		return nil
-	})
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetCondition(search, componentsv1beta2.ConditionTypeBenthosReady, metav1.ConditionFalse, err.Error())
@@ -378,8 +388,7 @@ func (r *SearchMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder
 		Owns(&networkingv1.Ingress{}).
 		Owns(&authcomponentsv1beta2.Scope{}).
 		Owns(&corev1.ConfigMap{}).
-		Owns(&benthosv1beta2.Server{}).
-		Owns(&benthosv1beta2.Stream{})
+		Owns(&benthosv1beta2.Server{})
 	return nil
 }
 

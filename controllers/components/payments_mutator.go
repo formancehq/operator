@@ -106,68 +106,70 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 		env = append(env, payments.Spec.Collector.Env("")...)
 	}
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payments), payments, func(deployment *appsv1.Deployment) error {
-		deployment.Spec = appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(payments),
+		controllerutils.WithController[*appsv1.Deployment](payments, r.Scheme),
+		func(deployment *appsv1.Deployment) error {
+			deployment.Spec = appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: matchLabels,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            "payments",
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: matchLabels,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:            "payments",
+							Image:           controllerutils.GetImage("payments", payments.Spec.Version),
+							ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
+							Env:             env,
+							Ports: []corev1.ContainerPort{{
+								Name:          "payments",
+								ContainerPort: 8080,
+							}},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/_health",
+										Port: intstr.IntOrString{
+											IntVal: 8080,
+										},
+										Scheme: "HTTP",
+									},
+								},
+								InitialDelaySeconds:           1,
+								TimeoutSeconds:                30,
+								PeriodSeconds:                 2,
+								SuccessThreshold:              1,
+								FailureThreshold:              10,
+								TerminationGracePeriodSeconds: pointer.Int64(10),
+							},
+						}},
+					},
+				},
+			}
+			if payments.Spec.Postgres.CreateDatabase {
+				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+					Name:            "init-create-payments-db",
+					Image:           "postgres:13",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Env:             env,
+					Command: []string{
+						"sh",
+						"-c",
+						`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					},
+				},
+					{
+						Name:            "migrate",
 						Image:           controllerutils.GetImage("payments", payments.Spec.Version),
 						ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
 						Env:             env,
-						Ports: []corev1.ContainerPort{{
-							Name:          "payments",
-							ContainerPort: 8080,
-						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_health",
-									Port: intstr.IntOrString{
-										IntVal: 8080,
-									},
-									Scheme: "HTTP",
-								},
-							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
-					}},
-				},
-			},
-		}
-		if payments.Spec.Postgres.CreateDatabase {
-			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-payments-db",
-				Image:           "postgres:13",
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Env:             env,
-				Command: []string{
-					"sh",
-					"-c",
-					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-				},
-			},
-				{
-					Name:            "migrate",
-					Image:           controllerutils.GetImage("payments", payments.Spec.Version),
-					ImagePullPolicy: controllerutils.ImagePullPolicy(payments.Spec),
-					Env:             env,
-					Command:         []string{"payments", "migrate", "up"},
-				}}
-		}
-		return nil
-	})
+						Command:         []string{"payments", "migrate", "up"},
+					}}
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetDeploymentError(payments, err.Error())
@@ -179,27 +181,29 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 	return ret, err
 }
 
-func (r *PaymentsMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Payments, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
-		service.Spec = corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:        "http",
-				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
-				Protocol:    "TCP",
-				AppProtocol: pointer.String("http"),
-				TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
-			}},
-			Selector: deployment.Spec.Template.Labels,
-		}
-		return nil
-	})
+func (r *PaymentsMutator) reconcileService(ctx context.Context, payments *componentsv1beta2.Payments, deployment *appsv1.Deployment) (*corev1.Service, error) {
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(payments),
+		controllerutils.WithController[*corev1.Service](payments, r.Scheme),
+		func(service *corev1.Service) error {
+			service.Spec = corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:        "http",
+					Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
+					Protocol:    "TCP",
+					AppProtocol: pointer.String("http"),
+					TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
+				}},
+				Selector: deployment.Spec.Template.Labels,
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(payments, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(payments)
 	}
 	return ret, err
 }
@@ -211,25 +215,28 @@ func (r *PaymentsMutator) reconcileIngress(ctx context.Context, payments *compon
 	}
 	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", payments.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(payments), payments, func(ingress *networkingv1.Ingress) error {
-		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = annotations
-		ingress.Spec = networkingv1.IngressSpec{
-			TLS: payments.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: payments.Spec.Ingress.Host,
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path:     payments.Spec.Ingress.Path,
-									PathType: &pathType,
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: service.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Name: service.Spec.Ports[0].Name,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(payments),
+		controllerutils.WithController[*networkingv1.Ingress](payments, r.Scheme),
+		func(ingress *networkingv1.Ingress) error {
+			pathType := networkingv1.PathTypePrefix
+			ingress.ObjectMeta.Annotations = annotations
+			ingress.Spec = networkingv1.IngressSpec{
+				TLS: payments.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: payments.Spec.Ingress.Host,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     payments.Spec.Ingress.Path,
+										PathType: &pathType,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: service.Name,
+												Port: networkingv1.ServiceBackendPort{
+													Name: service.Spec.Ports[0].Name,
+												},
 											},
 										},
 									},
@@ -238,10 +245,9 @@ func (r *PaymentsMutator) reconcileIngress(ctx context.Context, payments *compon
 						},
 					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetIngressError(payments, err.Error())

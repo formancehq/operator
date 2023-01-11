@@ -115,68 +115,70 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 		env = append(env, ledger.Spec.Collector.Env("NUMARY_")...)
 	}
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(deployment *appsv1.Deployment) error {
-		deployment.Spec = appsv1.DeploymentSpec{
-			Replicas: ledger.Spec.GetReplicas(),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(ledger),
+		controllerutils.WithController[*appsv1.Deployment](ledger, r.Scheme),
+		func(deployment *appsv1.Deployment) error {
+			deployment.Spec = appsv1.DeploymentSpec{
+				Replicas: ledger.Spec.GetReplicas(),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: matchLabels,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            "ledger",
-						Image:           controllerutils.GetImage("ledger", ledger.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(ledger.Spec),
-						Env:             env,
-						Ports: []corev1.ContainerPort{{
-							Name:          "ledger",
-							ContainerPort: 8080,
-						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/_health",
-									Port: intstr.IntOrString{
-										IntVal: 8080,
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: matchLabels,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:            "ledger",
+							Image:           controllerutils.GetImage("ledger", ledger.Spec.Version),
+							ImagePullPolicy: controllerutils.ImagePullPolicy(ledger.Spec),
+							Env:             env,
+							Ports: []corev1.ContainerPort{{
+								Name:          "ledger",
+								ContainerPort: 8080,
+							}},
+							LivenessProbe: &corev1.Probe{
+								ProbeHandler: corev1.ProbeHandler{
+									HTTPGet: &corev1.HTTPGetAction{
+										Path: "/_health",
+										Port: intstr.IntOrString{
+											IntVal: 8080,
+										},
+										Scheme: "HTTP",
 									},
-									Scheme: "HTTP",
+								},
+								InitialDelaySeconds:           1,
+								TimeoutSeconds:                30,
+								PeriodSeconds:                 2,
+								SuccessThreshold:              1,
+								FailureThreshold:              10,
+								TerminationGracePeriodSeconds: pointer.Int64(10),
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
 								},
 							},
-							InitialDelaySeconds:           1,
-							TimeoutSeconds:                30,
-							PeriodSeconds:                 2,
-							SuccessThreshold:              1,
-							FailureThreshold:              10,
-							TerminationGracePeriodSeconds: pointer.Int64(10),
-						},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-								corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
-							},
-						},
-					}},
+						}},
+					},
 				},
-			},
-		}
-		if ledger.Spec.Postgres.CreateDatabase {
-			deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-				Name:            "init-create-ledger-db",
-				Image:           "postgres:13",
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				Command: []string{
-					"sh",
-					"-c",
-					`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-				},
-				Env: ledger.Spec.Postgres.Env(""),
-			}}
-		}
-		return nil
-	})
+			}
+			if ledger.Spec.Postgres.CreateDatabase {
+				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
+					Name:            "init-create-ledger-db",
+					Image:           "postgres:13",
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command: []string{
+						"sh",
+						"-c",
+						`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+					},
+					Env: ledger.Spec.Postgres.Env(""),
+				}}
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetDeploymentError(ledger, err.Error())
@@ -198,10 +200,12 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 }
 
 func (r *LedgerMutator) reconcileHPA(ctx context.Context, ledger *componentsv1beta2.Ledger) (*autoscallingv2.HorizontalPodAutoscaler, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
-		hpa.Spec = ledger.Spec.GetHPASpec(ledger)
-		return nil
-	})
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(ledger),
+		controllerutils.WithController[*autoscallingv2.HorizontalPodAutoscaler](ledger, r.Scheme),
+		func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+			hpa.Spec = ledger.Spec.GetHPASpec(ledger)
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetHPAError(ledger, err.Error())
@@ -214,19 +218,21 @@ func (r *LedgerMutator) reconcileHPA(ctx context.Context, ledger *componentsv1be
 }
 
 func (r *LedgerMutator) reconcileService(ctx context.Context, ledger *componentsv1beta2.Ledger, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(service *corev1.Service) error {
-		service.Spec = corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:        "http",
-				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
-				Protocol:    "TCP",
-				AppProtocol: pointer.String("http"),
-				TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
-			}},
-			Selector: deployment.Spec.Template.Labels,
-		}
-		return nil
-	})
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(ledger),
+		controllerutils.WithController[*corev1.Service](ledger, r.Scheme),
+		func(service *corev1.Service) error {
+			service.Spec = corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:        "http",
+					Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
+					Protocol:    "TCP",
+					AppProtocol: pointer.String("http"),
+					TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
+				}},
+				Selector: deployment.Spec.Template.Labels,
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetServiceError(ledger, err.Error())
@@ -245,25 +251,28 @@ func (r *LedgerMutator) reconcileIngress(ctx context.Context, ledger *components
 	}
 	middlewareAuth := fmt.Sprintf("%s-auth-middleware@kubernetescrd", ledger.Namespace)
 	annotations["traefik.ingress.kubernetes.io/router.middlewares"] = fmt.Sprintf("%s, %s", middlewareAuth, annotations["traefik.ingress.kubernetes.io/router.middlewares"])
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, r.Client, r.Scheme, client.ObjectKeyFromObject(ledger), ledger, func(ingress *networkingv1.Ingress) error {
-		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = annotations
-		ingress.Spec = networkingv1.IngressSpec{
-			TLS: ledger.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: ledger.Spec.Ingress.Host,
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path:     ledger.Spec.Ingress.Path,
-									PathType: &pathType,
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: service.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Name: service.Spec.Ports[0].Name,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.Client, client.ObjectKeyFromObject(ledger),
+		controllerutils.WithController[*networkingv1.Ingress](ledger, r.Scheme),
+		func(ingress *networkingv1.Ingress) error {
+			pathType := networkingv1.PathTypePrefix
+			ingress.ObjectMeta.Annotations = annotations
+			ingress.Spec = networkingv1.IngressSpec{
+				TLS: ledger.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: ledger.Spec.Ingress.Host,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     ledger.Spec.Ingress.Path,
+										PathType: &pathType,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: service.Name,
+												Port: networkingv1.ServiceBackendPort{
+													Name: service.Spec.Ports[0].Name,
+												},
 											},
 										},
 									},
@@ -272,10 +281,9 @@ func (r *LedgerMutator) reconcileIngress(ctx context.Context, ledger *components
 						},
 					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetIngressError(ledger, err.Error())

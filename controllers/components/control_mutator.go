@@ -106,38 +106,40 @@ func (m *ControlMutator) reconcileDeployment(ctx context.Context, control *compo
 		)
 	}
 
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(control), control, func(deployment *appsv1.Deployment) error {
-		deployment.Spec = appsv1.DeploymentSpec{
-			Replicas: control.Spec.GetReplicas(),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchLabels,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, m.Client, client.ObjectKeyFromObject(control),
+		controllerutils.WithController[*appsv1.Deployment](control, m.Scheme),
+		func(deployment *appsv1.Deployment) error {
+			deployment.Spec = appsv1.DeploymentSpec{
+				Replicas: control.Spec.GetReplicas(),
+				Selector: &metav1.LabelSelector{
+					MatchLabels: matchLabels,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            "control",
-						Image:           controllerutils.GetImage("control", control.Spec.Version),
-						ImagePullPolicy: controllerutils.ImagePullPolicy(control.Spec),
-						Env:             env,
-						Ports: []corev1.ContainerPort{{
-							Name:          "http",
-							ContainerPort: 3000,
-						}},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
-								corev1.ResourceMemory: *resource.NewMilliQuantity(512, resource.DecimalSI),
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: matchLabels,
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name:            "control",
+							Image:           controllerutils.GetImage("control", control.Spec.Version),
+							ImagePullPolicy: controllerutils.ImagePullPolicy(control.Spec),
+							Env:             env,
+							Ports: []corev1.ContainerPort{{
+								Name:          "http",
+								ContainerPort: 3000,
+							}},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(512, resource.DecimalSI),
+								},
 							},
-						},
-					}},
+						}},
+					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetDeploymentError(control, err.Error())
@@ -158,67 +160,74 @@ func (m *ControlMutator) reconcileDeployment(ctx context.Context, control *compo
 	return ret, err
 }
 
-func (m *ControlMutator) reconcileService(ctx context.Context, auth *componentsv1beta2.Control, deployment *appsv1.Deployment) (*corev1.Service, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(auth), auth, func(service *corev1.Service) error {
-		service.Spec = corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:        "http",
-				Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
-				Protocol:    "TCP",
-				AppProtocol: pointer.String("http"),
-				TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
-			}},
-			Selector: deployment.Spec.Template.Labels,
-		}
-		return nil
-	})
+func (m *ControlMutator) reconcileService(ctx context.Context, control *componentsv1beta2.Control, deployment *appsv1.Deployment) (*corev1.Service, error) {
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, m.Client, client.ObjectKeyFromObject(control),
+		controllerutils.WithController[*corev1.Service](control, m.Scheme),
+		func(service *corev1.Service) error {
+			service.Spec = corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Name:        "http",
+					Port:        deployment.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort,
+					Protocol:    "TCP",
+					AppProtocol: pointer.String("http"),
+					TargetPort:  intstr.FromString(deployment.Spec.Template.Spec.Containers[0].Ports[0].Name),
+				}},
+				Selector: deployment.Spec.Template.Labels,
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
-		apisv1beta2.SetServiceError(auth, err.Error())
+		apisv1beta2.SetServiceError(control, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetServiceReady(auth)
+		apisv1beta2.SetServiceReady(control)
 	}
 	return ret, err
 }
 
-func (m *ControlMutator) reconcileHPA(ctx context.Context, ctrl *componentsv1beta2.Control) (*autoscallingv2.HorizontalPodAutoscaler, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(ctrl), ctrl, func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
-		hpa.Spec = ctrl.Spec.GetHPASpec(ctrl)
-		return nil
-	})
+func (m *ControlMutator) reconcileHPA(ctx context.Context, control *componentsv1beta2.Control) (*autoscallingv2.HorizontalPodAutoscaler, error) {
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, m.Client, client.ObjectKeyFromObject(control),
+		controllerutils.WithController[*autoscallingv2.HorizontalPodAutoscaler](control, m.Scheme),
+		func(hpa *autoscallingv2.HorizontalPodAutoscaler) error {
+			hpa.Spec = control.Spec.GetHPASpec(control)
+			return nil
+		})
 	switch {
 	case err != nil:
-		apisv1beta2.SetHPAError(ctrl, err.Error())
+		apisv1beta2.SetHPAError(control, err.Error())
 		return nil, err
 	case operationResult == controllerutil.OperationResultNone:
 	default:
-		apisv1beta2.SetHPAReady(ctrl)
+		apisv1beta2.SetHPAReady(control)
 	}
 	return ret, err
 }
 
 func (m *ControlMutator) reconcileIngress(ctx context.Context, control *componentsv1beta2.Control, service *corev1.Service) (*networkingv1.Ingress, error) {
-	ret, operationResult, err := controllerutils.CreateOrUpdateWithController(ctx, m.Client, m.Scheme, client.ObjectKeyFromObject(control), control, func(ingress *networkingv1.Ingress) error {
-		pathType := networkingv1.PathTypePrefix
-		ingress.ObjectMeta.Annotations = control.Spec.Ingress.Annotations
-		ingress.Spec = networkingv1.IngressSpec{
-			TLS: control.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: control.Spec.Ingress.Host,
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path:     control.Spec.Ingress.Path,
-									PathType: &pathType,
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: service.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Name: service.Spec.Ports[0].Name,
+	ret, operationResult, err := controllerutils.CreateOrUpdate(ctx, m.Client, client.ObjectKeyFromObject(control),
+		controllerutils.WithController[*networkingv1.Ingress](control, m.Scheme),
+		func(ingress *networkingv1.Ingress) error {
+			pathType := networkingv1.PathTypePrefix
+			ingress.ObjectMeta.Annotations = control.Spec.Ingress.Annotations
+			ingress.Spec = networkingv1.IngressSpec{
+				TLS: control.Spec.Ingress.TLS.AsK8SIngressTLSSlice(),
+				Rules: []networkingv1.IngressRule{
+					{
+						Host: control.Spec.Ingress.Host,
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Path:     control.Spec.Ingress.Path,
+										PathType: &pathType,
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: service.Name,
+												Port: networkingv1.ServiceBackendPort{
+													Name: service.Spec.Ports[0].Name,
+												},
 											},
 										},
 									},
@@ -227,10 +236,9 @@ func (m *ControlMutator) reconcileIngress(ctx context.Context, control *componen
 						},
 					},
 				},
-			},
-		}
-		return nil
-	})
+			}
+			return nil
+		})
 	switch {
 	case err != nil:
 		apisv1beta2.SetIngressError(control, err.Error())
