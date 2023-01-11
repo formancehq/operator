@@ -33,6 +33,7 @@ func init() {
 
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=benthos.components.formance.com,resources=streams,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=benthos.components.formance.com,resources=servers/finalizers,verbs=update
 

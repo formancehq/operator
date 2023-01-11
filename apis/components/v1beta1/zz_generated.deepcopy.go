@@ -23,7 +23,6 @@ package v1beta1
 
 import (
 	"encoding/json"
-
 	auth_componentsv1beta1 "github.com/formancehq/operator/apis/auth.components/v1beta1"
 	"github.com/formancehq/operator/pkg/apis/v1beta2"
 	runtime "k8s.io/apimachinery/pkg/runtime"

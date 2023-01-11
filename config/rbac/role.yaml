@@ -108,6 +108,18 @@ rules:
   - patch
   - update
 - apiGroups:
+  - benthos.components.formance.com
+  resources:
+  - streams
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - cert-manager.io
   resources:
   - certificates
