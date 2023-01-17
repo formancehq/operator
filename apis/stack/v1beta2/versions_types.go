@@ -39,6 +39,8 @@ type VersionsSpec struct {
 	// +optional
 	Wallets string `json:"wallets"`
 	// +optional
+	Orchestration string `json:"orchestration"`
+	// +optional
 	Counterparties string `json:"counterparties"`
 }
 

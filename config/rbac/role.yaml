@@ -18,58 +18,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - auth.components.formance.com
-  resources:
-  - clients
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - auth.components.formance.com
-  resources:
-  - clients/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - auth.components.formance.com
-  resources:
-  - clients/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - auth.components.formance.com
-  resources:
-  - scopes
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - auth.components.formance.com
-  resources:
-  - scopes/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - auth.components.formance.com
-  resources:
-  - scopes/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - autoscaling
   resources:
   - horizontalpodautoscalers
@@ -231,6 +179,32 @@ rules:
   - components.formance.com
   resources:
   - ledgers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - orchestrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.formance.com
+  resources:
+  - orchestrations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - components.formance.com
+  resources:
+  - orchestrations/status
   verbs:
   - get
   - patch

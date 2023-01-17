@@ -10,6 +10,20 @@ type PostgresConfigCreateDatabase struct {
 	CreateDatabase                            bool `json:"createDatabase"`
 }
 
+func (in *PostgresConfigCreateDatabase) CreateDatabaseInitContainer() corev1.Container {
+	return corev1.Container{
+		Name:            "init-db",
+		Image:           "postgres:13",
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Env:             in.Env(""),
+		Command: []string{
+			"sh",
+			"-c",
+			`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
+		},
+	}
+}
+
 type CollectorConfig struct {
 	pkgapisv1beta2.KafkaConfig `json:",inline"`
 	Topic                      string `json:"topic"`

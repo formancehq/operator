@@ -91,6 +91,7 @@ func (r *Mutator) SetupWithBuilder(mgr ctrl.Manager, bldr *ctrl.Builder) error {
 		Owns(&componentsv1beta2.Payments{}).
 		Owns(&componentsv1beta2.Webhooks{}).
 		Owns(&componentsv1beta2.Wallets{}).
+		Owns(&componentsv1beta2.Orchestration{}).
 		Owns(&corev1.Namespace{}).
 		Owns(&traefik.Middleware{}).
 		Watches(
@@ -165,6 +166,15 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 			},
 		}
 	}
+	if _, ok := stack.Status.StaticAuthClients["orchestration"]; !ok {
+		stack.Status.StaticAuthClients["orchestration"] = authcomponentsv1beta2.StaticClient{
+			ID:      "orchestration",
+			Secrets: []string{uuid.NewString()},
+			ClientConfiguration: authcomponentsv1beta2.ClientConfiguration{
+				Scopes: []string{"openid"},
+			},
+		}
+	}
 
 	if err := r.reconcileNamespace(ctx, stack); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling namespace")
@@ -191,6 +201,9 @@ func (r *Mutator) Mutate(ctx context.Context, stack *stackv1beta2.Stack) (*ctrl.
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Webhooks")
 	}
 	if err := r.reconcileWallets(ctx, stack, &configurationSpec, version.Spec.Wallets); err != nil {
+		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Wallets")
+	}
+	if err := r.reconcileOrchestration(ctx, stack, &configurationSpec, version.Spec.Orchestration); err != nil {
 		return controllerutils.Requeue(), pkgError.Wrap(err, "Reconciling Wallets")
 	}
 	if err := r.reconcileCounterparties(ctx, stack, &configurationSpec, version.Spec.Counterparties); err != nil {
@@ -439,7 +452,7 @@ func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stac
 				DevProperties: stack.Spec.DevProperties,
 				Version:       version,
 			},
-			Auth: componentsv1beta2.WalletAuthentication{
+			Auth: componentsv1beta2.ClientCredentialsAuthentication{
 				ClientID:     stack.Status.StaticAuthClients["wallets"].ID,
 				ClientSecret: stack.Status.StaticAuthClients["wallets"].Secrets[0],
 			},
@@ -457,6 +470,49 @@ func (r *Mutator) reconcileWallets(ctx context.Context, stack *stackv1beta2.Stac
 	}
 
 	log.FromContext(ctx).Info("Wallets ready")
+	return nil
+}
+
+func (r *Mutator) reconcileOrchestration(ctx context.Context, stack *stackv1beta2.Stack, configuration *stackv1beta2.ConfigurationSpec, version string) error {
+	log.FromContext(ctx).Info("Reconciling Orchestration")
+
+	_, operationResult, err := controllerutils.CreateOrUpdate(ctx, r.client, types.NamespacedName{
+		Namespace: stack.Name,
+		Name:      stack.ServiceName("orchestration"),
+	}, controllerutils.WithController[*componentsv1beta2.Orchestration](stack, r.scheme), func(orchestration *componentsv1beta2.Orchestration) error {
+		orchestration.Spec = componentsv1beta2.OrchestrationSpec{
+			Ingress:    configuration.Services.Orchestration.Ingress.Compute(stack, configuration, "/api/orchestration"),
+			Monitoring: configuration.Monitoring,
+			CommonServiceProperties: apisv1beta2.CommonServiceProperties{
+				DevProperties: stack.Spec.DevProperties,
+				Version:       version,
+			},
+			Auth: componentsv1beta2.ClientCredentialsAuthentication{
+				ClientID:     stack.Status.StaticAuthClients["orchestration"].ID,
+				ClientSecret: stack.Status.StaticAuthClients["orchestration"].Secrets[0],
+			},
+			StackURL: stack.URL(),
+			Temporal: configuration.Temporal,
+			Postgres: componentsv1beta2.PostgresConfigCreateDatabase{
+				CreateDatabase: true,
+				PostgresConfigWithDatabase: apisv1beta2.PostgresConfigWithDatabase{
+					PostgresConfig: configuration.Services.Orchestration.Postgres,
+					Database:       fmt.Sprintf("%s-orchestration", stack.Name),
+				},
+			},
+		}
+		return nil
+	})
+	switch {
+	case err != nil:
+		stack.SetOrchestrationError(err.Error())
+		return err
+	case operationResult == controllerutil.OperationResultNone:
+	default:
+		stack.SetOrchestrationReady()
+	}
+
+	log.FromContext(ctx).Info("Orchestration ready")
 	return nil
 }
 

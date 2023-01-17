@@ -19,6 +19,7 @@ package v1beta2
 import (
 	"reflect"
 
+	"github.com/formancehq/operator/apis/components/v1beta2"
 	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	"github.com/formancehq/operator/pkg/typeutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +34,7 @@ type ConfigurationServicesSpec struct {
 	Search         SearchSpec         `json:"search,omitempty"`
 	Webhooks       WebhooksSpec       `json:"webhooks,omitempty"`
 	Wallets        WalletsSpec        `json:"wallets,omitempty"`
+	Orchestration  OrchestrationSpec  `json:"orchestration,omitempty"`
 	Counterparties CounterpartiesSpec `json:"counterparties,omitempty"`
 }
 
@@ -52,7 +54,8 @@ type ConfigurationSpec struct {
 	// +optional
 	Monitoring *apisv1beta2.MonitoringSpec `json:"monitoring,omitempty"`
 	// +optional
-	Ingress *IngressGlobalConfig `json:"ingress,omitempty"`
+	Ingress  *IngressGlobalConfig   `json:"ingress,omitempty"`
+	Temporal v1beta2.TemporalConfig `json:"temporal"`
 }
 
 func (in *ConfigurationSpec) Validate() field.ErrorList {

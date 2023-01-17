@@ -27,3 +27,4 @@ steps:
 - command:
   - deploy
   - operator
+  - --nodeps

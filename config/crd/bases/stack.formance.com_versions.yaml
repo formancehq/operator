@@ -43,6 +43,8 @@ spec:
                 type: string
               ledger:
                 type: string
+              orchestration:
+                type: string
               payments:
                 type: string
               search:

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
 	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	"github.com/formancehq/operator/pkg/controllerutils"
@@ -149,17 +148,8 @@ func (r *PaymentsMutator) reconcileDeployment(ctx context.Context, payments *com
 				},
 			}
 			if payments.Spec.Postgres.CreateDatabase {
-				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-					Name:            "init-create-payments-db",
-					Image:           "postgres:13",
-					ImagePullPolicy: corev1.PullIfNotPresent,
-					Env:             env,
-					Command: []string{
-						"sh",
-						"-c",
-						`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-					},
-				},
+				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
+					payments.Spec.Postgres.CreateDatabaseInitContainer(),
 					{
 						Name:            "migrate",
 						Image:           controllerutils.GetImage("payments", payments.Spec.Version),
@@ -264,8 +254,7 @@ func (r *PaymentsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Build
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
-		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta2.Scope{})
+		Owns(&networkingv1.Ingress{})
 	return nil
 }
 

@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
 	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	"github.com/formancehq/operator/pkg/controllerutils"
@@ -233,8 +232,7 @@ func (r *WalletsMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builde
 	builder.
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
-		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta2.Scope{})
+		Owns(&networkingv1.Ingress{})
 	return nil
 }
 

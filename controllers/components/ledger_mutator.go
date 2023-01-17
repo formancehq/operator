@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
 	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
 	apisv1beta2 "github.com/formancehq/operator/pkg/apis/v1beta2"
 	"github.com/formancehq/operator/pkg/controllerutils"
@@ -165,17 +164,9 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 				},
 			}
 			if ledger.Spec.Postgres.CreateDatabase {
-				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{{
-					Name:            "init-create-ledger-db",
-					Image:           "postgres:13",
-					ImagePullPolicy: corev1.PullIfNotPresent,
-					Command: []string{
-						"sh",
-						"-c",
-						`psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DATABASE}'" | grep -q 1 && echo "Base already exists" || psql -Atx ${POSTGRES_NO_DATABASE_URI}/postgres -c "CREATE DATABASE \"${POSTGRES_DATABASE}\""`,
-					},
-					Env: ledger.Spec.Postgres.Env(""),
-				}}
+				deployment.Spec.Template.Spec.InitContainers = []corev1.Container{
+					ledger.Spec.Postgres.CreateDatabaseInitContainer(),
+				}
 			}
 			return nil
 		})
@@ -301,7 +292,6 @@ func (r *LedgerMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
-		Owns(&authcomponentsv1beta2.Scope{}).
 		Owns(&autoscallingv1.HorizontalPodAutoscaler{})
 	return nil
 }

@@ -62,6 +62,7 @@ const (
 	ConditionTypeStackControlReady        = "ControlReady"
 	ConditionTypeStackPaymentsReady       = "PaymentsReady"
 	ConditionTypeStackWebhooksReady       = "WebhooksReady"
+	ConditionTypeStackOrchestrationReady  = "OrchestrationReady"
 	ConditionTypeStackWalletsReady        = "WalletsReady"
 	ConditionTypeStackCounterpartiesReady = "CounterpartiesReady"
 	ConditionTypeStackMiddlewareReady     = "MiddlewareReady"
@@ -188,6 +189,10 @@ func (s *Stack) SetWebhooksError(msg string) {
 	pkgapisv1beta2.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
 }
 
+func (s *Stack) SetOrchestrationError(msg string) {
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackWebhooksReady, metav1.ConditionFalse, msg)
+}
+
 func (s *Stack) SetMiddlewareError(msg string) {
 	pkgapisv1beta2.SetCondition(s, ConditionTypeStackMiddlewareReady, metav1.ConditionFalse, msg)
 }
@@ -234,6 +239,10 @@ func (s *Stack) SetWalletsError(msg string) {
 
 func (s *Stack) SetWalletsReady() {
 	pkgapisv1beta2.SetCondition(s, ConditionTypeStackWalletsReady, metav1.ConditionTrue)
+}
+
+func (s *Stack) SetOrchestrationReady() {
+	pkgapisv1beta2.SetCondition(s, ConditionTypeStackOrchestrationReady, metav1.ConditionTrue)
 }
 
 func (in *Stack) RemoveCounterpartiesStatus() {

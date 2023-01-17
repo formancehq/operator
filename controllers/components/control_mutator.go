@@ -34,6 +34,10 @@ type ControlMutator struct {
 }
 
 func (m *ControlMutator) SetupWithBuilder(mgr ctrl.Manager, builder *ctrl.Builder) error {
+	builder.
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
+		Owns(&networkingv1.Ingress{})
 	return nil
 }
 

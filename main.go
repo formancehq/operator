@@ -28,9 +28,8 @@ import (
 	authcomponentsv1beta2 "github.com/formancehq/operator/apis/auth.components/v1beta2"
 	benthoscomponentsv1beta2 "github.com/formancehq/operator/apis/benthos.components/v1beta2"
 	componentsv1beta2 "github.com/formancehq/operator/apis/components/v1beta2"
-	auth_components "github.com/formancehq/operator/controllers/auth.components"
 	benthos_components "github.com/formancehq/operator/controllers/benthos.components"
-	control_components "github.com/formancehq/operator/controllers/components"
+	components "github.com/formancehq/operator/controllers/components"
 	"github.com/formancehq/operator/pkg/controllerutils"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -115,61 +114,54 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Stack")
 		os.Exit(1)
 	}
-	authMutator := control_components.NewMutator(mgr.GetClient(), mgr.GetScheme())
+	authMutator := components.NewMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), authMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Auth")
 		os.Exit(1)
 	}
-	ledgerMutator := control_components.NewLedgerMutator(mgr.GetClient(), mgr.GetScheme())
+	ledgerMutator := components.NewLedgerMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), ledgerMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Ledger")
 		os.Exit(1)
 	}
-	paymentsMutator := control_components.NewPaymentsMutator(mgr.GetClient(), mgr.GetScheme())
+	paymentsMutator := components.NewPaymentsMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), paymentsMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Payments")
 		os.Exit(1)
 	}
-	webhooksMutator := control_components.NewWebhooksMutator(mgr.GetClient(), mgr.GetScheme())
+	webhooksMutator := components.NewWebhooksMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), webhooksMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Webhooks")
 		os.Exit(1)
 	}
-	searchMutator := control_components.NewSearchMutator(mgr.GetClient(), mgr.GetScheme())
+	searchMutator := components.NewSearchMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), searchMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Search")
 		os.Exit(1)
 	}
-	controlMutator := control_components.NewControlMutator(mgr.GetClient(), mgr.GetScheme())
+	controlMutator := components.NewControlMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), controlMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Control")
 		os.Exit(1)
 	}
-	walletsMutator := control_components.NewWalletsMutator(mgr.GetClient(), mgr.GetScheme())
+	walletsMutator := components.NewWalletsMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), walletsMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Wallets")
 		os.Exit(1)
 	}
-	counterpartiesMutator := control_components.NewCounterpartiesMutator(mgr.GetClient(), mgr.GetScheme())
+	counterpartiesMutator := components.NewCounterpartiesMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), counterpartiesMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Counterparties")
-		os.Exit(1)
-	}
-	clientMutator := auth_components.NewClientsMutator(mgr.GetClient(), mgr.GetScheme(), control_components.DefaultApiFactory)
-	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), clientMutator).
-		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Client")
-		os.Exit(1)
-	}
-	scopeMutator := auth_components.NewScopesMutator(mgr.GetClient(), mgr.GetScheme(), control_components.DefaultApiFactory)
-	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), scopeMutator).
-		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Scope")
 		os.Exit(1)
 	}
 	serverMutator := benthos_components.NewServerMutator(mgr.GetClient(), mgr.GetScheme())
 	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), serverMutator).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Server")
+		os.Exit(1)
+	}
+	orchestrationMutator := components.NewOrchestrationMutator(mgr.GetClient(), mgr.GetScheme())
+	if err = controllerutils.NewReconciler(mgr.GetClient(), mgr.GetScheme(), orchestrationMutator).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Orchestration")
 		os.Exit(1)
 	}
 
