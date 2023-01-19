@@ -32,7 +32,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -154,12 +153,12 @@ func (r *LedgerMutator) reconcileDeployment(ctx context.Context, ledger *compone
 								FailureThreshold:              10,
 								TerminationGracePeriodSeconds: pointer.Int64(10),
 							},
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewMilliQuantity(1024, resource.DecimalSI),
-								},
-							},
+							//Resources: corev1.ResourceRequirements{
+							//	Limits: corev1.ResourceList{
+							//		corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
+							//		corev1.ResourceMemory: *resource.NewMilliQuantity(1024, resource.DecimalSI),
+							//	},
+							//},
 						}},
 					},
 				},
