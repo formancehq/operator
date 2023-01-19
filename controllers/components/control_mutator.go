@@ -129,9 +129,9 @@ func (m *ControlMutator) reconcileDeployment(ctx context.Context, control *compo
 								ContainerPort: 3000,
 							}},
 							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
+								Limits: corev1.ResourceList{
 									corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewMilliQuantity(512, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(1024, resource.DecimalSI),
 								},
 							},
 						}},

@@ -150,9 +150,9 @@ func (r *SearchMutator) reconcileDeployment(ctx context.Context, search *compone
 							}},
 							LivenessProbe: controllerutils.DefaultLiveness(),
 							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(1024, resource.DecimalSI),
 								},
 							},
 						}},

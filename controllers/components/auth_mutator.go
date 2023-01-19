@@ -177,9 +177,9 @@ func (r *Mutator) reconcileDeployment(ctx context.Context, auth *componentsv1bet
 							LivenessProbe:   controllerutils.DefaultLiveness(),
 							ImagePullPolicy: controllerutils.ImagePullPolicy(auth.Spec),
 							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewMilliQuantity(256, resource.DecimalSI),
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(500, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(1024, resource.DecimalSI),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{{
