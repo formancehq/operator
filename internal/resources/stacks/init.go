@@ -3,11 +3,12 @@ package stacks
 import (
 	"context"
 	"fmt"
-	"github.com/formancehq/stack/libs/go-libs/collectionutils"
-	"github.com/pkg/errors"
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/formancehq/stack/libs/go-libs/collectionutils"
+	"github.com/pkg/errors"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
@@ -84,11 +85,11 @@ func areDependentReady(ctx Context, stack *v1beta1.Stack) error {
 				continue
 			}
 		}
-
 	}
 
 	if len(pendingResources) > 0 {
-		return NewApplicationError("Still pending dependent: %s ", strings.Join(pendingResources, ","))
+		return NewApplicationError().
+			WithMessage("Still pending dependent: %s ", strings.Join(pendingResources, ","))
 	}
 
 	return nil

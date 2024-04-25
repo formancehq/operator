@@ -18,6 +18,7 @@ package gateways
 
 import (
 	_ "embed"
+	"k8s.io/apimachinery/pkg/types"
 	"sort"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
@@ -55,17 +56,24 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		auth = nil
 	}
 
-	topic, err := createAuditTopic(ctx, stack, gateway)
+	var broker *v1beta1.Broker
+	if t, err := brokertopics.Find(ctx, stack, "gateway"); err != nil {
+		return err
+	} else if t != nil && t.Status.Ready {
+		broker = &v1beta1.Broker{}
+		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+			Name: stack.Name,
+		}, broker); err != nil {
+			return err
+		}
+	}
+
+	configMap, err := createConfigMap(ctx, stack, gateway, httpAPIs, auth, broker)
 	if err != nil {
 		return err
 	}
 
-	configMap, err := createConfigMap(ctx, stack, gateway, httpAPIs, auth, topic)
-	if err != nil {
-		return err
-	}
-
-	if err := createDeployment(ctx, stack, gateway, configMap, topic, version); err != nil {
+	if err := createDeployment(ctx, stack, gateway, configMap, broker, version); err != nil {
 		return err
 	}
 
@@ -85,21 +93,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 	return nil
 }
 
-func createAuditTopic(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) (*v1beta1.BrokerTopic, error) {
-	if stack.Spec.EnableAudit && gateway.Spec.CompareVersion(stack, "v0.2.0") > 0 {
-		topic, err := brokertopics.CreateOrUpdate(ctx, stack, gateway, "gateway", "audit",
-			WithOwner[*v1beta1.BrokerTopic](ctx.GetScheme(), stack))
-		if err != nil {
-			return nil, err
-		}
-		if !topic.Status.Ready {
-			return nil, NewPendingError()
-		}
-		return topic, nil
-	}
-	return nil, nil
-}
-
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
@@ -108,6 +101,7 @@ func init() {
 			WithOwn[*v1beta1.Gateway](&corev1.Service{}),
 			WithOwn[*v1beta1.Gateway](&networkingv1.Ingress{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.BenthosStream{}),
+			WithOwn[*v1beta1.Gateway](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Gateway](),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.Auth{}),

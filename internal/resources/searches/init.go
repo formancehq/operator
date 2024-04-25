@@ -20,20 +20,19 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/formancehq/operator/internal/resources/brokerconsumers"
-	v1 "k8s.io/api/batch/v1"
-
-	"github.com/formancehq/operator/internal/resources/gateways"
-	"github.com/formancehq/operator/internal/resources/resourcereferences"
-
 	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/auths"
+	"github.com/formancehq/operator/internal/resources/brokerconsumers"
 	deployments "github.com/formancehq/operator/internal/resources/deployments"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/internal/resources/gateways"
+	"github.com/formancehq/operator/internal/resources/licence"
 	. "github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/internal/resources/resourcereferences"
 	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -43,7 +42,7 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=searches/finalizers,verbs=update
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, version string) error {
-	elasticSearchURI, err := settings.RequireURL(ctx, stack.Name, "elasticsearch.dsn")
+	elasticSearchURI, err := settings.RequireURL(ctx, stack.Name, "elasticsearch", "dsn")
 	if err != nil {
 		return err
 	}
@@ -83,6 +82,12 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 	}
 	env = append(env, gatewayEnvVars...)
 
+	resourceReference, licenceEnvVars, err := licence.GetLicenceEnvVars(ctx, stack, "search", search)
+	if err != nil {
+		return err
+	}
+	env = append(env, licenceEnvVars...)
+
 	env = append(env,
 		Env("OPEN_SEARCH_SERVICE", elasticSearchURI.Host),
 		Env("OPEN_SEARCH_SCHEME", elasticSearchURI.Scheme),
@@ -114,15 +119,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 		return err
 	}
 
-	_, err = brokerconsumers.CreateOrUpdateOnAllServices(ctx, search)
-	if err != nil {
-		return fmt.Errorf("failed to create or update broker consumers for search: %w", err)
+	if err := createConsumers(ctx, search); err != nil {
+		return err
 	}
 
 	batching := search.Spec.Batching
 	if batching == nil {
 
-		batchingMap, err := settings.GetMapOrEmpty(ctx, stack.Name, "search.batching")
+		batchingMap, err := settings.GetMapOrEmpty(ctx, stack.Name, "search", "batching")
 		if err != nil {
 			return err
 		}
@@ -166,7 +170,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 	_, err = deployments.CreateOrUpdate(ctx, search, "search",
 		deployments.WithServiceAccountName(serviceAccountName),
 		deployments.WithReplicasFromSettings(ctx, stack),
-		resourcereferences.Annotate[*appsv1.Deployment]("elasticsearch-secret-hash", resourceReference),
+		resourcereferences.Annotate("elasticsearch-secret-hash", resourceReference),
+		resourcereferences.Annotate("licence-secret-hash", resourceReference),
 		deployments.WithMatchingLabels("search"),
 		deployments.WithContainers(corev1.Container{
 			Name:          "search",
@@ -189,6 +194,28 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 	}
 
 	return err
+}
+
+func createConsumers(ctx Context, search *v1beta1.Search) error {
+	for _, o := range []v1beta1.Module{
+		&v1beta1.Payments{},
+		&v1beta1.Ledger{},
+		&v1beta1.Gateway{},
+	} {
+		if ok, err := HasDependency(ctx, search.Spec.Stack, o); err != nil {
+			return err
+		} else if ok {
+			consumer, err := brokerconsumers.Create(ctx, search, LowerCamelCaseKind(ctx, o), LowerCamelCaseKind(ctx, o))
+			if err != nil {
+				return err
+			}
+			if !consumer.Status.Ready {
+				return NewPendingError().WithMessage("waiting for consumer %s to be ready", consumer.Name)
+			}
+		}
+	}
+
+	return nil
 }
 
 func init() {

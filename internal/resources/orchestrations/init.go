@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package webhooks
+package orchestrations
 
 import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokerconsumers"
+	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/internal/resources/jobs"
@@ -30,27 +31,33 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 )
 
-//+kubebuilder:rbac:groups=formance.com,resources=webhooks,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=formance.com,resources=webhooks/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=formance.com,resources=webhooks/finalizers,verbs=update
+//+kubebuilder:rbac:groups=formance.com,resources=orchestrations,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=formance.com,resources=orchestrations/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=formance.com,resources=orchestrations/finalizers,verbs=update
 
-func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, version string) error {
-	database, err := databases.Create(ctx, stack, webhooks)
+func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, version string) error {
+
+	database, err := databases.Create(ctx, stack, o)
 	if err != nil {
 		return err
 	}
 
-	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, webhooks)
+	authClient, err := createAuthClient(ctx, stack, o)
 	if err != nil {
 		return err
 	}
 
-	if err := gatewayhttpapis.Create(ctx, webhooks, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
+	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, o)
+	if err != nil {
+		return err
+	}
+
+	if err := gatewayhttpapis.Create(ctx, o, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
 		return err
 	}
 
 	if database.Status.Ready {
-		image, err := registries.GetImage(ctx, stack, "webhooks", version)
+		image, err := registries.GetImage(ctx, stack, "orchestration", version)
 		if err != nil {
 			return errors.Wrap(err, "resolving image")
 		}
@@ -58,35 +65,32 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 		if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
 			serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 			if err != nil {
-				return errors.Wrap(err, "resolving service account")
+				return errors.Wrap(err, "getting service account name")
 			}
 
 			migrateContainer, err := databases.MigrateDatabaseContainer(ctx, stack, image, database)
 			if err != nil {
-				return errors.Wrap(err, "creating migration container")
+				return errors.Wrap(err, "creating migrate container")
 			}
 
-			if err := jobs.Handle(ctx, webhooks, "migrate",
+			if err := jobs.Handle(ctx, o, "migrate",
 				migrateContainer,
 				jobs.WithServiceAccount(serviceAccountName),
 			); err != nil {
 				return err
 			}
+
 			if err := databases.SaveModuleVersion(ctx, database, version); err != nil {
 				return errors.Wrap(err, "saving module version in database object")
 			}
 		}
 
 		if consumer.Status.Ready {
-			if IsGreaterOrEqual(version, "v0.7.1") {
-				if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-					return err
-				}
-			} else {
-				if err := createDualDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-					return err
-				}
+			if err := createDeployment(ctx, stack, o, database, authClient, consumer, image); err != nil {
+				return err
 			}
+		} else {
+			return NewPendingError().WithMessage("waiting for consumers to be ready")
 		}
 	}
 
@@ -96,14 +100,19 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
-			WithOwn[*v1beta1.Webhooks](&v1beta1.BrokerConsumer{}),
-			WithOwn[*v1beta1.Webhooks](&appsv1.Deployment{}),
-			WithOwn[*v1beta1.Webhooks](&v1beta1.GatewayHTTPAPI{}),
-			WithOwn[*v1beta1.Webhooks](&batchv1.Job{}),
-			WithWatchSettings[*v1beta1.Webhooks](),
-			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Ledger{}),
-			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Payments{}),
-			databases.Watch[*v1beta1.Webhooks](),
+			WithOwn[*v1beta1.Orchestration](&v1beta1.BrokerConsumer{}),
+			WithOwn[*v1beta1.Orchestration](&v1beta1.AuthClient{}),
+			WithOwn[*v1beta1.Orchestration](&appsv1.Deployment{}),
+			WithOwn[*v1beta1.Orchestration](&v1beta1.GatewayHTTPAPI{}),
+			WithOwn[*v1beta1.Orchestration](&v1beta1.ResourceReference{}),
+			WithOwn[*v1beta1.Orchestration](&batchv1.Job{}),
+			WithWatchSettings[*v1beta1.Orchestration](),
+			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Ledger{}),
+			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Auth{}),
+			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Payments{}),
+			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Wallets{}),
+			brokertopics.Watch[*v1beta1.Orchestration]("orchestration"),
+			databases.Watch[*v1beta1.Orchestration](),
 		),
 	)
 }
