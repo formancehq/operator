@@ -8,7 +8,7 @@ sources:
     FROM core+builder-image
     WORKDIR /src
     WORKDIR /src/components/operator
-    COPY --dir api internal pkg cmd .
+    COPY --dir api internal pkg cmd config .
     COPY go.* .
     SAVE ARTIFACT /src
 
