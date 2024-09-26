@@ -15,7 +15,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
 	github.com/pkg/errors v0.9.1
-	github.com/stoewer/go-strcase v1.2.0
+	github.com/stoewer/go-strcase v1.3.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/mod v0.21.0
 	gopkg.in/yaml.v3 v3.0.1
