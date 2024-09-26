@@ -198,8 +198,8 @@ tidy:
     COPY --pass-args (+sources/src) /src
     WORKDIR /src/components/operator
     DO --pass-args core+GO_TIDY
-    BUILD ./tools/utils+tidy
-    BUILD ./tools/kubectl-stacks+tidy
+    # BUILD ./tools/utils+tidy
+    # BUILD ./tools/kubectl-stacks+tidy
 
 helm-validate:
     FROM --pass-args core+helm-base
