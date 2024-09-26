@@ -1,15 +1,12 @@
 VERSION 0.8
 
-IMPORT github.com/formancehq/earthly:tags/v0.15.0 AS core
-IMPORT ../.. AS stack
-IMPORT .. AS components
+IMPORT github.com/formancehq/earthly:tags/v0.16.2 AS core
 
 FROM core+base-image
 
 sources:
     FROM core+builder-image
     WORKDIR /src
-    COPY (stack+sources/out --LOCATION=ee/search) ee/search
     WORKDIR /src/components/operator
     COPY --dir api internal pkg cmd .
     COPY go.* .
@@ -123,15 +120,12 @@ deploy:
 deploy-staging:
     FROM --pass-args core+base-argocd 
     ARG --required TAG
-
     ARG APPLICATION=staging-eu-west-1-hosting-regions
     LET SERVER=argocd.internal.formance.cloud
-    
     RUN --secret AUTH_TOKEN \
         argocd app set $APPLICATION \ 
         --parameter operator.image.tag=$TAG \
         --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web
-
     BUILD --pass-args core+deploy-staging
 
 lint:
@@ -139,7 +133,7 @@ lint:
     COPY (+sources/*) /src
     COPY --pass-args +tidy/go.* .
     WORKDIR /src/components/operator
-    DO --pass-args stack+GO_LINT
+    DO --pass-args core+GO_LINT
     SAVE ARTIFACT api AS LOCAL api
     SAVE ARTIFACT internal AS LOCAL internal
 
@@ -203,7 +197,7 @@ tidy:
     FROM core+builder-image
     COPY --pass-args (+sources/src) /src
     WORKDIR /src/components/operator
-    DO --pass-args stack+GO_TIDY
+    DO --pass-args core+GO_TIDY
     BUILD ./tools/utils+tidy
     BUILD ./tools/kubectl-stacks+tidy
 
@@ -236,5 +230,11 @@ helm-publish:
     END
 
 release:
-    BUILD --pass-args stack+goreleaser --path=components/operator
-    BUILD --pass-args stack+goreleaser --path=components/operator/tools/utils
+    FROM core+builder-image
+    ARG mode=local
+    COPY --dir . /src
+    DO core+GORELEASER --mode=$mode
+
+# release:
+#     BUILD --pass-args stack+goreleaser --path=components/operator
+#     BUILD --pass-args stack+goreleaser --path=components/operator/tools/utils

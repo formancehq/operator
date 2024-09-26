@@ -1,6 +1,6 @@
 VERSION 0.8
 
-IMPORT github.com/formancehq/earthly:tags/v0.15.0 AS core
+IMPORT github.com/formancehq/earthly:tags/v0.16.0 AS core
 IMPORT ../../../.. AS stack
 IMPORT ../../.. AS components
 
@@ -18,4 +18,4 @@ tidy:
     FROM core+builder-image
     COPY --pass-args (+sources/src) /src
     WORKDIR /src/components/operator/tools/kubectl-stacks
-    DO --pass-args stack+GO_TIDY
+    DO --pass-args core+GO_TIDY

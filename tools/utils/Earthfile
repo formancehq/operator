@@ -1,6 +1,6 @@
 VERSION 0.8
 
-IMPORT github.com/formancehq/earthly:tags/v0.15.0 AS core
+IMPORT github.com/formancehq/earthly:tags/v0.16.0 AS core
 IMPORT ../../../.. AS stack
 IMPORT ../../.. AS components
 
@@ -33,7 +33,7 @@ lint:
     COPY (+sources/*) /src
     COPY --pass-args +tidy/go.* .
     WORKDIR /src/components/operator/tools/utils
-    DO --pass-args stack+GO_LINT
+    DO --pass-args core+GO_LINT
     SAVE ARTIFACT cmd AS LOCAL cmd
 
 pre-commit:
@@ -46,7 +46,7 @@ tidy:
     FROM core+builder-image
     COPY --pass-args (+sources/src) /src
     WORKDIR /src/components/operator/tools/utils
-    DO --pass-args stack+GO_TIDY
+    DO --pass-args core+GO_TIDY
 
 release:
     BUILD --pass-args stack+goreleaser --path=components/operator/tools/utils
