@@ -61,36 +61,7 @@ generate-mock:
     RUN go generate -run mockgen ./...
     SAVE ARTIFACT internal AS LOCAL internal
 
-helm-update:
-    FROM core+builder-image
-    RUN curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s -- 4.5.4 /bin
-    RUN apk add helm yq
-
-    WORKDIR /src
-    COPY --pass-args (+manifests/config) /src/config
-    COPY --dir helm hack .
-
-    RUN rm -f helm/operator/templates/gen/*
-    RUN rm -f helm/crds/templates/crds/*
-
-    RUN kustomize build config/default --output helm/operator/templates/gen
-    RUN kustomize build config/crd --output helm/crds/templates/crds
-
-    RUN rm -f helm/operator/templates/gen/v1_namespace*.yaml
-    RUN rm -f helm/operator/templates/gen/apps_v1_deployment_*.yaml
-    ARG VERSION="v2.0.19"
-    FOR dir IN $(ls -d helm/*/)
-        RUN yq -i ".version=\"${VERSION}\"" ${dir}Chart.yaml
-        RUN yq -i ".appVersion=\"${VERSION}\"" ${dir}Chart.yaml
-        IF [ "$dir" = "helm/operator/" ]
-            RUN yq -i ".dependencies[0].version=\"${VERSION}"\" ${dir}Chart.yaml
-        END
-    END
-    RUN helm dependencies update ./helm/operator
-
-
-    SAVE ARTIFACT helm AS LOCAL helm
-
+# This need to work from a branch
 deploy:
     ARG LICENCE_TOKEN=""
     ARG LICENCE_ISSUER="http://licence-api.formance.svc.cluster.local:8080/keys"
@@ -209,33 +180,6 @@ tidy:
     # BUILD ./tools/utils+tidy
     # BUILD ./tools/kubectl-stacks+tidy
 
-helm-validate:
-    FROM --pass-args core+helm-base
-    WORKDIR /src
-    COPY --pass-args (+helm-update/helm) .
-    
-    FOR dir IN $(ls -d */)
-        WORKDIR /src/$dir
-        DO --pass-args core+HELM_VALIDATE
-    END
-    SAVE ARTIFACT /src AS LOCAL helm
-
-helm-package:
-    FROM --pass-args +helm-validate
-    WORKDIR /src
-    FOR dir IN $(ls -d */)
-        WORKDIR /src/$dir
-        RUN helm package .
-    END
-    SAVE ARTIFACT /src AS LOCAL helm
-
-helm-publish:
-    FROM --pass-args +helm-package
-    WORKDIR /src
-    FOR path IN $(ls -d ls */*.tgz)
-        DO --pass-args +HELM_PUBLISH --path=/src/${path}
-    END
-
 release:
     FROM core+builder-image
     ARG mode=local
@@ -243,12 +187,26 @@ release:
     DO core+GORELEASER --mode=$mode
     BUILD +helm-publish 
 
-HELM_PUBLISH:
-    FUNCTION
-    ARG --required path
-    WITH DOCKER
-        RUN --secret GITHUB_TOKEN echo $GITHUB_TOKEN | docker login ghcr.io -u NumaryBot --password-stdin
-    END
-    WITH DOCKER
-        RUN helm push ${path} oci://ghcr.io/formancehq/helm
-    END
+kustomize-base:
+    FROM core+builder-image
+    RUN curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s -- 4.5.4 /bin
+    RUN apk add helm yq
+
+helm-crds:
+    FROM +kustomize-base
+    WORKDIR /src
+    RUN mkdir /build
+    COPY --pass-args (+manifests/config) /src/config
+    COPY --dir hack .
+    RUN kustomize build config/crd --output /build
+    SAVE ARTIFACT /build
+
+
+helm-operator:
+    FROM +kustomize-base
+    WORKDIR /src
+    RUN mkdir /build
+    COPY --pass-args (+manifests/config) /src/config
+    COPY --dir hack .
+    RUN kustomize build config/default --output /build
+    SAVE ARTIFACT /build
