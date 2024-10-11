@@ -234,7 +234,3 @@ release:
     ARG mode=local
     COPY --dir . /src
     DO core+GORELEASER --mode=$mode
-
-# release:
-#     BUILD --pass-args stack+goreleaser --path=components/operator
-#     BUILD --pass-args stack+goreleaser --path=components/operator/tools/utils
