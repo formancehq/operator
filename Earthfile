@@ -232,9 +232,8 @@ helm-package:
 helm-publish:
     FROM --pass-args +helm-package
     WORKDIR /src
-    FOR dir IN $(ls -d */)
-        WORKDIR /src/$dir
-        DO --pass-args stack+HELM_PUBLISH --path=/src/${dir}*.tgz
+    FOR path IN $(ls -d ls */*.tgz)
+        DO --pass-args +HELM_PUBLISH --path=/src/${path}
     END
 
 release:
@@ -243,3 +242,13 @@ release:
     COPY --dir . /src
     DO core+GORELEASER --mode=$mode
     BUILD +helm-publish 
+
+HELM_PUBLISH:
+    FUNCTION
+    ARG --required path
+    WITH DOCKER
+        RUN --secret GITHUB_TOKEN echo $GITHUB_TOKEN | docker login ghcr.io -u NumaryBot --password-stdin
+    END
+    WITH DOCKER
+        RUN helm push ${path} oci://ghcr.io/formancehq/helm
+    END
