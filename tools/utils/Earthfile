@@ -1,8 +1,6 @@
 VERSION 0.8
 
 IMPORT github.com/formancehq/earthly:tags/v0.16.0 AS core
-IMPORT ../../../.. AS stack
-IMPORT ../../.. AS components
 
 FROM core+base-image
 
@@ -47,6 +45,3 @@ tidy:
     COPY --pass-args (+sources/src) /src
     WORKDIR /src/components/operator/tools/utils
     DO --pass-args core+GO_TIDY
-
-release:
-    BUILD --pass-args stack+goreleaser --path=components/operator/tools/utils
