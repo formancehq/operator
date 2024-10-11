@@ -64,7 +64,7 @@ generate-mock:
 helm-update:
     FROM core+builder-image
     RUN curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s -- 4.5.4 /bin
-    RUN apk add helm
+    RUN apk add helm yq
 
     WORKDIR /src
     COPY --pass-args (+manifests/config) /src/config
@@ -78,8 +78,16 @@ helm-update:
 
     RUN rm -f helm/operator/templates/gen/v1_namespace*.yaml
     RUN rm -f helm/operator/templates/gen/apps_v1_deployment_*.yaml
-
+    ARG VERSION="v2.0.19"
+    FOR dir IN $(ls -d helm/*/)
+        RUN yq -i ".version=\"${VERSION}\"" ${dir}Chart.yaml
+        RUN yq -i ".appVersion=\"${VERSION}\"" ${dir}Chart.yaml
+        IF [ "$dir" = "helm/operator/" ]
+            RUN yq -i ".dependencies[0].version=\"${VERSION}"\" ${dir}Chart.yaml
+        END
+    END
     RUN helm dependencies update ./helm/operator
+
 
     SAVE ARTIFACT helm AS LOCAL helm
 
@@ -234,3 +242,4 @@ release:
     ARG mode=local
     COPY --dir . /src
     DO core+GORELEASER --mode=$mode
+    BUILD +helm-publish 
