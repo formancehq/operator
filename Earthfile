@@ -165,8 +165,8 @@ pre-commit:
     BUILD --pass-args +lint
     BUILD --pass-args +generate
     BUILD --pass-args +manifests
-    BUILD --pass-args +helm-update
-    BUILD --pass-args +helm-validate
+    BUILD --pass-args +helm-crds
+    BUILD --pass-args +helm-operator
     BUILD +generate-docs
 
 openapi:
@@ -185,7 +185,7 @@ release:
     ARG mode=local
     COPY --dir . /src
     DO core+GORELEASER --mode=$mode
-    BUILD +helm-publish 
+    BUILD +helm-publish
 
 kustomize-base:
     FROM core+builder-image
@@ -200,7 +200,6 @@ helm-crds:
     COPY --dir hack .
     RUN kustomize build config/crd --output /build
     SAVE ARTIFACT /build
-
 
 helm-operator:
     FROM +kustomize-base
