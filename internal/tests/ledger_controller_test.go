@@ -2,9 +2,8 @@ package tests_test
 
 import (
 	"github.com/formancehq/go-libs/collectionutils"
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/ledgers"
 	"github.com/formancehq/operator/internal/resources/settings"
 	. "github.com/formancehq/operator/internal/tests/internal"
 	"github.com/google/uuid"
@@ -167,121 +166,6 @@ var _ = Describe("LedgerController", func() {
 						g.Expect(deployment.Spec.Template.Spec.Containers[0].Env).
 							ShouldNot(ContainElements(core.Env("BROKER", "nats")))
 						return true
-					}).Should(BeTrue())
-				})
-			})
-		})
-		Context("with multi ready deployment strategy", func() {
-			JustBeforeEach(func() {
-				Eventually(func() error {
-					return LoadResource(stack.Name, "ledger", &appsv1.Deployment{})
-				}).Should(Succeed())
-				patch := client.MergeFrom(ledger.DeepCopy())
-				ledger.Spec.DeploymentStrategy = v1beta1.DeploymentStrategyMonoWriterMultipleReader
-				Expect(Patch(ledger, patch)).To(Succeed())
-			})
-			It("Should update resources", func() {
-				By("Should remove the original deployment", func() {
-					Eventually(func() error {
-						return LoadResource(stack.Name, "ledger", &appsv1.Deployment{})
-					}).Should(BeNotFound())
-				})
-				By("Should create two applications, two services and a gateway", func() {
-					reader := &appsv1.Deployment{}
-					Eventually(func() error {
-						return LoadResource(stack.Name, "ledger-read", reader)
-					}).Should(Succeed())
-					Expect(reader).To(BeControlledBy(ledger))
-
-					readerService := &corev1.Service{}
-					Eventually(func() error {
-						return LoadResource(stack.Name, "ledger-read", readerService)
-					}).Should(Succeed())
-					Expect(readerService).To(BeControlledBy(ledger))
-					Expect(readerService).To(TargetDeployment(reader))
-
-					writer := &appsv1.Deployment{}
-					Eventually(func() error {
-						return LoadResource(stack.Name, "ledger-write", writer)
-					}).Should(Succeed())
-					Expect(writer).To(BeControlledBy(ledger))
-
-					writerService := &corev1.Service{}
-					Eventually(func() error {
-						return LoadResource(stack.Name, "ledger-write", writerService)
-					}).Should(Succeed())
-					Expect(writerService).To(BeControlledBy(ledger))
-					Expect(writerService).To(TargetDeployment(writer))
-
-					gateway := &appsv1.Deployment{}
-					Eventually(func() error {
-						return LoadResource(stack.Name, "ledger-gateway", gateway)
-					}).Should(Succeed())
-					Expect(gateway).To(BeControlledBy(ledger))
-					Expect(gateway.Spec.Template.Spec.SecurityContext).NotTo(BeNil())
-					Expect(gateway.Spec.Template.Spec.Containers).To(HaveLen(1))
-					Expect(gateway.Spec.Template.Spec.Containers[0].SecurityContext).NotTo(BeNil())
-					Expect(gateway.Spec.Template.Spec.Containers[0].SecurityContext.Capabilities).NotTo(BeNil())
-					Expect(gateway.Spec.Template.Spec.Containers[0].SecurityContext.Capabilities.Add).To(HaveLen(1))
-					Expect(gateway.Spec.Template.Spec.Containers[0].SecurityContext.Capabilities.Add).To(ContainElements(corev1.Capability("NET_BIND_SERVICE")))
-				})
-			})
-			It("Should update the strategy condition", func() {
-				Eventually(func(g Gomega) string {
-					g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
-					g.Expect(ledger.Status.Conditions.Get(ledgers.ConditionTypeDeploymentStrategy)).ToNot(BeNil())
-					return ledger.Status.Conditions.Get(ledgers.ConditionTypeDeploymentStrategy).Reason
-				}).Should(Equal(ledgers.ReasonLedgerMonoWriterMultipleReader))
-			})
-			It("Should delete the deployment", func() {
-				deployment := &appsv1.Deployment{}
-				Eventually(func(g Gomega) bool {
-					g.Expect(Get(core.GetNamespacedResourceName(stack.Name, "ledger"), deployment)).ToNot(Succeed())
-					return true
-				}).Should(BeTrue())
-			})
-			When("Updating the deployment strategy to single", func() {
-				var cp *v1beta1.Ledger
-				JustBeforeEach(func() {
-					cp = ledger.DeepCopy()
-					patch := client.MergeFrom(ledger.DeepCopy())
-					ledger.Spec.DeploymentStrategy = v1beta1.DeploymentStrategySingle
-					Expect(Patch(ledger, patch)).To(Succeed())
-				})
-				It("Should only have one ConditionDeploymentStrategy per generation", func() {
-					Eventually(func(g Gomega) bool {
-						g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
-						g.Expect(ledger.Generation).ToNot(Equal(cp.Generation))
-						data := collectionutils.Reduce(
-							collectionutils.Filter(ledger.Status.Conditions, func(condition v1beta1.Condition) bool {
-								return condition.Type == ledgers.ConditionTypeDeploymentStrategy
-							}),
-							func(acc map[int64]v1beta1.Conditions, condition v1beta1.Condition) map[int64]v1beta1.Conditions {
-								if _, ok := acc[condition.ObservedGeneration]; !ok {
-									acc[condition.ObservedGeneration] = append(v1beta1.Conditions{}, condition)
-								}
-								return acc
-							}, map[int64]v1beta1.Conditions{},
-						)
-
-						for _, condition := range data {
-							g.
-								Expect(condition).
-								To(HaveLen(1))
-						}
-						return true
-
-					}).Should(BeTrue())
-				})
-				It("Should have the latest generation ConditionDeploymentStrategy", func() {
-					Eventually(func(g Gomega) bool {
-						g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
-						g.Expect(ledger.Generation).ToNot(Equal(cp.Generation))
-						return ledger.GetConditions().Check(v1beta1.AndConditions(
-							v1beta1.ConditionTypeMatch(ledgers.ConditionTypeDeploymentStrategy),
-							v1beta1.ConditionGenerationMatch(ledger.Generation),
-						))
-
 					}).Should(BeTrue())
 				})
 			})

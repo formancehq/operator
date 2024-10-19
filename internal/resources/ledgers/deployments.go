@@ -2,6 +2,7 @@ package ledgers
 
 import (
 	"fmt"
+	"golang.org/x/mod/semver"
 	"strconv"
 
 	"github.com/formancehq/operator/internal/resources/brokers"
@@ -73,8 +74,14 @@ func hasDeploymentStrategyChanged(ctx core.Context, stack *v1beta1.Stack, ledger
 	}
 }
 
-func installLedger(ctx core.Context, stack *v1beta1.Stack,
-	ledger *v1beta1.Ledger, database *v1beta1.Database, image string, isV2 bool) (err error) {
+func installLedger(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, image string, version string, isV2 bool) (err error) {
+
+	if !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0 {
+		if err := uninstallLedgerMonoWriterMultipleReader(ctx, stack); err != nil {
+			return err
+		}
+		return installLedgerStateless(ctx, stack, ledger, database, image, isV2)
+	}
 
 	deploymentStrategySettings, err := settings.GetStringOrDefault(ctx, stack.Name, v1beta1.DeploymentStrategySingle, "ledger", "deployment-strategy")
 	if err != nil {
@@ -86,7 +93,7 @@ func installLedger(ctx core.Context, stack *v1beta1.Stack,
 	}
 
 	if err = hasDeploymentStrategyChanged(ctx, stack, ledger, deploymentStrategySettings); err != nil {
-		return
+		return err
 	}
 
 	switch deploymentStrategySettings {
@@ -133,6 +140,68 @@ func installLedgerSingleInstance(ctx core.Context, stack *v1beta1.Stack,
 	}
 
 	return nil
+}
+
+func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
+	ledger *v1beta1.Ledger, database *v1beta1.Database, version string, v2 bool) error {
+	container := corev1.Container{
+		Name: "ledger",
+	}
+	container.Env = append(container.Env, core.Env("BIND", ":8080"))
+
+	var broker *v1beta1.Broker
+	if t, err := brokertopics.Find(ctx, stack, "ledger"); err != nil {
+		return err
+	} else if t != nil && t.Status.Ready {
+		broker = &v1beta1.Broker{}
+		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+			Name: stack.Name,
+		}, broker); err != nil {
+			return err
+		}
+	}
+
+	if broker != nil {
+		if !broker.Status.Ready {
+			return core.NewPendingError().WithMessage("broker not ready")
+		}
+
+		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "ledger")
+		if err != nil {
+			return err
+		}
+
+		container.Env = append(container.Env, brokerEnvVar...)
+		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger", "")...)
+	}
+
+	err := setCommonContainerConfiguration(ctx, stack, ledger, version, database, &container, v2)
+	if err != nil {
+		return err
+	}
+
+	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+
+	tpl := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ledger",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers:         []corev1.Container{container},
+					ServiceAccountName: serviceAccountName,
+				},
+			},
+		},
+	}
+
+	return applications.
+		New(ledger, tpl).
+		Install(ctx)
 }
 
 func getUpgradeContainer(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, image, version string) (corev1.Container, error) {
