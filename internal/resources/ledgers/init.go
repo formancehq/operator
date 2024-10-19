@@ -102,12 +102,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		}
 	}
 
-	err = installLedger(ctx, stack, ledger, database, image, isV2)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return installLedger(ctx, stack, ledger, database, image, version, isV2)
 }
 
 func init() {
