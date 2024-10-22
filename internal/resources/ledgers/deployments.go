@@ -76,7 +76,7 @@ func hasDeploymentStrategyChanged(ctx core.Context, stack *v1beta1.Stack, ledger
 
 func installLedger(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, image string, version string, isV2 bool) (err error) {
 
-	if !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0 {
+	if !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha.0") > 0 {
 		if err := uninstallLedgerMonoWriterMultipleReader(ctx, stack); err != nil {
 			return err
 		}
@@ -173,6 +173,24 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 
 		container.Env = append(container.Env, brokerEnvVar...)
 		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger", "")...)
+
+		apiResponsesTimeoutStatusCode, err := settings.GetString(ctx, stack.Name, "ledger", "api", "responses", "timeout", "status-code")
+		if err != nil {
+			return err
+		}
+
+		if apiResponsesTimeoutStatusCode != nil {
+			container.Env = append(container.Env, core.Env("API_RESPONSE_TIMEOUT_STATUS_CODE", *apiResponsesTimeoutStatusCode))
+		}
+
+		apiResponsesTimeoutDelay, err := settings.GetString(ctx, stack.Name, "ledger", "api", "responses", "timeout", "delay")
+		if err != nil {
+			return err
+		}
+
+		if apiResponsesTimeoutDelay != nil {
+			container.Env = append(container.Env, core.Env("API_RESPONSE_TIMEOUT_DELAY", *apiResponsesTimeoutDelay))
+		}
 	}
 
 	err := setCommonContainerConfiguration(ctx, stack, ledger, version, database, &container, v2)
