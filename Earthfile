@@ -128,13 +128,14 @@ deploy:
 deploy-staging:
     FROM --pass-args core+base-argocd 
     ARG --required TAG
-    ARG APPLICATION=staging-eu-west-1-hosting-regions
+    ARG APPLICATION=staging-eu-west-1-hosting-operator
     LET SERVER=argocd.internal.formance.cloud
     RUN --secret AUTH_TOKEN \
         argocd app set $APPLICATION \ 
-        --parameter operator.image.tag=$TAG \
+        --parameter image.tag=$TAG \
         --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web
-    BUILD --pass-args core+deploy-staging
+    RUN --secret AUTH_TOKEN argocd --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web app sync $APPLICATION
+
 
 lint:
     FROM core+builder-image
