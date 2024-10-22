@@ -173,27 +173,27 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 
 		container.Env = append(container.Env, brokerEnvVar...)
 		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger", "")...)
-
-		apiResponsesTimeoutStatusCode, err := settings.GetString(ctx, stack.Name, "ledger", "api", "responses", "timeout", "status-code")
-		if err != nil {
-			return err
-		}
-
-		if apiResponsesTimeoutStatusCode != nil {
-			container.Env = append(container.Env, core.Env("API_RESPONSE_TIMEOUT_STATUS_CODE", *apiResponsesTimeoutStatusCode))
-		}
-
-		apiResponsesTimeoutDelay, err := settings.GetString(ctx, stack.Name, "ledger", "api", "responses", "timeout", "delay")
-		if err != nil {
-			return err
-		}
-
-		if apiResponsesTimeoutDelay != nil {
-			container.Env = append(container.Env, core.Env("API_RESPONSE_TIMEOUT_DELAY", *apiResponsesTimeoutDelay))
-		}
 	}
 
-	err := setCommonContainerConfiguration(ctx, stack, ledger, version, database, &container, v2)
+	apiResponsesTimeoutStatusCode, err := settings.GetString(ctx, stack.Name, "ledger", "api", "responses", "timeout", "status-code")
+	if err != nil {
+		return err
+	}
+
+	if apiResponsesTimeoutStatusCode != nil {
+		container.Env = append(container.Env, core.Env("API_RESPONSES_TIMEOUT_STATUS_CODE", *apiResponsesTimeoutStatusCode))
+	}
+
+	apiResponsesTimeoutDelay, err := settings.GetString(ctx, stack.Name, "ledger", "api", "responses", "timeout", "delay")
+	if err != nil {
+		return err
+	}
+
+	if apiResponsesTimeoutDelay != nil {
+		container.Env = append(container.Env, core.Env("API_RESPONSES_TIMEOUT_DELAY", *apiResponsesTimeoutDelay))
+	}
+
+	err = setCommonContainerConfiguration(ctx, stack, ledger, version, database, &container, v2)
 	if err != nil {
 		return err
 	}
