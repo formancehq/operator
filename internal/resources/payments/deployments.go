@@ -22,6 +22,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/services"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -119,6 +120,29 @@ func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Pay
 	)
 
 	return env, nil
+}
+
+func uninstallPaymentsReadAndConnectors(ctx core.Context, stack *v1beta1.Stack) error {
+	remove := func(name string) error {
+		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+			return err
+		}
+		if err := core.DeleteIfExists[*corev1.Service](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	if err := remove("payments-read"); err != nil {
+		return err
+	}
+
+	if err := remove("payments-connectors"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,

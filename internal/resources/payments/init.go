@@ -110,6 +110,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 			return err
 		}
 	case !semver.IsValid(version) || semver.Compare(version, "v3.0.0") >= 0:
+		if err := uninstallPaymentsReadAndConnectors(ctx, stack); err != nil {
+			return err
+		}
+
 		if err := createFullDeployment(ctx, stack, p, database, image, true); err != nil {
 			return err
 		}
@@ -138,6 +142,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithFinalizer[*v1beta1.Payments]("clean-payments", Clean),
 			WithOwn[*v1beta1.Payments](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Payments](&corev1.Service{}),
 			WithOwn[*v1beta1.Payments](&v1beta1.GatewayHTTPAPI{}),
