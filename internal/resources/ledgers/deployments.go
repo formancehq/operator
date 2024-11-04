@@ -147,7 +147,10 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 	container := corev1.Container{
 		Name: "ledger",
 	}
-	container.Env = append(container.Env, core.Env("BIND", ":8080"))
+	container.Env = append(container.Env,
+		core.Env("BIND", ":8080"),
+		core.Env("AUTO_UPGRADE", "true"),
+	)
 
 	var broker *v1beta1.Broker
 	if t, err := brokertopics.Find(ctx, stack, "ledger"); err != nil {
