@@ -56,8 +56,12 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 	}
 
 	isV2 := false
+	isV2_2 := false
 	if !semver.IsValid(version) || semver.Compare(version, "v2.0.0-alpha") > 0 {
 		isV2 = true
+	}
+	if !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0 {
+		isV2_2 = true
 	}
 
 	if err := benthosstreams.LoadFromFileSystem(ctx, benthos.Streams, ledger, "streams/ledger", "ingestion"); err != nil {
@@ -92,7 +96,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		return NewPendingError().WithMessage("database not ready")
 	}
 
-	if isV2 && databases.GetSavedModuleVersion(database) != version {
+	if isV2 && !isV2_2 && databases.GetSavedModuleVersion(database) != version {
 		if err := migrate(ctx, stack, ledger, database, image, version); err != nil {
 			return err
 		}
