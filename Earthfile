@@ -78,14 +78,6 @@ helm-update:
 
     RUN rm -f helm/operator/templates/gen/v1_namespace*.yaml
     RUN rm -f helm/operator/templates/gen/apps_v1_deployment_*.yaml
-    ARG VERSION="v2.1.0"
-    FOR dir IN $(ls -d helm/*/)
-        RUN yq -i ".version=\"${VERSION}\"" ${dir}Chart.yaml
-        RUN yq -i ".appVersion=\"${VERSION}\"" ${dir}Chart.yaml
-        IF [ "$dir" = "helm/operator/" ]
-            RUN yq -i ".dependencies[0].version=\"${VERSION}"\" ${dir}Chart.yaml
-        END
-    END
     RUN helm dependencies update ./helm/operator
 
 
