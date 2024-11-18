@@ -117,6 +117,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 		if err := createFullDeployment(ctx, stack, p, database, image, true); err != nil {
 			return err
 		}
+
+		if err := createGenericTestServer(ctx, stack, p, image); err != nil {
+			return err
+		}
+
+		if err := createGatewayV3(ctx, stack, p); err != nil {
+			return err
+		}
 	}
 
 	if err := benthosstreams.LoadFromFileSystem(ctx, benthos.Streams, p, "streams/payments", "ingestion"); err != nil {

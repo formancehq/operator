@@ -1,0 +1,26 @@
+{
+	{{ if .Debug }}debug{{ end }}
+}
+
+:8080 {
+    {{- if .EnableOpenTelemetry }}
+    tracing {
+        span gateway
+    }
+    {{- end }}
+    log {
+		output stdout
+		{{- if .Debug }}
+		level  DEBUG
+		{{- end }}
+	}
+
+    handle /testserver* {
+        uri strip_prefix /testserver
+        reverse_proxy payments-test-server:8080
+    }
+
+    handle /* {
+        reverse_proxy payments-v3:8080
+    }
+}

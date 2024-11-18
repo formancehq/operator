@@ -145,6 +145,55 @@ func uninstallPaymentsReadAndConnectors(ctx core.Context, stack *v1beta1.Stack) 
 	return nil
 }
 
+func createGenericTestServer(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, image string) error {
+	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+
+	appOpts := applications.WithProbePath("/_healthcheck")
+	err = applications.
+		New(payments, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "payments-test-server",
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: v1.PodTemplateSpec{
+					Spec: v1.PodSpec{
+						ServiceAccountName: serviceAccountName,
+						Containers: []v1.Container{{
+							Name:          "tgs",
+							Args:          []string{"tgs"},
+							Env:           []corev1.EnvVar{},
+							Image:         image,
+							LivenessProbe: applications.DefaultLiveness("http", appOpts),
+							Ports: []v1.ContainerPort{{
+								Name:          "http",
+								ContainerPort: 8080,
+							}},
+							SecurityContext: &v1.SecurityContext{
+								ReadOnlyRootFilesystem: pointer.For(false),
+							},
+						}},
+						// Ensure empty
+						InitContainers: []v1.Container{},
+					},
+				},
+			},
+		}).
+		Install(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = services.Create(ctx, payments, "payments-test-server", services.WithDefault("payments-test-server"))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 	payments *v1beta1.Payments, database *v1beta1.Database, image string, v3 bool) error {
 
@@ -203,10 +252,15 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 		appOpts = applications.WithProbePath("/_healthcheck")
 	}
 
+	name := "payments"
+	if v3 {
+		name = "payments-v3"
+	}
+
 	err = applications.
 		New(payments, &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "payments",
+				Name: name,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{
@@ -233,6 +287,13 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 		Install(ctx)
 	if err != nil {
 		return err
+	}
+
+	if v3 {
+		_, err = services.Create(ctx, payments, name, services.WithDefault(name))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -371,6 +432,38 @@ func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments
 func createGateway(ctx core.Context, stack *v1beta1.Stack, p *v1beta1.Payments) error {
 
 	caddyfileConfigMap, err := caddy.CreateCaddyfileConfigMap(ctx, stack, "payments", Caddyfile, map[string]any{
+		"Debug": stack.Spec.Debug || p.Spec.Debug,
+	}, core.WithController[*v1.ConfigMap](ctx.GetScheme(), p))
+	if err != nil {
+		return err
+	}
+
+	env := make([]v1.EnvVar, 0)
+
+	env = append(env, core.GetDevEnvVars(stack, p)...)
+
+	caddyImage, err := registries.GetCaddyImage(ctx, stack, "2.7.6-alpine")
+	if err != nil {
+		return err
+	}
+
+	deploymentTemplate, err := caddy.DeploymentTemplate(ctx, stack, p, caddyfileConfigMap, caddyImage, env)
+	if err != nil {
+		return err
+	}
+	// notes(gfyrag): reset init containers in case of upgrading from v1 to v2
+	deploymentTemplate.Spec.Template.Spec.InitContainers = make([]v1.Container, 0)
+
+	deploymentTemplate.Name = "payments"
+
+	return applications.
+		New(p, deploymentTemplate).
+		Install(ctx)
+}
+
+func createGatewayV3(ctx core.Context, stack *v1beta1.Stack, p *v1beta1.Payments) error {
+
+	caddyfileConfigMap, err := caddy.CreateCaddyfileConfigMap(ctx, stack, "payments", CaddyfileV3, map[string]any{
 		"Debug": stack.Spec.Debug || p.Spec.Debug,
 	}, core.WithController[*v1.ConfigMap](ctx.GetScheme(), p))
 	if err != nil {
