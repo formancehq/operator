@@ -5,6 +5,7 @@ metadata:
   labels:
     {{- include "operator.labels" . | nindent 4 }}
     control-plane: controller-manager
+  namespace: {{ .Release.Namespace }}
 spec:
   selector:
     matchLabels:
