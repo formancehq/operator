@@ -560,6 +560,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `issuer` _string_ | Issuer is the url of the delegated oidc server |  |  |
 | `clientID` _string_ | ClientID is the client id to use for authentication |  |  |
 | `clientSecret` _string_ | ClientSecret is the client secret to use for authentication |  |  |
+| `clientSecretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | ClientSecretFromSecret is the client secret to use for authentication |  |  |
 
 
 

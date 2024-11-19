@@ -28,6 +28,9 @@ type DelegatedOIDCServerConfiguration struct {
 	ClientID string `json:"clientID,omitempty"`
 	// ClientSecret is the client secret to use for authentication
 	ClientSecret string `json:"clientSecret,omitempty"`
+
+	// ClientSecretFromSecret is the client secret to use for authentication
+	ClientSecretFromSecret *v1.SecretKeySelector `json:"clientSecretFromSecret,omitempty"`
 }
 
 type AuthSpec struct {

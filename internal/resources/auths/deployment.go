@@ -60,12 +60,29 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 		})
 	}
 	if auth.Spec.DelegatedOIDCServer != nil {
+		if auth.Spec.DelegatedOIDCServer.ClientSecret != "" && auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret != nil {
+			return fmt.Errorf("cannot specify signing key using both .spec.signingKey and .spec.signingKeyFromSecret fields")
+		}
 		env = append(env,
-			Env("DELEGATED_CLIENT_SECRET", auth.Spec.DelegatedOIDCServer.ClientSecret),
 			Env("DELEGATED_CLIENT_ID", auth.Spec.DelegatedOIDCServer.ClientID),
 			Env("DELEGATED_ISSUER", auth.Spec.DelegatedOIDCServer.Issuer),
 		)
+
+		if auth.Spec.DelegatedOIDCServer.ClientSecret != "" {
+			env = append(env,
+				Env("DELEGATED_CLIENT_SECRET", auth.Spec.DelegatedOIDCServer.ClientSecret),
+			)
+		}
+		if auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret != nil {
+			env = append(env, corev1.EnvVar{
+				Name: "DELEGATED_CLIENT_SECRET",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret,
+				},
+			})
+		}
 	}
+
 	if stack.Spec.Dev || auth.Spec.Dev {
 		env = append(env, Env("CAOS_OIDC_DEV", "1"))
 	}
