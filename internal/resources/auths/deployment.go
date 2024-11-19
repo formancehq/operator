@@ -64,7 +64,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 	}
 	if auth.Spec.DelegatedOIDCServer != nil {
 		if auth.Spec.DelegatedOIDCServer.ClientSecret != "" && auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret != nil {
-			return fmt.Errorf("cannot specify signing key using both .spec.signingKey and .spec.signingKeyFromSecret fields")
+			return fmt.Errorf("cannot specify signing key using both .spec.DelegatedOIDCServer.ClientSecret and .spec.DelegatedOIDCServer.ClientSecretFromSecret fields")
 		}
 		env = append(env,
 			Env("DELEGATED_CLIENT_ID", auth.Spec.DelegatedOIDCServer.ClientID),
