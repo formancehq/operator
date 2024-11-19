@@ -8,6 +8,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/applications"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
+	"github.com/formancehq/operator/internal/resources/resourcereferences"
 	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +17,9 @@ import (
 
 func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, database *v1beta1.Database,
 	configMap *corev1.ConfigMap, image string) error {
-
+	annotations := map[string]string{
+		"config-hash": HashFromConfigMaps(configMap),
+	}
 	env := make([]corev1.EnvVar, 0)
 	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, auth))
 	if err != nil {
@@ -73,13 +76,26 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 				Env("DELEGATED_CLIENT_SECRET", auth.Spec.DelegatedOIDCServer.ClientSecret),
 			)
 		}
+
+		ressourceRefName := "auth-delegated-client-secret"
 		if auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret != nil {
+			clientSecretResourceRef, err := resourcereferences.Create(ctx, auth, ressourceRefName, auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret.Name, &corev1.Secret{})
+			if err != nil {
+				return err
+			}
+
+			annotations[ressourceRefName] = clientSecretResourceRef.Status.Hash
+
 			env = append(env, corev1.EnvVar{
 				Name: "DELEGATED_CLIENT_SECRET",
 				ValueFrom: &corev1.EnvVarSource{
 					SecretKeyRef: auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret,
 				},
 			})
+		} else {
+			if err := resourcereferences.Delete(ctx, auth, ressourceRefName); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -100,9 +116,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 			Spec: appsv1.DeploymentSpec{
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
-						Annotations: map[string]string{
-							"config-hash": HashFromConfigMaps(configMap),
-						},
+						Annotations: annotations,
 					},
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{{
