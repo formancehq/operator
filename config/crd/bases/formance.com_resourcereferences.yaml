@@ -14,7 +14,16 @@ spec:
     singular: resourcereference
   scope: Cluster
   versions:
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - description: Info
+      jsonPath: .status.info
+      name: Info
+      type: string
+    - description: Is ready
+      jsonPath: .status.ready
+      name: Ready
+      type: string
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: "ResourceReference is a special resources used to refer to externally
