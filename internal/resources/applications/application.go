@@ -140,6 +140,18 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		))
 	}()
 
+	gracePeriod, err := settings.GetStringOrDefault(
+		ctx,
+		a.owner.GetStack(),
+		"",
+		"modules",
+		strcase.LowerCamelCase(a.owner.GetObjectKind().GroupVersionKind().Kind),
+		"grace-period",
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get grace period: %w", err)
+	}
+
 	mutators := make([]core.ObjectMutator[*appsv1.Deployment], 0)
 	mutators = append(mutators, func(deployment *appsv1.Deployment) error {
 		a.deploymentTpl.Spec.DeepCopyInto(&deployment.Spec)
@@ -192,6 +204,11 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 			}
 
 			configureSecurityContext(&container, runAs)
+
+			if gracePeriod != "" {
+				container.Env = append(container.Env, core.Env("GRACE_PERIOD", gracePeriod))
+			}
+
 			deployment.Spec.Template.Spec.Containers[ind] = container
 		}
 
