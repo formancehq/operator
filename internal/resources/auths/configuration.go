@@ -2,6 +2,7 @@ package auths
 
 import (
 	"sort"
+	"strings"
 
 	. "github.com/formancehq/go-libs/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
@@ -11,16 +12,25 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func createConfiguration(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, items []*v1beta1.AuthClient) (*corev1.ConfigMap, error) {
+func AuthClientSecretToEnvVars(authClient *v1beta1.AuthClient) corev1.EnvVar {
+	name := authClient.Name
+	name = strings.ToUpper(strings.ReplaceAll(strings.ReplaceAll(name, "-", "_"), ".", "_"))
+	return EnvFromSecret("AUTH_CLIENT_SECRET_"+name, authClient.Spec.SecretFromSecret.Name, authClient.Spec.SecretFromSecret.Key)
+}
 
+func createConfiguration(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, items []*v1beta1.AuthClient, version string) (*corev1.ConfigMap, error) {
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].Name < items[j].Name
 	})
 
 	yamlData, err := yaml.Marshal(struct {
-		Clients any `yaml:"clients"`
+		Clients []v1beta1.AuthClientSpec `yaml:"clients"`
 	}{
-		Clients: Map(items, func(from *v1beta1.AuthClient) any {
+		Clients: Map(items, func(from *v1beta1.AuthClient) v1beta1.AuthClientSpec {
+			if from.Spec.SecretFromSecret != nil && IsGreaterOrEqual(version, "v2.1.0") {
+				envVar := AuthClientSecretToEnvVars(from)
+				from.Spec.Secret = "$" + envVar.Name
+			}
 			return from.Spec
 		}),
 	})

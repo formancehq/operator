@@ -19,6 +19,14 @@ spec:
       jsonPath: .spec.stack
       name: Stack
       type: string
+    - description: Is ready
+      jsonPath: .status.ready
+      name: Ready
+      type: string
+    - description: Info
+      jsonPath: .status.info
+      name: Info
+      type: string
     name: v1beta1
     schema:
       openAPIV3Schema:
@@ -82,6 +90,26 @@ spec:
                   Secret allow to configure a secret for the client.
                   It is not required as some client could use some oauth2 flows which does not requires a client secret
                 type: string
+              secretFromSecret:
+                description: SecretKeySelector selects a key of a Secret.
+                properties:
+                  key:
+                    description: The key of the secret to select from.  Must be a
+                      valid secret key.
+                    type: string
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                  optional:
+                    description: Specify whether the Secret or its key must be defined
+                    type: boolean
+                required:
+                - key
+                type: object
+                x-kubernetes-map-type: atomic
               stack:
                 description: Stack indicates the stack on which the module is installed
                 type: string
@@ -157,6 +185,8 @@ spec:
                   - type
                   type: object
                 type: array
+              hash:
+                type: string
               info:
                 description: Info can contain any additional like reconciliation errors
                 type: string

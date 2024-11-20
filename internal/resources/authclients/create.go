@@ -20,7 +20,7 @@ func Create(ctx core.Context, stack *v1beta1.Stack, owner client.Object, objectN
 			if t.Spec.ID == "" {
 				t.Spec.ID = uuid.NewString()
 			}
-			if t.Spec.Secret == "" {
+			if t.Spec.Secret == "" && t.Spec.SecretFromSecret == nil {
 				t.Spec.Secret = uuid.NewString()
 			}
 			for _, option := range options {

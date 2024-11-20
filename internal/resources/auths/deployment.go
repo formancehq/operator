@@ -1,8 +1,12 @@
 package auths
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 
+	"github.com/formancehq/go-libs/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/applications"
@@ -15,11 +19,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func HashFromHash(o ...string) string {
+	digest := sha256.New()
+	for _, h := range o {
+		if err := json.NewEncoder(digest).Encode(h); err != nil {
+			panic(err)
+		}
+	}
+	return base64.StdEncoding.EncodeToString(digest.Sum(nil))
+}
+
 func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, database *v1beta1.Database,
-	configMap *corev1.ConfigMap, image string) error {
+	configMap *corev1.ConfigMap, image string, version string, clients []*v1beta1.AuthClient) error {
 	annotations := map[string]string{
 		"config-hash": HashFromConfigMaps(configMap),
 	}
+
 	env := make([]corev1.EnvVar, 0)
 	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, auth))
 	if err != nil {
@@ -95,6 +110,22 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 		} else {
 			if err := resourcereferences.Delete(ctx, auth, ressourceRefName); err != nil {
 				return err
+			}
+		}
+	}
+
+	if IsGreaterOrEqual(version, "v2.1.0") {
+		hashList := make([]string, 0)
+		hashList = collectionutils.Reduce(clients, func(acc []string, from *v1beta1.AuthClient) []string {
+			if from.Spec.SecretFromSecret != nil {
+				acc = append(acc, from.Status.Hash)
+			}
+			return acc
+		}, hashList)
+		annotations["auth-clients-secrets"] = HashFromHash(hashList...)
+		for _, client := range clients {
+			if client.Spec.SecretFromSecret != nil {
+				env = append(env, AuthClientSecretToEnvVars(client))
 			}
 		}
 	}

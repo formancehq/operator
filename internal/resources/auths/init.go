@@ -29,21 +29,43 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=auths,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=auths/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=auths/finalizers,verbs=update
 
+func checkAuthClientsReconciliation(ctx Context, auth *v1beta1.Auth) ([]*v1beta1.AuthClient, error) {
+	condition := v1beta1.NewCondition("AuthClientsReconciliation", auth.Generation).SetMessage("AuthClientsReady")
+	defer func() {
+		auth.GetConditions().AppendOrReplace(*condition, v1beta1.AndConditions(
+			v1beta1.ConditionTypeMatch("AuthClientsReconciliation"),
+		))
+	}()
+	authClients := make([]*v1beta1.AuthClient, 0)
+	if err := GetAllStackDependencies(ctx, auth.Spec.Stack, &authClients); err != nil {
+		return nil, err
+	}
+
+	for _, client := range authClients {
+		if !client.Status.Ready {
+			condition.SetMessage("OneOfAuthClientsNotReady")
+			condition.SetStatus(v1.ConditionFalse)
+		}
+	}
+
+	return authClients, nil
+}
+
 func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version string) error {
 
-	authClientList := make([]*v1beta1.AuthClient, 0)
-	err := GetAllStackDependencies(ctx, auth.Spec.Stack, &authClientList)
+	authClients, err := checkAuthClientsReconciliation(ctx, auth)
 	if err != nil {
 		return err
 	}
 
-	configMap, err := createConfiguration(ctx, stack, auth, authClientList)
+	configMap, err := createConfiguration(ctx, stack, auth, authClients, version)
 	if err != nil {
 		return errors.Wrap(err, "creating configuration")
 	}
@@ -85,7 +107,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version st
 		}
 	}
 
-	if err := createDeployment(ctx, stack, auth, database, configMap, image); err != nil {
+	if err := createDeployment(ctx, stack, auth, database, configMap, image, version, authClients); err != nil {
 		return errors.Wrap(err, "creating deployment")
 	}
 
@@ -93,7 +115,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version st
 		return errors.Wrap(err, "creating http api")
 	}
 
-	auth.Status.Clients = Map(authClientList, (*v1beta1.AuthClient).GetName)
+	auth.Status.Clients = Map(authClients, (*v1beta1.AuthClient).GetName)
 
 	return nil
 }

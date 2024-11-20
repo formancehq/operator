@@ -1,6 +1,11 @@
 package tests_test
 
 import (
+	"fmt"
+	"strings"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/settings"
@@ -116,7 +121,7 @@ var _ = Describe("AuthController", func() {
 				})
 			})
 		})
-		Context("Then when create an AuthClient object", func() {
+		When("Creating an AuthClient object", func() {
 			var (
 				authClient *v1beta1.AuthClient
 			)
@@ -144,6 +149,89 @@ var _ = Describe("AuthController", func() {
 				cm := &corev1.ConfigMap{}
 				Expect(LoadResource(stack.Name, "auth-configuration", cm)).To(Succeed())
 				Expect(cm.Data["config.yaml"]).To(MatchGoldenFile("auth-controller", "config-with-auth-client.yaml"))
+			})
+			It("Should add an annotations on auth pod deployment template", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func(g Gomega) map[string]string {
+					g.Expect(LoadResource(stack.Name, "auth", deployment)).To(Succeed())
+					return deployment.Spec.Template.Annotations
+				}).Should(HaveKey("config-hash"))
+
+			})
+		})
+		When("Creating an AuthClient object with a secret from a secret", func() {
+			var (
+				authClient *v1beta1.AuthClient
+				secret     *corev1.Secret
+			)
+			JustBeforeEach(func() {
+				Eventually(func() error {
+					return LoadResource("", stack.Name, &corev1.Namespace{})
+				}).Should(Succeed())
+
+				secret = &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: uuid.NewString()[:8],
+						Labels: map[string]string{
+							"formance.com/stack": stack.Name,
+						},
+					},
+					StringData: map[string]string{
+						"secret": uuid.NewString(),
+					},
+				}
+				secret.Namespace = stack.Name
+				authClient = &v1beta1.AuthClient{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: uuid.NewString()[:8],
+					},
+					Spec: v1beta1.AuthClientSpec{
+						StackDependency: v1beta1.StackDependency{
+							Stack: stack.Name,
+						},
+						ID: "client0",
+						SecretFromSecret: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: secret.Name,
+							},
+							Key: "secret",
+						},
+					},
+				}
+				Expect(Create(secret)).To(Succeed())
+				Expect(Create(authClient)).To(Succeed())
+				Eventually(func(g Gomega) []string {
+					g.Expect(LoadResource("", auth.Name, auth)).To(Succeed())
+					return auth.Status.Clients
+				}).Should(ContainElements(authClient.Name))
+			})
+			JustAfterEach(func() {
+				Expect(Delete(authClient)).To(Succeed())
+				Expect(Delete(secret)).To(Succeed())
+			})
+			It("Should configure the config map with the auth client resource references", func() {
+				cm := &corev1.ConfigMap{}
+				Expect(LoadResource(stack.Name, "auth-configuration", cm)).To(Succeed())
+				envVarName := "AUTH_CLIENT_SECRET_" + strings.ToUpper(strings.ReplaceAll(strings.ReplaceAll(authClient.Name, "-", "_"), ".", "_"))
+				Expect(cm.Data["config.yaml"]).To(MatchYAML(fmt.Sprintf(`
+clients:
+    - id: client0
+      public: false
+      redirectUris: []
+      postLogoutRedirectUris: []
+      scopes: []
+      secret: $%s
+      secrets:
+        - $%s
+`, envVarName, envVarName)))
+			})
+			It("Should add an annotations on auth pod deployment template", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func(g Gomega) map[string]string {
+					g.Expect(LoadResource(stack.Name, "auth", deployment)).To(Succeed())
+					return deployment.Spec.Template.Annotations
+				}).Should(HaveKey("auth-clients-secrets"))
+				Expect(deployment.Spec.Template.Annotations["auth-clients-secrets"]).ToNot(BeEmpty())
 			})
 		})
 		Context("with a Gateway", func() {

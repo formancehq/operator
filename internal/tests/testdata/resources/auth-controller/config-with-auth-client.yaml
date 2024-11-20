@@ -2,7 +2,7 @@ clients:
     - id: client0
       public: false
       redirectUris: []
-      PostLogoutRedirectUris: []
+      postLogoutRedirectUris: []
       scopes: []
       secret: secret
       secrets:
