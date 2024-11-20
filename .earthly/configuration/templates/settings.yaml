@@ -68,3 +68,13 @@ spec:
     - '*'
   key: clear-database
   value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: grace-period
+spec:
+  stacks:
+    - '*'
+  key: "modules.*.grace-period"
+  value: "5s"
