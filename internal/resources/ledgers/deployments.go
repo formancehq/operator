@@ -152,6 +152,26 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 		core.Env("AUTO_UPGRADE", "true"),
 	)
 
+	experimentalFeatures, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-features")
+	if err != nil {
+		return fmt.Errorf("failed to get experimental features: %w", err)
+	}
+	if experimentalFeatures {
+		container.Env = append(container.Env,
+			core.Env("EXPERIMENTAL_FEATURES", "true"),
+		)
+	}
+
+	experimentalNumscript, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-numscript")
+	if err != nil {
+		return fmt.Errorf("failed to get experimental numscript: %w", err)
+	}
+	if experimentalNumscript {
+		container.Env = append(container.Env,
+			core.Env("EXPERIMENTAL_NUMSCRIPT_INTERPRETER", "true"),
+		)
+	}
+
 	var broker *v1beta1.Broker
 	if t, err := brokertopics.Find(ctx, stack, "ledger"); err != nil {
 		return err

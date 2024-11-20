@@ -72,6 +72,16 @@ spec:
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
+  name: ledger-experimental-features
+spec:
+  stacks:
+    - '*'
+  key: ledger.experimental-features
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
   name: grace-period
 spec:
   stacks:
