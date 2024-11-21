@@ -52,6 +52,18 @@ jobs:
             echo "There are changes in the repository"
             exit 1
           fi
+      - name: Validate Dependabot PR
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        run: gh pr review $PR_URL --approve -b "Auto approve dependencies bump PR"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      - name: Merge Dependabot PR
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        run: gh pr merge $PR_URL
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.NUMARY_GITHUB_TOKEN}}%
 
   Tests:
     runs-on: "ubuntu-latest"
