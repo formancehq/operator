@@ -8,6 +8,10 @@ on:
   pull_request:
     types: [ assigned, opened, synchronize, reopened, labeled ]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -63,7 +67,7 @@ jobs:
         run: gh pr merge $PR_URL
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
-          GH_TOKEN: ${{secrets.NUMARY_GITHUB_TOKEN}}%
+          GH_TOKEN: ${{secrets.NUMARY_GITHUB_TOKEN}}
 
   Tests:
     runs-on: "ubuntu-latest"
