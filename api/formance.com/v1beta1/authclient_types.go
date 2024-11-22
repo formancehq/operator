@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	"gopkg.in/yaml.v3"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -40,7 +41,7 @@ type AuthClientSpec struct {
 	RedirectUris []string `json:"redirectUris,omitempty" yaml:"redirectUris"`
 	// +optional
 	// RedirectUris allow to list allowed post logout redirect uris for the client
-	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty" yaml:"PostLogoutRedirectUris"`
+	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty" yaml:"postLogoutRedirectUris"`
 	// +optional
 	// Scopes allow to five some scope to the client
 	Scopes []string `json:"scopes,omitempty" yaml:"scopes"`
@@ -48,6 +49,9 @@ type AuthClientSpec struct {
 	// Secret allow to configure a secret for the client.
 	// It is not required as some client could use some oauth2 flows which does not requires a client secret
 	Secret string `json:"secret,omitempty"`
+
+	// +optional
+	SecretFromSecret *v1.SecretKeySelector `json:"secretFromSecret,omitempty" yaml:"-"`
 }
 
 var _ yaml.Marshaler = (*AuthClientSpec)(nil)
@@ -70,12 +74,17 @@ func (spec AuthClientSpec) MarshalYAML() (interface{}, error) {
 
 type AuthClientStatus struct {
 	Status `json:",inline"`
+
+	//+optional
+	Hash string `json:"hash,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
 //+kubebuilder:printcolumn:name="Stack",type=string,JSONPath=".spec.stack",description="Stack"
+//+kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.ready",description="Is ready"
+//+kubebuilder:printcolumn:name="Info",type=string,JSONPath=".status.info",description="Info"
 
 // AuthClient allow to create OAuth2/OIDC clients on the auth server (see [Auth](#auth))
 type AuthClient struct {

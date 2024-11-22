@@ -1644,6 +1644,7 @@ AuthClient allow to create OAuth2/OIDC clients on the auth server (see [Auth](#a
 | `postLogoutRedirectUris` _string array_ | RedirectUris allow to list allowed post logout redirect uris for the client |  |  |
 | `scopes` _string array_ | Scopes allow to five some scope to the client |  |  |
 | `secret` _string_ | Secret allow to configure a secret for the client.<br />It is not required as some client could use some oauth2 flows which does not requires a client secret |  |  |
+| `secretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ |  |  |  |
 
 
 
@@ -1673,6 +1674,7 @@ AuthClient allow to create OAuth2/OIDC clients on the auth server (see [Auth](#a
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `hash` _string_ |  |  |  |
 
 
 #### Benthos
