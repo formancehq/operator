@@ -20,7 +20,7 @@ jobs:
   PR:
     if: github.event_name == 'pull_request'
     name: Check PR Title
-    runs-on: ubuntu-latest
+    runs-on: formance-runner
     permissions:
       statuses: write
     steps:
@@ -29,7 +29,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   Dirty:
-    runs-on: "ubuntu-latest"
+    runs-on: "formance-runner"
     steps:
       - uses: 'actions/checkout@v4'
         with:
@@ -70,7 +70,7 @@ jobs:
           GH_TOKEN: ${{secrets.NUMARY_GITHUB_TOKEN}}
 
   Tests:
-    runs-on: "ubuntu-latest"
+    runs-on: "formance-runner"
     needs:
       - Dirty
     steps:
@@ -92,7 +92,7 @@ jobs:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
 
   GoReleaser:
-    runs-on: "ubuntu-latest"
+    runs-on: "formance-runner"
     if: contains(github.event.pull_request.labels.*.name, 'build-images') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
     needs:
       - Dirty
@@ -121,7 +121,7 @@ jobs:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
 
   Deploy:
-    runs-on: "ubuntu-latest"
+    runs-on: "formance-runner"
     if: github.ref == 'refs/heads/main'
     environment: staging
     needs:
@@ -135,12 +135,6 @@ jobs:
         uses: ./.github/actions/env
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - name: Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
       - name: "Deploy in staging"
         env:
           TAG: ${{ github.sha }}
