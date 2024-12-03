@@ -95,6 +95,7 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 	if options == nil {
 		options = make([]HandleJobOption, 0)
 	}
+
 	options = append(options, withRunAs(ctx, owner))
 	for _, option := range append(defaultOptions, options...) {
 		option(configuration)

@@ -14,6 +14,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type runAs struct {
@@ -74,7 +75,8 @@ var _ = Describe("Job", func() {
 		}
 		job = &batchv1.Job{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: uuid.NewString()[:8],
+				Name:      uuid.NewString()[:8],
+				Namespace: stack.Name,
 			},
 			Spec: batchv1.JobSpec{
 				Template: v1.PodTemplateSpec{
@@ -112,6 +114,11 @@ var _ = Describe("Job", func() {
 		}
 		Expect(Create(module)).To(Succeed())
 
+		Eventually(func() error {
+			ns := &v1.Namespace{}
+			return LoadResource("", stack.Name, ns)
+		}).Should(Succeed())
+
 		err := jobs.Handle(TestContext(), module, job.Name, job.Spec.Template.Spec.Containers[0], jobs.Mutator(func(t *batchv1.Job) error {
 			t.Spec.Template.Spec.InitContainers = append(make([]v1.Container, 0), job.Spec.Template.Spec.InitContainers...)
 			return nil
@@ -143,5 +150,7 @@ var _ = Describe("Job", func() {
 		for _, setting := range settings {
 			Expect(Delete(&setting)).To(Succeed())
 		}
+		Expect(Delete(module)).To(Succeed())
+		Expect(client.IgnoreNotFound(Delete(job))).To(Succeed())
 	})
 })
