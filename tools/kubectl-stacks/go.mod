@@ -1,6 +1,6 @@
 module github.com/formancehq/operator/tools/kubectl-stacks
 
-go 1.22.0
+go 1.23
 
 toolchain go1.22.7
 

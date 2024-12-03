@@ -6,6 +6,8 @@ import (
 	"github.com/formancehq/go-libs/pointer"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/applications"
+	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/pkg/errors"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -43,6 +45,32 @@ func WithServiceAccount(serviceAccountName string) HandleJobOption {
 	})
 }
 
+func withRunAs(ctx core.Context, dep v1beta1.Dependent) HandleJobOption {
+	return Mutator(func(job *batchv1.Job) error {
+		for i, container := range job.Spec.Template.Spec.Containers {
+			runAs, err := settings.GetAs[applications.RunAs](ctx, dep.GetStack(),
+				"jobs", job.Name, "containers", container.Name, "run-as")
+			if err != nil {
+				return err
+			}
+
+			applications.ConfigureSecurityContext(&container, runAs)
+			job.Spec.Template.Spec.Containers[i] = container
+		}
+
+		for i, initContainer := range job.Spec.Template.Spec.InitContainers {
+			runAs, err := settings.GetAs[applications.RunAs](ctx, dep.GetStack(),
+				"jobs", job.Name, "init-containers", initContainer.Name, "run-as")
+			if err != nil {
+				return err
+			}
+			applications.ConfigureSecurityContext(&initContainer, runAs)
+			job.Spec.Template.Spec.InitContainers[i] = initContainer
+		}
+		return nil
+	})
+}
+
 func WithPodFailurePolicy(p batchv1.PodFailurePolicy) HandleJobOption {
 	return Mutator(func(t *batchv1.Job) error {
 		t.Spec.PodFailurePolicy = &p
@@ -63,8 +91,11 @@ var defaultOptions = []HandleJobOption{
 }
 
 func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container v1.Container, options ...HandleJobOption) error {
-
 	configuration := &handleJobConfiguration{}
+	if options == nil {
+		options = make([]HandleJobOption, 0)
+	}
+	options = append(options, withRunAs(ctx, owner))
 	for _, option := range append(defaultOptions, options...) {
 		option(configuration)
 	}
