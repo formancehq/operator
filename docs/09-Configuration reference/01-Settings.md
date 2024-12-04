@@ -32,8 +32,8 @@ While we have some basic types (string, number, bool ...), we also have some com
 | deployments.`<deployment-name>`.containers.`<container-name>`.run-as                     | Map    | user=X, group=X                            |                                                                                                                                |
 | deployments.`<deployment-name>`.replicas                                                 | string | 2                                          |                                                                                                                                |
 | caddy.image                                                                              | string |                                            | Caddy image                                                                                                                    |
-| jobs.`<job-name>`.init-containers.`<container-name>`.run-as                | Map    | user=X, group=X                            |                                                                                                                                |
-| jobs.`<job-name>`.containers.`<container-name>`.run-as                | Map    | user=X, group=X                            |                                                                                                                                |
++| jobs.`<owner-kind>`.init-containers.`<container-name>`.run-as                | Map    | user=X, group=X                            | Configure the security context for init containers in jobs by specifying the user and group IDs to run as                      |  
+| jobs.`<owner-kind>`.containers.`<container-name>`.run-as                | Map    | user=X, group=X                            | Configure the security context for containers in jobs by specifying the user and group IDs to run as                           |  
 | registries.`<name>`.endpoint                                                             | string |                                            | Specify a custom endpoint for a specific docker repository                                                                     |
 | registries.`<name>`.images.`<path>`.rewrite                                              | string | formancehq/example                         | Allow to rewrite the image path                                                                                                |
 | search.batching                                                                          | Map    | period=1s, count=10                        | Override default batching parameters                                                                                           |
@@ -206,6 +206,44 @@ spec:
   stacks:
     - "formance-dev"
   value: grpc://opentelemetry-collector.formance-system.svc:4317?insecure=true
+```
+
+### Configure Database Jobs Security context - Run As
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-database-create-run-as
+spec:
+  key: jobs.database.containers.create-database.run-as
+  stacks:
+    - 'formance-dev'
+  value: user=1234,group=1234
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-database-drop-run-as
+spec:
+  key: jobs.database.containers.drop-database.run-as
+  stacks:
+    - 'formance-dev'
+  value: user=1234,group=1234
+```
+
+### Configure ledger migrate job security context - Run As
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-ledger-migrate-run-as
+spec:
+  key: jobs.ledger.containers.migrate.run-as
+  stacks:
+    - 'formance-dev'
+  value: user=1234,group=1234
 ```
 
 <!-- ### Define a Replicas -->
