@@ -47,6 +47,9 @@ var _ = Describe("Job", func() {
 		}
 
 		module = &v1beta1.Ledger{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Ledger",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: uuid.NewString()[:8],
 			},
@@ -124,7 +127,6 @@ var _ = Describe("Job", func() {
 		Eventually(func() error {
 			return LoadResource("", module.Name, module)
 		}).Should(Succeed())
-
 		module.Kind = "Ledger"
 		err := jobs.Handle(TestContext(), module, job.Name, job.Spec.Template.Spec.Containers[0], jobs.Mutator(func(t *batchv1.Job) error {
 			t.Spec.Template.Spec.InitContainers = append(make([]v1.Container, 0), job.Spec.Template.Spec.InitContainers...)
