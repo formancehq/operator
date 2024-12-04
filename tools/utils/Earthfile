@@ -1,6 +1,6 @@
 VERSION 0.8
 
-IMPORT github.com/formancehq/earthly:tags/v0.16.0 AS core
+IMPORT github.com/formancehq/earthly:tags/v0.19.0 AS core
 
 FROM core+base-image
 
@@ -27,9 +27,7 @@ build-image:
     DO --pass-args core+SAVE_IMAGE --COMPONENT=operator-utils --TAG=$tag
 
 lint:
-    FROM core+builder-image
-    COPY (+sources/*) /src
-    COPY --pass-args +tidy/go.* .
+    FROM +tidy
     WORKDIR /src/components/operator/tools/utils
     DO --pass-args core+GO_LINT
     SAVE ARTIFACT cmd AS LOCAL cmd
@@ -41,7 +39,6 @@ pre-commit:
     BUILD --pass-args +lint
 
 tidy:
-    FROM core+builder-image
-    COPY --pass-args (+sources/src) /src
+    FROM +sources
     WORKDIR /src/components/operator/tools/utils
     DO --pass-args core+GO_TIDY

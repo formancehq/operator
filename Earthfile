@@ -1,6 +1,6 @@
 VERSION 0.8
 
-IMPORT github.com/formancehq/earthly:tags/v0.16.2 AS core
+IMPORT github.com/formancehq/earthly:tags/v0.19.0 AS core
 
 FROM core+base-image
 
@@ -130,9 +130,7 @@ deploy-staging:
 
 
 lint:
-    FROM core+builder-image
-    COPY (+sources/*) /src
-    COPY --pass-args +tidy/go.* .
+    FROM +tidy
     WORKDIR /src/components/operator
     DO --pass-args core+GO_LINT
     SAVE ARTIFACT api AS LOCAL api
@@ -195,8 +193,7 @@ openapi:
     RUN echo "not implemented"
 
 tidy:
-    FROM core+builder-image
-    COPY --pass-args (+sources/src) /src
+    FROM +sources
     WORKDIR /src/components/operator
     DO --pass-args core+GO_TIDY
     # BUILD ./tools/utils+tidy

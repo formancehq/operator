@@ -1,8 +1,6 @@
 module github.com/formancehq/operator
 
-go 1.22.0
-
-toolchain go1.22.7
+go 1.23
 
 require (
 	github.com/formancehq/go-libs v1.7.1

@@ -1,7 +1,9 @@
 package applications
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/formancehq/operator/internal/resources/licence"
 	"github.com/formancehq/operator/internal/resources/settings"
@@ -53,12 +55,40 @@ func mergeResourceRequirements(dest, src corev1.ResourceRequirements) corev1.Res
 	return dest
 }
 
-type runAs struct {
+type RunAs struct {
 	User  *int64 `json:"user"`
 	Group *int64 `json:"group"`
 }
 
-func configureSecurityContext(container *corev1.Container, runAs *runAs) {
+func (r *RunAs) UnmarshalJSON(data []byte) error {
+	type alias struct {
+		User  string `json:"user"`
+		Group string `json:"group"`
+	}
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+
+	if a.User != "" {
+		uid, err := strconv.ParseInt(a.User, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse user: %w", err)
+		}
+		r.User = &uid
+	}
+
+	if a.Group != "" {
+		gid, err := strconv.ParseInt(a.Group, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse group: %w", err)
+		}
+		r.Group = &gid
+	}
+	return nil
+}
+
+func ConfigureSecurityContext(container *corev1.Container, runAs *RunAs) {
 	if container.SecurityContext == nil {
 		container.SecurityContext = &corev1.SecurityContext{}
 	}
@@ -180,13 +210,13 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 			}
 			container.Resources = mergeResourceRequirements(container.Resources, *resourceRequirements)
 
-			runAs, err := settings.GetAs[runAs](ctx, a.owner.GetStack(),
+			runAs, err := settings.GetAs[RunAs](ctx, a.owner.GetStack(),
 				"deployments", deployment.Name, "init-containers", container.Name, "run-as")
 			if err != nil {
 				return err
 			}
 
-			configureSecurityContext(&container, runAs)
+			ConfigureSecurityContext(&container, runAs)
 			deployment.Spec.Template.Spec.InitContainers[ind] = container
 		}
 		for ind, container := range deployment.Spec.Template.Spec.Containers {
@@ -197,13 +227,13 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 			}
 			container.Resources = mergeResourceRequirements(container.Resources, *resourceRequirements)
 
-			runAs, err := settings.GetAs[runAs](ctx, a.owner.GetStack(),
+			runAs, err := settings.GetAs[RunAs](ctx, a.owner.GetStack(),
 				"deployments", deployment.Name, "containers", container.Name, "run-as")
 			if err != nil {
 				return err
 			}
 
-			configureSecurityContext(&container, runAs)
+			ConfigureSecurityContext(&container, runAs)
 
 			if gracePeriod != "" {
 				container.Env = append(container.Env, core.Env("GRACE_PERIOD", gracePeriod))
