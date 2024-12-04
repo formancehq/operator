@@ -3,6 +3,7 @@ package tests_test
 import (
 	"fmt"
 	"math/rand/v2"
+	"strings"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
@@ -44,24 +45,6 @@ var _ = Describe("Job", func() {
 			user:  rand.IntN(65534),
 			group: rand.IntN(65534),
 		}
-		settings = append(
-			make([]v1beta1.Settings, 0),
-			v1beta1.Settings{
-				ObjectMeta: RandObjectMeta(),
-				Spec: v1beta1.SettingsSpec{
-					Stacks: []string{stack.Name},
-					Key:    `jobs.*.containers.*.run-as`,
-					Value:  runAS.String(),
-				},
-			}, v1beta1.Settings{
-				ObjectMeta: RandObjectMeta(),
-				Spec: v1beta1.SettingsSpec{
-					Stacks: []string{stack.Name},
-					Key:    `jobs.*.init-containers.*.run-as`,
-					Value:  runAS.String(),
-				},
-			},
-		)
 
 		module = &v1beta1.Ledger{
 			ObjectMeta: metav1.ObjectMeta{
@@ -106,6 +89,25 @@ var _ = Describe("Job", func() {
 			},
 		}
 
+		settings = append(
+			make([]v1beta1.Settings, 0),
+			v1beta1.Settings{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.SettingsSpec{
+					Stacks: []string{stack.Name},
+					Key:    fmt.Sprintf(`jobs.%s.containers.%s.run-as`, strings.ToLower(module.Kind), job.Spec.Template.Spec.Containers[0].Name),
+					Value:  runAS.String(),
+				},
+			}, v1beta1.Settings{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.SettingsSpec{
+					Stacks: []string{stack.Name},
+					Key:    fmt.Sprintf(`jobs.%s.init-containers.%s.run-as`, strings.ToLower(module.Kind), job.Spec.Template.Spec.InitContainers[0].Name),
+					Value:  runAS.String(),
+				},
+			},
+		)
+
 	})
 	JustBeforeEach(func() {
 		Expect(Create(stack)).To(Succeed())
@@ -119,6 +121,11 @@ var _ = Describe("Job", func() {
 			return LoadResource("", stack.Name, ns)
 		}).Should(Succeed())
 
+		Eventually(func() error {
+			return LoadResource("", module.Name, module)
+		}).Should(Succeed())
+
+		module.Kind = "Ledger"
 		err := jobs.Handle(TestContext(), module, job.Name, job.Spec.Template.Spec.Containers[0], jobs.Mutator(func(t *batchv1.Job) error {
 			t.Spec.Template.Spec.InitContainers = append(make([]v1.Container, 0), job.Spec.Template.Spec.InitContainers...)
 			return nil

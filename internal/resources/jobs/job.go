@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/formancehq/go-libs/pointer"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
@@ -45,11 +46,15 @@ func WithServiceAccount(serviceAccountName string) HandleJobOption {
 	})
 }
 
-func withRunAs(ctx core.Context, dep v1beta1.Dependent) HandleJobOption {
+func withRunAs(ctx core.Context, owner v1beta1.Dependent) HandleJobOption {
 	return Mutator(func(job *batchv1.Job) error {
+		kind := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+		if kind == "" {
+			return errors.New("owner has no kind")
+		}
 		for i, container := range job.Spec.Template.Spec.Containers {
-			runAs, err := settings.GetAs[applications.RunAs](ctx, dep.GetStack(),
-				"jobs", job.Name, "containers", container.Name, "run-as")
+			runAs, err := settings.GetAs[applications.RunAs](ctx, owner.GetStack(),
+				"jobs", kind, "containers", container.Name, "run-as")
 			if err != nil {
 				return err
 			}
@@ -59,8 +64,8 @@ func withRunAs(ctx core.Context, dep v1beta1.Dependent) HandleJobOption {
 		}
 
 		for i, initContainer := range job.Spec.Template.Spec.InitContainers {
-			runAs, err := settings.GetAs[applications.RunAs](ctx, dep.GetStack(),
-				"jobs", job.Name, "init-containers", initContainer.Name, "run-as")
+			runAs, err := settings.GetAs[applications.RunAs](ctx, owner.GetStack(),
+				"jobs", kind, "init-containers", initContainer.Name, "run-as")
 			if err != nil {
 				return err
 			}
