@@ -76,11 +76,5 @@ affinity: {}
 webhooks:
   enabled: false
 
-kubeRbacProxy:
-  image:
-    repository: gcr.io/kubebuilder/kube-rbac-proxy
-    pullPolicy: IfNotPresent
-    tag: v0.15.0
-
 operator-crds:
   create: true
