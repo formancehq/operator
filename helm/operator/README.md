@@ -14,7 +14,7 @@ Formance Operator Helm Chart
 
 ## Source Code
 
-* <https://github.com/formancehq/stack>
+* <https://github.com/formancehq/operator>
 
 ## Values
 

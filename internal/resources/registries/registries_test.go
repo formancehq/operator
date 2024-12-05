@@ -22,7 +22,7 @@ func TestTranslateImage(t *testing.T) {
 	// docker.io/<organization|user>/<image>:v2.0.0-rc.35-scratch@sha256:4a29620448a90f3ae50d2e375c993b86ef141ead4b6ac1edd1674e9ff6b933f8
 	testCases := []testCase{
 		{
-			url: "ghcr.io/formancehq/stack:latest",
+			url: "ghcr.io/formancehq/operator:latest",
 		},
 		{
 			url: "public.ecr.aws/formance-internal/jeffail/benthos:latest",

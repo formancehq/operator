@@ -2,8 +2,6 @@ module github.com/formancehq/operator/tools/kubectl-stacks
 
 go 1.23
 
-toolchain go1.22.7
-
 require (
 	github.com/formancehq/go-libs v1.7.1
 	github.com/formancehq/operator v0.0.0-00010101000000-000000000000
