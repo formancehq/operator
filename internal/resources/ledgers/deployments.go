@@ -149,7 +149,6 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 	}
 	container.Env = append(container.Env,
 		core.Env("BIND", ":8080"),
-		core.Env("AUTO_UPGRADE", "true"),
 	)
 
 	experimentalFeatures, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-features")
