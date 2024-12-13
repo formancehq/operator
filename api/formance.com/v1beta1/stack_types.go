@@ -59,6 +59,7 @@ type StackStatus struct {
 //+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.ready",description="Is stack ready"
 //+kubebuilder:printcolumn:name="Modules",type=string,JSONPath=".status.modules",description="Modules List Registered"
 //+kubebuilder:printcolumn:name="Info",type=string,JSONPath=".status.info",description="Info"
+//+kubebuilder:printcolumn:name="Created",type=date,JSONPath=".metadata.creationTimestamp",description="Creation Timestamp"
 
 // Stack represents a formance stack.
 // A Stack is basically a container. It holds some global properties and

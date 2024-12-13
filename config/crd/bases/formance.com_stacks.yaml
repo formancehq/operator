@@ -39,6 +39,10 @@ spec:
       jsonPath: .status.info
       name: Info
       type: string
+    - description: Creation Timestamp
+      jsonPath: .metadata.creationTimestamp
+      name: Created
+      type: date
     name: v1beta1
     schema:
       openAPIV3Schema:
