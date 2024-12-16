@@ -109,7 +109,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 		if err := createGateway(ctx, stack, p); err != nil {
 			return err
 		}
-	case !semver.IsValid(version) || semver.Compare(version, "v3.0.0") >= 0:
+	case !semver.IsValid(version) || semver.Compare(version, "v3.0.0-beta.1") >= 0:
 		if err := uninstallPaymentsReadAndConnectors(ctx, stack); err != nil {
 			return err
 		}
