@@ -115,8 +115,6 @@ func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Pay
 	env = append(env,
 		core.Env("POSTGRES_DATABASE_NAME", "$(POSTGRES_DATABASE)"),
 		core.Env("CONFIG_ENCRYPTION_KEY", encryptionKey),
-		core.Env("PLUGIN_DIRECTORY_PATH", "/plugins"),
-		core.Env("PLUGIN_MAGIC_COOKIE", "magic-value"), // TODO(polo): change value
 	)
 
 	return env, nil
