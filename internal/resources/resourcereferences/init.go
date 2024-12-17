@@ -31,7 +31,7 @@ import (
 
 func init() {
 	core.Init(
-		core.WithStackDependencyReconciler[*v1beta1.ResourceReference](Reconcile,
+		core.WithResourceReconciler[*v1beta1.ResourceReference](Reconcile,
 			core.WithWatch[*v1beta1.ResourceReference, *v1.Secret](watchResource[*v1.Secret]),
 			core.WithWatch[*v1beta1.ResourceReference, *v1.ServiceAccount](watchResource[*v1.ServiceAccount]),
 		),

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/formancehq/go-libs/pointer"
 	"github.com/formancehq/operator/internal/resources/brokers"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/caddy"
@@ -35,7 +34,6 @@ func getEncryptionKey(ctx core.Context, payments *v1beta1.Payments) (string, err
 }
 
 func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments) ([]v1.EnvVar, error) {
-
 	temporalURI, err := settings.RequireURL(ctx, stack.Name, "temporal", "dsn")
 	if err != nil {
 		return nil, err
@@ -56,7 +54,6 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 
 	env := make([]v1.EnvVar, 0)
 	env = append(env,
-		core.Env("TEMPORAL_TASK_QUEUE", stack.Name),
 		core.Env("TEMPORAL_ADDRESS", temporalURI.Host),
 		core.Env("TEMPORAL_NAMESPACE", temporalURI.Path[1:]),
 	)
@@ -217,10 +214,6 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 							Image:         image,
 							LivenessProbe: applications.DefaultLiveness("http", appOpts),
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
-							// TODO(polo): only for v3
-							SecurityContext: &v1.SecurityContext{
-								ReadOnlyRootFilesystem: pointer.For(false),
-							},
 						}},
 						// Ensure empty
 						InitContainers: []v1.Container{},
