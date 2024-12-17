@@ -24,7 +24,10 @@ require (
 	sigs.k8s.io/controller-runtime v0.17.1
 )
 
-require github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
+require (
+	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
+)
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
