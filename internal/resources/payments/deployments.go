@@ -196,6 +196,11 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 	appOpts := applications.WithProbePath("/_health")
 	if v3 {
 		appOpts = applications.WithProbePath("/_healthcheck")
+
+		err := createWorkerDeployment(ctx, stack, payments, database, image, env, appOpts)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = applications.
@@ -210,6 +215,51 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 						Containers: []v1.Container{{
 							Name:          "api",
 							Args:          []string{"serve"},
+							Env:           env,
+							Image:         image,
+							LivenessProbe: applications.DefaultLiveness("http", appOpts),
+							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
+						}},
+						// Ensure empty
+						InitContainers: []v1.Container{},
+					},
+				},
+			},
+		}).
+		Install(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createWorkerDeployment(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	payments *v1beta1.Payments,
+	database *v1beta1.Database,
+	image string,
+	env []v1.EnvVar,
+	appOpts applications.ProbeOpts,
+) error {
+	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+
+	err = applications.
+		New(payments, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "payments-worker",
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: v1.PodTemplateSpec{
+					Spec: v1.PodSpec{
+						ServiceAccountName: serviceAccountName,
+						Containers: []v1.Container{{
+							Name:          "api",
+							Args:          []string{"worker"},
 							Env:           env,
 							Image:         image,
 							LivenessProbe: applications.DefaultLiveness("http", appOpts),
