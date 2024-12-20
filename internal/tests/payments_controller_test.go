@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -56,6 +57,19 @@ var _ = Describe("PaymentsController", func() {
 					g.Expect(err).To(BeNil())
 					return reference
 				}).Should(BeTrue())
+			})
+			By("Should create a worker deployment with a service", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func() error {
+					return LoadResource(stack.Name, "payments-worker", deployment)
+				}).Should(Succeed())
+				Expect(deployment).To(BeControlledBy(payments))
+
+				service := &corev1.Service{}
+				Eventually(func() error {
+					return LoadResource(stack.Name, "payments-worker", service)
+				}).Should(Succeed())
+				Expect(service).To(BeControlledBy(payments))
 			})
 			By("Should create a deployment", func() {
 				deployment := &appsv1.Deployment{}
