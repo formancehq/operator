@@ -359,6 +359,82 @@ func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments
 	return err
 }
 
+func createWorkersDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments,
+	database *v1beta1.Database, image string) error {
+
+	env, err := commonEnvVars(ctx, stack, payments, database)
+	if err != nil {
+		return err
+	}
+
+	var broker *v1beta1.Broker
+	if t, err := brokertopics.Find(ctx, stack, "payments"); err != nil {
+		return err
+	} else if t != nil && t.Status.Ready {
+		broker = &v1beta1.Broker{}
+		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+			Name: stack.Name,
+		}, broker); err != nil {
+			return err
+		}
+	}
+
+	if broker != nil {
+		if !broker.Status.Ready {
+			return core.NewPendingError().WithMessage("broker not ready")
+		}
+		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "payments")
+		if err != nil {
+			return err
+		}
+
+		env = append(env, brokerEnvVar...)
+		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments", "")...)
+	}
+
+	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+
+	err = applications.
+		New(payments, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "payments-worker",
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: v1.PodTemplateSpec{
+					Spec: v1.PodSpec{
+						ServiceAccountName: serviceAccountName,
+						Containers: []v1.Container{{
+							Name:  "payments",
+							Args:  []string{"payments", "worker"},
+							Env:   env,
+							Image: image,
+							Ports: []v1.ContainerPort{applications.StandardHTTPPort()},
+							LivenessProbe: applications.DefaultLiveness("http",
+								applications.WithProbePath("/_health")),
+						}},
+						// Ensure empty
+						InitContainers: []v1.Container{},
+					},
+				},
+			},
+		}).
+		WithStateful(true).
+		Install(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = services.Create(ctx, payments, "payments-worker", services.WithDefault("payments-worker"))
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
 func createGateway(ctx core.Context, stack *v1beta1.Stack, p *v1beta1.Payments) error {
 
 	caddyfileConfigMap, err := caddy.CreateCaddyfileConfigMap(ctx, stack, "payments", Caddyfile, map[string]any{

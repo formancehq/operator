@@ -114,6 +114,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 			return err
 		}
 
+		if err := createWorkerDeployment(ctx, stack, p, database, image); err != nil {
+			return err
+		}
 		if err := createFullDeployment(ctx, stack, p, database, image, true); err != nil {
 			return err
 		}
