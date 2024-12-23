@@ -193,8 +193,10 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 		return err
 	}
 
+	containerName := "api"
 	appOpts := applications.WithProbePath("/_health")
 	if v3 {
+		containerName = "payments-api"
 		appOpts = applications.WithProbePath("/_healthcheck")
 
 		err := createWorkerDeployment(ctx, stack, payments, database, image, env, appOpts)
@@ -213,7 +215,7 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 					Spec: v1.PodSpec{
 						ServiceAccountName: serviceAccountName,
 						Containers: []v1.Container{{
-							Name:          "api",
+							Name:          containerName,
 							Args:          []string{"serve"},
 							Env:           env,
 							Image:         image,
@@ -258,7 +260,7 @@ func createWorkerDeployment(
 					Spec: v1.PodSpec{
 						ServiceAccountName: serviceAccountName,
 						Containers: []v1.Container{{
-							Name:          "api",
+							Name:          "payments-worker",
 							Args:          []string{"worker"},
 							Env:           env,
 							Image:         image,
