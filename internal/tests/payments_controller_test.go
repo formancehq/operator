@@ -57,7 +57,14 @@ var _ = Describe("PaymentsController", func() {
 					return reference
 				}).Should(BeTrue())
 			})
-			By("Should create a deployment", func() {
+			By("Should create a worker deployment", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func() error {
+					return LoadResource(stack.Name, "payments-worker", deployment)
+				}).Should(Succeed())
+				Expect(deployment).To(BeControlledBy(payments))
+			})
+			By("Should create an api deployment", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func() error {
 					return LoadResource(stack.Name, "payments", deployment)
