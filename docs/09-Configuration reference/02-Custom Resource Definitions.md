@@ -1961,7 +1961,7 @@ Broker is the Schema for the brokers API
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `uri` _string_ |  |  | Type: string <br /> |
-| `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined :<br />* OneStreamByService: In this case, each service will have a dedicated stream created<br />* OneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
+| `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined :<br />* ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />* ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
 | `streams` _string array_ | Streams list streams created when Mode == ModeOneStreamByService |  |  |
 
 ###### Mode

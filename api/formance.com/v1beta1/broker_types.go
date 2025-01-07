@@ -40,8 +40,8 @@ type BrokerStatus struct {
 	//+kubebuilder:validation:Enum:={OneStreamByService, OneStreamByStack}
 	// Mode indicating the configuration of the nats streams
 	// Two modes are defined :
-	// * OneStreamByService: In this case, each service will have a dedicated stream created
-	// * OneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream
+	// * ModeOneStreamByService: In this case, each service will have a dedicated stream created
+	// * ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream
 	Mode Mode `json:"mode"`
 	// Streams list streams created when Mode == ModeOneStreamByService
 	//+optional
