@@ -171,6 +171,26 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 		)
 	}
 
+	defaultPageSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "default-page-size")
+	if err != nil {
+		return fmt.Errorf("failed to get default page size: %w", err)
+	}
+	if defaultPageSize != nil {
+		container.Env = append(container.Env,
+			core.Env("DEFAULT_PAGE_SIZE", fmt.Sprint(*defaultPageSize)),
+		)
+	}
+
+	maxPageSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "max-page-size")
+	if err != nil {
+		return fmt.Errorf("failed to get max page size: %w", err)
+	}
+	if maxPageSize != nil {
+		container.Env = append(container.Env,
+			core.Env("MAX_PAGE_SIZE", fmt.Sprint(*maxPageSize)),
+		)
+	}
+
 	var broker *v1beta1.Broker
 	if t, err := brokertopics.Find(ctx, stack, "ledger"); err != nil {
 		return err
