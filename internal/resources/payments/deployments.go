@@ -85,8 +85,14 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		return nil, err
 	}
 
+	temporalMaxConcurrentActivityTaskPollers, err := settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-activity-task-pollers")
+	if err != nil {
+		return nil, err
+	}
+
 	env = append(env,
 		core.Env("TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLERS", fmt.Sprintf("%d", temporalMaxConcurrentWorkflowTaskPollers)),
+		core.Env("TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLERS", fmt.Sprintf("%d", temporalMaxConcurrentActivityTaskPollers)),
 	)
 
 	return env, nil
