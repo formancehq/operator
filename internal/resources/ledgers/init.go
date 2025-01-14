@@ -93,10 +93,19 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 	}
 
 	if isV2 && databases.GetSavedModuleVersion(database) != version {
-		if err := migrate(ctx, stack, ledger, database, image, version); err != nil {
+		err := migrate(ctx, stack, ledger, database, image, version)
+		if err != nil {
+			isV2_2 := !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0
+			if !isV2_2 {
+				return err
+			}
+
+			if IsApplicationError(err) { // Start the ledger even if migrations are not terminated
+				return installLedger(ctx, stack, ledger, database, image, version, isV2)
+			}
+
 			return err
 		}
-
 		if err := databases.SaveModuleVersion(ctx, database, version); err != nil {
 			return errors.Wrap(err, "saving module version in database object")
 		}
