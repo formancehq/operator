@@ -92,6 +92,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 		}
 	}
 
+	healthEndpoint := "_health"
 	switch {
 	case semver.IsValid(version) && semver.Compare(version, "v1.0.0-alpha") < 0:
 		if err := createFullDeployment(ctx, stack, p, database, image, false); err != nil {
@@ -110,6 +111,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 			return err
 		}
 	case !semver.IsValid(version) || semver.Compare(version, "v3.0.0-beta.1") >= 0:
+		healthEndpoint = "_healthcheck"
 		if err := uninstallPaymentsReadAndConnectors(ctx, stack); err != nil {
 			return err
 		}
@@ -124,7 +126,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 	}
 
 	if err := gatewayhttpapis.Create(ctx, p,
-		gatewayhttpapis.WithHealthCheckEndpoint("_health"),
+		gatewayhttpapis.WithHealthCheckEndpoint(healthEndpoint),
 		gatewayhttpapis.WithRules(
 			v1beta1.GatewayHTTPAPIRule{
 				Path:    "/connectors/webhooks",
