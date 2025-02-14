@@ -52,7 +52,7 @@ spec:
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
-  name: stacks-temporal-dsn
+  name: stacks-otel-traces-dsn
 spec:
   stacks:
     - '*'
