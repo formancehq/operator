@@ -70,6 +70,14 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 			fmt.Sprintf("%sOTEL_%s_ENDPOINT", prefix, string(monitoringType)),
 			fmt.Sprintf("%sOTEL_%s_PORT", prefix, string(monitoringType)))),
 		core.Env(fmt.Sprintf("%sOTEL_SERVICE_NAME", prefix), serviceName),
+		{
+			Name: "POD_NAME",
+			ValueFrom: &v1.EnvVarSource{
+				FieldRef: &v1.ObjectFieldSelector{
+					FieldPath: "metadata.name",
+				},
+			},
+		},
 	}
 
 	resourceAttributes, err := GetMap(ctx, "opentelemetry", strings.ToLower(string(monitoringType)), "resource-attributes")
@@ -81,6 +89,7 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 		resourceAttributes = map[string]string{}
 	}
 	resourceAttributes["stack"] = stack
+	resourceAttributes["pod-name"] = "$(POD_NAME)"
 
 	resourceAttributesStr := ""
 	for k, v := range resourceAttributes {
