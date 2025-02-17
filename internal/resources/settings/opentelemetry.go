@@ -93,7 +93,10 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 
 	resourceAttributesStr := ""
 	for k, v := range resourceAttributes {
-		resourceAttributesStr = fmt.Sprintf("%s%s=%s ", resourceAttributesStr, k, v)
+		resourceAttributesStr = fmt.Sprintf("%s%s=%s,", resourceAttributesStr, k, v)
+	}
+	if len(resourceAttributesStr) > 0 {
+		resourceAttributesStr = resourceAttributesStr[:len(resourceAttributesStr)-1]
 	}
 	ret = append(ret, core.Env(fmt.Sprintf("%sOTEL_RESOURCE_ATTRIBUTES", prefix), resourceAttributesStr))
 
