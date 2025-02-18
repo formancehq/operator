@@ -255,7 +255,7 @@ var _ = Describe("LedgerController", func() {
 							Value: "10s",
 						},
 						corev1.EnvVar{
-							Name:  "POSTGRES_CONN_MAX_OPEN_CONNS",
+							Name:  "POSTGRES_MAX_OPEN_CONNS",
 							Value: "10",
 						},
 					),
