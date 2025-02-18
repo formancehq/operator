@@ -96,7 +96,7 @@ func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database 
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot parse max open conns value")
 		}
-		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_CONN_MAX_OPEN_CONNS", prefix), config.MaxOpen))
+		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_MAX_OPEN_CONNS", prefix), config.MaxOpen))
 	}
 
 	return ret, nil
