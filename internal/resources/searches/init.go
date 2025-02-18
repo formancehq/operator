@@ -70,7 +70,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 		env = append(env, Env("AWS_IAM_ENABLED", "true"))
 	}
 
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, search))
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, search), " ")
 	if err != nil {
 		return err
 	}

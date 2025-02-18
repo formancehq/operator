@@ -15,18 +15,18 @@ const (
 	MonitoringTypeMetrics MonitoringType = "METRICS"
 )
 
-func GetOTELEnvVars(ctx core.Context, stack, serviceName string) ([]v1.EnvVar, error) {
-	return GetOTELEnvVarsWithPrefix(ctx, stack, serviceName, "")
+func GetOTELEnvVars(ctx core.Context, stack, serviceName string, sliceStringSeparator string) ([]v1.EnvVar, error) {
+	return GetOTELEnvVarsWithPrefix(ctx, stack, serviceName, "", sliceStringSeparator)
 }
 
-func GetOTELEnvVarsWithPrefix(ctx core.Context, stack, serviceName, prefix string) ([]v1.EnvVar, error) {
+func GetOTELEnvVarsWithPrefix(ctx core.Context, stack, serviceName, prefix, sliceStringSeparator string) ([]v1.EnvVar, error) {
 
-	traces, err := otelEnvVars(ctx, stack, MonitoringTypeTraces, serviceName, prefix)
+	traces, err := otelEnvVars(ctx, stack, MonitoringTypeTraces, serviceName, prefix, sliceStringSeparator)
 	if err != nil {
 		return nil, err
 	}
 
-	metrics, err := otelEnvVars(ctx, stack, MonitoringTypeMetrics, serviceName, prefix)
+	metrics, err := otelEnvVars(ctx, stack, MonitoringTypeMetrics, serviceName, prefix, sliceStringSeparator)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func HasOpenTelemetryTracesEnabled(ctx core.Context, stack string) (bool, error)
 	return true, nil
 }
 
-func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, serviceName, prefix string) ([]v1.EnvVar, error) {
+func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, serviceName, prefix, sliceStringSeparator string) ([]v1.EnvVar, error) {
 
 	otlp, err := GetURL(ctx, stack, "opentelemetry", strings.ToLower(string(monitoringType)), "dsn")
 	if err != nil {
@@ -93,7 +93,7 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 
 	resourceAttributesStr := ""
 	for k, v := range resourceAttributes {
-		resourceAttributesStr = fmt.Sprintf("%s%s=%s,", resourceAttributesStr, k, v)
+		resourceAttributesStr = fmt.Sprintf("%s%s=%s%s", resourceAttributesStr, k, v, sliceStringSeparator)
 	}
 	if len(resourceAttributesStr) > 0 {
 		resourceAttributesStr = resourceAttributesStr[:len(resourceAttributesStr)-1]
