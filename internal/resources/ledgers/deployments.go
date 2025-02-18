@@ -378,7 +378,7 @@ func setCommonContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, led
 		prefix = "NUMARY_"
 	}
 	env := make([]corev1.EnvVar, 0)
-	otlpEnv, err := settings.GetOTELEnvVarsWithPrefix(ctx, stack.Name, core.LowerCamelCaseKind(ctx, ledger), prefix, "")
+	otlpEnv, err := settings.GetOTELEnvVarsWithPrefix(ctx, stack.Name, core.LowerCamelCaseKind(ctx, ledger), prefix, " ")
 	if err != nil {
 		return err
 	}
