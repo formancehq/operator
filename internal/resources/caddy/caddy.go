@@ -21,7 +21,7 @@ import (
 func DeploymentTemplate(ctx core.Context, stack *v1beta1.Stack, owner v1beta1.Object, caddyfile *v1.ConfigMap, image string, env []v1.EnvVar) (*appsv1.Deployment, error) {
 	t := &appsv1.Deployment{}
 
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, owner))
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, owner), ",")
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,6 @@ func DeploymentTemplate(ctx core.Context, stack *v1beta1.Stack, owner v1beta1.Ob
 				if envVar.Value == "true" {
 					scheme = "http"
 				}
-				break
 			}
 		}
 		env = append(env, core.Env("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", fmt.Sprintf("%s://$(OTEL_TRACES_EXPORTER_OTLP_ENDPOINT)", scheme)))

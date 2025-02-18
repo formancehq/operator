@@ -130,7 +130,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 		}
 	}
 
-	otelEnvVars, err := settings.GetOTELEnvVars(ctx, stack.Name, "benthos")
+	otelEnvVars, err := settings.GetOTELEnvVars(ctx, stack.Name, "benthos", " ")
 	if err != nil {
 		return err
 	}
