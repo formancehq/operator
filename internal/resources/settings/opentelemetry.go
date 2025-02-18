@@ -30,6 +30,9 @@ func GetOTELEnvVarsWithPrefix(ctx core.Context, stack, serviceName, prefix, slic
 	if err != nil {
 		return nil, err
 	}
+	if len(metrics) > 0 {
+		metrics = append(metrics, core.Env(fmt.Sprintf("%sOTEL_METRICS_RUNTIME", prefix), "true"))
+	}
 
 	return append(traces, metrics...), nil
 }
