@@ -2,6 +2,25 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+global:
+  # Add your license information 
+  licence:
+    # -- Licence Secret with label `formance.com/stack: any`
+    # @section -- Licence
+    createSecret: true
+    # -- Licence Environment 
+    # @section -- Licence configuration
+    issuer: "https://license.formance.cloud/keys"
+    # -- Licence Client Token delivered by contacting [Formance](https://formance.com)
+    # @section -- Licence configuration
+    token: ""
+    # -- Licence Client Token as a secret
+    # @section -- Licence configuration
+    existingSecret: ""
+    secretKeys:
+      # -- Hardcoded in the operator
+      token: "token"
+
 replicaCount: 1
 
 image:
@@ -27,25 +46,14 @@ operator:
   # Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.
   enableLeaderElection: true
 
-  # Licence secret must have the label formance.com/stack: any to be referenced by the operator on any stack namespace
-  # Have a `token` and `issuer` key
-  licence:
-    create: true
-    secretName: ""
-    token: ""
-    issuer: ""
-
   utils:
     tag: "v2.0.14"
 
 podAnnotations: {}
 
-podSecurityContext:
-  {}
-  # fsGroup: 2000
+podSecurityContext: {} # fsGroup: 2000
 
-securityContext:
-  {}
+securityContext: {}
   # capabilities:
   #   drop:
   #   - ALL
@@ -54,8 +62,7 @@ securityContext:
   # runAsUser: 1000
   # allowPrivilegeEscalation: false
 
-resources:
-  {}
+resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
