@@ -69,6 +69,7 @@ type GatewayStatus struct {
 //+kubebuilder:printcolumn:name="HTTP APIs",type=string,JSONPath=".status.syncHTTPAPIs",description="Synchronized http apis"
 //+kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.ready",description="Is ready"
 //+kubebuilder:printcolumn:name="Info",type=string,JSONPath=".status.info",description="Info"
+//+kubebuilder:printcolumn:name="Version",type=string,JSONPath=".spec.version",description="Version"
 //+kubebuilder:metadata:labels=formance.com/kind=module
 
 // Gateway is the Schema for the gateways API
