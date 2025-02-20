@@ -101,7 +101,7 @@ deploy:
     # RUN helm upgrade --install --namespace formance-system --install formance-operator-crds \
     #     --wait \
     #     --create-namespace ./base
-    RUN helm upgrade --install --namespace formance-system --install formance-operator \
+    RUN --no-cache helm upgrade --install --namespace formance-system --install formance-operator \
         --wait \
         --create-namespace \
         --set image.tag=$tag \
