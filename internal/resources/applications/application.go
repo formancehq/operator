@@ -320,7 +320,15 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 	deployment, _, err := core.CreateOrUpdate[*appsv1.Deployment](ctx, types.NamespacedName{
 		Namespace: a.owner.GetStack(),
 		Name:      a.deploymentTpl.Name,
-	}, mutators...)
+	}, append(mutators, func(t *appsv1.Deployment) error {
+		data, err := json.MarshalIndent(t, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+
+		return nil
+	})...)
 	if err != nil {
 		condition.Message = err.Error()
 		condition.Status = metav1.ConditionFalse
