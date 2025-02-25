@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/formancehq/operator/internal/core"
@@ -94,14 +95,16 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 	resourceAttributes["stack"] = stack
 	resourceAttributes["pod-name"] = "$(POD_NAME)"
 
-	resourceAttributesStr := ""
+	resourceAttributesArray := make([]string, 0)
 	for k, v := range resourceAttributes {
-		resourceAttributesStr = fmt.Sprintf("%s%s=%s%s", resourceAttributesStr, k, v, sliceStringSeparator)
+		resourceAttributesArray = append(resourceAttributesArray, fmt.Sprintf("%s=%s", k, v))
 	}
-	if len(resourceAttributesStr) > 0 {
-		resourceAttributesStr = resourceAttributesStr[:len(resourceAttributesStr)-1]
-	}
-	ret = append(ret, core.Env(fmt.Sprintf("%sOTEL_RESOURCE_ATTRIBUTES", prefix), resourceAttributesStr))
+	slices.Sort(resourceAttributesArray)
+
+	ret = append(ret, core.Env(
+		fmt.Sprintf("%sOTEL_RESOURCE_ATTRIBUTES", prefix),
+		strings.Join(resourceAttributesArray, sliceStringSeparator),
+	))
 
 	return ret, nil
 }
