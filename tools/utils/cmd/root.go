@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	logging "github.com/formancehq/go-libs/logging"
 	"os"
 
-	"github.com/formancehq/go-libs/service"
+	logging "github.com/formancehq/go-libs/v2/logging"
+
+	"github.com/formancehq/go-libs/v2/service"
 
 	"github.com/spf13/cobra"
 )
@@ -14,7 +15,7 @@ var rootCmd = &cobra.Command{
 	Use:   "utils",
 	Short: "A cli for operator operations",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		logger := logging.NewDefaultLogger(cmd.OutOrStdout(), service.IsDebug(cmd), false)
+		logger := logging.NewDefaultLogger(cmd.OutOrStdout(), service.IsDebug(cmd), false, false)
 		logger.Infof("Starting application")
 		logger.Debugf("Environment variables:")
 		for _, v := range os.Environ() {

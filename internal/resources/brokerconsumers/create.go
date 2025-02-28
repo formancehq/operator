@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	. "github.com/formancehq/go-libs/collectionutils"
+	. "github.com/formancehq/go-libs/v2/collectionutils"
 	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"k8s.io/apimachinery/pkg/types"

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/formancehq/go-libs/collectionutils"
+	. "github.com/formancehq/go-libs/v2/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"gopkg.in/yaml.v3"
