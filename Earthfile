@@ -1,6 +1,6 @@
 VERSION 0.8
 
-IMPORT github.com/formancehq/earthly:tags/v0.19.0 AS core
+IMPORT github.com/formancehq/earthly:tags/v0.19.1 AS core
 
 FROM core+base-image
 
