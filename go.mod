@@ -1,7 +1,6 @@
 module github.com/formancehq/operator
 
 go 1.23
-
 require (
 	github.com/formancehq/go-libs v1.7.1
 	github.com/formancehq/search v0.0.0-20240926085257-6b5288dc2576
@@ -15,7 +14,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stoewer/go-strcase v1.2.0
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/mod v0.21.0
+	golang.org/x/mod v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.29.0
 	k8s.io/apimachinery v0.29.0
