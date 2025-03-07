@@ -52,6 +52,15 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		return nil, err
 	}
 
+	if secret := temporalURI.Query().Get("encryptionKeySecret"); secret != "" {
+		_, err = resourcereferences.Create(ctx, payments, "payments-temporal-encryption-key", secret, &v1.Secret{})
+	} else {
+		err = resourcereferences.Delete(ctx, payments, "payments-temporal-encryption-key")
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	env := make([]v1.EnvVar, 0)
 	env = append(env,
 		core.Env("TEMPORAL_ADDRESS", temporalURI.Host),
@@ -77,6 +86,13 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		env = append(env,
 			core.EnvFromSecret("TEMPORAL_SSL_CLIENT_KEY", secret, "tls.key"),
 			core.EnvFromSecret("TEMPORAL_SSL_CLIENT_CERT", secret, "tls.crt"),
+		)
+	}
+
+	if secret := temporalURI.Query().Get("encryptionKeySecret"); secret != "" {
+		env = append(env,
+			core.Env("TEMPORAL_ENCRYPTION_ENABLED", "true"),
+			core.EnvFromSecret("TEMPORAL_ENCRYPTION_KEY", secret, "key"),
 		)
 	}
 
