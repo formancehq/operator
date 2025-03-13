@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
@@ -11,13 +12,26 @@ import (
 )
 
 func NewUnlockCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {
-	return &cobra.Command{
+	var (
+		confirmFlag = "confirm"
+	)
+	cmd := &cobra.Command{
 		Use:  "unlock [<stack-name>]",
 		Args: cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getRestClient(configFlags)
 			if err != nil {
 				return err
+			}
+
+			confirm, _ := cmd.Flags().GetBool(confirmFlag)
+			if !confirm {
+				stack := "all stacks"
+				if len(args) == 1 {
+					stack = "stack " + args[0]
+				}
+
+				return fmt.Errorf("use --%s to confirm unlocking %s", confirmFlag, stack)
 			}
 
 			if len(args) == 0 {
@@ -27,6 +41,10 @@ func NewUnlockCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command
 			}
 		},
 	}
+
+	cmd.Flags().Bool(confirmFlag, false, "Confirm unlock")
+
+	return cmd
 }
 
 func unlockAllStacks(cmd *cobra.Command, client *rest.RESTClient) error {
