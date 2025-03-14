@@ -230,7 +230,9 @@ release:
     FROM core+builder-image
     ARG mode=local
     COPY --dir . /src
-    DO core+GORELEASER --mode=$mode
+    WAIT
+      DO core+GORELEASER --mode=$mode
+    END
     BUILD +helm-publish 
 
 HELM_PUBLISH:
