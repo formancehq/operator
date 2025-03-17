@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func withAnnotations(ctx core.Context, stack *v1beta1.Stack, owner client.Object) core.ObjectMutator[*v1.Ingress] {
+func withAnnotations(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
 		annotations, err := settings.GetMap(ctx, stack.Name, "gateway", "ingress", "annotations")
 		if err != nil {
@@ -18,6 +18,13 @@ func withAnnotations(ctx core.Context, stack *v1beta1.Stack, owner client.Object
 		if annotations == nil {
 			annotations = map[string]string{}
 		}
+
+		if gateway.Spec.Ingress.Annotations != nil {
+			for k, v := range gateway.Spec.Ingress.Annotations {
+				annotations[k] = v
+			}
+		}
+
 		t.SetAnnotations(annotations)
 
 		return nil
