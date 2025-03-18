@@ -2,6 +2,7 @@ package databases
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -27,7 +28,7 @@ func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database 
 			password, _ := database.Status.URI.User.Password()
 			ret = append(ret,
 				core.Env(fmt.Sprintf("%sPOSTGRES_USERNAME", prefix), database.Status.URI.User.Username()),
-				core.Env(fmt.Sprintf("%sPOSTGRES_PASSWORD", prefix), password),
+				core.Env(fmt.Sprintf("%sPOSTGRES_PASSWORD", prefix), url.QueryEscape(password)),
 			)
 		} else {
 			secret := database.Status.URI.Query().Get("secret")
