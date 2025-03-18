@@ -19,7 +19,7 @@ package databases
 import (
 	"fmt"
 
-	"github.com/formancehq/go-libs/pointer"
+	"github.com/formancehq/go-libs/v2/pointer"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/jobs"
