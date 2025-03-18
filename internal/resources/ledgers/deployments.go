@@ -2,6 +2,7 @@ package ledgers
 
 import (
 	"fmt"
+	"github.com/formancehq/operator/internal/resources/auths"
 	"golang.org/x/mod/semver"
 	"strconv"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/applications"
-	"github.com/formancehq/operator/internal/resources/auths"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/jobs"
@@ -80,7 +80,15 @@ func installLedger(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledge
 		if err := uninstallLedgerMonoWriterMultipleReader(ctx, stack); err != nil {
 			return err
 		}
-		return installLedgerStateless(ctx, stack, ledger, database, image, isV2)
+		if err := installLedgerStateless(ctx, stack, ledger, database, image); err != nil {
+			return err
+		}
+		if !semver.IsValid(version) || semver.Compare(version, "v2.3.0-alpha") > 0 {
+			if err := installLedgerWorker(ctx, stack, ledger, database, image); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	deploymentStrategySettings, err := settings.GetStringOrDefault(ctx, stack.Name, v1beta1.DeploymentStrategySingle, "ledger", "deployment-strategy")
@@ -107,13 +115,13 @@ func installLedger(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledge
 }
 
 func installLedgerSingleInstance(ctx core.Context, stack *v1beta1.Stack,
-	ledger *v1beta1.Ledger, database *v1beta1.Database, version string, v2 bool) error {
+	ledger *v1beta1.Ledger, database *v1beta1.Database, image string, v2 bool) error {
 	container, err := createLedgerContainerFull(ctx, stack, v2)
 	if err != nil {
 		return err
 	}
 
-	err = setCommonContainerConfiguration(ctx, stack, ledger, version, database, container, v2)
+	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, image, database, container, v2)
 	if err != nil {
 		return err
 	}
@@ -143,7 +151,7 @@ func installLedgerSingleInstance(ctx core.Context, stack *v1beta1.Stack,
 }
 
 func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
-	ledger *v1beta1.Ledger, database *v1beta1.Database, version string, v2 bool) error {
+	ledger *v1beta1.Ledger, database *v1beta1.Database, version string) error {
 	container := corev1.Container{
 		Name: "ledger",
 	}
@@ -225,7 +233,7 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 		container.Env = append(container.Env, core.Env("API_BULK_MAX_SIZE", fmt.Sprint(*bulkMaxSize)))
 	}
 
-	err = setCommonContainerConfiguration(ctx, stack, ledger, version, database, &container, v2)
+	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, version, database, &container, true)
 	if err != nil {
 		return err
 	}
@@ -254,6 +262,43 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 		Install(ctx)
 }
 
+func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack,
+	ledger *v1beta1.Ledger, database *v1beta1.Database, image string) error {
+	container := corev1.Container{
+		Name: "ledger-worker",
+		Args: []string{"worker"},
+	}
+
+	err := setCommonContainerConfiguration(ctx, stack, ledger, image, database, &container, true)
+	if err != nil {
+		return err
+	}
+
+	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+
+	tpl := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "ledger-worker",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers:         []corev1.Container{container},
+					ServiceAccountName: serviceAccountName,
+				},
+			},
+		},
+	}
+
+	return applications.
+		New(ledger, tpl).
+		Stateful().
+		Install(ctx)
+}
+
 func getUpgradeContainer(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, image, version string) (corev1.Container, error) {
 	return databases.MigrateDatabaseContainer(ctx, stack, image, database,
 		func(m *databases.MigrationConfiguration) {
@@ -270,7 +315,7 @@ func getUpgradeContainer(ctx core.Context, stack *v1beta1.Stack, database *v1bet
 func installLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, image string, v2 bool) error {
 
 	createDeployment := func(name string, container corev1.Container, replicas uint64) error {
-		err := setCommonContainerConfiguration(ctx, stack, ledger, image, database, &container, v2)
+		err := setCommonAPIContainerConfiguration(ctx, stack, ledger, image, database, &container, v2)
 		if err != nil {
 			return err
 		}
@@ -383,19 +428,7 @@ func setCommonContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, led
 		return err
 	}
 	env = append(env, otlpEnv...)
-
-	gatewayEnv, err := gateways.EnvVarsIfEnabledWithPrefix(ctx, stack.Name, prefix)
-	if err != nil {
-		return err
-	}
-	env = append(env, gatewayEnv...)
 	env = append(env, core.GetDevEnvVarsWithPrefix(stack, ledger, prefix)...)
-
-	authEnvVars, err := auths.ProtectedAPIEnvVarsWithPrefix(ctx, stack, "ledger", ledger.Spec.Auth, prefix)
-	if err != nil {
-		return err
-	}
-	env = append(env, authEnvVars...)
 
 	postgresEnvVar, err := databases.PostgresEnvVarsWithPrefix(ctx, stack, database, prefix)
 	if err != nil {
@@ -407,6 +440,32 @@ func setCommonContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, led
 	container.Env = append(container.Env, env...)
 	container.Env = append(container.Env, core.Env(fmt.Sprintf("%sSTORAGE_POSTGRES_CONN_STRING", prefix), fmt.Sprintf("$(%sPOSTGRES_URI)", prefix)))
 	container.Env = append(container.Env, core.Env(fmt.Sprintf("%sSTORAGE_DRIVER", prefix), "postgres"))
+
+	return nil
+}
+
+func setCommonAPIContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, image string, database *v1beta1.Database, container *corev1.Container, v2 bool) error {
+
+	prefix := ""
+	if !v2 {
+		prefix = "NUMARY_"
+	}
+
+	if err := setCommonContainerConfiguration(ctx, stack, ledger, image, database, container, v2); err != nil {
+		return err
+	}
+
+	authEnvVars, err := auths.ProtectedAPIEnvVarsWithPrefix(ctx, stack, "ledger", ledger.Spec.Auth, prefix)
+	if err != nil {
+		return err
+	}
+	container.Env = append(container.Env, authEnvVars...)
+
+	gatewayEnv, err := gateways.EnvVarsIfEnabledWithPrefix(ctx, stack.Name, prefix)
+	if err != nil {
+		return err
+	}
+	container.Env = append(container.Env, gatewayEnv...)
 	container.Ports = []corev1.ContainerPort{applications.StandardHTTPPort()}
 	container.LivenessProbe = applications.DefaultLiveness("http")
 
