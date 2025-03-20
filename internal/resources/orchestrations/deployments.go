@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokers"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,6 +134,10 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, orchestration *v1beta1.
 			EnvFromSecret("TEMPORAL_SSL_CLIENT_KEY", secret, "tls.key"),
 			EnvFromSecret("TEMPORAL_SSL_CLIENT_CERT", secret, "tls.crt"),
 		)
+	}
+
+	if initSearchAttributes := temporalURI.Query().Get("initSearchAttributes"); initSearchAttributes == "true" {
+		env = append(env, core.Env("TEMPORAL_INIT_SEARCH_ATTRIBUTES", "true"))
 	}
 
 	broker := &v1beta1.Broker{}

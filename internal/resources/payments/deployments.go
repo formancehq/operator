@@ -96,6 +96,10 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		)
 	}
 
+	if initSearchAttributes := temporalURI.Query().Get("initSearchAttributes"); initSearchAttributes == "true" {
+		env = append(env, core.Env("TEMPORAL_INIT_SEARCH_ATTRIBUTES", "true"))
+	}
+
 	temporalMaxConcurrentWorkflowTaskPollers, err := settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-workflow-task-pollers")
 	if err != nil {
 		return nil, err
