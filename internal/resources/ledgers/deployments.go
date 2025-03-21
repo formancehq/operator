@@ -230,7 +230,7 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 		return err
 	}
 	if bulkMaxSize != nil {
-		container.Env = append(container.Env, core.Env("API_BULK_MAX_SIZE", fmt.Sprint(*bulkMaxSize)))
+		container.Env = append(container.Env, core.Env("BULK_MAX_SIZE", fmt.Sprint(*bulkMaxSize)))
 	}
 
 	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, version, database, &container, true)
