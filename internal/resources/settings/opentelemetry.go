@@ -84,7 +84,7 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 		},
 	}
 
-	resourceAttributes, err := GetMap(ctx, "opentelemetry", strings.ToLower(string(monitoringType)), "resource-attributes")
+	resourceAttributes, err := GetMap(ctx, stack, "opentelemetry", strings.ToLower(string(monitoringType)), "resource-attributes")
 	if err != nil {
 		return nil, err
 	}
