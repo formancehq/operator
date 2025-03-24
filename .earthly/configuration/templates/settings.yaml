@@ -52,6 +52,16 @@ spec:
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
+  name: stacks-otel-metrics-dsn
+spec:
+  stacks:
+  - '*'
+  key: opentelemetry.metrics.dsn
+  value: grpc://otel-collector-opentelemetry-collector.formance.svc.cluster.local:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
   name: stacks-otel-traces-dsn
 spec:
   stacks:
