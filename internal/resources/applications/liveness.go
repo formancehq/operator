@@ -3,7 +3,7 @@ package applications
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func DefaultLiveness(port string, opts ...ProbeOpts) *corev1.Probe {
@@ -17,7 +17,7 @@ func liveness(handler corev1.ProbeHandler) *corev1.Probe {
 		PeriodSeconds:                 2,
 		SuccessThreshold:              1,
 		FailureThreshold:              20,
-		TerminationGracePeriodSeconds: pointer.Int64(10),
+		TerminationGracePeriodSeconds: ptr.To[int64](10),
 	}
 }
 
