@@ -8,10 +8,14 @@ pre-commit: tidy lint generate manifests helm-update helm-validate generate-docs
 pc: pre-commit
 
 lint:
-  golangci-lint run --fix --timeout 5m -v
+  golangci-lint run --fix --timeout 5m
+  cd ./tools/kubectl-stacks && golangci-lint run --fix --timeout 5m
+  cd ./tools/utils && golangci-lint run --fix --timeout 5m
 
 tidy:
   go mod tidy
+  cd ./tools/kubectl-stacks && go mod tidy
+  cd ./tools/utils && go mod tidy
 
 tests args='':
   KUBEBUILDER_ASSETS=$(setup-envtest use 1.28.0 -p path) ginkgo -p ./...
@@ -26,10 +30,12 @@ release: helm-publish
   goreleaser release --clean
 
 manifests:
-  controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 \
+    rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 generate:
-  controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
+  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 \
+    object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 generate-mock:
   go generate -run mockgen ./...
@@ -70,3 +76,6 @@ generate-docs:
     --output-path="./docs/09-Configuration reference/02-Custom Resource Definitions.md" \
     --templates-dir=./crd-doc-templates \
     --config=./docs.config.yaml
+
+deploy: helm-update
+  earthly +deploy

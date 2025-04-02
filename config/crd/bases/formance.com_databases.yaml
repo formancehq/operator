@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.2
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: databases.formance.com
 spec:
   group: formance.com
@@ -37,8 +37,10 @@ spec:
         description: |-
           Database represent a concrete database on a PostgreSQL server, it is created by modules requiring a database ([Ledger](#ledger) for example).
 
+
           It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
           Additionally, the uri can define a query param `secret` indicating a k8s secret, than must be used to retrieve database credentials.
+
 
           On creation, the reconciler behind the Database object will create the database on the postgresql server using a k8s job.
           On Deletion, by default, the reconciler will let the database untouched.
@@ -46,12 +48,15 @@ spec:
           If you use that setting, the reconciler will use another job to drop the database.
           Be careful, no backup are performed!
 
+
           Database resource honors `aws.service-account` setting, so, you can create databases on an AWS server if you need.
           See [AWS accounts](#aws-account)
+
 
           Once a database is fully configured, it retains the postgres uri used.
           If the setting indicating the server uri changed, the Database object will set the field `.status.outOfSync` to true
           and will not change anything.
+
 
           Therefore, to switch to a new server, you must change the setting value, then drop the Database object.
           It will be recreated with correct uri.
@@ -94,8 +99,16 @@ spec:
             properties:
               conditions:
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: "Condition contains details for one aspect of the current
+                    state of this API Resource.\n---\nThis struct is intended for
+                    direct use as an array at the field path .status.conditions.  For
+                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
+                    observations of a foo's current state.\n\t    // Known .status.conditions.type
+                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
+                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
+                    \   // +listMapKey=type\n\t    Status []metav1.Condition `json:\"conditions,omitempty\"
+                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
+                    \   // other fields\n\t}"
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -135,7 +148,12 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      description: |-
+                        type of condition in CamelCase or in foo.example.com/CamelCase.
+                        ---
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+                        useful (see .node.status.conditions), the ability to deconflict is important.
+                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

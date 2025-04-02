@@ -22,6 +22,9 @@
 }
 
 :8080 {
+	tracing {
+		span gateway
+	}
 	log {
 		output stdout
 	}

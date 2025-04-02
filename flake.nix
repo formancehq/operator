@@ -49,7 +49,6 @@
               ginkgo
               pkgs.nur.repos.goreleaser.goreleaser-pro
               just
-              kubernetes-controller-tools
               kubernetes-helm
               kustomize_4
               setup-envtest
