@@ -253,8 +253,8 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 		objectFinalizers := object.GetFinalizers()
 	l:
 		for _, existingFinalizer := range objectFinalizers {
-			for expectedFinalizer := range reconcilerOptions.Finalizers {
-				if expectedFinalizer == expectedFinalizer {
+			for _, expectedFinalizer := range reconcilerOptions.Finalizers {
+				if expectedFinalizer.name == existingFinalizer {
 					continue l
 				}
 			}

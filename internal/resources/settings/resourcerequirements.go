@@ -46,6 +46,9 @@ func GetResourceList(ctx core.Context, stack string, keys ...string) (v1.Resourc
 	ret := v1.ResourceList{}
 	for key, qty := range value {
 		ret[v1.ResourceName(key)], err = resource.ParseQuantity(qty)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return ret, nil
