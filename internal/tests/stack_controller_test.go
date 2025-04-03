@@ -1,14 +1,18 @@
 package tests_test
 
 import (
+	"time"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/settings"
+	"github.com/formancehq/operator/internal/resources/stacks"
 	. "github.com/formancehq/operator/internal/tests/internal"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -92,11 +96,17 @@ var _ = Describe("StackController", func() {
 				})
 			})
 		})
-		Context("with a module", func() {
+		Context("with a module and stack ready", func() {
 			var (
 				ledger *v1beta1.Ledger
 			)
 			JustBeforeEach(func() {
+				By("stack should be ready", func() {
+					Eventually(func() bool {
+						Expect(LoadResource("", stack.Name, stack)).To(Succeed())
+						return stack.Status.Ready
+					}).Should(BeTrue())
+				})
 				ledger = &v1beta1.Ledger{
 					ObjectMeta: RandObjectMeta(),
 					Spec: v1beta1.LedgerSpec{
@@ -115,20 +125,26 @@ var _ = Describe("StackController", func() {
 			JustAfterEach(func() {
 				Expect(client.IgnoreNotFound(Delete(ledger))).To(Succeed())
 			})
-			It("Should update resources", func() {
-				By("the stack should not be ready anymore", func() {
-					Eventually(func() bool {
-						Expect(LoadResource("", stack.Name, stack)).To(Succeed())
-
-						return stack.Status.Ready
-					}).Should(BeFalse())
-				})
-				By("ledger should not be ready", func() {
-					Eventually(func() bool {
-						Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
-						return ledger.Status.Ready
-					}).Should(BeFalse())
-				})
+			It("(module) should not be ready", func() {
+				Consistently(func(g Gomega) bool {
+					g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+					return ledger.Status.Ready
+				}).Should(BeFalse())
+			})
+			It("(stack) should not be ready anymore", func() {
+				Eventually(func(g Gomega) bool {
+					g.Expect(LoadResource("", stack.Name, stack)).To(Succeed())
+					condition := stack.Status.Conditions.Get(stacks.ModuleReconciliation)
+					g.Expect(condition).ToNot(BeNil())
+					g.Expect(condition.Status).To(Equal(v1.ConditionFalse))
+					return stack.Status.Ready
+				}).WithPolling(time.Second).Should(BeFalse())
+			})
+			It("(stack) should be aware of the module", func() {
+				Eventually(func(g Gomega) []string {
+					g.Expect(LoadResource("", stack.Name, stack)).To(Succeed())
+					return stack.Status.Modules
+				}).Should(ContainElement("Ledger"))
 			})
 			When("each module are ready", func() {
 				var databaseSettings *v1beta1.Settings
@@ -137,7 +153,6 @@ var _ = Describe("StackController", func() {
 					Expect(Create(databaseSettings)).Should(Succeed())
 				})
 				JustBeforeEach(func() {
-
 					database := &v1beta1.Database{}
 					Eventually(func(g Gomega) bool {
 						g.Expect(LoadResource("", stack.Name+"-ledger", database)).To(BeNil())

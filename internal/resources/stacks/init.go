@@ -48,6 +48,10 @@ import (
 // +kubebuilder:rbac:groups=formance.com,resources=versions/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=formance.com,resources=versions/finalizers,verbs=update
 
+var (
+	ModuleReconciliation = "ModuleReconciliation"
+)
+
 func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 	for _, rtype := range ctx.GetScheme().AllKnownTypes() {
 		v := reflect.New(rtype).Interface()
@@ -68,60 +72,65 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 			return err
 		}
 
-		if len(l.Items) == 0 {
+		switch len(l.Items) {
+		case 0:
+			log.FromContext(ctx).Info("Module not found", "module", gvk.Kind)
+			stack.GetConditions().Delete(v1beta1.ConditionPredicate(func(condition v1beta1.Condition) bool {
+				return condition.Type == ModuleReconciliation && condition.Reason == gvk.Kind && condition.ObservedGeneration == stack.Generation
+			}))
 			continue
+		case 1:
+			log.FromContext(ctx).Info("Module found", "module", gvk.Kind)
+		default:
+			return errors.New("multiple modules found")
 		}
 
 		func() {
-			condition := v1beta1.NewCondition("ModuleReconciliation", stack.Generation).
+			condition := v1beta1.NewCondition(ModuleReconciliation, stack.Generation).
 				SetReason(gvk.Kind)
 			defer func() {
+
 				stack.GetConditions().AppendOrReplace(*condition, v1beta1.AndConditions(
-					v1beta1.ConditionTypeMatch("ModuleReconciliation"),
+					v1beta1.ConditionTypeMatch(ModuleReconciliation),
 					v1beta1.ConditionReasonMatch(gvk.Kind),
 				))
 			}()
-
-			switch len(l.Items) {
-			case 1:
-				type AnyModule struct {
-					Meta   metav1.ObjectMeta `json:"metadata"`
-					Status v1beta1.Status    `json:"status"`
-				}
-
-				module := AnyModule{}
-				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(l.Items[0].UnstructuredContent(), &module); err != nil {
-					panic(err)
-				}
-
-				stackReconcileCondition := module.Status.Conditions.Get("ReconciledWithStack")
-				if stackReconcileCondition == nil {
-					condition.SetStatus(metav1.ConditionFalse).SetMessage("Module not yet reconciled")
-					return
-				}
-				if stackReconcileCondition.Status != metav1.ConditionTrue {
-					condition.SetStatus(metav1.ConditionFalse).SetMessage("Module not declared as reconciled for stack")
-					return
-				}
-				if stackReconcileCondition.Reason == "Spec" && stack.MustSkip() {
-					condition.SetStatus(metav1.ConditionFalse).SetMessage("Module should be skipped but is not")
-					return
-				}
-				if stackReconcileCondition.Reason == "Skipped" && !stack.MustSkip() {
-					condition.SetStatus(metav1.ConditionFalse).SetMessage("Module is skipped but should not")
-					return
-				}
-				condition.SetMessage("All checks passed")
-			default:
-				condition.SetStatus(metav1.ConditionFalse).SetMessage("found multiple modules")
+			type AnyModule struct {
+				Meta   metav1.ObjectMeta `json:"metadata"`
+				Status v1beta1.Status    `json:"status"`
 			}
+
+			module := AnyModule{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(l.Items[0].UnstructuredContent(), &module); err != nil {
+				panic(err)
+			}
+
+			stackReconcileCondition := module.Status.Conditions.Get("ReconciledWithStack")
+			if stackReconcileCondition == nil {
+				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module not yet reconciled")
+				return
+			}
+			if stackReconcileCondition.Status != metav1.ConditionTrue {
+				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module not declared as reconciled for stack")
+				return
+			}
+			if stackReconcileCondition.Reason == "Spec" && stack.MustSkip() {
+				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module should be skipped but is not")
+				return
+			}
+			if stackReconcileCondition.Reason == "Skipped" && !stack.MustSkip() {
+				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module is skipped but should not")
+				return
+			}
+			condition.SetMessage("All checks passed")
+
 		}()
 	}
 
 	modules := make([]string, 0)
 	pendingModules := make([]string, 0)
 	for _, condition := range stack.Status.Conditions {
-		if condition.Type != "ModuleReconciliation" || condition.ObservedGeneration != stack.Generation {
+		if condition.Type != ModuleReconciliation || condition.ObservedGeneration != stack.Generation {
 			continue
 		}
 		modules = append(modules, condition.Reason)
@@ -131,7 +140,6 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 	}
 
 	sort.Strings(modules)
-
 	stack.Status.Modules = modules
 	if len(pendingModules) > 0 {
 		return NewPendingError().WithMessage("Pending modules: %s", modules)
@@ -141,6 +149,9 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 }
 
 func Reconcile(ctx Context, stack *v1beta1.Stack) error {
+	logger := log.FromContext(ctx)
+	logger = logger.WithValues("stack", stack.Name)
+	logger.Info("Reconcile stack")
 	errAlreadyExist := errors.New("namespace already exists")
 	if _, _, err := CreateOrUpdate(ctx, types.NamespacedName{
 		Name: stack.Name,
@@ -170,7 +181,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 	} else {
 		stack.GetConditions().Delete(v1beta1.ConditionTypeMatch("Skipped"))
 	}
-
+	logger.Info("CONDITIONS", "conditions", stack.Status.Conditions)
 	return nil
 }
 
@@ -305,7 +316,7 @@ func deleteResources(ctx Context, stack *v1beta1.Stack, logger logr.Logger) erro
 
 func init() {
 	Init(
-		WithSimpleIndex[*v1beta1.Stack](".spec.versionsFromFile", func(t *v1beta1.Stack) string {
+		WithSimpleIndex(".spec.versionsFromFile", func(t *v1beta1.Stack) string {
 			return t.Spec.VersionsFromFile
 		}),
 		WithStdReconciler(Reconcile,
@@ -351,7 +362,7 @@ func init() {
 				return nil
 			}),
 			// notes(gfyrag): Some resources need to be properly dropped before the stack is dropped
-			WithFinalizer[*v1beta1.Stack]("delete", Clean),
+			WithFinalizer("delete", Clean),
 		),
 	)
 }
