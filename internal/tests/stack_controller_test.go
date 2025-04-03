@@ -1,8 +1,6 @@
 package tests_test
 
 import (
-	"time"
-
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/settings"
@@ -138,7 +136,7 @@ var _ = Describe("StackController", func() {
 					g.Expect(condition).ToNot(BeNil())
 					g.Expect(condition.Status).To(Equal(v1.ConditionFalse))
 					return stack.Status.Ready
-				}).WithPolling(time.Second).Should(BeFalse())
+				}).Should(BeFalse())
 			})
 			It("(stack) should be aware of the module", func() {
 				Eventually(func(g Gomega) []string {
@@ -173,6 +171,31 @@ var _ = Describe("StackController", func() {
 						Expect(err).ToNot(HaveOccurred())
 						return stack.Status.Ready
 					}).Should(BeTrue())
+				})
+				When("deleting the module", func() {
+					JustBeforeEach(func() {
+						Expect(client.IgnoreNotFound(Delete(ledger))).To(Succeed())
+					})
+					It("(stack) should be ready", func() {
+						Eventually(func(g Gomega) bool {
+							err := LoadResource("", stack.Name, stack)
+							Expect(err).ToNot(HaveOccurred())
+							return stack.Status.Ready
+						}).Should(BeTrue())
+					})
+					It("(stack) should not be aware of the module anymore", func() {
+						Eventually(func(g Gomega) []string {
+							err := LoadResource("", stack.Name, stack)
+							Expect(err).ToNot(HaveOccurred())
+							return stack.Status.Modules
+						}).ShouldNot(ContainElement("Ledger"))
+					})
+					It("(stack) should not contain any Ledger ModuleReconciliation anymore", func() {
+						Eventually(func(g Gomega) *v1beta1.Condition {
+							g.Expect(LoadResource("", stack.Name, stack)).To(Succeed())
+							return stack.Status.Conditions.Get(stacks.ModuleReconciliation)
+						}).Should(BeNil())
+					})
 				})
 			})
 			When("deleting the stack", func() {
