@@ -13,8 +13,8 @@ github.com/evanphx/json-patch v4.12.0+incompatible h1:4onqiflcdA9EOZ4RxV643DvftH
 github.com/evanphx/json-patch v4.12.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/evanphx/json-patch/v5 v5.8.0 h1:lRj6N9Nci7MvzrXuX6HFzU8XjmhPiXPlsKEy1u0KQro=
 github.com/evanphx/json-patch/v5 v5.8.0/go.mod h1:VNkHZ/282BpEyt/tObQO8s5CMPmYYq14uClGH4abBuQ=
-github.com/formancehq/go-libs/v2 v2.2.2 h1:COVo8+wIybiiocw4NWl3W0dovQgkO/b/P1jTk1ItKGw=
-github.com/formancehq/go-libs/v2 v2.2.2/go.mod h1:vIUz00DsuhjrRV7mimv3V/VXhYDRQXAEh2KWW16CAtM=
+github.com/formancehq/go-libs/v2 v2.2.3 h1:7irBJ4NfSkJdVKxXPktqVAoQa7hJcejmrXgjdgh27Zk=
+github.com/formancehq/go-libs/v2 v2.2.3/go.mod h1:JvBjEDWNf7izCy2dq/eI3aMc9d28gChBe1rjw5yYlAs=
 github.com/formancehq/search v0.0.0-20240926085257-6b5288dc2576 h1:2PuiQ5FPsyseXDs+8UoyvpS1Qgysh597ReyapnHB3Ig=
 github.com/formancehq/search v0.0.0-20240926085257-6b5288dc2576/go.mod h1:vmUx4wanfOqGBZk0t2bhAXx+r+Pp9WaIA1UQQNc9Zds=
 github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=
