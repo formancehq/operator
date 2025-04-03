@@ -3,7 +3,7 @@ module github.com/formancehq/operator
 go 1.23
 
 require (
-	github.com/formancehq/go-libs/v2 v2.2.2
+	github.com/formancehq/go-libs/v2 v2.2.3
 	github.com/formancehq/search v0.0.0-20240926085257-6b5288dc2576
 	github.com/go-logr/logr v1.4.2
 	github.com/google/go-cmp v0.6.0
