@@ -74,13 +74,11 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 
 		switch len(l.Items) {
 		case 0:
-			log.FromContext(ctx).Info("Module not found", "module", gvk.Kind)
 			stack.GetConditions().Delete(v1beta1.ConditionPredicate(func(condition v1beta1.Condition) bool {
 				return condition.Type == ModuleReconciliation && condition.Reason == gvk.Kind && condition.ObservedGeneration == stack.Generation
 			}))
 			continue
 		case 1:
-			log.FromContext(ctx).Info("Module found", "module", gvk.Kind)
 		default:
 			return errors.New("multiple modules found")
 		}
