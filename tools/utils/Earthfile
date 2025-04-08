@@ -25,20 +25,3 @@ build-image:
     ARG REPOSITORY=ghcr.io
     ARG tag=latest
     DO --pass-args core+SAVE_IMAGE --COMPONENT=operator-utils --TAG=$tag
-
-lint:
-    FROM +tidy
-    WORKDIR /src/components/operator/tools/utils
-    DO --pass-args core+GO_LINT
-    SAVE ARTIFACT cmd AS LOCAL cmd
-
-pre-commit:
-    WAIT
-        BUILD --pass-args +tidy
-    END
-    BUILD --pass-args +lint
-
-tidy:
-    FROM +sources
-    WORKDIR /src/components/operator/tools/utils
-    DO --pass-args core+GO_TIDY
