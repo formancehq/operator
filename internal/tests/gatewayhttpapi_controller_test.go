@@ -64,14 +64,11 @@ var _ = Describe("GatewayHTTPAPI", func() {
 				Expect(Delete(annotationsSettings)).To(Succeed())
 			})
 			It("should add annotations to the service", func() {
-				Eventually(func(g Gomega) bool {
+				Eventually(func(g Gomega) map[string]string {
 					service := &corev1.Service{}
 					g.Expect(LoadResource(stack.Name, "ledger", service)).To(Succeed())
-					g.Expect(service.Annotations).To(Equal(map[string]string{
-						"foo": "bar",
-					}))
-					return true
-				}).Should(BeTrue())
+					return service.Annotations
+				}).Should(HaveKeyWithValue("foo", "bar"))
 			})
 		})
 	})
