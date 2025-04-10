@@ -6,16 +6,13 @@ on:
       - main
       - releases/*
   pull_request:
-    types: [ assigned, opened, synchronize, reopened, labeled ]
-
+    types: [assigned, opened, synchronize, reopened, labeled]
 permissions:
   contents: write
   pull-requests: write
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 jobs:
   PR:
     if: github.event_name == 'pull_request'
@@ -27,7 +24,6 @@ jobs:
       - uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   Dirty:
     runs-on: "formance-runner"
     steps:
@@ -39,20 +35,14 @@ jobs:
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
       - run: >
-          /nix/var/nix/profiles/default/bin/nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes"
-          develop --impure --command just pre-commit
+          /nix/var/nix/profiles/default/bin/nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just pre-commit
+
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
       - name: Get changed files
         id: changed-files
         shell: bash
-        run: |
-          hasChanged=$(git status --porcelain) 
-          if (( $(echo ${#hasChanged}) != 0 )); then
-            git status
-            echo "There are changes in the repository"
-            exit 1
-          fi
+        run: "hasChanged=$(git status --porcelain) \nif (( $(echo ${#hasChanged}) != 0 )); then\n  git status\n  echo \"There are changes in the repository\"\n  exit 1\nfi\n"
       - name: Validate Dependabot PR
         if: github.event.pull_request.user.login == 'dependabot[bot]'
         run: gh pr review $PR_URL --approve -b "Auto approve dependencies bump PR"
@@ -65,7 +55,6 @@ jobs:
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.NUMARY_GITHUB_TOKEN}}
-
   Tests:
     runs-on: "formance-runner"
     needs:
@@ -79,11 +68,10 @@ jobs:
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
       - run: >
-          /nix/var/nix/profiles/default/bin/nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes"
-          develop --impure --command just tests
+          /nix/var/nix/profiles/default/bin/nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just tests
+
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
-
   GoReleaser:
     runs-on: "formance-runner"
     if: contains(github.event.pull_request.labels.*.name, 'build-images') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
@@ -98,14 +86,13 @@ jobs:
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
       - run: >
-          /nix/var/nix/profiles/default/bin/nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes"
-          develop --impure --command just release --mode=ci
+          /nix/var/nix/profiles/default/bin/nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just release-ci
+
         env:
           GITHUB_TOKEN: ${{ secrets.NUMARY_GITHUB_TOKEN }}
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
           FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-
   Deploy:
     runs-on: "formance-runner"
     if: github.ref == 'refs/heads/main'
@@ -126,8 +113,5 @@ jobs:
           TAG: ${{ github.sha }}
           ARGOCD_REGION_AUTH_TOKEN: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
         run: >
-          earthly  
-          --no-output 
-          --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN
-          +deploy-staging
-          --TAG=$TAG
+          earthly   --no-output  --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN +deploy-staging --TAG=$TAG
+
