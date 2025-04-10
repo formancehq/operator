@@ -240,6 +240,7 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 			}
 
 			deployment.Spec.Template.Spec.Containers[ind] = container
+			deployment.Spec.Template.Spec.Containers[ind].RestartPolicy = pointer.For(corev1.ContainerRestartPolicyAlways)
 		}
 
 		return nil

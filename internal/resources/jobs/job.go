@@ -96,6 +96,8 @@ var defaultOptions = []HandleJobOption{
 }
 
 func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container v1.Container, options ...HandleJobOption) error {
+	container.RestartPolicy = pointer.For(v1.ContainerRestartPolicyAlways)
+
 	configuration := &handleJobConfiguration{}
 	if options == nil {
 		options = make([]HandleJobOption, 0)
