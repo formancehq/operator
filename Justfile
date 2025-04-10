@@ -62,7 +62,7 @@ helm-package:
     pushd $dir && helm package . && popd; \
   done
 
-helm-publish:
+helm-publish: helm-package
   echo $GITHUB_TOKEN | docker login ghcr.io -u NumaryBot --password-stdin
   for path in $(ls -d helm/*/*.tgz); do \
     helm push ${path} oci://ghcr.io/formancehq/helm; \
