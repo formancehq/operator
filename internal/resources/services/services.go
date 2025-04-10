@@ -1,6 +1,8 @@
 package services
 
 import (
+	"maps"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/settings"
@@ -9,30 +11,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func Create(ctx core.Context, owner v1beta1.Dependent, name string, mutators ...core.ObjectMutator[*corev1.Service]) (*corev1.Service, error) {
-	mutators = append(mutators,
-		core.WithController[*corev1.Service](ctx.GetScheme(), owner),
-	)
-	mutators = append(mutators, func(t *corev1.Service) error {
-		var err error
-		t.ObjectMeta.Annotations, err = settings.GetMapOrEmpty(ctx, owner.GetStack(), "services", name, "annotations")
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	service, _, err := core.CreateOrUpdate[*corev1.Service](ctx, types.NamespacedName{
-		Name:      name,
-		Namespace: owner.GetStack(),
-	}, mutators...)
-	return service, err
-}
-
 func WithDefault(name string) core.ObjectMutator[*corev1.Service] {
 	return func(t *corev1.Service) error {
-		t.Labels = map[string]string{
-			"app.kubernetes.io/service-name": name,
+		if t.Labels == nil {
+			t.Labels = make(map[string]string)
 		}
+
+		t.Labels["app.kubernetes.io/service-name"] = name
 		t.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
 				Name:       "http",
@@ -47,4 +32,38 @@ func WithDefault(name string) core.ObjectMutator[*corev1.Service] {
 
 		return nil
 	}
+}
+
+func withAnnotations(additionalAnnotation map[string]string) core.ObjectMutator[*corev1.Service] {
+	return func(t *corev1.Service) error {
+		if len(additionalAnnotation) == 0 {
+			return nil
+		}
+
+		if t.Annotations == nil {
+			t.Annotations = make(map[string]string)
+		}
+
+		maps.Copy(t.Annotations, additionalAnnotation)
+		return nil
+	}
+
+}
+
+func Create(ctx core.Context, owner v1beta1.Dependent, serviceName string, mutators ...core.ObjectMutator[*corev1.Service]) (*corev1.Service, error) {
+	additionalAnnotations, err := settings.GetMapOrEmpty(ctx, owner.GetStack(), "services", serviceName, "annotations")
+	if err != nil {
+		return nil, err
+	}
+
+	mutators = append(mutators,
+		withAnnotations(additionalAnnotations),
+		core.WithController[*corev1.Service](ctx.GetScheme(), owner),
+	)
+
+	service, _, err := core.CreateOrUpdate(ctx, types.NamespacedName{
+		Name:      serviceName,
+		Namespace: owner.GetStack(),
+	}, mutators...)
+	return service, err
 }
