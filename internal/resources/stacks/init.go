@@ -17,6 +17,7 @@ import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	. "github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -146,22 +147,73 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 	return nil
 }
 
+func namespaceLabel(ctx Context, stack string) func(ns *corev1.Namespace) error {
+	settigns, err := settings.GetMapOrEmpty(ctx, stack, "namespace", "labels")
+	if err != nil {
+		return nil
+	}
+
+	if len(settigns) == 0 {
+		return nil
+	}
+
+	return func(ns *corev1.Namespace) error {
+		if ns.Labels == nil {
+			ns.Labels = map[string]string{}
+		}
+		for k, v := range settigns {
+			ns.Labels[k] = v
+		}
+		return nil
+	}
+}
+
+func namespaceAnnotations(ctx Context, stack string) func(ns *corev1.Namespace) error {
+	settigns, err := settings.GetMapOrEmpty(ctx, stack, "namespace", "annotations")
+	if err != nil {
+		return nil
+	}
+	if len(settigns) == 0 {
+		return nil
+	}
+
+	return func(ns *corev1.Namespace) error {
+		if ns.Annotations == nil {
+			ns.Annotations = map[string]string{}
+		}
+		for k, v := range settigns {
+			ns.Annotations[k] = v
+		}
+
+		return nil
+	}
+}
+
+var errAlreadyExist = errors.New("namespace already exists")
+
+func namespaceCreatedByAgent(ctx Context, stack *v1beta1.Stack) func(ns *corev1.Namespace) error {
+	return func(ns *corev1.Namespace) error {
+		_, stackCreatedByAgent := stack.GetLabels()[v1beta1.CreatedByAgentLabel]
+		if ns.ResourceVersion == "" || stackCreatedByAgent {
+			return nil
+		}
+
+		return errAlreadyExist
+	}
+}
+
 func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 	logger := log.FromContext(ctx)
 	logger = logger.WithValues("stack", stack.Name)
 	logger.Info("Reconcile stack")
-	errAlreadyExist := errors.New("namespace already exists")
-	if _, _, err := CreateOrUpdate(ctx, types.NamespacedName{
-		Name: stack.Name,
-	},
-		func(ns *corev1.Namespace) error {
-			_, stackCreatedByAgent := stack.GetLabels()[v1beta1.CreatedByAgentLabel]
-			if ns.ResourceVersion == "" || stackCreatedByAgent {
-				return nil
-			}
-
-			return errAlreadyExist
-		}, core.WithController[*corev1.Namespace](ctx.GetScheme(), stack)); err != nil {
+	if _, _, err := CreateOrUpdate(ctx,
+		types.NamespacedName{
+			Name: stack.Name,
+		},
+		namespaceLabel(ctx, stack.Name),
+		namespaceAnnotations(ctx, stack.Name),
+		namespaceCreatedByAgent(ctx, stack),
+		core.WithController[*corev1.Namespace](ctx.GetScheme(), stack)); err != nil {
 		if !errors.Is(err, errAlreadyExist) {
 			return err
 		}

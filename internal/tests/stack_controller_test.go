@@ -49,6 +49,53 @@ var _ = Describe("StackController", func() {
 				}).Should(BeTrue())
 			})
 		})
+		When("settings are present", func() {
+			var (
+				settingsLabel       *v1beta1.Settings
+				settingsAnnotations *v1beta1.Settings
+			)
+			BeforeEach(func() {
+				settingsLabel = &v1beta1.Settings{
+					ObjectMeta: RandObjectMeta(),
+					Spec: v1beta1.SettingsSpec{
+						Stacks: []string{"*"},
+						Key:    "namespace.labels",
+						Value:  "somelabel=somevalue,anotherlabel=anothervalue",
+					},
+				}
+				Expect(Create(settingsLabel)).To(Succeed())
+
+				settingsAnnotations = &v1beta1.Settings{
+					ObjectMeta: RandObjectMeta(),
+					Spec: v1beta1.SettingsSpec{
+						Stacks: []string{"*"},
+						Key:    "namespace.annotations",
+						Value:  "someannotations=somevalue,anotherannotations=anothervalue",
+					},
+				}
+				Expect(Create(settingsAnnotations)).To(Succeed())
+			})
+			It("Should create a new namespace with labels", func() {
+				Eventually(func(g Gomega) map[string]string {
+					ns := &corev1.Namespace{}
+					g.Expect(Get(core.GetResourceName(stack.Name), ns)).To(Succeed())
+					return ns.Labels
+				}).Should(And(
+					HaveKeyWithValue("somelabel", "somevalue"),
+					HaveKeyWithValue("anotherlabel", "anothervalue"),
+				))
+			})
+			It("Should create a new namespace with annotations", func() {
+				Eventually(func(g Gomega) map[string]string {
+					ns := &corev1.Namespace{}
+					g.Expect(Get(core.GetResourceName(stack.Name), ns)).To(Succeed())
+					return ns.Annotations
+				}).Should(And(
+					HaveKeyWithValue("someannotations", "somevalue"),
+					HaveKeyWithValue("anotherannotations", "anothervalue"),
+				))
+			})
+		})
 		Context("with version specified", func() {
 			BeforeEach(func() {
 				stack.Spec.Version = "1234"
