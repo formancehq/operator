@@ -57,7 +57,7 @@ helm-validate args='':
     helm template ./$dir {{args}}; \
   done
 
-helm-package:
+helm-package: helm-update
   for dir in $(ls -d helm/*); do \
     pushd $dir && helm package . && popd; \
   done
