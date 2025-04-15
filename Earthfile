@@ -12,6 +12,21 @@ sources:
     COPY go.* .
     SAVE ARTIFACT /src
 
+controller-gen:
+    FROM core+builder-image
+    DO --pass-args core+GO_INSTALL --package=sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+
+generate:
+    FROM --pass-args +controller-gen
+    COPY +sources/* /src
+    WORKDIR /src/components/operator
+    COPY --dir hack .
+    RUN --mount=type=cache,id=gomod,target=${GOPATH}/pkg/mod \
+        --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
+        controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
+    SAVE ARTIFACT internal AS LOCAL internal
+    SAVE ARTIFACT api AS LOCAL api
+
 compile:
     FROM core+builder-image
     COPY (+sources/*) /src
@@ -45,6 +60,7 @@ deploy:
     # RUN helm upgrade --install --namespace formance-system --install formance-operator-crds \
     #     --wait \
     #     --create-namespace ./base
+    RUN helm dependency update ./operator
     RUN --no-cache helm upgrade --install --namespace formance-system --install formance-operator \
         --wait \
         --create-namespace \
