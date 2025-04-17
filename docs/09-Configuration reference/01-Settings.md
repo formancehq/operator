@@ -83,10 +83,11 @@ Path : Match the temporal namespace
 
 Query params :
 
-| Name                | Type   | Default | Description                                               |
-| ------------------- | ------ | ------- | --------------------------------------------------------- |
-| secret              | string |         | Specify a secret where temporal certificates are defined  |
-| encryptionKeySecret | string |         | Specify a secret where temporal encryption key is defined |
+| Name                 | Type   | Default | Description                                               |
+|----------------------|--------|---------|-----------------------------------------------------------|
+| secret               | string |         | Specify a secret where temporal certificates are defined  |
+| encryptionKeySecret  | string |         | Specify a secret where temporal encryption key is defined |
+| initSearchAttributes | string | false   | Initialize search attributes on temporal namespace        |
 
 ### Broker URI format
 
