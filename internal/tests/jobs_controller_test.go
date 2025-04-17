@@ -98,6 +98,14 @@ var _ = Describe("Job", func() {
 				ObjectMeta: RandObjectMeta(),
 				Spec: v1beta1.SettingsSpec{
 					Stacks: []string{stack.Name},
+					Key:    `jobs.*.spec.template.annotations`,
+					Value:  "first=second",
+				},
+			},
+			v1beta1.Settings{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.SettingsSpec{
+					Stacks: []string{stack.Name},
 					Key:    fmt.Sprintf(`jobs.%s.containers.%s.run-as`, strings.ToLower(module.Kind), job.Spec.Template.Spec.Containers[0].Name),
 					Value:  runAS.String(),
 				},
@@ -133,6 +141,13 @@ var _ = Describe("Job", func() {
 			return nil
 		}))
 		Expect(err).To(Equal(core.NewPendingError()))
+	})
+	It("Should have annotations set", func() {
+		j := &batchv1.Job{}
+		Expect(LoadResource(stack.Name, fmt.Sprintf("%s-%s", module.GetUID(), job.Name), j)).To(Succeed())
+
+		Expect(j.Spec.Template.Annotations).ToNot(BeNil())
+		Expect(j.Spec.Template.Annotations["first"]).To(Equal("second"))
 	})
 	It("Should have security context configured with run-as settings", func() {
 		j := &batchv1.Job{}

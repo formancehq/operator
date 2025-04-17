@@ -3,6 +3,7 @@ package applications
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 
 	"github.com/formancehq/operator/internal/resources/licence"
@@ -156,43 +157,55 @@ func (a Application) Install(ctx core.Context) error {
 	return a.handlePDB(ctx, deploymentLabels)
 }
 
-func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[string]string) error {
-	condition := v1beta1.Condition{
-		Type:               "DeploymentReady",
-		ObservedGeneration: a.owner.GetGeneration(),
-		LastTransitionTime: metav1.Now(),
-		Reason:             strcase.UpperCamelCase(a.deploymentTpl.Name),
-	}
-	defer func() {
-		a.owner.GetConditions().AppendOrReplace(condition, v1beta1.AndConditions(
-			v1beta1.ConditionTypeMatch("DeploymentReady"),
-			v1beta1.ConditionReasonMatch(strcase.UpperCamelCase(a.deploymentTpl.Name)),
-		))
-	}()
+func (a Application) WithAnnotations(annotations map[string]string) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		if deployment.Spec.Template.Annotations == nil {
+			deployment.Spec.Template.Annotations = map[string]string{}
+		}
 
-	gracePeriod, err := settings.GetStringOrDefault(
-		ctx,
-		a.owner.GetStack(),
-		"",
-		"modules",
-		strcase.LowerCamelCase(a.owner.GetObjectKind().GroupVersionKind().Kind),
-		"grace-period",
-	)
-	if err != nil {
-		return fmt.Errorf("failed to get grace period: %w", err)
+		maps.Copy(deployment.Spec.Template.Annotations, annotations)
+		return nil
 	}
+}
 
-	mutators := make([]core.ObjectMutator[*appsv1.Deployment], 0)
-	mutators = append(mutators, func(deployment *appsv1.Deployment) error {
+func (a Application) withSettingAnnotations(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		annotations, err := settings.GetMapOrEmpty(ctx, a.owner.GetStack(), "deployments", a.deploymentTpl.Name, "spec", "template", "annotations")
+		if err != nil {
+			return err
+		}
+
+		if len(annotations) == 0 {
+			return nil
+		}
+
+		return a.WithAnnotations(annotations)(deployment)
+	}
+}
+
+func (a Application) containersMutator(ctx core.Context, labels map[string]string) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		gracePeriod, err := settings.GetStringOrDefault(
+			ctx,
+			a.owner.GetStack(),
+			"",
+			"modules",
+			strcase.LowerCamelCase(a.owner.GetObjectKind().GroupVersionKind().Kind),
+			"grace-period",
+		)
+		if err != nil {
+			return fmt.Errorf("failed to get grace period: %w", err)
+		}
+
 		a.deploymentTpl.Spec.DeepCopyInto(&deployment.Spec)
 		deployment.SetName(a.deploymentTpl.Name)
 		deployment.SetNamespace(a.owner.GetStack())
 
 		// Configure matching labels
 		deployment.Spec.Selector = &metav1.LabelSelector{
-			MatchLabels: deploymentLabels,
+			MatchLabels: labels,
 		}
-		deployment.Spec.Template.Labels = deploymentLabels
+		deployment.Spec.Template.Labels = labels
 
 		// Configure security context
 		deployment.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
@@ -243,81 +256,112 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		}
 
 		return nil
-	})
-
-	if !a.stateful {
-		mutators = append(mutators,
-			func(t *appsv1.Deployment) error {
-				replicas, err := settings.GetInt32(ctx, a.owner.GetStack(), "deployments", a.deploymentTpl.Name, "replicas")
-				if err != nil {
-					return err
-				}
-				t.Spec.Replicas = replicas
-				return nil
-			})
-	} else {
-		mutators = append(mutators,
-			func(t *appsv1.Deployment) error {
-				t.Spec.Strategy = appsv1.DeploymentStrategy{
-					Type: appsv1.RecreateDeploymentStrategyType,
-				}
-				return nil
-			})
 	}
+}
 
-	if a.isEE {
-		licenceSecretResourceRef, licenceEnv, err := licence.GetLicenceEnvVars(ctx, a.deploymentTpl.Name, a.owner)
-		if err != nil {
-			return err
-		}
-		if len(licenceEnv) > 0 {
-			mutators = append(mutators, func(t *appsv1.Deployment) error {
-				for i, container := range t.Spec.Template.Spec.InitContainers {
-					container.Env = append(container.Env, licenceEnv...)
-					t.Spec.Template.Spec.InitContainers[i] = container
-				}
-				for i, container := range t.Spec.Template.Spec.Containers {
-					container.Env = append(container.Env, licenceEnv...)
-					t.Spec.Template.Spec.Containers[i] = container
-				}
-				if licenceSecretResourceRef != nil {
-					if t.Spec.Template.Annotations == nil {
-						t.Spec.Template.Annotations = map[string]string{}
-					}
-					t.Spec.Template.Annotations["licence-secret-hash"] = licenceSecretResourceRef.Status.Hash
-				}
-
-				return nil
-			})
-		}
-	}
-
-	mutators = append(mutators, core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner))
-
-	isJsonLogging, err := settings.GetBoolOrFalse(ctx, a.owner.GetStack(), "logging", "json")
-	if err != nil {
-		return err
-	}
-	if isJsonLogging {
-		mutators = append(mutators, func(t *appsv1.Deployment) error {
-			v := corev1.EnvVar{
-				Name:  "JSON_FORMATTING_LOGGER",
-				Value: "true",
+func (a Application) withStatefulHandling(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		if !a.stateful {
+			replicas, err := settings.GetInt32(ctx, a.owner.GetStack(), "deployments", a.deploymentTpl.Name, "replicas")
+			if err != nil {
+				return err
 			}
-			for i, container := range t.Spec.Template.Spec.InitContainers {
-				container.Env = append(container.Env, v)
-				t.Spec.Template.Spec.InitContainers[i] = container
+			deployment.Spec.Replicas = replicas
+
+		} else {
+			deployment.Spec.Strategy = appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
 			}
-			for i, container := range t.Spec.Template.Spec.Containers {
-				container.Env = append(container.Env, v)
-				t.Spec.Template.Spec.Containers[i] = container
+
+		}
+		return nil
+	}
+}
+
+func (a Application) withEELicence(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		if a.isEE {
+			licenceSecretResourceRef, licenceEnv, err := licence.GetLicenceEnvVars(ctx, a.deploymentTpl.Name, a.owner)
+			if err != nil {
+				return err
+			}
+			if len(licenceEnv) == 0 {
+				return nil
+			}
+			for i, container := range deployment.Spec.Template.Spec.InitContainers {
+				container.Env = append(container.Env, licenceEnv...)
+				deployment.Spec.Template.Spec.InitContainers[i] = container
+			}
+			for i, container := range deployment.Spec.Template.Spec.Containers {
+				container.Env = append(container.Env, licenceEnv...)
+				deployment.Spec.Template.Spec.Containers[i] = container
+			}
+			if licenceSecretResourceRef != nil {
+				if deployment.Spec.Template.Annotations == nil {
+					deployment.Spec.Template.Annotations = map[string]string{}
+				}
+				deployment.Spec.Template.Annotations["licence-secret-hash"] = licenceSecretResourceRef.Status.Hash
 			}
 
 			return nil
-		})
-	}
 
-	deployment, _, err := core.CreateOrUpdate[*appsv1.Deployment](ctx, types.NamespacedName{
+		}
+		return nil
+	}
+}
+
+func (a Application) withJsonLogging(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		isJsonLogging, err := settings.GetBoolOrFalse(ctx, a.owner.GetStack(), "logging", "json")
+		if err != nil {
+			return err
+		}
+		if !isJsonLogging {
+			return nil
+		}
+
+		v := corev1.EnvVar{
+			Name:  "JSON_FORMATTING_LOGGER",
+			Value: "true",
+		}
+		for i, container := range deployment.Spec.Template.Spec.InitContainers {
+			container.Env = append(container.Env, v)
+			deployment.Spec.Template.Spec.InitContainers[i] = container
+		}
+		for i, container := range deployment.Spec.Template.Spec.Containers {
+			container.Env = append(container.Env, v)
+			deployment.Spec.Template.Spec.Containers[i] = container
+		}
+
+		return nil
+	}
+}
+
+func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[string]string) error {
+	condition := v1beta1.Condition{
+		Type:               "DeploymentReady",
+		ObservedGeneration: a.owner.GetGeneration(),
+		LastTransitionTime: metav1.Now(),
+		Reason:             strcase.UpperCamelCase(a.deploymentTpl.Name),
+	}
+	defer func() {
+		a.owner.GetConditions().AppendOrReplace(condition, v1beta1.AndConditions(
+			v1beta1.ConditionTypeMatch("DeploymentReady"),
+			v1beta1.ConditionReasonMatch(strcase.UpperCamelCase(a.deploymentTpl.Name)),
+		))
+	}()
+
+	mutators := make([]core.ObjectMutator[*appsv1.Deployment], 0)
+	mutators = append(mutators,
+		a.containersMutator(ctx, deploymentLabels),
+		a.withSettingAnnotations(ctx),
+		a.withStatefulHandling(ctx),
+		a.withEELicence(ctx),
+		a.withJsonLogging(ctx),
+		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
+	)
+
+	deployment, _, err := core.CreateOrUpdate(ctx, types.NamespacedName{
 		Namespace: a.owner.GetStack(),
 		Name:      a.deploymentTpl.Name,
 	}, mutators...)
@@ -352,57 +396,57 @@ func (a Application) handlePDB(ctx core.Context, deploymentLabels map[string]str
 			v1beta1.ConditionReasonMatch(strcase.UpperCamelCase(a.deploymentTpl.Name)),
 		))
 	}()
-	if !a.stateful {
-
-		pdb, err := settings.GetAs[podDisruptionBudgetConfiguration](ctx, a.owner.GetStack(), "deployments", a.deploymentTpl.Name, "pod-disruption-budget")
-		if err != nil {
-			return err
-		}
-
-		if pdb.MinAvailable != "" || pdb.MaxUnavailable != "" {
-			podDisruptionBudgetConfiguredCondition := v1beta1.NewCondition("PodDisruptionBudgetConfigured", a.owner.GetGeneration()).
-				SetReason(strcase.UpperCamelCase(a.deploymentTpl.Name))
-
-			defer func() {
-				a.owner.GetConditions().AppendOrReplace(*podDisruptionBudgetConfiguredCondition, v1beta1.AndConditions(
-					v1beta1.ConditionTypeMatch("PodDisruptionBudgetConfigured"),
-					v1beta1.ConditionReasonMatch(strcase.UpperCamelCase(a.deploymentTpl.Name)),
-				))
-			}()
-
-			_, _, err = core.CreateOrUpdate(ctx, types.NamespacedName{
-				Namespace: a.owner.GetStack(),
-				Name:      a.deploymentTpl.Name,
-			}, func(t *v1.PodDisruptionBudget) error {
-				if pdb.MinAvailable != "" {
-					t.Spec.MinAvailable = pointer.For(intstr.Parse(pdb.MinAvailable))
-				}
-				if pdb.MaxUnavailable != "" {
-					t.Spec.MaxUnavailable = pointer.For(intstr.Parse(pdb.MaxUnavailable))
-				}
-				t.Spec.Selector = &metav1.LabelSelector{
-					MatchLabels: deploymentLabels,
-				}
-				return nil
-			},
-				core.WithController[*v1.PodDisruptionBudget](ctx.GetScheme(), a.owner),
-			)
-			if err != nil {
-				podDisruptionBudgetConfiguredCondition.SetStatus(metav1.ConditionFalse).SetMessage(err.Error())
-				return err
-			}
-		} else {
-			if err := a.deletePDBIfExists(ctx); err != nil {
-				return err
-			}
-			podDisruptionBudgetCondition.SetMessage("no PDB found")
-		}
-	} else {
+	if a.stateful {
 		if err := a.deletePDBIfExists(ctx); err != nil {
 			return err
 		}
 
 		podDisruptionBudgetCondition.SetMessage("application defined as stateful")
+		return nil
+	}
+
+	pdb, err := settings.GetAs[podDisruptionBudgetConfiguration](ctx, a.owner.GetStack(), "deployments", a.deploymentTpl.Name, "pod-disruption-budget")
+	if err != nil {
+		return err
+	}
+
+	if pdb.MinAvailable != "" || pdb.MaxUnavailable != "" {
+		podDisruptionBudgetConfiguredCondition := v1beta1.NewCondition("PodDisruptionBudgetConfigured", a.owner.GetGeneration()).
+			SetReason(strcase.UpperCamelCase(a.deploymentTpl.Name))
+
+		defer func() {
+			a.owner.GetConditions().AppendOrReplace(*podDisruptionBudgetConfiguredCondition, v1beta1.AndConditions(
+				v1beta1.ConditionTypeMatch("PodDisruptionBudgetConfigured"),
+				v1beta1.ConditionReasonMatch(strcase.UpperCamelCase(a.deploymentTpl.Name)),
+			))
+		}()
+
+		_, _, err = core.CreateOrUpdate(ctx, types.NamespacedName{
+			Namespace: a.owner.GetStack(),
+			Name:      a.deploymentTpl.Name,
+		}, func(t *v1.PodDisruptionBudget) error {
+			if pdb.MinAvailable != "" {
+				t.Spec.MinAvailable = pointer.For(intstr.Parse(pdb.MinAvailable))
+			}
+			if pdb.MaxUnavailable != "" {
+				t.Spec.MaxUnavailable = pointer.For(intstr.Parse(pdb.MaxUnavailable))
+			}
+			t.Spec.Selector = &metav1.LabelSelector{
+				MatchLabels: deploymentLabels,
+			}
+			return nil
+		},
+			core.WithController[*v1.PodDisruptionBudget](ctx.GetScheme(), a.owner),
+		)
+		if err != nil {
+			podDisruptionBudgetConfiguredCondition.SetStatus(metav1.ConditionFalse).SetMessage(err.Error())
+			return err
+		}
+	} else {
+		if err := a.deletePDBIfExists(ctx); err != nil {
+			return err
+		}
+		podDisruptionBudgetCondition.SetMessage("no PDB found")
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/formancehq/go-libs/v2/pointer"
@@ -95,13 +96,40 @@ var defaultOptions = []HandleJobOption{
 	}),
 }
 
+func withSettingAnnotations(ctx core.Context, owner v1beta1.Dependent) HandleJobOption {
+	return Mutator(func(t *batchv1.Job) error {
+		kind := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+		if kind == "" {
+			return errors.New("owner has no kind")
+		}
+		annotations, err := settings.GetMapOrEmpty(ctx, owner.GetStack(), "jobs", kind, "spec", "template", "annotations")
+		if err != nil {
+			return err
+		}
+
+		if len(annotations) == 0 {
+			return nil
+		}
+
+		if t.Spec.Template.Annotations == nil {
+			t.Spec.Template.Annotations = make(map[string]string)
+		}
+
+		maps.Copy(t.Spec.Template.Annotations, annotations)
+		return nil
+	})
+}
+
 func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container v1.Container, options ...HandleJobOption) error {
 	configuration := &handleJobConfiguration{}
 	if options == nil {
 		options = make([]HandleJobOption, 0)
 	}
 
-	options = append(options, withRunAs(ctx, owner))
+	options = append(options,
+		withRunAs(ctx, owner),
+		withSettingAnnotations(ctx, owner),
+	)
 	for _, option := range append(defaultOptions, options...) {
 		option(configuration)
 	}
