@@ -87,3 +87,15 @@ deploy-staging:
         --parameter image.tag=$TAG \
         --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web
     RUN --secret AUTH_TOKEN argocd --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web app sync $APPLICATION
+
+### Following targets are used by agent tests
+manifests:
+    FROM --pass-args +controller-gen
+    COPY (+sources/*) /src
+    WORKDIR /src/components/operator
+    COPY --dir config .
+    RUN --mount=type=cache,id=gomod,target=${GOPATH}/pkg/mod \
+        --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
+        controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+
+    SAVE ARTIFACT config AS LOCAL config
