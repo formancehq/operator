@@ -98,3 +98,25 @@ spec:
     - '*'
   key: "modules.*.grace-period"
   value: "5s"
+{{- if .Values.ghcrRegistry }}
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: rewrite-ghcr-registry
+spec:
+  key: 'registries."ghcr.io".endpoint'
+  stacks:
+  - '*'
+  value: {{ .Values.ghcrRegistry }}
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: image-pull-secret
+spec:
+  key: 'deployments.*.image-pull-secret'
+  stacks:
+    - '*'
+  value: zot
+{{- end }}

@@ -215,6 +215,16 @@ func (a Application) containersMutator(ctx core.Context, labels map[string]strin
 			},
 		}
 
+		imagePullSecret, err := settings.GetStringOrEmpty(ctx, a.owner.GetStack(), "deployments", a.deploymentTpl.Name, "image-pull-secret")
+		if err != nil {
+			return err
+		}
+		if imagePullSecret != "" {
+			deployment.Spec.Template.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{
+				Name: imagePullSecret,
+			}}
+		}
+
 		for ind, container := range deployment.Spec.Template.Spec.InitContainers {
 			resourceRequirements, err := settings.GetResourceRequirements(ctx, a.owner.GetStack(),
 				"deployments", deployment.Name, "init-containers", container.Name, "resource-requirements")

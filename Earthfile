@@ -1,6 +1,7 @@
 VERSION 0.8
 
-IMPORT github.com/formancehq/earthly:tags/v0.19.1 AS core
+ARG core=github.com/formancehq/earthly:tags/v0.19.1
+IMPORT $core AS core
 
 FROM core+base-image
 
@@ -61,21 +62,37 @@ deploy:
     #     --wait \
     #     --create-namespace ./base
     RUN helm dependency update ./operator
-    RUN --no-cache helm upgrade --install --namespace formance-system --install formance-operator \
+
+    ARG FORMANCE_DEV_CLUSTER_V2=no
+    LET ADDITIONAL_ARGS=""
+    IF [ "$FORMANCE_DEV_CLUSTER_V2" == "yes" ]
+        SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set imagePullSecrets[0].name=zot"
+    END
+
+    ARG --required REPOSITORY=
+    RUN --no-cache helm upgrade --install --namespace formance --install formance-operator \
         --wait \
+        --debug \
         --create-namespace \
+        --set imagePullSecrets[0].name=zot \
         --set image.tag=$tag \
+        --set image.repository=$REPOSITORY/formancehq/operator \
         --set operator.licence.token=$LICENCE_TOKEN \
         --set operator.licence.issuer=$LICENCE_ISSUER ./operator \
-        --set operator.dev=true
+        --set operator.dev=true $ADDITIONAL_ARGS
     WORKDIR /
     COPY .earthly .earthly
     WORKDIR .earthly
     RUN kubectl get versions default || kubectl apply -f k8s-versions.yaml
     ARG user
+
+    SET ADDITIONAL_ARGS=""
+    IF [ "$FORMANCE_DEV_CLUSTER_V2" == "yes" ]
+        SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set ghcrRegistry=$REPOSITORY"
+    END
     RUN --secret tld helm upgrade --install operator-configuration ./configuration \
-        --namespace formance-system \
-        --set gateway.fallback=https://console.$user.$tld
+        --namespace formance \
+        --set gateway.fallback=https://console.$user.$tld $ADDITIONAL_ARGS
 
 deploy-staging:
     FROM --pass-args core+base-argocd 
