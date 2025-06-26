@@ -120,7 +120,7 @@ func detectBrokerModeByCheckingExistentStreams(ctx core.Context, stack *v1beta1.
 
 	hasLegacyStream := false
 	if err := jobs.Handle(ctx, broker, "detect-mode", corev1.Container{
-		Image: natsBoxImage,
+		Image: natsBoxImage.GetFullImageName(),
 		Name:  "detect-mode",
 		Args:  core.ShellScript(script),
 		Env: []corev1.EnvVar{
@@ -155,6 +155,7 @@ func detectBrokerModeByCheckingExistentStreams(ctx core.Context, stack *v1beta1.
 			}
 			return false
 		}),
+		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
 	); err != nil {
 		return false, err
 	}
@@ -197,14 +198,16 @@ func deleteBroker(ctx core.Context, broker *v1beta1.Broker) error {
 	}
 
 	return jobs.Handle(ctx, broker, "delete-streams", corev1.Container{
-		Image: natsBoxImage,
+		Image: natsBoxImage.GetFullImageName(),
 		Name:  "delete-streams",
 		Args:  core.ShellScript(script),
 		Env: []corev1.EnvVar{
 			core.Env("NATS_URI", fmt.Sprintf("nats://%s", broker.Status.URI.Host)),
 			core.Env("STACK", broker.Spec.Stack),
 		},
-	})
+	},
+		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
+	)
 }
 
 func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, uri *v1beta1.URI) error {
@@ -232,7 +235,7 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 	}
 
 	return jobs.Handle(ctx, broker, "create-stream", corev1.Container{
-		Image: natsBoxImage,
+		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-topic",
 		Args:  core.ShellScript(script),
 		Env: []corev1.EnvVar{
@@ -245,7 +248,9 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 				return "1"
 			}()),
 		},
-	})
+	},
+		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
+	)
 }
 
 func createOneStreamByTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, brokerURI *v1beta1.URI) error {
@@ -291,7 +296,7 @@ func createNatsTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Bro
 	}
 
 	return jobs.Handle(ctx, broker, "create-topic-"+topic.Spec.Service, corev1.Container{
-		Image: natsBoxImage,
+		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-topic",
 		Args:  core.ShellScript(script),
 		Env: []corev1.EnvVar{
@@ -305,5 +310,7 @@ func createNatsTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Bro
 				return "1"
 			}()),
 		},
-	})
+	},
+		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
+	)
 }

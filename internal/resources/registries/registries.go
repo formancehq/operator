@@ -2,6 +2,7 @@ package registries
 
 import (
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"strings"
 
 	"github.com/formancehq/operator/internal/resources/settings"
@@ -14,69 +15,80 @@ import (
 // docker.io/<organization|user>/<image>:<version>
 // version: "v2.0.0-rc.35-scratch@sha256:4a29620448a90f3ae50d2e375c993b86ef141ead4b6ac1edd1674e9ff6b933f8"
 // docker.io/<organization|user>/<image>:v2.0.0-rc.35-scratch@sha256:4a29620448a90f3ae50d2e375c993b86ef141ead4b6ac1edd1674e9ff6b933f8
-type imageOrigin struct {
-	Registry string
-	Image    string
-	Version  string
+type ImageConfiguration struct {
+	Registry    string
+	Image       string
+	Version     string
+	PullSecrets []v1.LocalObjectReference
 }
 
-func (o imageOrigin) String() string {
+func (cfg *ImageConfiguration) GetFullImageName() string {
+	ret := ""
+	if cfg.Registry != "" {
+		ret += cfg.Registry + "/"
+	}
+	ret += cfg.Image + ":" + cfg.Version
+
+	return ret
+}
+
+func (o *ImageConfiguration) String() string {
 	return fmt.Sprintf("%s/%s:%s", o.Registry, o.Image, o.Version)
 }
 
-//go:generate mockgen -source ./registries.go -destination ./registries_generated.go -package registries . ImageSettingsOverrider
-type ImageSettingsOverrider interface {
-	OverrideWithSetting(*imageOrigin, string) error
-}
-
-type defaultImageSettingOverrider struct {
-	ctx core.Context
-}
-
-func NewImageSettingsOverrider(ctx core.Context) ImageSettingsOverrider {
-	return &defaultImageSettingOverrider{ctx: ctx}
-}
-
-func (is *defaultImageSettingOverrider) OverrideWithSetting(o *imageOrigin, stackName string) (err error) {
-	imageOverride, err := settings.GetStringOrEmpty(is.ctx, stackName, "registries", o.Registry, "images", o.Image, "rewrite")
-	if err != nil {
-		return err
-	}
-	if imageOverride != "" {
-		o.Image = imageOverride
-	}
-
-	registryEndpoint, err := settings.GetStringOrEmpty(is.ctx, stackName, "registries", o.Registry, "endpoint")
-	if err != nil {
-		return err
-	}
-	if registryEndpoint != "" {
-		o.Registry = registryEndpoint
-	}
-
-	return nil
-}
-
-func TranslateImage(
+func GetImageConfiguration(
+	ctx core.Context,
 	stackName string,
-	settingsOverrider ImageSettingsOverrider,
 	image string,
-) (string, error) {
+) (*ImageConfiguration, error) {
 	repository, version, found := strings.Cut(image, ":")
 	if !found {
-		return "", fmt.Errorf("invalid image format: %s", image)
+		return nil, fmt.Errorf("invalid image format: %s", image)
 	}
 
 	organizationImage := strings.SplitN(repository, "/", 2)
-	origin := &imageOrigin{
-		Registry: organizationImage[0],
-		Image:    organizationImage[1],
+	registry := organizationImage[0]
+	imageWithoutRegistry := organizationImage[1]
+
+	ret := &ImageConfiguration{
+		Registry: registry,
+		Image:    imageWithoutRegistry,
 		Version:  version,
 	}
 
-	if err := settingsOverrider.OverrideWithSetting(origin, stackName); err != nil {
-		return "", err
+	imageOverride, err := settings.GetStringOrEmpty(ctx, stackName, "registries", registry, "images", imageWithoutRegistry, "rewrite")
+	if err != nil {
+		return nil, err
+	}
+	if imageOverride != "" {
+		ret.Image = imageOverride
 	}
 
-	return origin.String(), nil
+	registryEndpoint, err := settings.GetStringOrEmpty(ctx, stackName, "registries", registry, "endpoint")
+	if err != nil {
+		return nil, err
+	}
+	if registryEndpoint != "" {
+		parts := strings.SplitN(registryEndpoint, "?", 2)
+		ret.Registry = parts[0]
+		if len(parts) > 1 {
+			parametersPairs := strings.Split(parts[1], ",")
+			for _, pair := range parametersPairs {
+				parts := strings.SplitN(pair, "=", 2)
+				if len(parts) != 2 {
+					return nil, fmt.Errorf("invalid registry endpoint parameter: %s", pair)
+				}
+				switch parts[0] {
+				case "pullSecret":
+					ret.PullSecrets = append(ret.PullSecrets, v1.LocalObjectReference{
+						Name: parts[1],
+					})
+				default:
+					return nil, fmt.Errorf("unknown registry endpoint parameter: %s", parts[0])
+				}
+			}
+		}
+	}
+
+	return ret, nil
 }

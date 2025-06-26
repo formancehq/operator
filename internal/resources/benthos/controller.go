@@ -320,10 +320,11 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 						Annotations: podAnnotations,
 					},
 					Spec: corev1.PodSpec{
-						InitContainers: b.Spec.InitContainers,
+						ImagePullSecrets: append(benthosImage.PullSecrets, b.Spec.ImagePullSecrets...),
+						InitContainers:   b.Spec.InitContainers,
 						Containers: []corev1.Container{{
 							Name:    "benthos",
-							Image:   benthosImage,
+							Image:   benthosImage.GetFullImageName(),
 							Env:     env,
 							Command: cmd,
 							Ports: []corev1.ContainerPort{{

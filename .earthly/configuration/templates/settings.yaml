@@ -57,7 +57,11 @@ spec:
   stacks:
   - '*'
   key: opentelemetry.metrics.dsn
+  {{- if .Values.v2 }}
+  value: grpc://opentelemetry-collector.monitoring.svc.cluster.local:4317?insecure=true
+  {{- else }}
   value: grpc://otel-collector-opentelemetry-collector.formance.svc.cluster.local:4317?insecure=true
+  {{- end }}
 ---
 apiVersion: formance.com/v1beta1
 kind: Settings
@@ -67,7 +71,11 @@ spec:
   stacks:
     - '*'
   key: opentelemetry.traces.dsn
+  {{- if .Values.v2 }}
+  value: grpc://opentelemetry-collector.monitoring.svc.cluster.local:4317?insecure=true
+  {{- else }}
   value: grpc://otel-collector-opentelemetry-collector.formance.svc.cluster.local:4317?insecure=true
+  {{- end }}
 ---
 apiVersion: formance.com/v1beta1
 kind: Settings
@@ -98,7 +106,7 @@ spec:
     - '*'
   key: "modules.*.grace-period"
   value: "5s"
-{{- if .Values.ghcrRegistry }}
+{{- if .Values.v2 }}
 ---
 apiVersion: formance.com/v1beta1
 kind: Settings
@@ -108,15 +116,25 @@ spec:
   key: 'registries."ghcr.io".endpoint'
   stacks:
   - '*'
-  value: {{ .Values.ghcrRegistry }}
+  value: {{ .Values.ghcrRegistry }}?pullSecret=zot
 ---
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
-  name: image-pull-secret
+  name: gateway-ingress-annotations
 spec:
-  key: 'deployments.*.image-pull-secret'
+  key: 'gateway.ingress.annotations'
   stacks:
     - '*'
-  value: zot
+  value: 'cert-manager.io/cluster-issuer=zerossl'
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: gateway-ingress-tls
+spec:
+  key: 'gateway.ingress.tls.enabled'
+  stacks:
+    - '*'
+  value: 'true'
 {{- end }}

@@ -71,7 +71,7 @@ func deploymentEnvVars(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1
 
 func createAPIDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database, consumer *v1beta1.BrokerConsumer, version string, withWorker bool) error {
 
-	image, err := registries.GetImage(ctx, stack, "webhooks", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "webhooks", version)
 	if err != nil {
 		return err
 	}
@@ -111,10 +111,11 @@ func createAPIDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1bet
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
 						ServiceAccountName: serviceAccountName,
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
 							Name:          "api",
 							Env:           env,
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							Args:          args,
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
 							LivenessProbe: applications.DefaultLiveness("http"),
@@ -127,9 +128,16 @@ func createAPIDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1bet
 		Install(ctx)
 }
 
-func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database, consumer *v1beta1.BrokerConsumer, version string) error {
+func createWorkerDeployment(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	webhooks *v1beta1.Webhooks,
+	database *v1beta1.Database,
+	consumer *v1beta1.BrokerConsumer,
+	version string,
+) error {
 
-	image, err := registries.GetImage(ctx, stack, "webhooks", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "webhooks", version)
 	if err != nil {
 		return err
 	}
@@ -157,11 +165,12 @@ func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						ServiceAccountName: serviceAccountName,
 						Containers: []v1.Container{{
 							Name:  "worker",
 							Env:   env,
-							Image: image,
+							Image: imageConfiguration.GetFullImageName(),
 							Args:  []string{"worker"},
 						}},
 					},

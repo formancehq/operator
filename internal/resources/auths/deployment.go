@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/formancehq/operator/internal/resources/registries"
 
 	"github.com/formancehq/go-libs/v2/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
@@ -30,7 +31,7 @@ func HashFromHash(o ...string) string {
 }
 
 func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, database *v1beta1.Database,
-	configMap *corev1.ConfigMap, image string, version string, clients []*v1beta1.AuthClient) error {
+	configMap *corev1.ConfigMap, imageConfiguration *registries.ImageConfiguration, version string, clients []*v1beta1.AuthClient) error {
 	annotations := map[string]string{
 		"config-hash": HashFromConfigMaps(configMap),
 	}
@@ -150,11 +151,12 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 						Annotations: annotations,
 					},
 					Spec: corev1.PodSpec{
+						ImagePullSecrets: imageConfiguration.PullSecrets,
 						Containers: []corev1.Container{{
 							Name:  "auth",
 							Args:  []string{"serve"},
 							Env:   env,
-							Image: image,
+							Image: imageConfiguration.GetFullImageName(),
 							VolumeMounts: []corev1.VolumeMount{
 								NewVolumeMount("config", "/config", true),
 							},

@@ -35,11 +35,13 @@ type StargateTLSConfig struct {
 type StargateSpec struct {
 	ModuleProperties `json:",inline"`
 	StackDependency  `json:",inline"`
-	ServerURL        string             `json:"serverURL"`
-	OrganizationID   string             `json:"organizationID"`
-	StackID          string             `json:"stackID"`
-	Auth             StargateAuthSpec   `json:"auth"`
-	TLS              StargateTLSConfig `json:"tls"`
+	ServerURL        string           `json:"serverURL"`
+	OrganizationID   string           `json:"organizationID"`
+	StackID          string           `json:"stackID"`
+	Auth             StargateAuthSpec `json:"auth"`
+
+	//+optional
+	TLS StargateTLSConfig `json:"tls"`
 }
 
 // StargateStatus defines the observed state of Stargate

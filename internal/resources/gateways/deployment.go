@@ -26,12 +26,12 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack,
 		env = append(env, brokerEnvVar...)
 	}
 
-	image, err := registries.GetImage(ctx, stack, "gateway", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "gateway", version)
 	if err != nil {
 		return err
 	}
 
-	caddyTpl, err := caddy.DeploymentTemplate(ctx, stack, gateway, caddyfileConfigMap, image, env)
+	caddyTpl, err := caddy.DeploymentTemplate(ctx, stack, gateway, caddyfileConfigMap, imageConfiguration, env)
 	if err != nil {
 		return err
 	}

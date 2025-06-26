@@ -22,7 +22,6 @@ import (
 
 	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/pkg/errors"
 	batchv1 "k8s.io/api/batch/v1"
 
@@ -53,7 +52,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 		return NewPendingError().WithMessage("database not ready")
 	}
 
-	image, err := registries.GetImage(ctx, stack, "payments", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "payments", version)
 	if err != nil {
 		return err
 	}
@@ -64,25 +63,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 			return err
 		}
 
-		serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-		if err != nil {
-			return err
-		}
-
-		migrateContainer, err := databases.MigrateDatabaseContainer(ctx, stack, image, database,
-			func(m *databases.MigrationConfiguration) {
-				m.AdditionalEnv = []corev1.EnvVar{
-					Env("CONFIG_ENCRYPTION_KEY", encryptionKey),
-				}
-			},
-		)
-		if err != nil {
-			return err
-		}
-
-		if err := jobs.Handle(ctx, p, "migrate",
-			migrateContainer,
-			jobs.WithServiceAccount(serviceAccountName),
+		if err := databases.Migrate(ctx, stack, p, imageConfiguration, database,
+			jobs.WithEnvVars(Env("CONFIG_ENCRYPTION_KEY", encryptionKey)),
 		); err != nil {
 			return err
 		}
@@ -95,16 +77,16 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 	healthEndpoint := "_health"
 	switch {
 	case semver.IsValid(version) && semver.Compare(version, "v1.0.0-alpha") < 0:
-		if err := createFullDeployment(ctx, stack, p, database, image, false); err != nil {
+		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration, false); err != nil {
 			return err
 		}
 	case semver.IsValid(version) && semver.Compare(version, "v1.0.0-alpha") >= 0 &&
 		semver.Compare(version, "v3.0.0") < 0:
-		if err := createReadDeployment(ctx, stack, p, database, image); err != nil {
+		if err := createReadDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
 			return err
 		}
 
-		if err := createConnectorsDeployment(ctx, stack, p, database, image); err != nil {
+		if err := createConnectorsDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
 			return err
 		}
 		if err := createGateway(ctx, stack, p); err != nil {
@@ -116,7 +98,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 			return err
 		}
 
-		if err := createFullDeployment(ctx, stack, p, database, image, true); err != nil {
+		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration, true); err != nil {
 			return err
 		}
 	}

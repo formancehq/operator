@@ -17,14 +17,13 @@ limitations under the License.
 package auths
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	. "github.com/formancehq/go-libs/v2/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -79,26 +78,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version st
 		return NewPendingError().WithMessage("database is not ready")
 	}
 
-	image, err := registries.GetImage(ctx, stack, "auth", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "auth", version)
 	if err != nil {
-		return errors.Wrap(err, "resolving image")
+		return errors.Wrap(err, "resolving image configuration")
 	}
+	spew.Dump(imageConfiguration)
 
 	if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
-		serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-		if err != nil {
-			return errors.Wrap(err, "getting service account name")
-		}
-
-		migrateContainer, err := databases.MigrateDatabaseContainer(ctx, stack, image, database)
-		if err != nil {
-			return errors.Wrap(err, "creating migrate container")
-		}
-
-		if err := jobs.Handle(ctx, auth, "migrate",
-			migrateContainer,
-			jobs.WithServiceAccount(serviceAccountName),
-		); err != nil {
+		if err := databases.Migrate(ctx, stack, auth, imageConfiguration, database); err != nil {
 			return err
 		}
 
@@ -107,7 +94,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version st
 		}
 	}
 
-	if err := createDeployment(ctx, stack, auth, database, configMap, image, version, authClients); err != nil {
+	if err := createDeployment(ctx, stack, auth, database, configMap, imageConfiguration, version, authClients); err != nil {
 		return errors.Wrap(err, "creating deployment")
 	}
 

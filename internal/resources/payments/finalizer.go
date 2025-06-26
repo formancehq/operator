@@ -29,7 +29,7 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 		return nil
 	}
 
-	image, err := registries.GetImage(ctx, stack, "payments", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "payments", version)
 	if err != nil {
 		return err
 	}
@@ -45,6 +45,6 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 		Env: append(env,
 			core.Env("STACK", t.GetStack()),
 		),
-		Image: image,
-	})
+		Image: imageConfiguration.GetFullImageName(),
+	}, jobs.WithImagePullSecrets(imageConfiguration.PullSecrets))
 }

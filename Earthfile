@@ -67,6 +67,7 @@ deploy:
     LET ADDITIONAL_ARGS=""
     IF [ "$FORMANCE_DEV_CLUSTER_V2" == "yes" ]
         SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set imagePullSecrets[0].name=zot"
+        SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set image.repository=$REPOSITORY/formancehq/operator"
     END
 
     ARG --required REPOSITORY=
@@ -74,9 +75,7 @@ deploy:
         --wait \
         --debug \
         --create-namespace \
-        --set imagePullSecrets[0].name=zot \
         --set image.tag=$tag \
-        --set image.repository=$REPOSITORY/formancehq/operator \
         --set operator.licence.token=$LICENCE_TOKEN \
         --set operator.licence.issuer=$LICENCE_ISSUER ./operator \
         --set operator.dev=true $ADDITIONAL_ARGS
@@ -88,6 +87,7 @@ deploy:
 
     SET ADDITIONAL_ARGS=""
     IF [ "$FORMANCE_DEV_CLUSTER_V2" == "yes" ]
+        SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set v2=true"
         SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set ghcrRegistry=$REPOSITORY"
     END
     RUN --secret tld helm upgrade --install operator-configuration ./configuration \

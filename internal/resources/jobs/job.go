@@ -47,6 +47,13 @@ func WithServiceAccount(serviceAccountName string) HandleJobOption {
 	})
 }
 
+func WithEnvVars(envVars ...v1.EnvVar) HandleJobOption {
+	return Mutator(func(t *batchv1.Job) error {
+		t.Spec.Template.Spec.Containers[0].Env = append(t.Spec.Template.Spec.Containers[0].Env, envVars...)
+		return nil
+	})
+}
+
 func withRunAs(ctx core.Context, owner v1beta1.Dependent) HandleJobOption {
 	return Mutator(func(job *batchv1.Job) error {
 		kind := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
@@ -88,6 +95,13 @@ func WithValidator(v func(job *batchv1.Job) bool) HandleJobOption {
 	return func(configuration *handleJobConfiguration) {
 		configuration.validator = v
 	}
+}
+
+func WithImagePullSecrets(imagePullSecrets []v1.LocalObjectReference) HandleJobOption {
+	return Mutator(func(t *batchv1.Job) error {
+		t.Spec.Template.Spec.ImagePullSecrets = append(t.Spec.Template.Spec.ImagePullSecrets, imagePullSecrets...)
+		return nil
+	})
 }
 
 var defaultOptions = []HandleJobOption{

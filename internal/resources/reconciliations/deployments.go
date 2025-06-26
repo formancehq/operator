@@ -8,14 +8,21 @@ import (
 	"github.com/formancehq/operator/internal/resources/auths"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
+	"github.com/formancehq/operator/internal/resources/registries"
 	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func createDeployment(ctx core.Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconciliation,
-	database *v1beta1.Database, authClient *v1beta1.AuthClient, image string) error {
+func createDeployment(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	reconciliation *v1beta1.Reconciliation,
+	database *v1beta1.Database,
+	authClient *v1beta1.AuthClient,
+	imageConfiguration *registries.ImageConfiguration,
+) error {
 	env := make([]v1.EnvVar, 0)
 	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, reconciliation), " ")
 	if err != nil {
@@ -58,11 +65,12 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, reconciliation *v1
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						ServiceAccountName: serviceAccountName,
 						Containers: []v1.Container{{
 							Name:          "reconciliation",
 							Env:           env,
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
 							LivenessProbe: applications.DefaultLiveness("http"),
 						}},
