@@ -89,6 +89,13 @@ spec:
                 type: string
               stackID:
                 type: string
+              tls:
+                properties:
+                  disable:
+                    description: Disable TLS protocol -- use at your own risks, the
+                      transmission will be in clear.
+                    type: boolean
+                type: object
               version:
                 description: Version allow to override global version defined at stack
                   level for a specific module
@@ -98,6 +105,7 @@ spec:
             - organizationID
             - serverURL
             - stackID
+            - tls
             type: object
           status:
             description: StargateStatus defines the observed state of Stargate

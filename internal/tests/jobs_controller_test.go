@@ -170,11 +170,11 @@ var _ = Describe("Job", func() {
 		}
 	})
 	AfterEach(func() {
-		Expect(Delete(stack)).To(Succeed())
 		for _, setting := range settings {
 			Expect(Delete(&setting)).To(Succeed())
 		}
 		Expect(Delete(module)).To(Succeed())
 		Expect(client.IgnoreNotFound(Delete(job))).To(Succeed())
+		Expect(Delete(stack)).To(Succeed())
 	})
 })

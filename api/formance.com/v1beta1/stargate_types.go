@@ -26,13 +26,20 @@ type StargateAuthSpec struct {
 	Issuer       string `json:"issuer"`
 }
 
+type StargateTLSConfig struct {
+	//+optional
+	// Disable TLS protocol -- use at your own risks, the transmission will be in clear.
+	Disable bool `json:"disable,omitempty"`
+}
+
 type StargateSpec struct {
 	ModuleProperties `json:",inline"`
 	StackDependency  `json:",inline"`
-	ServerURL        string           `json:"serverURL"`
-	OrganizationID   string           `json:"organizationID"`
-	StackID          string           `json:"stackID"`
-	Auth             StargateAuthSpec `json:"auth"`
+	ServerURL        string             `json:"serverURL"`
+	OrganizationID   string             `json:"organizationID"`
+	StackID          string             `json:"stackID"`
+	Auth             StargateAuthSpec   `json:"auth"`
+	TLS              StargateTLSConfig `json:"tls"`
 }
 
 // StargateStatus defines the observed state of Stargate
