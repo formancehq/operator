@@ -82,6 +82,9 @@ spec:
                 type: boolean
               disableTLS:
                 type: boolean
+                default: false
+                description: |-
+                  Disable TLS protocol -- use at your own risks, the transmission will be in clear.
               organizationID:
                 type: string
               serverURL:
