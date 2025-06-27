@@ -33,6 +33,9 @@ type StargateSpec struct {
 	OrganizationID   string           `json:"organizationID"`
 	StackID          string           `json:"stackID"`
 	Auth             StargateAuthSpec `json:"auth"`
+
+	//+optional
+	DisableTLS bool `json:"disableTLS,omitempty"`
 }
 
 // StargateStatus defines the observed state of Stargate

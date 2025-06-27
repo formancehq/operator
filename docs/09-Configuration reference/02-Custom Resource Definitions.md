@@ -1351,6 +1351,7 @@ Stargate is the Schema for the stargates API
 | `organizationID` _string_ |  |  |  |
 | `stackID` _string_ |  |  |  |
 | `auth` _[StargateAuthSpec](#stargateauthspec)_ |  |  |  |
+| `disableTLS` _boolean_ |  |  |  |
 
 ###### StargateAuthSpec
 

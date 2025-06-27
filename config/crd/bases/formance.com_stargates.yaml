@@ -80,6 +80,8 @@ spec:
                   Allow to enable dev mode on the module
                   Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
                 type: boolean
+              disableTLS:
+                type: boolean
               organizationID:
                 type: string
               serverURL:

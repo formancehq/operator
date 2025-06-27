@@ -38,6 +38,9 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, stargate *v1beta1.
 		core.Env("STARGATE_AUTH_CLIENT_SECRET", stargate.Spec.Auth.ClientSecret),
 		core.Env("STARGATE_AUTH_ISSUER_URL", stargate.Spec.Auth.Issuer),
 	)
+	if stargate.Spec.DisableTLS {
+		env = append(env, core.Env("TLS_ENABLED", "false"))
+	}
 
 	image, err := registries.GetImage(ctx, stack, "stargate", version)
 	if err != nil {
