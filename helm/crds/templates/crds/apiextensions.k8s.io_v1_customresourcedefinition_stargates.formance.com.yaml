@@ -80,11 +80,6 @@ spec:
                   Allow to enable dev mode on the module
                   Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
                 type: boolean
-              disableTLS:
-                type: boolean
-                default: false
-                description: |-
-                  Disable TLS protocol -- use at your own risks, the transmission will be in clear.
               organizationID:
                 type: string
               serverURL:
@@ -94,6 +89,13 @@ spec:
                 type: string
               stackID:
                 type: string
+              tls:
+                properties:
+                  disable:
+                    description: Disable TLS protocol -- use at your own risks, the
+                      transmission will be in clear.
+                    type: boolean
+                type: object
               version:
                 description: Version allow to override global version defined at stack
                   level for a specific module
@@ -103,6 +105,7 @@ spec:
             - organizationID
             - serverURL
             - stackID
+            - tls
             type: object
           status:
             description: StargateStatus defines the observed state of Stargate

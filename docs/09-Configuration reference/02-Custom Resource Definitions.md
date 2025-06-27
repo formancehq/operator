@@ -1351,7 +1351,7 @@ Stargate is the Schema for the stargates API
 | `organizationID` _string_ |  |  |  |
 | `stackID` _string_ |  |  |  |
 | `auth` _[StargateAuthSpec](#stargateauthspec)_ |  |  |  |
-| `disableTLS` _boolean_ |  |  |  |
+| `tls` _[StargateTLSConfig](#stargatetlsconfig)_ |  |  |  |
 
 ###### StargateAuthSpec
 
@@ -1378,6 +1378,30 @@ Stargate is the Schema for the stargates API
 | `clientID` _string_ |  |  |  |
 | `clientSecret` _string_ |  |  |  |
 | `issuer` _string_ |  |  |  |
+
+###### StargateTLSConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `disable` _boolean_ | Disable TLS protocol -- use at your own risks, the transmission will be in clear. |  |  |
 
 
 
