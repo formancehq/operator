@@ -18,10 +18,6 @@ package ledgers
 
 import (
 	_ "embed"
-	"fmt"
-	"github.com/formancehq/operator/internal/resources/jobs"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
