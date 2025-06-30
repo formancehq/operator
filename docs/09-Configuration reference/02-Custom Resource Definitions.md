@@ -707,20 +707,8 @@ Gateway is the Schema for the gateways API
 Ledger is the module allowing to install a ledger instance.
 
 
-The ledger is actually a stateful application on the writer part.
-So we cannot scale the ledger as we want without prior configuration.
-
-
-So, the ledger can run in two modes :
-* single instance: Only one instance will be deployed. We cannot scale in that mode.
-* single writer / multiple reader: In this mode, we will have a single writer and multiple readers if needed.
-
-
-Use setting `ledger.deployment-strategy` with either the value :
-  - single : For the single instance mode.
-  - single-writer: For the single writer / multiple reader mode.
-    Under the hood, the operator create two deployments and force the scaling of the writer to stay at 1.
-    Then you can scale the deployment of the reader to the value you want.
+The ledger is a stateful application that manages financial transactions
+and maintains an immutable audit trail.
 
 
 
@@ -772,82 +760,6 @@ Use setting `ledger.deployment-strategy` with either the value :
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `deploymentStrategy` _[DeploymentStrategy](#deploymentstrategy)_ | Deprecated. | single |  |
-| `locking` _[LockingStrategy](#lockingstrategy)_ | Locking is intended for ledger v1 only |  |  |
-
-###### DeploymentStrategy
-
-_Underlying type:_ _string_
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###### LockingStrategy
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `strategy` _string_ |  | memory |  |
-| `redis` _[LockingStrategyRedisConfig](#lockingstrategyredisconfig)_ |  |  |  |
-
-###### LockingStrategyRedisConfig
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `uri` _string_ |  |  |  |
-| `tls` _boolean_ |  | false |  |
-| `insecure` _boolean_ |  | false |  |
-| `duration` _string_ |  |  |  |
-| `retry` _string_ |  |  |  |
 
 
 
