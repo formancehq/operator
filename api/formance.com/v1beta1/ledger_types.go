@@ -17,39 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	"time"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-type LockingStrategyRedisConfig struct {
-	Uri string `json:"uri,omitempty"`
-	// +optional
-	// +kubebuilder:default:=false
-	TLS bool `json:"tls"`
-	// +optional
-	// +kubebuilder:default:=false
-	InsecureTLS bool `json:"insecure,omitempty"`
-	// +optional
-	Duration time.Duration `json:"duration,omitempty"`
-	// +optional
-	Retry time.Duration `json:"retry,omitempty"`
-}
-
-type LockingStrategy struct {
-	// +kubebuilder:Enum:={memory,redis}
-	// +kubebuilder:default:=memory
-	// +optional
-	Strategy string `json:"strategy,omitempty"`
-	// +optional
-	Redis *LockingStrategyRedisConfig `json:"redis"`
-}
-
-type DeploymentStrategy string
-
-const (
-	DeploymentStrategySingle                   = "single"
-	DeploymentStrategyMonoWriterMultipleReader = "single-writer"
 )
 
 type LedgerSpec struct {
@@ -57,14 +25,6 @@ type LedgerSpec struct {
 	StackDependency  `json:",inline"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
-	//+kubebuilder:Enum:={single, single-writer}
-	//+kubebuilder:default:=single
-	//+optional
-	// Deprecated.
-	DeploymentStrategy DeploymentStrategy `json:"deploymentStrategy,omitempty"`
-	// Locking is intended for ledger v1 only
-	//+optional
-	Locking *LockingStrategy `json:"locking,omitempty"`
 }
 
 type LedgerStatus struct {
@@ -73,18 +33,8 @@ type LedgerStatus struct {
 
 // Ledger is the module allowing to install a ledger instance.
 //
-// The ledger is actually a stateful application on the writer part.
-// So we cannot scale the ledger as we want without prior configuration.
-//
-// So, the ledger can run in two modes :
-// * single instance: Only one instance will be deployed. We cannot scale in that mode.
-// * single writer / multiple reader: In this mode, we will have a single writer and multiple readers if needed.
-//
-// Use setting `ledger.deployment-strategy` with either the value :
-//   - single : For the single instance mode.
-//   - single-writer: For the single writer / multiple reader mode.
-//     Under the hood, the operator create two deployments and force the scaling of the writer to stay at 1.
-//     Then you can scale the deployment of the reader to the value you want.
+// The ledger is a stateful application that manages financial transactions
+// and maintains an immutable audit trail.
 //
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

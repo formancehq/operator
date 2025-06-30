@@ -85,48 +85,12 @@ spec:
                 default: false
                 description: Allow to enable debug mode on the module
                 type: boolean
-              deploymentStrategy:
-                default: single
-                description: Deprecated.
-                type: string
               dev:
                 default: false
                 description: |-
                   Allow to enable dev mode on the module
                   Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
                 type: boolean
-              locking:
-                description: Locking is intended for ledger v1 only
-                properties:
-                  redis:
-                    properties:
-                      duration:
-                        description: |-
-                          A Duration represents the elapsed time between two instants
-                          as an int64 nanosecond count. The representation limits the
-                          largest representable duration to approximately 290 years.
-                        format: int64
-                        type: integer
-                      insecure:
-                        default: false
-                        type: boolean
-                      retry:
-                        description: |-
-                          A Duration represents the elapsed time between two instants
-                          as an int64 nanosecond count. The representation limits the
-                          largest representable duration to approximately 290 years.
-                        format: int64
-                        type: integer
-                      tls:
-                        default: false
-                        type: boolean
-                      uri:
-                        type: string
-                    type: object
-                  strategy:
-                    default: memory
-                    type: string
-                type: object
               stack:
                 description: Stack indicates the stack on which the module is installed
                 type: string
