@@ -68,7 +68,7 @@ func installLedgerSingleInstance(ctx core.Context, stack *v1beta1.Stack,
 }
 
 func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
-	ledger *v1beta1.Ledger, database *v1beta1.Database, version string) error {
+	ledger *v1beta1.Ledger, database *v1beta1.Database, image string) error {
 	container := corev1.Container{
 		Name: "ledger",
 	}
@@ -150,7 +150,7 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack,
 		container.Env = append(container.Env, core.Env("BULK_MAX_SIZE", fmt.Sprint(*bulkMaxSize)))
 	}
 
-	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, version, database, &container)
+	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, image, database, &container)
 	if err != nil {
 		return err
 	}
