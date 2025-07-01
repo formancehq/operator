@@ -47,13 +47,24 @@ func withLabels(ctx core.Context, stack *v1beta1.Stack, owner client.Object) cor
 	}
 }
 
-func withTls(gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
+func withTls(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
+		var secretName string
 		if gateway.Spec.Ingress.TLS == nil {
-			return nil
+			tlsEnabled, err := settings.GetBoolOrFalse(ctx, gateway.Spec.Stack, "gateway", "ingress", "tls", "enabled")
+			if err != nil {
+				return err
+			}
+			if !tlsEnabled {
+				return nil
+			}
+			secretName = gateway.Name + "-tls"
+		} else {
+			secretName = gateway.Spec.Ingress.TLS.SecretName
 		}
+
 		t.Spec.TLS = []v1.IngressTLS{{
-			SecretName: gateway.Spec.Ingress.TLS.SecretName,
+			SecretName: secretName,
 			Hosts:      []string{gateway.Spec.Ingress.Host},
 		}}
 
@@ -127,7 +138,7 @@ func createIngress(ctx core.Context, stack *v1beta1.Stack,
 		withLabels(ctx, stack, gateway),
 		withIngressClassName(ctx, stack, gateway),
 		withIngressRules(ctx, gateway),
-		withTls(gateway),
+		withTls(ctx, gateway),
 		core.WithController[*v1.Ingress](ctx.GetScheme(), gateway),
 	)
 

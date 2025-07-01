@@ -9,7 +9,7 @@ While we have some basic types (string, number, bool ...), we also have some com
 ## Available settings
 
 | Key                                                                                      | Type   | Example                                                 | Description                                                                                                                    |
-| ---------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+|------------------------------------------------------------------------------------------|--------|---------------------------------------------------------| ------------------------------------------------------------------------------------------------------------------------------ |
 | aws.service-account                                                                      | string |                                                         | AWS Role                                                                                                                       |
 | postgres.`<module-name>`.uri                                                             | URI    |                                                         | Postgres database configuration                                                                                                |
 | elasticsearch.dsn                                                                        | URI    |                                                         | Elasticsearch connection URI                                                                                                   |
@@ -54,7 +54,7 @@ While we have some basic types (string, number, bool ...), we also have some com
 | modules.`<module-name>`.grace-period                                                     | string | 5s                                                      | Defer application shutdown                                                                                                     |
 | namespace.labels                                                                         | Map    | somelabel=somevalue,anotherlabel=anothervalue           | Add static labels to namespace                                                                                                 |
 | namespace.annotations                                                                    | Map    | someannotation=somevalue,anotherannotation=anothervalue | Add static annotations to namespace                                                                                            |
-
+| gateway.ingress.tls.enabled                                                              | bool   | true                                                    | Enable TLS if not enabled at Gateway CRD level                                                                                 |
 
 ### Postgres URI format
 
