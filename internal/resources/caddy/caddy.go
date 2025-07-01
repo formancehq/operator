@@ -3,6 +3,7 @@ package caddy
 import (
 	"bytes"
 	"fmt"
+	"github.com/formancehq/operator/internal/resources/registries"
 	"strings"
 	"text/template"
 
@@ -18,7 +19,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func DeploymentTemplate(ctx core.Context, stack *v1beta1.Stack, owner v1beta1.Object, caddyfile *v1.ConfigMap, image string, env []v1.EnvVar) (*appsv1.Deployment, error) {
+func DeploymentTemplate(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	owner v1beta1.Object,
+	caddyfile *v1.ConfigMap,
+	imageConfiguration *registries.ImageConfiguration,
+	env []v1.EnvVar,
+) (*appsv1.Deployment, error) {
 	t := &appsv1.Deployment{}
 
 	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, owner), ",")
@@ -52,6 +60,7 @@ func DeploymentTemplate(ctx core.Context, stack *v1beta1.Stack, owner v1beta1.Ob
 			},
 		},
 	}
+	t.Spec.Template.Spec.ImagePullSecrets = imageConfiguration.PullSecrets
 	t.Spec.Template.Spec.Containers = []v1.Container{
 		{
 			Name:    "gateway",
@@ -61,7 +70,7 @@ func DeploymentTemplate(ctx core.Context, stack *v1beta1.Stack, owner v1beta1.Ob
 				"--config", "/gateway/Caddyfile",
 				"--adapter", "caddyfile",
 			},
-			Image: image,
+			Image: imageConfiguration.GetFullImageName(),
 			Env:   env,
 			VolumeMounts: []v1.VolumeMount{
 				core.NewVolumeMount("caddyfile", "/gateway", true),

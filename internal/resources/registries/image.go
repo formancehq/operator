@@ -21,37 +21,36 @@ func NormalizeVersion(version string) string {
 	return version
 }
 
-func GetImage(ctx core.Context, stack *v1beta1.Stack, name, version string) (string, error) {
-	return TranslateImage(stack.Name, NewImageSettingsOverrider(ctx),
-		fmt.Sprintf("ghcr.io/formancehq/%s:%s", name, NormalizeVersion(version)))
+func GetFormanceImage(ctx core.Context, stack *v1beta1.Stack, name, version string) (*ImageConfiguration, error) {
+	return GetImageConfiguration(
+		ctx,
+		stack.Name,
+		fmt.Sprintf("ghcr.io/formancehq/%s:%s", name, NormalizeVersion(version)),
+	)
 }
 
-func GetBenthosImage(ctx core.Context, stack *v1beta1.Stack, version string) (string, error) {
-	return TranslateImage(stack.Name, NewImageSettingsOverrider(ctx),
-		fmt.Sprintf("public.ecr.aws/formance-internal/jeffail/benthos:%s", NormalizeVersion(version)))
+func GetBenthosImage(ctx core.Context, stack *v1beta1.Stack, version string) (*ImageConfiguration, error) {
+	return GetImageConfiguration(
+		ctx,
+		stack.Name,
+		fmt.Sprintf("public.ecr.aws/formance-internal/jeffail/benthos:%s", NormalizeVersion(version)),
+	)
 }
 
-func GetNatsBoxImage(ctx core.Context, stack *v1beta1.Stack, version string) (string, error) {
-	return TranslateImage(stack.Name, NewImageSettingsOverrider(ctx),
-		fmt.Sprintf("docker.io/natsio/nats-box:%s", NormalizeVersion(version)))
+func GetNatsBoxImage(ctx core.Context, stack *v1beta1.Stack, version string) (*ImageConfiguration, error) {
+	return GetImageConfiguration(
+		ctx,
+		stack.Name,
+		fmt.Sprintf("docker.io/natsio/nats-box:%s", NormalizeVersion(version)),
+	)
 }
 
-func GetCaddyImage(ctx core.Context, stack *v1beta1.Stack, version string) (string, error) {
-	image := fmt.Sprintf("docker.io/caddy/caddy:%s", NormalizeVersion(version))
-	newCaddyImage, err := TranslateImage(stack.Name, NewImageSettingsOverrider(ctx),
-		image)
-	if err != nil {
-		return "", err
-	}
-
+func GetCaddyImage(ctx core.Context, stack *v1beta1.Stack) (*ImageConfiguration, error) {
 	defaultCaddyImage := "caddy:2.7.6-alpine"
-	caddyImage, err := settings.GetStringOrDefault(ctx, stack.Name, defaultCaddyImage, "caddy", "image")
+	selectedCaddyImage, err := settings.GetStringOrDefault(ctx, stack.Name, defaultCaddyImage, "caddy", "image")
 	if err != nil {
-		return "", err
-	}
-	if newCaddyImage != image && caddyImage == defaultCaddyImage {
-		caddyImage = newCaddyImage
+		return nil, err
 	}
 
-	return caddyImage, nil
+	return GetImageConfiguration(ctx, stack.Name, selectedCaddyImage)
 }

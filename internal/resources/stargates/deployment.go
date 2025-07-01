@@ -42,7 +42,7 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, stargate *v1beta1.
 		env = append(env, core.Env("TLS_ENABLED", "false"))
 	}
 
-	image, err := registries.GetImage(ctx, stack, "stargate", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "stargate", version)
 	if err != nil {
 		return err
 	}
@@ -55,10 +55,11 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, stargate *v1beta1.
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
+						ImagePullSecrets: imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
 							Name:          "stargate",
 							Env:           env,
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
 							LivenessProbe: applications.DefaultLiveness("http"),
 						}},

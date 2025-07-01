@@ -40,7 +40,7 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, wallets *v1beta1.W
 	}
 	env = append(env, authEnvVars...)
 
-	image, err := registries.GetImage(ctx, stack, "wallets", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "wallets", version)
 	if err != nil {
 		return err
 	}
@@ -53,11 +53,12 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, wallets *v1beta1.W
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
+						ImagePullSecrets: imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
 							Name:          "wallets",
 							Args:          []string{"serve"},
 							Env:           env,
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
 							LivenessProbe: applications.DefaultLiveness("http"),
 						}},

@@ -138,7 +138,7 @@ func Delete(ctx core.Context, database *v1beta1.Database) error {
 
 func handleDatabaseJob(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, name string, args ...string) error {
 
-	operatorUtilsImage, err := registries.GetImage(ctx, stack, "operator-utils", ctx.GetPlatform().UtilsVersion)
+	operatorUtilsImage, err := registries.GetFormanceImage(ctx, stack, "operator-utils", ctx.GetPlatform().UtilsVersion)
 	if err != nil {
 		return err
 	}
@@ -169,12 +169,13 @@ func handleDatabaseJob(ctx core.Context, stack *v1beta1.Stack, database *v1beta1
 
 	return jobs.Handle(ctx, database, name, v1.Container{
 		Name:  name,
-		Image: operatorUtilsImage,
+		Image: operatorUtilsImage.GetFullImageName(),
 		Args:  args,
 		Env:   env,
 	},
 		jobs.Mutator(core.WithAnnotations[*batchv1.Job](annotations)),
 		jobs.WithServiceAccount(serviceAccountName),
+		jobs.WithImagePullSecrets(operatorUtilsImage.PullSecrets),
 	)
 }
 

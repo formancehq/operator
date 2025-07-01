@@ -187,8 +187,14 @@ func uninstallPaymentsReadAndConnectors(ctx core.Context, stack *v1beta1.Stack) 
 	return nil
 }
 
-func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
-	payments *v1beta1.Payments, database *v1beta1.Database, image string, v3 bool) error {
+func createFullDeployment(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	payments *v1beta1.Payments,
+	database *v1beta1.Database,
+	imageConfiguration *registries.ImageConfiguration,
+	v3 bool,
+) error {
 
 	env, err := commonEnvVars(ctx, stack, payments, database)
 	if err != nil {
@@ -246,7 +252,7 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 		containerName = "payments-api"
 		appOpts = applications.WithProbePath("/_healthcheck")
 
-		err := createWorkerDeployment(ctx, stack, payments, database, image, env, appOpts)
+		err := createWorkerDeployment(ctx, stack, payments, database, imageConfiguration, env, appOpts)
 		if err != nil {
 			return err
 		}
@@ -261,11 +267,12 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
 						ServiceAccountName: serviceAccountName,
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
 							Name:          containerName,
 							Args:          []string{"serve"},
 							Env:           env,
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							LivenessProbe: applications.DefaultLiveness("http", appOpts),
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
 						}},
@@ -283,15 +290,7 @@ func createFullDeployment(ctx core.Context, stack *v1beta1.Stack,
 	return nil
 }
 
-func createWorkerDeployment(
-	ctx core.Context,
-	stack *v1beta1.Stack,
-	payments *v1beta1.Payments,
-	database *v1beta1.Database,
-	image string,
-	env []v1.EnvVar,
-	appOpts applications.ProbeOpts,
-) error {
+func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, env []v1.EnvVar, appOpts applications.ProbeOpts, ) error {
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
 		return err
@@ -306,11 +305,12 @@ func createWorkerDeployment(
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
 						ServiceAccountName: serviceAccountName,
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
 							Name:          "payments-worker",
 							Args:          []string{"worker"},
 							Env:           env,
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							LivenessProbe: applications.DefaultLiveness("http", appOpts),
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
 						}},
@@ -328,7 +328,7 @@ func createWorkerDeployment(
 	return nil
 }
 
-func createReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, image string) error {
+func createReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
 
 	env, err := commonEnvVars(ctx, stack, payments, database)
 	if err != nil {
@@ -355,11 +355,12 @@ func createReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1be
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
 						ServiceAccountName: serviceAccountName,
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
 							Name:          "api",
 							Args:          []string{"api", "serve"},
 							Env:           env,
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							LivenessProbe: applications.DefaultLiveness("http", applications.WithProbePath("/_health")),
 							Ports:         []v1.ContainerPort{applications.StandardHTTPPort()},
 						}},
@@ -382,8 +383,7 @@ func createReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1be
 	return nil
 }
 
-func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments,
-	database *v1beta1.Database, image string) error {
+func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
 
 	env, err := commonEnvVars(ctx, stack, payments, database)
 	if err != nil {
@@ -429,11 +429,12 @@ func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments
 				Template: v1.PodTemplateSpec{
 					Spec: v1.PodSpec{
 						ServiceAccountName: serviceAccountName,
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
 							Name:  "connectors",
 							Args:  []string{"connectors", "serve"},
 							Env:   env,
-							Image: image,
+							Image: imageConfiguration.GetFullImageName(),
 							Ports: []v1.ContainerPort{applications.StandardHTTPPort()},
 							LivenessProbe: applications.DefaultLiveness("http",
 								applications.WithProbePath("/_health")),
@@ -471,7 +472,7 @@ func createGateway(ctx core.Context, stack *v1beta1.Stack, p *v1beta1.Payments) 
 
 	env = append(env, core.GetDevEnvVars(stack, p)...)
 
-	caddyImage, err := registries.GetCaddyImage(ctx, stack, "2.7.6-alpine")
+	caddyImage, err := registries.GetCaddyImage(ctx, stack)
 	if err != nil {
 		return err
 	}

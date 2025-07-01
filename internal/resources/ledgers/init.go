@@ -19,6 +19,9 @@ package ledgers
 import (
 	_ "embed"
 	"fmt"
+	"github.com/formancehq/operator/internal/resources/jobs"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
@@ -46,7 +49,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		return err
 	}
 
-	image, err := registries.GetImage(ctx, stack, "ledger", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
 		return err
 	}
@@ -93,7 +96,37 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 	}
 
 	if isV2 && databases.GetSavedModuleVersion(database) != version {
-		err := migrate(ctx, stack, ledger, database, image, version)
+		err := databases.Migrate(
+			ctx,
+			stack,
+			ledger,
+			imageConfiguration,
+			database,
+			jobs.Mutator(func(t *batchv1.Job) error {
+				if IsLower(version, "v2.0.0-rc.6") {
+					t.Spec.Template.Spec.Containers[0].Command = []string{"buckets", "upgrade-all"}
+				}
+				t.Spec.Template.Spec.Containers[0].Env = append(t.Spec.Template.Spec.Containers[0].Env, Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"))
+
+				return nil
+			}),
+			jobs.PreCreate(func() error {
+				list := &appsv1.DeploymentList{}
+				if err := ctx.GetClient().List(ctx, list, client.InNamespace(stack.Name)); err != nil {
+					return err
+				}
+
+				for _, item := range list.Items {
+					if controller := metav1.GetControllerOf(&item); controller != nil && controller.UID == ledger.GetUID() {
+						if err := ctx.GetClient().Delete(ctx, &item); err != nil {
+							return err
+						}
+					}
+				}
+
+				return nil
+			}),
+		)
 		if err != nil {
 			isV2_2 := !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0
 			if !isV2_2 {
@@ -101,7 +134,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 			}
 
 			if IsApplicationError(err) { // Start the ledger even if migrations are not terminated
-				return installLedger(ctx, stack, ledger, database, image, version, isV2)
+				return installLedger(ctx, stack, ledger, database, imageConfiguration, version, isV2)
 			}
 
 			return err
@@ -111,7 +144,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		}
 	}
 
-	return installLedger(ctx, stack, ledger, database, image, version, isV2)
+	return installLedger(ctx, stack, ledger, database, imageConfiguration, version, isV2)
 }
 
 func init() {

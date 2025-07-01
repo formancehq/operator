@@ -2,6 +2,7 @@ package orchestrations
 
 import (
 	"fmt"
+	"github.com/formancehq/operator/internal/resources/registries"
 	"strings"
 
 	"github.com/formancehq/operator/internal/core"
@@ -46,9 +47,15 @@ func createAuthClient(ctx Context, stack *v1beta1.Stack, orchestration *v1beta1.
 		})
 }
 
-func createDeployment(ctx Context, stack *v1beta1.Stack, orchestration *v1beta1.Orchestration,
-	database *v1beta1.Database, client *v1beta1.AuthClient,
-	consumer *v1beta1.BrokerConsumer, image string) error {
+func createDeployment(
+	ctx Context,
+	stack *v1beta1.Stack,
+	orchestration *v1beta1.Orchestration,
+	database *v1beta1.Database,
+	client *v1beta1.AuthClient,
+	consumer *v1beta1.BrokerConsumer,
+	imageConfiguration *registries.ImageConfiguration,
+) error {
 
 	env := make([]corev1.EnvVar, 0)
 	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, orchestration), " ")
@@ -177,11 +184,12 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, orchestration *v1beta1.
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
+					ImagePullSecrets: imageConfiguration.PullSecrets,
 					ServiceAccountName: serviceAccountName,
 					Containers: []corev1.Container{{
 						Name:          "api",
 						Env:           env,
-						Image:         image,
+						Image:         imageConfiguration.GetFullImageName(),
 						Ports:         []corev1.ContainerPort{applications.StandardHTTPPort()},
 						LivenessProbe: applications.DefaultLiveness("http"),
 					}},

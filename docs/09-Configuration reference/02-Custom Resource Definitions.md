@@ -1760,6 +1760,7 @@ Benthos is the Schema for the benthos API
 | `resourceRequirements` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#resourcerequirements-v1-core)_ |  |  |  |
 | `batching` _[Batching](#batching)_ |  |  |  |
 | `initContainers` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#container-v1-core) array_ |  |  |  |
+| `imagePullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#localobjectreference-v1-core) array_ |  |  |  |
 
 ###### Batching
 

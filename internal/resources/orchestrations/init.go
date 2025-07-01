@@ -23,9 +23,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -60,26 +58,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, vers
 		return NewPendingError().WithMessage("database not ready")
 	}
 
-	image, err := registries.GetImage(ctx, stack, "orchestration", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "orchestration", version)
 	if err != nil {
 		return errors.Wrap(err, "resolving image")
 	}
 
 	if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
-		serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-		if err != nil {
-			return errors.Wrap(err, "getting service account name")
-		}
 
-		migrateContainer, err := databases.MigrateDatabaseContainer(ctx, stack, image, database)
-		if err != nil {
-			return errors.Wrap(err, "creating migrate container")
-		}
-
-		if err := jobs.Handle(ctx, o, "migrate",
-			migrateContainer,
-			jobs.WithServiceAccount(serviceAccountName),
-		); err != nil {
+		if err := databases.Migrate(ctx, stack, o, imageConfiguration, database); err != nil {
 			return err
 		}
 
@@ -89,7 +75,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, vers
 	}
 
 	if consumer.Status.Ready {
-		if err := createDeployment(ctx, stack, o, database, authClient, consumer, image); err != nil {
+		if err := createDeployment(ctx, stack, o, database, authClient, consumer, imageConfiguration); err != nil {
 			return err
 		}
 	} else {

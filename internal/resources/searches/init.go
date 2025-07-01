@@ -109,7 +109,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 	}
 	env = append(env, authEnvVars...)
 
-	image, err := GetImage(ctx, stack, "search", version)
+	imageConfiguration, err := GetFormanceImage(ctx, stack, "search", version)
 	if err != nil {
 		return err
 	}
@@ -150,10 +150,11 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 			t.Spec.DevProperties = search.Spec.DevProperties
 			t.Spec.InitContainers = []corev1.Container{{
 				Name:  "init-mapping",
-				Image: image,
+				Image: imageConfiguration.GetFullImageName(),
 				Args:  []string{"init-mapping"},
 				Env:   env,
 			}}
+			t.Spec.ImagePullSecrets = imageConfiguration.PullSecrets
 
 			return nil
 		},
@@ -179,9 +180,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 					},
 					Spec: corev1.PodSpec{
 						ServiceAccountName: serviceAccountName,
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						Containers: []corev1.Container{{
 							Name:          "search",
-							Image:         image,
+							Image:         imageConfiguration.GetFullImageName(),
 							Ports:         []corev1.ContainerPort{applications.StandardHTTPPort()},
 							Env:           env,
 							LivenessProbe: applications.DefaultLiveness("http"),

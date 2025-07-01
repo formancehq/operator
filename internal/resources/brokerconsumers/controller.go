@@ -187,7 +187,7 @@ func createServiceNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer 
 	}
 
 	err = jobs.Handle(ctx, consumer, "cc-"+service, corev1.Container{
-		Image: natsBoxImage,
+		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-consumer",
 		Args:  core.ShellScript(script),
 		Env: []corev1.EnvVar{
@@ -196,7 +196,9 @@ func createServiceNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer 
 			core.Env("NAME", consumer.Spec.QueriedBy),
 			core.Env("SERVICE", service),
 		},
-	})
+	},
+		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
+	)
 
 	condition := v1beta1.NewCondition(ConditionTypeNatsServiceConsumerCreated, consumer.Generation).
 		SetReason(service)
@@ -243,7 +245,7 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 	}
 
 	err = jobs.Handle(ctx, consumer, "create-consumer", corev1.Container{
-		Image: natsBoxImage,
+		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-consumer",
 		Args:  core.ShellScript(script),
 		Env: []corev1.EnvVar{
@@ -257,7 +259,9 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 				}), " ",
 			)),
 		},
-	})
+	},
+		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
+	)
 	if err != nil {
 		consumer.GetConditions().AppendOrReplace(v1beta1.Condition{
 			Type:               ConditionTypeNatsStackConsumerCreated,
