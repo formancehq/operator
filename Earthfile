@@ -71,7 +71,7 @@ deploy:
     END
 
     ARG --required REPOSITORY=
-    RUN --no-cache helm upgrade --install --namespace formance --install formance-operator \
+    RUN --no-cache helm upgrade --install --namespace formance-system --install formance-operator \
         --wait \
         --debug \
         --create-namespace \
@@ -91,7 +91,7 @@ deploy:
         SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set ghcrRegistry=$REPOSITORY"
     END
     RUN --secret tld helm upgrade --install operator-configuration ./configuration \
-        --namespace formance \
+        --namespace formance-system \
         --set gateway.fallback=https://console.$user.$tld $ADDITIONAL_ARGS
 
 deploy-staging:
