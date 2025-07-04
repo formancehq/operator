@@ -47,8 +47,17 @@ func GetImageConfiguration(
 	}
 
 	organizationImage := strings.SplitN(repository, "/", 2)
-	registry := organizationImage[0]
-	imageWithoutRegistry := organizationImage[1]
+	var (
+		registry             string
+		imageWithoutRegistry string
+	)
+	if len(organizationImage) > 1 {
+		registry = organizationImage[0]
+		imageWithoutRegistry = organizationImage[1]
+	} else {
+		registry = "docker.io"
+		imageWithoutRegistry = repository
+	}
 
 	ret := &ImageConfiguration{
 		Registry: registry,
