@@ -46,7 +46,7 @@ func GetNatsBoxImage(ctx core.Context, stack *v1beta1.Stack, version string) (*I
 }
 
 func GetCaddyImage(ctx core.Context, stack *v1beta1.Stack) (*ImageConfiguration, error) {
-	defaultCaddyImage := "caddy:2.7.6-alpine"
+	defaultCaddyImage := "docker.io/caddy/caddy:2.7.6-alpine"
 	selectedCaddyImage, err := settings.GetStringOrDefault(ctx, stack.Name, defaultCaddyImage, "caddy", "image")
 	if err != nil {
 		return nil, err
