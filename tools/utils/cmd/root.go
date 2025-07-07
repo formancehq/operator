@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/formancehq/go-libs/v2/logging"
 	"os"
 
@@ -26,11 +25,7 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	service.Execute(rootCmd)
 }
 
 func init() {
