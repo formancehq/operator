@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -88,6 +89,7 @@ func main() {
 		InsecureSkipVerify: true,
 	}
 
+	fmt.Printf("Starting manager\r\n")
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Client: client.Options{
 			Cache: &client.CacheOptions{

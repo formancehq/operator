@@ -67,10 +67,10 @@ deploy:
     LET ADDITIONAL_ARGS=""
     IF [ "$FORMANCE_DEV_CLUSTER_V2" == "yes" ]
         SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set imagePullSecrets[0].name=zot"
+        ARG --required REPOSITORY=
         SET ADDITIONAL_ARGS="$ADDITIONAL_ARGS --set image.repository=$REPOSITORY/formancehq/operator"
     END
 
-    ARG --required REPOSITORY=
     RUN --no-cache helm upgrade --install --namespace formance-system --install formance-operator \
         --wait \
         --debug \
@@ -78,6 +78,7 @@ deploy:
         --set image.tag=$tag \
         --set operator.licence.token=$LICENCE_TOKEN \
         --set operator.licence.issuer=$LICENCE_ISSUER ./operator \
+        --set operator.utils.tag=$tag \
         --set operator.dev=true $ADDITIONAL_ARGS
     WORKDIR /
     COPY .earthly .earthly
