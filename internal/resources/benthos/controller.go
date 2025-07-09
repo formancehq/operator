@@ -130,12 +130,6 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 		}
 	}
 
-	otelEnvVars, err := settings.GetOTELEnvVars(ctx, stack.Name, "benthos", " ")
-	if err != nil {
-		return err
-	}
-	env = append(env, otelEnvVars...)
-
 	if brokerURI.Scheme == "kafka" {
 		env = append(env, Env("KAFKA_ADDRESS", brokerURI.Host))
 		if settings.IsTrue(brokerURI.Query().Get("tls")) {
@@ -185,14 +179,6 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 		"-t", "/templates/*.yaml",
 	}
 
-	openTelemetryEnabled, err := settings.HasOpenTelemetryTracesEnabled(ctx, stack.Name)
-	if err != nil {
-		return err
-	}
-	if openTelemetryEnabled {
-		cmd = append(cmd, "-c", "/global/config.yaml")
-	}
-
 	cmd = append(cmd, "--log.level", "trace", "streams", "/streams/*.yaml")
 
 	volumes := make([]corev1.Volume, 0)
@@ -212,12 +198,6 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 			name: "resources",
 			fs:   benthos.Resources,
 		},
-	}
-	if openTelemetryEnabled {
-		directories = append(directories, directory{
-			name: "global",
-			fs:   benthosOperator.Global,
-		})
 	}
 
 	if stack.Spec.EnableAudit {
