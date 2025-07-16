@@ -53,6 +53,7 @@
               kustomize_4
               setup-envtest
               yq
+              earthly
             ];
           };
         }
