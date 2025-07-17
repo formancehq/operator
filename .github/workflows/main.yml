@@ -91,7 +91,7 @@ jobs:
           FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
   Deploy:
-    runs-on: "shipfox-4vcpu-ubuntu-2404"
+    runs-on: "formance-runner"
     if: github.ref == 'refs/heads/main'
     environment: staging
     needs:
@@ -101,14 +101,21 @@ jobs:
       - uses: 'actions/checkout@v4'
         with:
           fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/default
+      - uses: earthly/actions-setup@v1
         with:
-          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "latest"
+          use-cache: false
+      - name: Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
       - name: "Deploy in staging"
         env:
           TAG: ${{ github.sha }}
           ARGOCD_REGION_AUTH_TOKEN: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
         run: >
-          earthly   --no-output  --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN +deploy-staging --TAG=$TAG
+          earthly --no-output  --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN +deploy-staging --TAG=$TAG
 
