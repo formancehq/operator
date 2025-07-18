@@ -12,21 +12,37 @@ import (
 )
 
 func WithDefault(name string) core.ObjectMutator[*corev1.Service] {
+	return WithConfig(PortConfig{
+		ServiceName: name,
+		PortName:    "http",
+		Port:        8080,
+		TargetPort:  "http",
+	})
+}
+
+type PortConfig struct {
+	ServiceName string
+	PortName    string
+	Port        int32
+	TargetPort  string
+}
+
+func WithConfig(cfg PortConfig) core.ObjectMutator[*corev1.Service] {
 	return func(t *corev1.Service) error {
 		if t.Labels == nil {
 			t.Labels = make(map[string]string)
 		}
 
-		t.Labels["app.kubernetes.io/service-name"] = name
+		t.Labels["app.kubernetes.io/service-name"] = cfg.ServiceName
 		t.Spec = corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{
-				Name:       "http",
-				Port:       8080,
+				Name:       cfg.PortName,
+				Port:       cfg.Port,
 				Protocol:   "TCP",
-				TargetPort: intstr.FromString("http"),
+				TargetPort: intstr.FromString(cfg.TargetPort),
 			}},
 			Selector: map[string]string{
-				"app.kubernetes.io/name": name,
+				"app.kubernetes.io/name": cfg.ServiceName,
 			},
 		}
 
