@@ -147,14 +147,14 @@ func installLedgerSingleInstance(
 		}
 	}
 
-	if err := createDeployment(ctx, stack, ledger, "ledger", *container, v2, 1); err != nil {
+	if err := createDeployment(ctx, stack, ledger, "ledger", *container, v2, 1, imageConfiguration); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, ) error {
+func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
 	container := corev1.Container{
 		Name: "ledger",
 	}
@@ -253,6 +253,7 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
+					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					Containers:         []corev1.Container{container},
 					ServiceAccountName: serviceAccountName,
 				},
@@ -288,6 +289,7 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
+					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					Containers:         []corev1.Container{container},
 					ServiceAccountName: serviceAccountName,
 				},
@@ -309,7 +311,7 @@ func installLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.Stac
 			return err
 		}
 
-		if err := createDeployment(ctx, stack, ledger, name, container, v2, replicas); err != nil {
+		if err := createDeployment(ctx, stack, ledger, name, container, v2, replicas, imageConfiguration); err != nil {
 			return err
 		}
 
@@ -368,7 +370,7 @@ func uninstallLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.St
 	return nil
 }
 
-func createDeployment(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, name string, container corev1.Container, v2 bool, replicas uint64) error {
+func createDeployment(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, name string, container corev1.Container, v2 bool, replicas uint64, imageConfiguration *registries.ImageConfiguration) error {
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
 		return err
@@ -391,6 +393,7 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Le
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
+					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					Containers:         []corev1.Container{container},
 					Volumes:            volumes,
 					ServiceAccountName: serviceAccountName,
