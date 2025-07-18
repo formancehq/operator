@@ -246,6 +246,17 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		return err
 	}
 
+	exportersEnabled, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-exporters")
+	if err != nil {
+		return fmt.Errorf("failed to get experimental exporters setting: %w", err)
+	}
+	if exportersEnabled {
+		container.Env = append(container.Env,
+			core.Env("EXPERIMENTAL_EXPORTERS", "true"),
+			core.Env("WORKER_GRPC_ADDRESS", fmt.Sprintf("ledger-worker.%s:8081", stack.Name)),
+		)
+	}
+
 	tpl := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "ledger",
@@ -282,6 +293,18 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 		return err
 	}
 
+	exportersEnabled, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-exporters")
+	if err != nil {
+		return fmt.Errorf("failed to get experimental exporters setting: %w", err)
+	}
+
+	if exportersEnabled {
+		container.Ports = []corev1.ContainerPort{{
+			Name:          "grpc",
+			ContainerPort: 8081,
+		}}
+	}
+
 	tpl := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "ledger-worker",
@@ -297,10 +320,27 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 		},
 	}
 
-	return applications.
+	err = applications.
 		New(ledger, tpl).
 		Stateful().
 		Install(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to install ledger worker: %w", err)
+	}
+
+	if exportersEnabled {
+		_, err := services.Create(ctx, ledger, "ledger-worker", services.WithConfig(services.PortConfig{
+			ServiceName: "ledger-worker",
+			PortName:    "grpc",
+			Port:        8081,
+			TargetPort:  "grpc",
+		}))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func installLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, v2 bool) error {

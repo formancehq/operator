@@ -106,6 +106,16 @@ spec:
     - '*'
   key: "modules.*.grace-period"
   value: "5s"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-experimental-exporters
+spec:
+  stacks:
+    - '*'
+  key: "ledger.experimental-exporters"
+  value: "true"
 {{- if .Values.v2 }}
 ---
 apiVersion: formance.com/v1beta1
