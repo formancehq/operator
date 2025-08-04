@@ -43,7 +43,40 @@ var _ = Describe("Registries", func() {
 			Expect(Delete(stack)).To(Succeed())
 		})
 	})
-	Context("When overriding image in a settings", func() {
+	Context("When overriding registry hostname with path (pull-through cache)", func() {
+		var (
+			settings *v1beta1.Settings
+			registry = `"ghcr.io"`
+			endpoint = `ecr.io/github`
+		)
+
+		BeforeEach(func() {
+			settings = &v1beta1.Settings{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.SettingsSpec{
+					Stacks: []string{"*"},
+					Key:    "registries." + registry + ".endpoint",
+					Value:  endpoint,
+				},
+			}
+			Expect(Create(settings)).To(Succeed())
+		})
+		AfterEach(func() {
+			Expect(Delete(settings)).To(Succeed())
+		})
+
+		It("Should have image'hostname re-written", func() {
+			deployment := &appsv1.Deployment{}
+			Eventually(func(g Gomega) error {
+				g.Expect(LoadResource(stack.Name, "ledger", deployment)).To(Succeed())
+				g.Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+				g.Expect(deployment.Spec.Template.Spec.Containers[0].Image).To(ContainSubstring(fmt.Sprintf("%s/formancehq/%s", endpoint, "ledger")))
+				return nil
+			}).Should(Succeed())
+			Expect(deployment).To(BeControlledBy(ledger))
+		})
+	})
+	Context("When overriding image path in a settings", func() {
 		var (
 			settings     *v1beta1.Settings
 			registry     = `"ghcr.io"`
@@ -66,6 +99,7 @@ var _ = Describe("Registries", func() {
 		AfterEach(func() {
 			Expect(Delete(settings)).To(Succeed())
 		})
+
 		It("Should have image re-written", func() {
 			deployment := &appsv1.Deployment{}
 			Eventually(func(g Gomega) error {
@@ -75,6 +109,38 @@ var _ = Describe("Registries", func() {
 				return nil
 			}).Should(Succeed())
 			Expect(deployment).To(BeControlledBy(ledger))
+		})
+		When("rewriting the host with pull-through registry", func() {
+			var (
+				pullThroughRegistry      = `"ghcr.io"`
+				pullThroughCacheRegistry = `ecr.io/github`
+				settings                 *v1beta1.Settings
+			)
+
+			BeforeEach(func() {
+				settings = &v1beta1.Settings{
+					ObjectMeta: RandObjectMeta(),
+					Spec: v1beta1.SettingsSpec{
+						Stacks: []string{"*"},
+						Key:    "registries." + pullThroughRegistry + ".endpoint",
+						Value:  pullThroughCacheRegistry,
+					},
+				}
+				Expect(Create(settings)).To(Succeed())
+			})
+			AfterEach(func() {
+				Expect(Delete(settings)).To(Succeed())
+			})
+			It("Should have image re-written", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func(g Gomega) error {
+					g.Expect(LoadResource(stack.Name, "ledger", deployment)).To(Succeed())
+					g.Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+					g.Expect(deployment.Spec.Template.Spec.Containers[0].Image).To(ContainSubstring(fmt.Sprintf("%s/%s", pullThroughCacheRegistry, imageRewrite)))
+					return nil
+				}).Should(Succeed())
+				Expect(deployment).To(BeControlledBy(ledger))
+			})
 		})
 
 	})
