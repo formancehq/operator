@@ -34,6 +34,9 @@ nameOverride: ""
 fullnameOverride: ""
 
 operator:
+  # Enable development mode for the operator
+  disableWebhooks: false
+
   dev: false
   # The region to use for the operator
   region: "eu-west-1"
@@ -47,7 +50,7 @@ operator:
   enableLeaderElection: true
 
   utils:
-    tag: "v2.0.14"
+    tag: ""
 
 podAnnotations: {}
 
