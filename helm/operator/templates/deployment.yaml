@@ -60,9 +60,7 @@ spec:
             {{- if .Values.operator.disableWebhooks }}
             - --disable-webhooks
             {{- end }}
-            {{ if .Values.operator.utils.tag }}
             - --utils-version={{ .Values.operator.utils.tag | default .Chart.AppVersion }}
-            {{- end }}
             {{- if .Values.operator.dev }}
             - --zap-devel
             - Development
