@@ -55,7 +55,7 @@ release:
   footer: |
     ## What to do next?
     - Read the [documentation](https://docs.formance.com/)
-    - Join our [Slack server](https://formance.com/slack)
+    - Join our [GitHub Discussions](https://github.com/orgs/formancehq/discussions)
 
 dockers:
 - image_templates: [ "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64" ]
