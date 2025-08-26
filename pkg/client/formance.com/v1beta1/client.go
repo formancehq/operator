@@ -87,3 +87,9 @@ func (c *Client) Versions() VersionsInterface {
 		restClient: c.Interface,
 	}
 }
+
+func (c *Client) Databases() DatabaseInterface {
+	return &databasesClient{
+		restClient: c.Interface,
+	}
+}
