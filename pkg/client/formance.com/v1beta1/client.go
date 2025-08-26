@@ -81,3 +81,9 @@ func (c *Client) Webhooks() WebhooksInterface {
 		restClient: c.Interface,
 	}
 }
+
+func (c *Client) Versions() VersionsInterface {
+	return &VersionsClient{
+		restClient: c.Interface,
+	}
+}
