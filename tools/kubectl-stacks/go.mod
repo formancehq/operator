@@ -9,7 +9,7 @@ require (
 	github.com/formancehq/operator v0.0.0-00010101000000-000000000000
 	github.com/pterm/pterm v0.12.81
 	github.com/spf13/cobra v1.9.1
-	github.com/spf13/pflag v1.0.8
+	github.com/spf13/pflag v1.0.6
 	k8s.io/apimachinery v0.29.1
 	k8s.io/cli-runtime v0.29.1
 	k8s.io/client-go v0.29.1
