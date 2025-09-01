@@ -310,6 +310,41 @@ func (a Application) withEELicence(ctx core.Context) core.ObjectMutator[*appsv1.
 	}
 }
 
+func (a Application) withTopologySpreadConstraints(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		useTopologySpreadConstraints, err := settings.GetBoolOrFalse(ctx, a.owner.GetStack(), "deployments", deployment.Name, "topology-spread-constraints")
+		if err != nil {
+			return err
+		}
+		if !useTopologySpreadConstraints {
+			return nil
+		}
+
+		deployment.Spec.Template.Spec.TopologySpreadConstraints = []corev1.TopologySpreadConstraint{
+			{
+				MaxSkew:           1,
+				TopologyKey:       corev1.LabelTopologyZone,
+				WhenUnsatisfiable: corev1.ScheduleAnyway,
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: deployment.Spec.Template.Labels,
+				},
+				MatchLabelKeys: []string{"pod-template-hash"},
+			},
+			{
+				MaxSkew:           1,
+				TopologyKey:       corev1.LabelHostname,
+				WhenUnsatisfiable: corev1.DoNotSchedule, // Do not schedule pods on the same node
+				LabelSelector: &metav1.LabelSelector{
+					MatchLabels: deployment.Spec.Template.Labels,
+				},
+				MatchLabelKeys: []string{"pod-template-hash"},
+			},
+		}
+
+		return nil
+	}
+}
+
 func (a Application) withJsonLogging(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
 	return func(deployment *appsv1.Deployment) error {
 		isJsonLogging, err := settings.GetBoolOrFalse(ctx, a.owner.GetStack(), "logging", "json")
@@ -357,6 +392,7 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		a.withSettingAnnotations(ctx),
 		a.withStatefulHandling(ctx),
 		a.withEELicence(ctx),
+		a.withTopologySpreadConstraints(ctx),
 		a.withJsonLogging(ctx),
 		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
 	)
