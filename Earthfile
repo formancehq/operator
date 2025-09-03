@@ -15,7 +15,7 @@ sources:
 
 controller-gen:
     FROM core+builder-image
-    DO --pass-args core+GO_INSTALL --package=sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+    DO --pass-args core+GO_INSTALL --package=sigs.k8s.io/controller-tools/cmd/controller-gen@v0.16.5
 
 generate:
     FROM --pass-args +controller-gen
