@@ -5,7 +5,7 @@
 global:
   # Add your license information 
   licence:
-    # -- Licence Secret with label `formance.com/stack: any`
+    # -- Is disabled automatically if an existingSecret is provided
     # @section -- Licence
     createSecret: true
     # -- Licence Environment 
@@ -14,7 +14,7 @@ global:
     # -- Licence Client Token delivered by contacting [Formance](https://formance.com)
     # @section -- Licence configuration
     token: ""
-    # -- Licence Client Token as a secret
+    # -- Licence Client Token as a secret. Be sure to add the label `formance.com/stack: any` to allow the operator to find, reference, and copy it in the stack namespace.
     # @section -- Licence configuration
     existingSecret: ""
     secretKeys:
