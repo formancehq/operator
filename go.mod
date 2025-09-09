@@ -4,24 +4,24 @@ go 1.23
 
 require (
 	github.com/formancehq/go-libs/v2 v2.2.3
-	github.com/formancehq/search v0.0.0-20240926085257-6b5288dc2576
+	github.com/formancehq/search v0.5.2
 	github.com/go-logr/logr v1.4.3
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/imdario/mergo v0.3.16
-	github.com/onsi/ginkgo/v2 v2.22.1
-	github.com/onsi/gomega v1.36.2
+	github.com/onsi/ginkgo/v2 v2.25.3
+	github.com/onsi/gomega v1.38.2
 	github.com/pkg/errors v0.9.1
-	github.com/stoewer/go-strcase v1.2.0
-	github.com/stretchr/testify v1.10.0
-	golang.org/x/mod v0.23.0
+	github.com/stoewer/go-strcase v1.3.1
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/mod v0.28.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.29.0
-	k8s.io/apimachinery v0.29.0
-	k8s.io/client-go v0.29.0
+	k8s.io/api v0.34.0
+	k8s.io/apimachinery v0.34.0
+	k8s.io/client-go v0.34.0
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
-	sigs.k8s.io/controller-runtime v0.17.1
+	sigs.k8s.io/controller-runtime v0.22.1
 )
 
 require (
