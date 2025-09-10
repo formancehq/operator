@@ -208,3 +208,14 @@ func TestFindMatchingSettings(t *testing.T) {
 	}
 
 }
+
+func TestParseKeyValuePair(t *testing.T) {
+	ret, err := parseKeyValueList(`a=b,c="d e", f=g,h="i,j"`)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"a": "b",
+		"c": "d e",
+		"f": "g",
+		"h": "i,j",
+	}, ret)
+}

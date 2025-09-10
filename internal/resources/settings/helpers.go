@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 	"slices"
 	"strconv"
@@ -255,12 +257,89 @@ func GetMap(ctx core.Context, stack string, keys ...string) (map[string]string, 
 	if value == nil {
 		return nil, nil
 	}
+
+	return parseKeyValueList(*value)
+}
+
+func parseKeyValueList(value string) (map[string]string, error) {
 	ret := make(map[string]string)
-	parts := strings.Split(*value, ",")
-	for _, part := range parts {
-		part := strings.TrimSpace(part)
-		parts := strings.SplitN(part, "=", 2)
-		ret[parts[0]] = parts[1]
+
+	buf := bytes.NewBufferString(value)
+	var (
+		isParsingKey = true
+		hasQuotes    = false
+		parsedKey    string
+		parsedValue  string
+	)
+	for {
+		v, err := buf.ReadByte()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				if isParsingKey && parsedKey == "" {
+					break
+				}
+				if isParsingKey {
+					return nil, fmt.Errorf("invalid key value list, unexpected end of input while parsing key: '%s'", value)
+				}
+				if hasQuotes {
+					return nil, fmt.Errorf("invalid key value list, unexpected end of input while parsing quoted value: '%s'", value)
+				}
+				ret[strings.TrimSpace(parsedKey)] = strings.TrimSpace(parsedValue)
+				break
+			}
+			return nil, err
+		}
+		switch v {
+		case '=':
+			isParsingKey = false
+			v, err := buf.ReadByte()
+			if err != nil {
+				return nil, err
+			}
+			if v == '"' {
+				hasQuotes = true
+			} else {
+				parsedValue += string(v)
+			}
+		case '"':
+			if isParsingKey {
+				return nil, fmt.Errorf("invalid key value list: quotes are not allowed in keys")
+			}
+			if hasQuotes {
+				hasQuotes = false
+				isParsingKey = true
+				ret[strings.TrimSpace(parsedKey)] = strings.TrimSpace(parsedValue)
+				parsedKey = ""
+				parsedValue = ""
+				if buf.Len() > 0 {
+					v, err := buf.ReadByte()
+					if err != nil {
+						return nil, err
+					}
+					if v != ',' {
+						return nil, fmt.Errorf("invalid key value list, expected comma after quoted value: '%s'", value)
+					}
+				}
+			} else {
+				parsedValue += string(v)
+			}
+		case ',':
+
+			if hasQuotes {
+				parsedValue += string(v)
+			} else {
+				ret[strings.TrimSpace(parsedKey)] = strings.TrimSpace(parsedValue)
+				isParsingKey = true
+				parsedKey = ""
+				parsedValue = ""
+			}
+		default:
+			if isParsingKey {
+				parsedKey += string(v)
+			} else {
+				parsedValue += string(v)
+			}
+		}
 	}
 
 	return ret, nil
