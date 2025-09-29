@@ -17,8 +17,13 @@ tidy:
   cd ./tools/kubectl-stacks && go mod tidy
   cd ./tools/utils && go mod tidy
 
-tests args='':
+tests-unit:
+  go test ./internal/resources/... ./internal/manifests/... -v
+
+tests-integration args='':
   KUBEBUILDER_ASSETS=$(setup-envtest use 1.28.0 -p path) ginkgo -p ./...
+
+tests: tests-unit tests-integration
 
 release-local:
   goreleaser release --nightly --skip=publish --clean
