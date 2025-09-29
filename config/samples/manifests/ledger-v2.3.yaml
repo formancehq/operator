@@ -1,0 +1,96 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: ledger-v2.3
+  labels:
+    formance.com/component: ledger
+    formance.com/generation: v2
+    formance.com/architecture: stateless-with-worker
+spec:
+  component: ledger
+  versionRange: ">=v2.3.0"
+  extends: ">=v2.2.0 <v2.3.0"
+
+  # Add worker deployment
+  architecture:
+    type: "stateless"
+    deployments:
+      # API deployment
+      - name: "ledger"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "ledger"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "BIND"
+                value: ":8080"
+              - name: "STORAGE_DRIVER"
+                value: "postgres"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+            conditionalEnvironment:
+              - when: "settings.ledger.experimental-features == true"
+                env:
+                  - name: "EXPERIMENTAL_FEATURES"
+                    value: "true"
+              - when: "settings.ledger.experimental-numscript == true"
+                env:
+                  - name: "EXPERIMENTAL_NUMSCRIPT_INTERPRETER"
+                    value: "true"
+              - when: "settings.ledger.experimental-exporters == true"
+                env:
+                  - name: "EXPERIMENTAL_EXPORTERS"
+                    value: "true"
+                  - name: "WORKER_GRPC_ADDRESS"
+                    value: "ledger-worker:8081"
+
+      # New: Worker deployment
+      - name: "ledger-worker"
+        replicas: "1"
+        stateful: true
+        containers:
+          - name: "worker"
+            args: ["worker"]
+            ports:
+              - name: "grpc"
+                port: 8081
+            environment:
+              - name: "STORAGE_DRIVER"
+                value: "postgres"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+        service:
+          type: "ClusterIP"
+          ports:
+            - name: "grpc"
+              port: 8081
+
+  features:
+    experimentalExporters: true
+
+  authorization:
+    scopes:
+      # Inherit parent scopes (ledger:read, ledger:write, ledger:admin, ledger:metadata:*)
+
+      # New scope in v2.3 - Exporters
+      - name: "ledger:export"
+        description: "Export ledger data (experimental feature in v2.3)"
+        since: "v2.3.0"
+
+      # Deprecate admin scope in favor of manage
+      - name: "ledger:admin"
+        description: "Administrative operations (deprecated)"
+        deprecated: true
+        replacedBy: "ledger:manage"
+        since: "v2.0.0"
+
+      # New manage scope
+      - name: "ledger:manage"
+        description: "Manage ledger (recommended replacement for ledger:admin)"
+        since: "v2.3.0"

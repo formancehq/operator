@@ -19,11 +19,7 @@ package webhooks
 import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/brokerconsumers"
 	"github.com/formancehq/operator/internal/resources/databases"
-	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 )
@@ -31,56 +27,6 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=webhooks,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=webhooks/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=webhooks/finalizers,verbs=update
-
-func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, version string) error {
-	database, err := databases.Create(ctx, stack, webhooks)
-	if err != nil {
-		return err
-	}
-
-	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, webhooks)
-	if err != nil {
-		return err
-	}
-
-	if err := gatewayhttpapis.Create(ctx, webhooks, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
-		return err
-	}
-
-	if !database.Status.Ready {
-		return NewPendingError().WithMessage("database not ready")
-	}
-
-	image, err := registries.GetFormanceImage(ctx, stack, "webhooks", version)
-	if err != nil {
-		return errors.Wrap(err, "resolving image")
-	}
-
-	if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
-
-		if err := databases.Migrate(ctx, stack, webhooks, image, database); err != nil {
-			return err
-		}
-
-		if err := databases.SaveModuleVersion(ctx, database, version); err != nil {
-			return errors.Wrap(err, "saving module version in database object")
-		}
-	}
-
-	if consumer.Status.Ready {
-		if IsGreaterOrEqual(version, "v0.7.1") {
-			if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-				return err
-			}
-		} else {
-			if err := createDualDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
 
 func init() {
 	Init(

@@ -1,0 +1,90 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: ledger-v2.2
+  labels:
+    formance.com/component: ledger
+    formance.com/generation: v2
+    formance.com/architecture: stateless
+spec:
+  component: ledger
+  versionRange: ">=v2.2.0 <v2.3.0"
+  extends: ">=v2.0.0 <v2.2.0"
+
+  # Override: Remove prefix
+  envVarPrefix: ""
+
+  # Override: New reindex version
+  streams:
+    ingestion: "streams/ledger"
+    reindex: "assets/reindex/v2.0.0"
+
+  # Override: Allow continue on error
+  migration:
+    enabled: true
+    strategy: "continue-on-error"
+
+  # Override: New architecture
+  architecture:
+    type: "stateless"
+    deployments:
+      - name: "ledger"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "ledger"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "BIND"
+                value: ":8080"
+              - name: "STORAGE_DRIVER"
+                value: "postgres"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+            conditionalEnvironment:
+              - when: "settings.ledger.experimental-features == true"
+                env:
+                  - name: "EXPERIMENTAL_FEATURES"
+                    value: "true"
+              - when: "settings.ledger.experimental-numscript == true"
+                env:
+                  - name: "EXPERIMENTAL_NUMSCRIPT_INTERPRETER"
+                    value: "true"
+              - when: "settings.ledger.api.default-page-size != ''"
+                env:
+                  - name: "DEFAULT_PAGE_SIZE"
+                    valueFrom:
+                      settingKey: "ledger.api.default-page-size"
+              - when: "settings.ledger.api.max-page-size != ''"
+                env:
+                  - name: "MAX_PAGE_SIZE"
+                    valueFrom:
+                      settingKey: "ledger.api.max-page-size"
+
+    # Cleanup old architecture
+    cleanup:
+      deployments: ["ledger-write", "ledger-read", "ledger-gateway"]
+      reason: "Migrating from mono-writer-multiple-reader to stateless"
+
+  features:
+    redisLocking: false
+    analytics: true
+    experimentalExporters: false
+
+  authorization:
+    scopes:
+      # Inherit parent scopes (ledger:read, ledger:write, ledger:admin)
+
+      # New scope in v2.2
+      - name: "ledger:metadata:read"
+        description: "Read ledger metadata and configuration"
+        since: "v2.2.0"
+
+      - name: "ledger:metadata:write"
+        description: "Modify ledger metadata and configuration"
+        since: "v2.2.0"

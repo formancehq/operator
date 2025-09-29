@@ -19,41 +19,12 @@ package wallets
 import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/authclients"
-	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
 	appsv1 "k8s.io/api/apps/v1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=wallets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=wallets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=wallets/finalizers,verbs=update
-
-func Reconcile(ctx Context, stack *v1beta1.Stack, wallets *v1beta1.Wallets, version string) error {
-
-	hasAuth, err := HasDependency(ctx, wallets.Spec.Stack, &v1beta1.Auth{})
-	if err != nil {
-		return err
-	}
-	var authClient *v1beta1.AuthClient
-	if hasAuth {
-		authClient, err = authclients.Create(ctx, stack, wallets, "wallets", func(spec *v1beta1.AuthClientSpec) {
-			spec.Scopes = []string{"ledger:read", "ledger:write"}
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := createDeployment(ctx, stack, wallets, authClient, version); err != nil {
-		return err
-	}
-
-	if err := gatewayhttpapis.Create(ctx, wallets, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
-		return err
-	}
-
-	return nil
-}
 
 func init() {
 	Init(

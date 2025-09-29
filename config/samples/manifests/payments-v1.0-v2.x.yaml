@@ -1,0 +1,102 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: payments-v1-0-v2-x
+  labels:
+    formance.com/component: payments
+    formance.com/generation: v1-v2
+    formance.com/architecture: split-read-connectors
+spec:
+  component: payments
+  versionRange: ">=v1.0.0-alpha <v3.0.0"
+  extends: "<v1.0.0-alpha"
+
+  streams:
+    ingestion: "streams/payments"
+
+  migration:
+    enabled: true
+    strategy: "strict"
+
+  architecture:
+    type: stateless
+    deployments:
+      # Read API deployment
+      - name: "payments-read"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "api"
+            args: ["api", "serve"]
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_health"
+              type: "http"
+            environment:
+              - name: "POSTGRES_DATABASE_NAME"
+                value: "$(POSTGRES_DATABASE)"
+              - name: "CONFIG_ENCRYPTION_KEY"
+                valueFrom:
+                  settingKey: "payments.encryption-key"
+        service:
+          type: "ClusterIP"
+          ports:
+            - name: "http"
+              port: 8080
+
+      # Connectors deployment (stateful)
+      - name: "payments-connectors"
+        replicas: "1"
+        stateful: true
+        containers:
+          - name: "connectors"
+            args: ["connectors", "serve"]
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_health"
+              type: "http"
+            environment:
+              - name: "POSTGRES_DATABASE_NAME"
+                value: "$(POSTGRES_DATABASE)"
+              - name: "CONFIG_ENCRYPTION_KEY"
+                valueFrom:
+                  settingKey: "payments.encryption-key"
+        service:
+          type: "ClusterIP"
+          ports:
+            - name: "http"
+              port: 8080
+
+  features:
+    broker: true
+    gatewayProxy: true
+    temporal: false
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_health"
+
+  authorization:
+    scopes:
+      # Inherit parent scopes: payments:read, payments:write, etc.
+
+      # New scope in v1.0
+      - name: "payments:accounts:read"
+        description: "Read payment accounts details"
+        since: "v1.0.0"
+
+      - name: "payments:accounts:write"
+        description: "Create and manage payment accounts"
+        since: "v1.0.0"
+
+      - name: "payments:pools:read"
+        description: "Read payment pools"
+        since: "v1.0.0"
+
+      - name: "payments:pools:write"
+        description: "Manage payment pools"
+        since: "v1.0.0"

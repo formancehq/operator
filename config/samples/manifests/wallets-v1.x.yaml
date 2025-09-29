@@ -1,0 +1,55 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: wallets-v1-x
+  labels:
+    formance.com/component: wallets
+    formance.com/generation: v1
+spec:
+  component: wallets
+  versionRange: ">=v0.0.0"
+
+  migration:
+    enabled: false
+
+  architecture:
+    type: stateless
+    deployments:
+      - name: "wallets"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "wallets"
+            args: ["serve"]
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+
+  features:
+    requiresLedger: true
+    optionalAuth: true
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  authorization:
+    scopes:
+      - name: "wallets:read"
+        description: "Read wallet balances and transactions"
+        since: "v1.0.0"
+
+      - name: "wallets:write"
+        description: "Create and manage wallets"
+        since: "v1.0.0"
+
+      - name: "wallets:holds:read"
+        description: "Read wallet holds"
+        since: "v1.0.0"
+
+      - name: "wallets:holds:write"
+        description: "Create and manage holds"
+        since: "v1.0.0"

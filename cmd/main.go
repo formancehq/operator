@@ -27,6 +27,7 @@ import (
 
 	formancev1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/manifests"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -117,6 +118,9 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	// Initialize manifest loader
+	manifests.InitLoader(mgr.GetClient())
 
 	platform := core.Platform{
 		Region:        region,

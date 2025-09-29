@@ -1,0 +1,49 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: reconciliation-v1-x
+  labels:
+    formance.com/component: reconciliation
+    formance.com/generation: v1
+spec:
+  component: reconciliation
+  versionRange: "<v2.0.0-rc.5"
+
+  migration:
+    enabled: false
+
+  architecture:
+    type: stateless
+    deployments:
+      - name: "reconciliation"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "reconciliation"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "POSTGRES_DATABASE_NAME"
+                value: "$(POSTGRES_DATABASE)"
+
+  features:
+    requiresDatabase: true
+    requiresAuth: true
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  authorization:
+    scopes:
+      - name: "reconciliation:read"
+        description: "Read reconciliation data"
+        since: "v1.0.0"
+
+      - name: "reconciliation:write"
+        description: "Create and manage reconciliations"
+        since: "v1.0.0"
