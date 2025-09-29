@@ -268,6 +268,15 @@ func (a Application) withStatefulHandling(ctx core.Context) core.ObjectMutator[*
 			}
 			deployment.Spec.Replicas = replicas
 
+			// Set rolling update strategy with maxSurge: 1
+			deployment.Spec.Strategy = appsv1.DeploymentStrategy{
+				Type: appsv1.RollingUpdateDeploymentStrategyType,
+				RollingUpdate: &appsv1.RollingUpdateDeployment{
+					MaxSurge:       &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
+					MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
+				},
+			}
+
 		} else {
 			deployment.Spec.Strategy = appsv1.DeploymentStrategy{
 				Type: appsv1.RecreateDeploymentStrategyType,
