@@ -8,7 +8,7 @@ metadata:
     formance.com/architecture: legacy
 spec:
   component: ledger
-  versionRange: ">=v0.0.0 <v2.0.0"
+  versionRange: ">=v0.0.0-0 <v2.0.0"
 
   envVarPrefix: "NUMARY_"
 
@@ -57,4 +57,3 @@ spec:
   features:
     redisLocking: false
     analytics: false
-
