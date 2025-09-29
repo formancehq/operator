@@ -243,11 +243,11 @@ func TestApplicationErrorMessageModification(t *testing.T) {
 	require.Equal(t, "initial message", err.Error())
 
 	// Modify the message
-	err.WithMessage("updated message")
+	err = err.WithMessage("updated message")
 	require.Equal(t, "updated message", err.Error())
 
 	// Modify again
-	err.WithMessage("final message with %s", "formatting")
+	err = err.WithMessage("final message with %s", "formatting")
 	require.Equal(t, "final message with formatting", err.Error())
 }
 
