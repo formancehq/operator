@@ -2,20 +2,25 @@ package internal
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	osRuntime "runtime"
+	"strings"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/manifests"
 	_ "github.com/formancehq/operator/internal/resources"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -28,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/yaml"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -101,6 +107,10 @@ var _ = BeforeSuite(func() {
 		Region:      "us-west-1",
 		Environment: "staging",
 	})).To(Succeed())
+
+	manifests.InitLoader(mgr.GetClient())
+
+	Expect(loadVersionManifestSamples(ctx, mgr.GetClient(), filepath.Join(filepath.Dir(filename), "..", "..", "..", "config", "samples", "manifests"))).To(Succeed())
 
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&appsv1.Deployment{}).
@@ -202,6 +212,47 @@ func Delete(objects ...client.Object) error {
 		}
 	}
 	return nil
+}
+
+func loadVersionManifestSamples(ctx context.Context, c client.Client, baseDir string) error {
+	return filepath.WalkDir(baseDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".yaml") && !strings.HasSuffix(d.Name(), ".yml") {
+			return nil
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("reading version manifest sample %s: %w", path, err)
+		}
+
+		manifest := &v1beta1.VersionManifest{}
+		if err := yaml.Unmarshal(content, manifest); err != nil {
+			return fmt.Errorf("parsing version manifest sample %s: %w", path, err)
+		}
+
+		if manifest.APIVersion == "" {
+			manifest.APIVersion = v1beta1.GroupVersion.String()
+		}
+		if manifest.Kind == "" {
+			manifest.Kind = "VersionManifest"
+		}
+		manifest.SetGroupVersionKind(v1beta1.GroupVersion.WithKind("VersionManifest"))
+
+		if err := c.Create(ctx, manifest); err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				return nil
+			}
+			return fmt.Errorf("creating version manifest sample %s: %w", manifest.Name, err)
+		}
+
+		return nil
+	})
 }
 
 func Update(ob client.Object) error {
