@@ -18,7 +18,7 @@ tidy:
   cd ./tools/utils && go mod tidy
 
 tests-unit:
-  go test ./internal/resources/... ./internal/manifests/... -v
+  go test -race ./internal/resources/... ./internal/manifests/... ./internal/core/...
 
 tests-integration args='':
   KUBEBUILDER_ASSETS=$(setup-envtest use 1.28.0 -p path) ginkgo -p ./...
