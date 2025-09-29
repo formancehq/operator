@@ -86,18 +86,38 @@ func (l *Loader) loadComponentManifests(ctx context.Context, component string) (
 }
 
 func (l *Loader) findMatchingManifest(manifests []*v1beta1.VersionManifest, version string) *v1beta1.VersionManifest {
+	var (
+		best      *v1beta1.VersionManifest
+		bestScore = -1
+		bestLower string
+	)
+
 	for _, m := range manifests {
-		if l.versionMatches(version, m.Spec.VersionRange) {
-			return m
+		if !l.versionMatches(version, m.Spec.VersionRange) {
+			continue
+		}
+
+		score := manifestSpecificityScore(version, m.Spec.VersionRange)
+		lower := extractLowerBound(m.Spec.VersionRange)
+
+		if best == nil || score > bestScore || (score == bestScore && compareLowerBounds(lower, bestLower) > 0) {
+			best = m
+			bestScore = score
+			bestLower = lower
 		}
 	}
-	return nil
+
+	return best
 }
 
 // versionMatches checks if a version satisfies a version range
 // Supports: ">=v2.0.0", ">=v2.0.0 <v3.0.0", exact version
 func (l *Loader) versionMatches(version, versionRange string) bool {
 	// Handle "latest" or invalid semver
+	if versionRange == "latest" {
+		return version == "latest"
+	}
+
 	if !semver.IsValid(version) {
 		return versionRange == "latest" || versionRange == "" || strings.Contains(versionRange, ">=v")
 	}
@@ -141,6 +161,76 @@ func (l *Loader) versionMatches(version, versionRange string) bool {
 	}
 
 	return true
+}
+
+func manifestSpecificityScore(version, versionRange string) int {
+	vr := strings.TrimSpace(versionRange)
+	if vr == "" {
+		return 0
+	}
+
+	if vr == version {
+		return 100
+	}
+
+	if vr == "latest" {
+		if version == "latest" {
+			return 90
+		}
+		return 5
+	}
+
+	score := 0
+	tokens := strings.Fields(vr)
+	for _, token := range tokens {
+		switch {
+		case strings.HasPrefix(token, ">=") || strings.HasPrefix(token, "<="):
+			score += 20
+		case strings.HasPrefix(token, ">") || strings.HasPrefix(token, "<"):
+			score += 10
+		default:
+			score += 30
+		}
+	}
+
+	return score + len(tokens)
+}
+
+func extractLowerBound(versionRange string) string {
+	best := ""
+	for _, token := range strings.Fields(versionRange) {
+		candidate := ""
+		switch {
+		case strings.HasPrefix(token, ">="):
+			candidate = strings.TrimPrefix(token, ">=")
+		case strings.HasPrefix(token, ">"):
+			candidate = strings.TrimPrefix(token, ">")
+		case !strings.ContainsAny(token, "<>"):
+			candidate = token
+		}
+
+		if candidate == "" || !semver.IsValid(candidate) {
+			continue
+		}
+
+		if best == "" || semver.Compare(candidate, best) > 0 {
+			best = candidate
+		}
+	}
+	return best
+}
+
+func compareLowerBounds(a, b string) int {
+	if a == "" && b == "" {
+		return 0
+	}
+	if a == "" {
+		return -1
+	}
+	if b == "" {
+		return 1
+	}
+	return semver.Compare(a, b)
 }
 
 func (l *Loader) resolveInheritance(ctx context.Context, component string, manifest *v1beta1.VersionManifest, available []*v1beta1.VersionManifest) (*v1beta1.VersionManifest, error) {

@@ -21,8 +21,8 @@ spec:
   architecture:
     type: stateless
     deployments:
-      # Read API deployment
-      - name: "payments-read"
+      # API deployment (legacy naming expected by integration tests)
+      - name: "payments"
         replicas: "auto"
         stateful: false
         containers:
@@ -46,13 +46,13 @@ spec:
             - name: "http"
               port: 8080
 
-      # Connectors deployment (stateful)
-      - name: "payments-connectors"
+      # Worker deployment (legacy naming expected by integration tests)
+      - name: "payments-worker"
         replicas: "1"
         stateful: true
         containers:
-          - name: "connectors"
-            args: ["connectors", "serve"]
+          - name: "worker"
+            args: ["worker", "serve"]
             ports:
               - name: "http"
                 port: 8080

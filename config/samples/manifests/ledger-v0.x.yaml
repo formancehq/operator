@@ -1,0 +1,60 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: ledger-v0-x
+  labels:
+    formance.com/component: ledger
+    formance.com/generation: v0-1
+    formance.com/architecture: legacy
+spec:
+  component: ledger
+  versionRange: ">=v0.0.0 <v2.0.0"
+
+  envVarPrefix: "NUMARY_"
+
+  streams:
+    ingestion: "streams/ledger"
+    reindex: "assets/reindex/v1.0.0"
+
+  migration:
+    enabled: false
+
+  architecture:
+    type: stateless
+    deployments:
+      - name: "ledger"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "ledger"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "BIND"
+                value: ":8080"
+              - name: "STORAGE_DRIVER"
+                value: "postgres"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+            conditionalEnvironment:
+              - when: "settings.ledger.experimental-features == true"
+                env:
+                  - name: "EXPERIMENTAL_FEATURES"
+                    value: "true"
+              - when: "settings.ledger.experimental-numscript == true"
+                env:
+                  - name: "EXPERIMENTAL_NUMSCRIPT_INTERPRETER"
+                    value: "true"
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  features:
+    redisLocking: false
+    analytics: false
+
