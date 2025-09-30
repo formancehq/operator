@@ -276,7 +276,6 @@ func (a Application) withStatefulHandling(ctx core.Context) core.ObjectMutator[*
 					MaxUnavailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 0},
 				},
 			}
-
 		} else {
 			deployment.Spec.Strategy = appsv1.DeploymentStrategy{
 				Type: appsv1.RecreateDeploymentStrategyType,
