@@ -19,12 +19,8 @@ package orchestrations
 import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/brokerconsumers"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
-	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 )
@@ -32,58 +28,6 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=orchestrations,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=orchestrations/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=orchestrations/finalizers,verbs=update
-
-func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, version string) error {
-
-	database, err := databases.Create(ctx, stack, o)
-	if err != nil {
-		return err
-	}
-
-	authClient, err := createAuthClient(ctx, stack, o)
-	if err != nil {
-		return err
-	}
-
-	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, o)
-	if err != nil {
-		return err
-	}
-
-	if err := gatewayhttpapis.Create(ctx, o, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
-		return err
-	}
-
-	if !database.Status.Ready {
-		return NewPendingError().WithMessage("database not ready")
-	}
-
-	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "orchestration", version)
-	if err != nil {
-		return errors.Wrap(err, "resolving image")
-	}
-
-	if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
-
-		if err := databases.Migrate(ctx, stack, o, imageConfiguration, database); err != nil {
-			return err
-		}
-
-		if err := databases.SaveModuleVersion(ctx, database, version); err != nil {
-			return errors.Wrap(err, "saving module version in database object")
-		}
-	}
-
-	if consumer.Status.Ready {
-		if err := createDeployment(ctx, stack, o, database, authClient, consumer, imageConfiguration); err != nil {
-			return err
-		}
-	} else {
-		return NewPendingError().WithMessage("waiting for consumers to be ready")
-	}
-
-	return nil
-}
 
 func init() {
 	Init(

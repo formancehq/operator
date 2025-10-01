@@ -1,0 +1,75 @@
+apiVersion: operator.formance.com/v1alpha1
+kind: VersionManifest
+metadata:
+  component: ledger
+  versionRange: ">=v2.3.0"
+  description: "Stateless architecture with worker"
+  labels:
+    generation: "v2"
+    architecture: "stateless-with-worker"
+
+spec:
+  extends: ">=v2.2.0 <v2.3.0"
+
+  # Add worker deployment
+  architecture:
+    type: "stateless"
+    deployments:
+      # API deployment
+      - name: "ledger"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "ledger"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "BIND"
+                value: ":8080"
+              - name: "STORAGE_DRIVER"
+                value: "postgres"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+            conditionalEnvironment:
+              - when: "settings.ledger.experimental-features == true"
+                env:
+                  - name: "EXPERIMENTAL_FEATURES"
+                    value: "true"
+              - when: "settings.ledger.experimental-numscript == true"
+                env:
+                  - name: "EXPERIMENTAL_NUMSCRIPT_INTERPRETER"
+                    value: "true"
+              - when: "settings.ledger.experimental-exporters == true"
+                env:
+                  - name: "EXPERIMENTAL_EXPORTERS"
+                    value: "true"
+                  - name: "WORKER_GRPC_ADDRESS"
+                    value: "ledger-worker:8081"
+
+      # New: Worker deployment
+      - name: "ledger-worker"
+        replicas: 1
+        stateful: true
+        containers:
+          - name: "worker"
+            args: ["worker"]
+            ports:
+              - name: "grpc"
+                port: 8081
+            environment:
+              - name: "STORAGE_DRIVER"
+                value: "postgres"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+        service:
+          type: "ClusterIP"
+          ports:
+            - name: "grpc"
+              port: 8081
+
+  features:
+    experimentalExporters: true

@@ -1,0 +1,66 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: webhooks-v0-x
+  labels:
+    formance.com/component: webhooks
+    formance.com/generation: v0
+    formance.com/architecture: dual-deployment
+spec:
+  component: webhooks
+  versionRange: "<v0.7.1"
+
+  migration:
+    enabled: false
+
+  architecture:
+    type: stateless
+    deployments:
+      # API deployment (without worker)
+      - name: "webhooks"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "api"
+            args: ["serve"]
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+
+      # Separate worker deployment
+      - name: "webhooks-worker"
+        replicas: "1"
+        stateful: false
+        containers:
+          - name: "worker"
+            args: ["worker"]
+            environment:
+              - name: "WORKER"
+                value: "true"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+
+  features:
+    requiresDatabase: true
+    requiresBroker: true
+    consumerAllServices: true
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  authorization:
+    scopes:
+      - name: "webhooks:read"
+        description: "Read webhook configurations"
+        since: "v0.1.0"
+
+      - name: "webhooks:write"
+        description: "Manage webhook configurations"
+        since: "v0.1.0"

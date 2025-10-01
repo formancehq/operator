@@ -37,7 +37,7 @@ type BenthosSpec struct {
 	//+optional
 	Batching *Batching `json:"batching,omitempty"`
 	//+optional
-	InitContainers   []corev1.Container `json:"initContainers"`
+	InitContainers   []corev1.Container            `json:"initContainers"`
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 }
 

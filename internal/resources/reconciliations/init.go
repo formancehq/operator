@@ -19,11 +19,6 @@ package reconciliations
 import (
 	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/authclients"
-	"github.com/formancehq/operator/internal/resources/databases"
-	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 )
@@ -31,48 +26,6 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=reconciliations,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=reconciliations/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=reconciliations/finalizers,verbs=update
-
-func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconciliation, version string) error {
-	database, err := databases.Create(ctx, stack, reconciliation)
-	if err != nil {
-		return err
-	}
-
-	authClient, err := authclients.Create(ctx, stack, reconciliation, "reconciliation",
-		authclients.WithScopes("ledger:read", "payments:read"))
-	if err != nil {
-		return err
-	}
-
-	if database.Status.Ready {
-
-		imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "reconciliation", version)
-		if err != nil {
-			return errors.Wrap(err, "resolving image")
-		}
-
-		if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
-
-			if err := databases.Migrate(ctx, stack, reconciliation, imageConfiguration, database); err != nil {
-				return err
-			}
-
-			if err := databases.SaveModuleVersion(ctx, database, version); err != nil {
-				return errors.Wrap(err, "saving module version in database object")
-			}
-		}
-
-		if err := createDeployment(ctx, stack, reconciliation, database, authClient, imageConfiguration); err != nil {
-			return err
-		}
-	}
-
-	if err := gatewayhttpapis.Create(ctx, reconciliation, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
-		return err
-	}
-
-	return nil
-}
 
 func init() {
 	Init(

@@ -40,6 +40,7 @@ Other resources :
 - [Database](#database)
 - [GatewayHTTPAPI](#gatewayhttpapi)
 - [ResourceReference](#resourcereference)
+- [VersionManifest](#versionmanifest)
 - [Versions](#versions)
 
 ### Main resources
@@ -2552,6 +2553,307 @@ Once the reconciler has found the secret, it will copy it inside the stack names
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `syncedResource` _string_ |  |  |  |
 | `hash` _string_ |  |  |  |
+
+
+#### VersionManifest
+
+
+
+VersionManifest is the Schema for version manifests.
+It defines the deployment configuration for a specific version range of a component.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `VersionManifest` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[VersionManifestSpec](#versionmanifestspec)_ |  |  |  |
+| `status` _[VersionManifestStatus](#versionmanifeststatus)_ |  |  |  |
+
+
+
+##### VersionManifestSpec
+
+
+
+VersionManifestSpec defines the desired state of VersionManifest
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `component` _string_ | Component name (e.g., "ledger", "payments") |  |  |
+| `versionRange` _string_ | Version range using semver (e.g., ">=v2.2.0 <v2.3.0") |  |  |
+| `extends` _string_ | Inherit from another manifest (optional) |  |  |
+| `envVarPrefix` _string_ | Environment variable prefix (e.g., "NUMARY_" or "") |  |  |
+| `streams` _[StreamsConfig](#streamsconfig)_ | Stream configurations |  |  |
+| `migration` _[MigrationConfig](#migrationconfig)_ | Migration configuration |  |  |
+| `architecture` _[ArchitectureConfig](#architectureconfig)_ | Deployment architecture |  |  |
+| `features` _object (keys:string, values:boolean)_ | Feature flags |  |  |
+| `gateway` _[GatewayConfig](#gatewayconfig)_ | Gateway configuration |  |  |
+| `authorization` _[AuthorizationConfig](#authorizationconfig)_ | Authorization configuration (scopes, permissions) |  |  |
+
+###### StreamsConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ingestion` _string_ |  |  |  |
+| `reindex` _string_ |  |  |  |
+
+###### MigrationConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `strategy` _string_ | Strategy: "strict", "continue-on-error", "skip" | strict |  |
+| `commands` _string array_ |  |  |  |
+
+###### ArchitectureConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _string_ | Type: "stateless", "single-or-multi-writer", "sharded" |  | Enum: [stateless single-or-multi-writer sharded] <br /> |
+| `deployments` _[DeploymentSpec](#deploymentspec) array_ |  |  |  |
+| `cleanup` _[CleanupConfig](#cleanupconfig)_ |  |  |  |
+
+###### DeploymentSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ |  |  |  |
+| `replicas` _string_ | Replicas: "auto" or integer as string |  |  |
+| `stateful` _boolean_ |  |  |  |
+| `containers` _[ContainerSpec](#containerspec) array_ |  |  |  |
+| `service` _[ServiceSpec](#servicespec)_ |  |  |  |
+
+###### CleanupConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `deployments` _string array_ |  |  |  |
+| `services` _string array_ |  |  |  |
+| `reason` _string_ |  |  |  |
+
+###### GatewayConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `healthCheckEndpoint` _string_ |  | _healthcheck |  |
+
+###### AuthorizationConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `scopes` _[ScopeDefinition](#scopedefinition) array_ | OAuth/OIDC scopes available for this version |  |  |
+
+###### ScopeDefinition
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Scope name (e.g., "ledger:read", "ledger:write") |  |  |
+| `description` _string_ | Human-readable description |  |  |
+| `deprecated` _boolean_ | Whether this scope is deprecated |  |  |
+| `replacedBy` _string_ | Replacement scope name if deprecated |  |  |
+| `since` _string_ | Version when this scope was introduced |  |  |
+
+
+
+
+
+##### VersionManifestStatus
+
+
+
+VersionManifestStatus defines the observed state of VersionManifest
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `lastApplied` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#time-v1-meta)_ |  |  |  |
 
 
 #### Versions

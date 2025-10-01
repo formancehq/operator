@@ -1,0 +1,85 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: orchestration-v2-x
+  labels:
+    formance.com/component: orchestration
+    formance.com/generation: v2
+spec:
+  component: orchestration
+  versionRange: ">=v2.0.0-rc.5"
+  extends: "<v2.0.0-rc.5"
+
+  migration:
+    enabled: true
+    strategy: "strict"
+
+  architecture:
+    type: stateless
+    deployments:
+      - name: "orchestration"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "api"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "POSTGRES_DSN"
+                value: "$(POSTGRES_URI)"
+              - name: "WORKER"
+                value: "true"
+            conditionalEnvironment:
+              # Temporal configuration
+              - when: "settings.temporal.dsn != ''"
+                env:
+                  - name: "TEMPORAL_ADDRESS"
+                    valueFrom:
+                      settingKey: "temporal.dsn.host"
+                  - name: "TEMPORAL_NAMESPACE"
+                    valueFrom:
+                      settingKey: "temporal.dsn.namespace"
+                  - name: "TEMPORAL_TASK_QUEUE"
+                    value: "$(STACK_NAME)"
+
+              # Temporal TLS configuration
+              - when: "settings.temporal.tls.crt != ''"
+                env:
+                  - name: "TEMPORAL_SSL_CLIENT_CERT"
+                    valueFrom:
+                      settingKey: "temporal.tls.crt"
+                  - name: "TEMPORAL_SSL_CLIENT_KEY"
+                    valueFrom:
+                      settingKey: "temporal.tls.key"
+
+              # Init search attributes
+              - when: "settings.temporal.init-search-attributes == true"
+                env:
+                  - name: "TEMPORAL_INIT_SEARCH_ATTRIBUTES"
+                    value: "true"
+
+              # Max parallel activities
+              - when: "settings.orchestration.max-parallel-activities != ''"
+                env:
+                  - name: "TEMPORAL_MAX_PARALLEL_ACTIVITIES"
+                    valueFrom:
+                      settingKey: "orchestration.max-parallel-activities"
+
+  features:
+    broker: true
+    temporal: true
+    requiresAuth: true
+    workerSupport: true
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  authorization:
+    scopes:
+      # Inherit all v1 scopes and add nothing new in v2
+      # (v2 is just a migration improvement, no new API features)

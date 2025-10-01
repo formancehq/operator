@@ -1,0 +1,60 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: auth-v2-x
+  labels:
+    formance.com/component: auth
+    formance.com/generation: v2
+spec:
+  component: auth
+  versionRange: ">=v2.0.0-rc.5"
+  extends: "<v2.0.0-rc.5"
+
+  migration:
+    enabled: true
+    strategy: "strict"
+
+  architecture:
+    type: stateless
+    deployments:
+      - name: "auth"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "auth"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "CONFIG"
+                value: "/config/config.yaml"
+            conditionalEnvironment:
+              # Base URL configuration
+              - when: "settings.auth.base-url != ''"
+                env:
+                  - name: "BASE_URL"
+                    valueFrom:
+                      settingKey: "auth.base-url"
+
+              # Signing key from spec or secret
+              - when: "spec.signing-key != ''"
+                env:
+                  - name: "SIGNING_KEY"
+                    value: "$(AUTH_SIGNING_KEY)"
+
+  features:
+    requiresDatabase: true
+    requiresConfiguration: true
+    isOAuthProvider: true
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  authorization:
+    scopes:
+      # Inherit all v1 scopes
+      # (v2 is just a migration improvement, no new API features)

@@ -1,0 +1,71 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: search-v1-x
+  labels:
+    formance.com/component: search
+    formance.com/generation: v1
+spec:
+  component: search
+  versionRange: ">=v0.0.0"
+
+  migration:
+    enabled: false
+
+  architecture:
+    type: stateless
+    deployments:
+      - name: "search"
+        replicas: "auto"
+        stateful: false
+        containers:
+          - name: "search"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "ES_INDICES"
+                value: "stacks"
+            conditionalEnvironment:
+              # Elasticsearch/OpenSearch configuration
+              - when: "settings.elasticsearch.dsn != ''"
+                env:
+                  - name: "OPEN_SEARCH_SERVICE"
+                    valueFrom:
+                      settingKey: "elasticsearch.dsn.host"
+                  - name: "OPEN_SEARCH_SCHEME"
+                    valueFrom:
+                      settingKey: "elasticsearch.dsn.scheme"
+
+              # AWS IAM authentication
+              - when: "settings.aws.service-account != ''"
+                env:
+                  - name: "AWS_IAM_ENABLED"
+                    value: "true"
+
+              # Basic auth (when not using AWS IAM)
+              - when: "settings.elasticsearch.username != ''"
+                env:
+                  - name: "OPEN_SEARCH_USERNAME"
+                    valueFrom:
+                      settingKey: "elasticsearch.username"
+                  - name: "OPEN_SEARCH_PASSWORD"
+                    valueFrom:
+                      settingKey: "elasticsearch.password"
+
+  features:
+    requiresElasticsearch: true
+    requiresBenthos: true
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  authorization:
+    scopes:
+      - name: "search:read"
+        description: "Read from search index"
+        since: "v1.0.0"

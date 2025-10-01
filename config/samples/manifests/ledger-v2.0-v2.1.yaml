@@ -1,0 +1,69 @@
+apiVersion: formance.com/v1beta1
+kind: VersionManifest
+metadata:
+  name: ledger-v2.0-v2.1
+  labels:
+    formance.com/component: ledger
+    formance.com/generation: v2
+    formance.com/architecture: legacy
+spec:
+  component: ledger
+  versionRange: ">=v2.0.0 <v2.2.0"
+  envVarPrefix: "NUMARY_"
+
+  streams:
+    ingestion: "streams/ledger"
+    reindex: "assets/reindex/v1.0.0"
+
+  migration:
+    enabled: true
+    strategy: "strict"
+
+  architecture:
+    type: "single-or-multi-writer"
+    deployments:
+      - name: "ledger"
+        replicas: "auto"
+        stateful: true
+        containers:
+          - name: "ledger"
+            ports:
+              - name: "http"
+                port: 8080
+            healthCheck:
+              path: "/_healthcheck"
+              type: "http"
+            environment:
+              - name: "SERVER_HTTP_BIND_ADDRESS"
+                value: ":8080"
+              - name: "STORAGE_DRIVER"
+                value: "postgres"
+              - name: "STORAGE_POSTGRES_CONN_STRING"
+                value: "$(POSTGRES_URI)"
+            volumeMounts:
+              - name: "config"
+                mountPath: "/root/.numary"
+                readOnly: false
+
+  features:
+    redisLocking: true
+    analytics: false
+    experimentalExporters: false
+
+  gateway:
+    enabled: true
+    healthCheckEndpoint: "_healthcheck"
+
+  authorization:
+    scopes:
+      - name: "ledger:read"
+        description: "Read ledger transactions, accounts, and metadata"
+        since: "v2.0.0"
+
+      - name: "ledger:write"
+        description: "Create and modify transactions"
+        since: "v2.0.0"
+
+      - name: "ledger:admin"
+        description: "Administrative operations (delete, migrate)"
+        since: "v2.0.0"
