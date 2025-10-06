@@ -25,7 +25,8 @@ helm install operator ./helm/operator \
 ### Default Behavior
 
 - **Default value: `5`** (good balance for most clusters)
-- Set to `0` to disable the limit (unlimited concurrency)
+- Set to `0` to use controller-runtime default (typically 1 concurrent reconciliation)
+- For near-unlimited concurrency, set a high value like `1000`
 
 ## Recommended Values
 
@@ -82,8 +83,8 @@ helm upgrade operator ./helm/operator \
 
 ### Behavior
 
-**Without limit (default):**
-```
+**Without limit (when set to 0):**
+```text
 Stack A ──┐
 Stack B ──┤
 Stack C ──┼─> All processed in parallel
@@ -92,7 +93,7 @@ Stack E ──┘
 ```
 
 **With limit of 5:**
-```
+```text
 Stack A ──┐
 Stack B ──┤
 Stack C ──┼─> Max 5 in parallel
@@ -115,7 +116,7 @@ kubectl exec -n formance-system $POD -- env | grep MAX_CONCURRENT_RECONCILES
 ```
 
 Expected output:
-```
+```text
 MAX_CONCURRENT_RECONCILES=5
 ```
 
