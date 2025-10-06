@@ -25,8 +25,8 @@ helm install operator ./helm/operator \
 ### Default Behavior
 
 - **Default value: `5`** (good balance for most clusters)
-- Set to `0` to use controller-runtime default (typically 1 concurrent reconciliation)
-- For near-unlimited concurrency, set a high value like `1000`
+- Set to `0` for unlimited concurrency (mapped to 1000 internally)
+- Any positive value (1-999) sets that exact limit
 
 ## Recommended Values
 
@@ -230,6 +230,10 @@ spec:
 func GetMaxConcurrentReconciles() int {
     if v := os.Getenv("MAX_CONCURRENT_RECONCILES"); v != "" {
         if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+            if n == 0 {
+                // Treat 0 as "unlimited" by using a very high value
+                return 1000
+            }
             return n
         }
     }

@@ -234,8 +234,8 @@ func withReconciler[T client.Object](controller ObjectController[T], opts ...Rec
 			}
 		}
 
-		// Apply MaxConcurrentReconciles if specified (0 means use controller-runtime default)
-		if options.MaxConcurrentReconciles > 0 {
+		// Apply MaxConcurrentReconciles if specified (always apply when >= 0)
+		if options.MaxConcurrentReconciles >= 0 {
 			b = b.WithOptions(controllerconfig.Options{
 				MaxConcurrentReconciles: options.MaxConcurrentReconciles,
 			})

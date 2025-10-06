@@ -50,7 +50,7 @@ operator:
   enableLeaderElection: true
 
   # Maximum number of concurrent reconciliations (applies to all resources: stacks, modules, etc.)
-  # Set to 0 for unlimited
+  # Set to 0 for unlimited (mapped to 1000 internally)
   # Recommended values: 5 for small/medium clusters, 10 for large, 20 for XL
   # @section -- Concurrency Control
   maxConcurrentReconciles: 5
