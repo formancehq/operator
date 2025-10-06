@@ -126,6 +126,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithMaxConcurrentReconciles[*v1beta1.Payments](GetMaxConcurrentReconciles()),
 			WithFinalizer[*v1beta1.Payments]("clean-payments", Clean),
 			WithOwn[*v1beta1.Payments](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Payments](&corev1.Service{}),

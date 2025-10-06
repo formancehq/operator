@@ -1,8 +1,8 @@
-# Stack Concurrency Configuration
+# Concurrency Control Configuration
 
 ## Overview
 
-Control the number of Stack reconciliations that run in parallel to prevent cluster overload.
+Control the number of concurrent reconciliations (Stacks, Modules, and other resources) that run in parallel to prevent cluster overload and manage deployment pace.
 
 ## Configuration
 
@@ -12,14 +12,14 @@ Edit your `values.yaml` or use `--set`:
 
 ```yaml
 operator:
-  stackMaxConcurrent: 5  # Max 5 concurrent stack reconciliations
+  maxConcurrentReconciles: 5  # Max 5 concurrent reconciliations (all resources)
 ```
 
 Or with Helm command:
 
 ```bash
 helm install operator ./helm/operator \
-  --set operator.stackMaxConcurrent=5
+  --set operator.maxConcurrentReconciles=5
 ```
 
 ### Default Behavior
@@ -43,7 +43,7 @@ helm install operator ./helm/operator \
 ```yaml
 # values.yaml
 operator:
-  stackMaxConcurrent: 3
+  maxConcurrentReconciles: 3
 ```
 
 ```bash
@@ -55,7 +55,7 @@ helm upgrade operator ./helm/operator -f values.yaml
 ```yaml
 # values-prod.yaml
 operator:
-  stackMaxConcurrent: 10
+  maxConcurrentReconciles: 10
   enableLeaderElection: true
   region: "eu-west-1"
   env: "production"
@@ -69,16 +69,16 @@ helm upgrade operator ./helm/operator -f values-prod.yaml
 
 ```bash
 helm upgrade operator ./helm/operator \
-  --set operator.stackMaxConcurrent=5 \
+  --set operator.maxConcurrentReconciles=5 \
   --set operator.region=us-east-1
 ```
 
 ## How It Works
 
-1. The Helm chart sets the `STACK_MAX_CONCURRENT` environment variable
+1. The Helm chart sets the `MAX_CONCURRENT_RECONCILES` environment variable
 2. The operator reads this value on startup
-3. Stack reconciliations are limited to N concurrent executions
-4. Additional stacks are queued automatically by Kubernetes
+3. All reconciliations (Stacks, Modules like Ledger/Payments, etc.) are limited to N concurrent executions
+4. Additional reconciliations are queued automatically by Kubernetes
 
 ### Behavior
 
@@ -111,12 +111,12 @@ Check if the environment variable is set:
 POD=$(kubectl get pods -n formance-system -l control-plane=formance-controller-manager -o jsonpath='{.items[0].metadata.name}')
 
 # Check environment variables
-kubectl exec -n formance-system $POD -- env | grep STACK_MAX_CONCURRENT
+kubectl exec -n formance-system $POD -- env | grep MAX_CONCURRENT_RECONCILES
 ```
 
 Expected output:
 ```
-STACK_MAX_CONCURRENT=5
+MAX_CONCURRENT_RECONCILES=5
 ```
 
 ## Troubleshooting
@@ -130,7 +130,7 @@ STACK_MAX_CONCURRENT=5
 
 2. **Verify deployment:**
    ```bash
-   kubectl get deployment operator-manager -n formance-system -o yaml | grep -A 2 "STACK_MAX_CONCURRENT"
+   kubectl get deployment operator-manager -n formance-system -o yaml | grep -A 2 "MAX_CONCURRENT_RECONCILES"
    ```
 
 3. **Restart pods to apply changes:**
@@ -176,17 +176,17 @@ kubectl logs -n formance-system -l control-plane=formance-controller-manager -f
 ```yaml
 # values-dev.yaml
 operator:
-  stackMaxConcurrent: 2
+  maxConcurrentReconciles: 2
   env: "dev"
 
 # values-staging.yaml
 operator:
-  stackMaxConcurrent: 5
+  maxConcurrentReconciles: 5
   env: "staging"
 
 # values-prod.yaml
 operator:
-  stackMaxConcurrent: 10
+  maxConcurrentReconciles: 10
   env: "production"
 ```
 
@@ -208,7 +208,7 @@ spec:
     helm:
       values: |
         operator:
-          stackMaxConcurrent: 5
+          maxConcurrentReconciles: 5
           region: "eu-west-1"
           env: "production"
 ```
@@ -217,26 +217,30 @@ spec:
 
 ### Implementation
 
-- **Environment Variable:** `STACK_MAX_CONCURRENT`
-- **Read by:** `internal/resources/stacks/config.go::GetStackConcurrency()`
-- **Applied in:** `internal/resources/stacks/init.go`
+- **Environment Variable:** `MAX_CONCURRENT_RECONCILES`
+- **Read by:** `internal/core/concurrency.go::GetMaxConcurrentReconciles()`
+- **Applied in:** All reconcilers (Stacks, Modules, Resources)
 - **Uses:** Native controller-runtime `MaxConcurrentReconciles`
 
 ### Source Code
 
 ```go
-// internal/resources/stacks/config.go
-func GetStackConcurrency() int {
-    if v := os.Getenv("STACK_MAX_CONCURRENT"); v != "" {
-        if n, err := strconv.Atoi(v); err == nil && n > 0 {
+// internal/core/concurrency.go
+func GetMaxConcurrentReconciles() int {
+    if v := os.Getenv("MAX_CONCURRENT_RECONCILES"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil && n >= 0 {
             return n
         }
     }
-    return 0 // Default: unlimited
+    return 5 // Default: 5 concurrent reconciliations
 }
 ```
 
-## Related Documentation
+## What This Controls
 
-- [How to Limit Concurrent Stacks](../../docs/HOW_TO_LIMIT_CONCURRENT_STACKS.md)
-- [Concurrent Limit Implementation](../../CONCURRENT_LIMIT_IMPLEMENTATION.md)
+This setting limits **all types** of reconciliations:
+- **Stack reconciliations**: Namespace creation, configuration updates
+- **Module reconciliations**: Ledger, Payments, Wallets, Gateway, etc. deployments
+- **Resource reconciliations**: Database, Broker, BrokerTopic management
+
+This prevents "big bang" deployments where all resources are processed simultaneously.

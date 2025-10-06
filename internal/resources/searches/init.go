@@ -237,6 +237,7 @@ func createConsumers(ctx Context, search *v1beta1.Search) error {
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithMaxConcurrentReconciles[*v1beta1.Search](GetMaxConcurrentReconciles()),
 			WithWatchSettings[*v1beta1.Search](),
 			WithOwn[*v1beta1.Search](&v1beta1.BrokerConsumer{}),
 			WithOwn[*v1beta1.Search](&v1beta1.ResourceReference{}),

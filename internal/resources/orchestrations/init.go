@@ -88,6 +88,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, vers
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithMaxConcurrentReconciles[*v1beta1.Orchestration](GetMaxConcurrentReconciles()),
 			WithOwn[*v1beta1.Orchestration](&v1beta1.BrokerConsumer{}),
 			WithOwn[*v1beta1.Orchestration](&v1beta1.AuthClient{}),
 			WithOwn[*v1beta1.Orchestration](&appsv1.Deployment{}),

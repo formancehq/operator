@@ -49,11 +49,11 @@ operator:
   # Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.
   enableLeaderElection: true
 
-  # Maximum number of concurrent stack reconciliations
+  # Maximum number of concurrent reconciliations (applies to all resources: stacks, modules, etc.)
   # Set to 0 for unlimited
   # Recommended values: 5 for small/medium clusters, 10 for large, 20 for XL
-  # @section -- Stack Concurrency
-  stackMaxConcurrent: 5
+  # @section -- Concurrency Control
+  maxConcurrentReconciles: 5
 
   utils:
     tag: ""

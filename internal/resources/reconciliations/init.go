@@ -77,6 +77,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconc
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithMaxConcurrentReconciles[*v1beta1.Reconciliation](GetMaxConcurrentReconciles()),
 			WithOwn[*v1beta1.Reconciliation](&v1beta1.Database{}),
 			WithOwn[*v1beta1.Reconciliation](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Reconciliation](&v1beta1.AuthClient{}),
