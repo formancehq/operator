@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	controllerconfig "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"k8s.io/client-go/util/workqueue"
@@ -61,10 +62,11 @@ type finalizerConfig[T client.Object] struct {
 }
 
 type ReconcilerOptions[T client.Object] struct {
-	Owns       map[client.Object][]builder.OwnsOption
-	Watchers   map[client.Object]ReconcilerOptionsWatch
-	Finalizers []finalizerConfig[T]
-	Raws       []func(Context, *builder.Builder) error
+	Owns                    map[client.Object][]builder.OwnsOption
+	Watchers                map[client.Object]ReconcilerOptionsWatch
+	Finalizers              []finalizerConfig[T]
+	Raws                    []func(Context, *builder.Builder) error
+	MaxConcurrentReconciles int
 }
 
 type ReconcilerOption[T client.Object] func(*ReconcilerOptions[T])
@@ -78,6 +80,12 @@ func WithOwn[T client.Object](v client.Object, opts ...builder.OwnsOption) Recon
 func WithRaw[T client.Object](fn func(Context, *builder.Builder) error) ReconcilerOption[T] {
 	return func(options *ReconcilerOptions[T]) {
 		options.Raws = append(options.Raws, fn)
+	}
+}
+
+func WithMaxConcurrentReconciles[T client.Object](max int) ReconcilerOption[T] {
+	return func(options *ReconcilerOptions[T]) {
+		options.MaxConcurrentReconciles = max
 	}
 }
 
@@ -224,6 +232,13 @@ func withReconciler[T client.Object](controller ObjectController[T], opts ...Rec
 			if err := raw(NewContext(mgr, context.Background()), b); err != nil {
 				return err
 			}
+		}
+
+		// Appliquer MaxConcurrentReconciles si spécifié
+		if options.MaxConcurrentReconciles > 0 {
+			b = b.WithOptions(controllerconfig.Options{
+				MaxConcurrentReconciles: options.MaxConcurrentReconciles,
+			})
 		}
 
 		return b.Complete(reconcile.Func(reconcileObject(mgr, controller, options)))

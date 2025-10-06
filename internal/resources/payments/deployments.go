@@ -290,7 +290,7 @@ func createFullDeployment(
 	return nil
 }
 
-func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, env []v1.EnvVar, appOpts applications.ProbeOpts, ) error {
+func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, env []v1.EnvVar, appOpts applications.ProbeOpts) error {
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
 		return err

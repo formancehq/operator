@@ -184,7 +184,7 @@ func createDeployment(
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
-					ImagePullSecrets: imageConfiguration.PullSecrets,
+					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					ServiceAccountName: serviceAccountName,
 					Containers: []corev1.Container{{
 						Name:          "api",

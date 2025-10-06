@@ -81,6 +81,11 @@ spec:
               port: {{ regexReplaceAll ":" .Values.operator.probeAddr "" | default "8081" }}
             initialDelaySeconds: 5
             periodSeconds: 10
+          {{- if .Values.operator.stackMaxConcurrent }}
+          env:
+            - name: STACK_MAX_CONCURRENT
+              value: {{ .Values.operator.stackMaxConcurrent | quote }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if .Values.webhooks.enabled }}

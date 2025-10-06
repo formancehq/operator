@@ -366,6 +366,7 @@ func init() {
 		}),
 		WithStdReconciler(Reconcile,
 			WithOwn[*v1beta1.Stack](&corev1.Namespace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})),
+			WithMaxConcurrentReconciles[*v1beta1.Stack](GetStackConcurrency()),
 			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
 				for _, rtype := range ctx.GetScheme().AllKnownTypes() {
 					v := reflect.New(rtype).Interface()
