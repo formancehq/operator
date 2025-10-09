@@ -375,7 +375,7 @@ spec:
 ```
 
 
-Note: Settings take priority over the `auth.checkScopes` field in module specifications.
+Note: The `auth.checkScopes` field in module specifications takes priority over Settings when specified.
 
 
 
