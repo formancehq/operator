@@ -47,7 +47,7 @@ var _ = Describe("AuthScopesSettings", func() {
 		})
 
 		AfterEach(func() {
-			Expect(Delete(stack, databaseSettings)).To(Succeed())
+			Expect(Delete(ledger, auth, stack, databaseSettings)).To(Succeed())
 		})
 
 		Context("with specific module Settings", func() {
