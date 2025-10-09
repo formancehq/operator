@@ -244,6 +244,9 @@ type AuthConfig struct {
 	// +optional
 	ReadKeySetMaxRetries int `json:"readKeySetMaxRetries"`
 	// +optional
+	// Deprecated: Use Settings with key `auth.<module-name>.check-scopes` or `auth.*.check-scopes` instead.
+	// This field is maintained for backward compatibility and will be removed in a future version.
+	// Settings take priority over this field.
 	CheckScopes bool `json:"checkScopes"`
 }
 

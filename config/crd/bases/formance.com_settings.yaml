@@ -68,7 +68,17 @@ spec:
           `logging.json` with the value `true` to configure elligible service to log
           as json.\nExample:\n```yaml\napiVersion: formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\n\tname:
           json-logging\n\n\nspec:\n\n\n\tkey: logging.json\n\tstacks:\n\t- '*'\n\tvalue:
-          \"true\"\n\n\n```"
+          \"true\"\n\n\n```\n\n\n###### Authentication scopes\n\n\nYou can enable
+          scope verification for modules using the setting `auth.<module-name>.check-scopes`
+          or `auth.*.check-scopes` for all modules.\nWhen enabled, modules will verify
+          that authenticated requests include the required scopes for the requested
+          operation.\n\n\nExample to enable scope verification for all modules:\n```yaml\napiVersion:
+          formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\n\tname: enable-scopes-all\n\n\nspec:\n\n\n\tkey:
+          auth.*.check-scopes\n\tstacks:\n\t- '*'\n\tvalue: \"true\"\n\n\n```\n\n\nExample
+          to enable scope verification only for the ledger module:\n```yaml\napiVersion:
+          formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\n\tname: enable-scopes-ledger\n\n\nspec:\n\n\n\tkey:
+          auth.ledger.check-scopes\n\tstacks:\n\t- production\n\tvalue: \"true\"\n\n\n```\n\n\nNote:
+          Settings take priority over the `auth.checkScopes` field in module specifications."
         properties:
           apiVersion:
             description: |-

@@ -159,6 +159,47 @@ type SettingsSpec struct {
 //	value: "true"
 //
 // ```
+//
+// ###### Authentication scopes
+//
+// You can enable scope verification for modules using the setting `auth.<module-name>.check-scopes` or `auth.*.check-scopes` for all modules.
+// When enabled, modules will verify that authenticated requests include the required scopes for the requested operation.
+//
+// Example to enable scope verification for all modules:
+// ```yaml
+// apiVersion: formance.com/v1beta1
+// kind: Settings
+// metadata:
+//
+//	name: enable-scopes-all
+//
+// spec:
+//
+//	key: auth.*.check-scopes
+//	stacks:
+//	- '*'
+//	value: "true"
+//
+// ```
+//
+// Example to enable scope verification only for the ledger module:
+// ```yaml
+// apiVersion: formance.com/v1beta1
+// kind: Settings
+// metadata:
+//
+//	name: enable-scopes-ledger
+//
+// spec:
+//
+//	key: auth.ledger.check-scopes
+//	stacks:
+//	- production
+//	value: "true"
+//
+// ```
+//
+// Note: Settings take priority over the `auth.checkScopes` field in module specifications.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
