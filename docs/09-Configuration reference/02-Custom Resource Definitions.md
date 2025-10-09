@@ -336,12 +336,20 @@ Example to enable scope verification for all modules:
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
-  name: enable-scopes-all
+
+
+	name: enable-scopes-all
+
+
 spec:
-  key: auth.*.check-scopes
-  stacks:
-  - '*'
-  value: "true"
+
+
+	key: auth.*.check-scopes
+	stacks:
+	- '*'
+	value: "true"
+
+
 ```
 
 
@@ -350,12 +358,20 @@ Example to enable scope verification only for the ledger module:
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
-  name: enable-scopes-ledger
+
+
+	name: enable-scopes-ledger
+
+
 spec:
-  key: auth.ledger.check-scopes
-  stacks:
-  - production
-  value: "true"
+
+
+	key: auth.ledger.check-scopes
+	stacks:
+	- production
+	value: "true"
+
+
 ```
 
 
