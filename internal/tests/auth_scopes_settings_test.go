@@ -100,7 +100,7 @@ var _ = Describe("AuthScopesSettings", func() {
 			})
 		})
 
-		Context("with Settings priority over module spec", func() {
+		Context("with module spec priority over Settings", func() {
 			var (
 				scopesSettings *v1beta1.Settings
 			)
@@ -118,13 +118,14 @@ var _ = Describe("AuthScopesSettings", func() {
 			AfterEach(func() {
 				Expect(Delete(scopesSettings)).To(Succeed())
 			})
-			It("Should NOT add AUTH_CHECK_SCOPES env vars (Settings takes priority)", func() {
+			It("Should add AUTH_CHECK_SCOPES env vars (module spec takes priority)", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func(g Gomega) []corev1.EnvVar {
 					g.Expect(Get(core.GetNamespacedResourceName(stack.Name, "ledger"), deployment)).To(Succeed())
 					return deployment.Spec.Template.Spec.Containers[0].Env
-				}).ShouldNot(ContainElements(
+				}).Should(ContainElements(
 					core.Env("AUTH_CHECK_SCOPES", "true"),
+					core.Env("AUTH_SERVICE", "ledger"),
 				))
 			})
 		})

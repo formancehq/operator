@@ -61,12 +61,17 @@ func ProtectedAPIEnvVarsWithPrefix(ctx Context, stack *v1beta1.Stack, moduleName
 
 // shouldCheckScopes determines if scope verification should be enabled for a module.
 // Priority order:
-// 1. Settings with specific module name: auth.<module-name>.check-scopes
-// 2. Settings with wildcard: auth.*.check-scopes
-// 3. Module spec field: auth.CheckScopes
+// 1. Module spec field: auth.CheckScopes (if auth is not nil and CheckScopes is true)
+// 2. Settings with specific module name: auth.<module-name>.check-scopes
+// 3. Settings with wildcard: auth.*.check-scopes
 // 4. Default: false
 func shouldCheckScopes(ctx Context, stackName, moduleName string, auth *v1beta1.AuthConfig) (bool, error) {
-	// Check Settings first (supports both specific module and wildcard)
+	// First, check module spec (highest priority)
+	if auth != nil && auth.CheckScopes {
+		return true, nil
+	}
+
+	// Otherwise, fallback to Settings (supports both specific module and wildcard)
 	checkScopesFromSettings, err := settings.GetBool(ctx, stackName, "auth", moduleName, "check-scopes")
 	if err != nil {
 		return false, err
@@ -75,11 +80,6 @@ func shouldCheckScopes(ctx Context, stackName, moduleName string, auth *v1beta1.
 	// If Settings exists, use it
 	if checkScopesFromSettings != nil {
 		return *checkScopesFromSettings, nil
-	}
-
-	// Otherwise, fallback to module spec field
-	if auth != nil && auth.CheckScopes {
-		return true, nil
 	}
 
 	return false, nil

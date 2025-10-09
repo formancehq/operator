@@ -246,7 +246,7 @@ type AuthConfig struct {
 	// +optional
 	// Deprecated: Use Settings with key `auth.<module-name>.check-scopes` or `auth.*.check-scopes` instead.
 	// This field is maintained for backward compatibility and will be removed in a future version.
-	// Settings take priority over this field.
+	// This field takes priority over Settings when specified.
 	CheckScopes bool `json:"checkScopes"`
 }
 

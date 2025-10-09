@@ -78,7 +78,8 @@ spec:
           to enable scope verification only for the ledger module:\n```yaml\napiVersion:
           formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\n\tname: enable-scopes-ledger\n\n\nspec:\n\n\n\tkey:
           auth.ledger.check-scopes\n\tstacks:\n\t- production\n\tvalue: \"true\"\n\n\n```\n\n\nNote:
-          Settings take priority over the `auth.checkScopes` field in module specifications."
+          The `auth.checkScopes` field in module specifications takes priority over
+          Settings when specified."
         properties:
           apiVersion:
             description: |-

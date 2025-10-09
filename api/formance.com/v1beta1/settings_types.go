@@ -199,7 +199,7 @@ type SettingsSpec struct {
 //
 // ```
 //
-// Note: Settings take priority over the `auth.checkScopes` field in module specifications.
+// Note: The `auth.checkScopes` field in module specifications takes priority over Settings when specified.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
