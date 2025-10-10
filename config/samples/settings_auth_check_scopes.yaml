@@ -1,0 +1,54 @@
+# Example 1: Enable scope verification for all modules in all stacks
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: enable-scopes-all
+spec:
+  key: auth.*.check-scopes
+  stacks:
+    - "*"
+  value: "true"
+---
+# Example 2: Enable scope verification only for the ledger module in the production stack
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: enable-scopes-ledger-production
+spec:
+  key: auth.ledger.check-scopes
+  stacks:
+    - production
+  value: "true"
+---
+# Example 3: Enable scope verification for payments and wallets modules in staging
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: enable-scopes-payments-staging
+spec:
+  key: auth.payments.check-scopes
+  stacks:
+    - staging
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: enable-scopes-wallets-staging
+spec:
+  key: auth.wallets.check-scopes
+  stacks:
+    - staging
+  value: "true"
+---
+# Example 4: Disable scope verification for a specific module (override wildcard setting)
+# This is useful if you have a global wildcard setting but want to disable it for one module
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: disable-scopes-orchestration
+spec:
+  key: auth.orchestration.check-scopes
+  stacks:
+    - "*"
+  value: "false"
