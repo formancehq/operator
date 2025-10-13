@@ -150,6 +150,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithMaxConcurrentReconciles[*v1beta1.Ledger](GetMaxConcurrentReconciles()),
 			WithOwn[*v1beta1.Ledger](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.Job{}),
 			WithOwn[*v1beta1.Ledger](&corev1.Service{}),

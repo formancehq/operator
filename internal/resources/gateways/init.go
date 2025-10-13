@@ -87,6 +87,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithMaxConcurrentReconciles[*v1beta1.Gateway](GetMaxConcurrentReconciles()),
 			WithOwn[*v1beta1.Gateway](&corev1.ConfigMap{}),
 			WithOwn[*v1beta1.Gateway](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Gateway](&corev1.Service{}),
