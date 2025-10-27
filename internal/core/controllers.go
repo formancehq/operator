@@ -47,7 +47,7 @@ func ForObjectController[T v1beta1.Object](controller ObjectController[T]) Objec
 						str += "/" + condition.Reason
 					}
 
-					setStatus(NewPendingError().WithMessage("pending condition: " + str))
+					setStatus(NewPendingError().WithMessage("%s", "pending condition: "+str))
 					return nil
 				}
 			}
