@@ -37,7 +37,7 @@ func NewPendingError() *ApplicationError {
 }
 
 func NewMissingSettingsError(msg string) *ApplicationError {
-	return NewApplicationError().WithMessage(msg)
+	return NewApplicationError().WithMessage("%s", msg)
 }
 
 func IsApplicationError(err error) bool {
