@@ -201,9 +201,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 	logger := log.FromContext(ctx)
 	logger = logger.WithValues("stack", stack.Name)
 	logger.Info("Reconcile stack")
+
+	// Generate namespace name with optional prefix
+	namespaceName := GetNamespaceName(ctx.GetPlatform(), stack.Name)
+
 	if _, _, err := CreateOrUpdate(ctx,
 		types.NamespacedName{
-			Name: stack.Name,
+			Name: namespaceName,
 		},
 		namespaceLabel(ctx, stack.Name),
 		namespaceAnnotations(ctx, stack.Name),

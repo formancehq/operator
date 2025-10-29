@@ -166,10 +166,10 @@ func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Pay
 
 func uninstallPaymentsReadAndConnectors(ctx core.Context, stack *v1beta1.Stack) error {
 	remove := func(name string) error {
-		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceNameWithPrefix(ctx.GetPlatform(), stack.Name, name)); err != nil {
 			return err
 		}
-		if err := core.DeleteIfExists[*corev1.Service](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+		if err := core.DeleteIfExists[*corev1.Service](ctx, core.GetNamespacedResourceNameWithPrefix(ctx.GetPlatform(), stack.Name, name)); err != nil {
 			return err
 		}
 

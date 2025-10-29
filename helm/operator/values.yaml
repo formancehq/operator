@@ -48,6 +48,8 @@ operator:
   probeAddr: ":8081"
   # Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.
   enableLeaderElection: true
+  # The namespace prefix to use when creating namespaces (format: <prefix><organisationID>-<stackID>)
+  namespacePrefix: ""
 
   utils:
     tag: ""

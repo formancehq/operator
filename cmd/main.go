@@ -67,6 +67,7 @@ func main() {
 		env                  string
 		licenceSecret        string
 		utilsVersion         string
+		namespacePrefix      string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -77,6 +78,7 @@ func main() {
 	flag.StringVar(&env, "env", "staging", "The current environment in use for the operator")
 	flag.StringVar(&licenceSecret, "licence-secret", "", "The licence secret that contains the token and the issuer")
 	flag.StringVar(&utilsVersion, "utils-version", "latest", "The version of the operator utils image")
+	flag.StringVar(&namespacePrefix, "namespace-prefix", "", "The prefix to use when creating namespaces (format: <prefix><organisationID>-<stackID>)")
 	opts := zap.Options{
 		Development: false,
 	}
@@ -119,10 +121,11 @@ func main() {
 	}
 
 	platform := core.Platform{
-		Region:        region,
-		Environment:   env,
-		LicenceSecret: licenceSecret,
-		UtilsVersion:  utilsVersion,
+		Region:          region,
+		Environment:     env,
+		LicenceSecret:   licenceSecret,
+		UtilsVersion:    utilsVersion,
+		NamespacePrefix: namespacePrefix,
 	}
 
 	if err := core.Setup(mgr, platform); err != nil {

@@ -213,7 +213,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 
 		object := &unstructured.Unstructured{}
 		object.SetGroupVersionKind(kinds[0])
-		object.SetNamespace(stack.Name)
+		object.SetNamespace(GetNamespaceName(ctx.GetPlatform(), stack.Name))
 		object.SetName("benthos-audit")
 		if err := client.IgnoreNotFound(ctx.GetClient().Delete(ctx, object)); err != nil {
 			return errors.Wrap(err, "deleting audit config map")

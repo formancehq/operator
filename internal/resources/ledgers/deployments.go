@@ -66,7 +66,7 @@ func hasDeploymentStrategyChanged(ctx core.Context, stack *v1beta1.Stack, ledger
 	case v1beta1.DeploymentStrategySingle:
 		return uninstallLedgerMonoWriterMultipleReader(ctx, stack)
 	case v1beta1.DeploymentStrategyMonoWriterMultipleReader:
-		return core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, "ledger"))
+		return core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceNameWithPrefix(ctx.GetPlatform(), stack.Name, "ledger"))
 	default:
 		return fmt.Errorf("unknown deployment strategy %s", strategy)
 	}
@@ -385,10 +385,10 @@ func installLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.Stac
 func uninstallLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.Stack) error {
 
 	remove := func(name string) error {
-		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceNameWithPrefix(ctx.GetPlatform(), stack.Name, name)); err != nil {
 			return err
 		}
-		if err := core.DeleteIfExists[*corev1.Service](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+		if err := core.DeleteIfExists[*corev1.Service](ctx, core.GetNamespacedResourceNameWithPrefix(ctx.GetPlatform(), stack.Name, name)); err != nil {
 			return err
 		}
 
@@ -403,7 +403,7 @@ func uninstallLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.St
 		return err
 	}
 
-	if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, "ledger-gateway")); err != nil {
+	if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceNameWithPrefix(ctx.GetPlatform(), stack.Name, "ledger-gateway")); err != nil {
 		return err
 	}
 
