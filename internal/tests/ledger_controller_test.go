@@ -231,7 +231,7 @@ var _ = Describe("LedgerController", func() {
 		Context("With database connection pool settings", func() {
 			var connectionPoolSettings *v1beta1.Settings
 			BeforeEach(func() {
-				connectionPoolSettings = settings.New(uuid.NewString(), "modules.ledger.database.connection-pool", "max-idle=10, max-idle-time=10s, max-open=10", stack.Name)
+				connectionPoolSettings = settings.New(uuid.NewString(), "modules.ledger.database.connection-pool", "max-idle=10, max-idle-time=10s, max-open=10, max-lifetime=5m", stack.Name)
 			})
 			JustBeforeEach(func() {
 				Expect(Create(connectionPoolSettings)).To(Succeed())
@@ -257,6 +257,10 @@ var _ = Describe("LedgerController", func() {
 						corev1.EnvVar{
 							Name:  "POSTGRES_MAX_OPEN_CONNS",
 							Value: "10",
+						},
+						corev1.EnvVar{
+							Name:  "POSTGRES_CONN_MAX_LIFETIME",
+							Value: "5m",
 						},
 					),
 				)
