@@ -380,6 +380,30 @@ func (a Application) withJsonLogging(ctx core.Context) core.ObjectMutator[*appsv
 	}
 }
 
+func (a Application) withNodeIP(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		nodeIPEnvVar := corev1.EnvVar{
+			Name: "NODE_IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.hostIP",
+				},
+			},
+		}
+
+		for i, container := range deployment.Spec.Template.Spec.InitContainers {
+			container.Env = append(container.Env, nodeIPEnvVar)
+			deployment.Spec.Template.Spec.InitContainers[i] = container
+		}
+		for i, container := range deployment.Spec.Template.Spec.Containers {
+			container.Env = append(container.Env, nodeIPEnvVar)
+			deployment.Spec.Template.Spec.Containers[i] = container
+		}
+
+		return nil
+	}
+}
+
 func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[string]string) error {
 	condition := v1beta1.Condition{
 		Type:               "DeploymentReady",
@@ -402,6 +426,7 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		a.withEELicence(ctx),
 		a.withTopologySpreadConstraints(ctx),
 		a.withJsonLogging(ctx),
+		a.withNodeIP(ctx),
 		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
 	)
 
