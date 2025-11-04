@@ -99,6 +99,13 @@ func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database 
 		}
 		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_MAX_OPEN_CONNS", prefix), config.MaxOpen))
 	}
+	if config.MaxLifetime != "" {
+		_, err := time.ParseDuration(config.MaxLifetime)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot parse max lifetime value")
+		}
+		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_CONN_MAX_LIFETIME", prefix), config.MaxLifetime))
+	}
 
 	return ret, nil
 }
@@ -107,4 +114,5 @@ type connectionPoolConfiguration struct {
 	MaxIdle     string `json:"max-idle,omitempty"`
 	MaxIdleTime string `json:"max-idle-time,omitempty"`
 	MaxOpen     string `json:"max-open,omitempty"`
+	MaxLifetime string `json:"max-lifetime,omitempty"`
 }
