@@ -42,10 +42,10 @@ generate-mock:
 
 helm-update:
   rm -f helm/operator/templates/gen/*
-  rm -f helm/crds/crds/*
+  rm -f helm/crds/templates/crds/*
 
   kustomize build config/default --output helm/operator/templates/gen
-  kustomize build config/crd --output helm/crds/crds
+  kustomize build config/crd --output helm/crds/templates/crds
 
   rm -f helm/operator/templates/gen/v1_namespace*.yaml
   rm -f helm/operator/templates/gen/apps_v1_deployment_*.yaml
