@@ -3,6 +3,7 @@ package settings
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -13,8 +14,14 @@ import (
 	"github.com/formancehq/go-libs/v2/pointer"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+var (
+	ErrResourceNotFound         = errors.New("resource not found")
+	ErrOptionalResourceNotFound = errors.New("optional resource not found")
 )
 
 func Get(ctx core.Context, stack string, keys ...string) (*string, error) {
@@ -23,7 +30,7 @@ func Get(ctx core.Context, stack string, keys ...string) (*string, error) {
 		"stack":  stack,
 		"keylen": fmt.Sprint(len(keys)),
 	}); err != nil {
-		return nil, errors.Wrap(err, "listings settings")
+		return nil, fmt.Errorf("listings settings: %w", err)
 	}
 
 	allSettingsTargetingAllStacks := &v1beta1.SettingsList{}
@@ -31,10 +38,10 @@ func Get(ctx core.Context, stack string, keys ...string) (*string, error) {
 		"stack":  "*",
 		"keylen": fmt.Sprint(len(keys)),
 	}); err != nil {
-		return nil, errors.Wrap(err, "listings settings")
+		return nil, fmt.Errorf("listings settings: %w", err)
 	}
 
-	return findMatchingSettings(append(allSettingsTargetingStack.Items, allSettingsTargetingAllStacks.Items...), keys...)
+	return findMatchingSettings(ctx, stack, append(allSettingsTargetingStack.Items, allSettingsTargetingAllStacks.Items...), keys...)
 }
 
 func GetString(ctx core.Context, stack string, keys ...string) (*string, error) {
@@ -383,8 +390,7 @@ func GetMapOrEmpty(ctx core.Context, stack string, keys ...string) (map[string]s
 	return value, nil
 }
 
-func findMatchingSettings(settings []v1beta1.Settings, flattenKeys ...string) (*string, error) {
-
+func findMatchingSettings(ctx core.Context, stack string, settings []v1beta1.Settings, flattenKeys ...string) (*string, error) {
 	// Keys can be passed as "a.b.c", instead of "a", "b", "c"
 	// Keys can be passed as "a.b.*", instead of "a", "b", "*"
 	// Keys can be passed as "a.*.c", instead of "a", "*", "c"
@@ -393,11 +399,107 @@ func findMatchingSettings(settings []v1beta1.Settings, flattenKeys ...string) (*
 
 	for _, setting := range settings {
 		if matchSetting(setting, flattenKeys...) {
-			return &setting.Spec.Value, nil
+			// Value takes precedence over ValueFrom (consistent with Kubernetes EnvVar behavior)
+			if setting.Spec.Value != "" {
+				return &setting.Spec.Value, nil
+			}
+			if setting.Spec.ValueFrom != nil {
+				// Resolve value from secret or configmap
+				value, err := resolveValueFrom(ctx, stack, setting.Spec.ValueFrom)
+				if err != nil {
+					if errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrOptionalResourceNotFound) {
+						// Try fallback to formance-system namespace
+						value, err2 := resolveValueFrom(ctx, "formance-system", setting.Spec.ValueFrom)
+						if err2 == nil {
+							return &value, nil
+						}
+
+						if errors.Is(err, ErrOptionalResourceNotFound) {
+							// Optional resource not found, return empty string
+							empty := ""
+							return &empty, nil
+						}
+						err = fmt.Errorf("%w: %w", err, err2)
+					}
+					return nil, fmt.Errorf("resolving valueFrom for setting '%s': %w", setting.Name, err)
+				}
+				return &value, nil
+			}
+			// Both Value and ValueFrom are empty, skip this setting
+			continue
 		}
 	}
 
 	return nil, nil
+}
+
+func resolveValueFrom(ctx core.Context, namespace string, valueFrom *v1beta1.ValueFrom) (string, error) {
+	if valueFrom == nil {
+		return "", errors.New("valueFrom is nil")
+	}
+
+	if valueFrom.SecretKeyRef != nil {
+		secret := &corev1.Secret{}
+		secretName := valueFrom.SecretKeyRef.Name
+		key := valueFrom.SecretKeyRef.Key
+		tSec := types.NamespacedName{
+			Namespace: namespace,
+			Name:      secretName,
+		}
+
+		err := ctx.GetClient().Get(ctx, tSec, secret)
+		if err != nil {
+			if valueFrom.SecretKeyRef.Optional != nil && *valueFrom.SecretKeyRef.Optional && client.IgnoreNotFound(err) == nil {
+				return "", ErrOptionalResourceNotFound
+			}
+			return "", fmt.Errorf("%w: namespace '%s': %w", ErrResourceNotFound, namespace, err)
+		}
+
+		value, ok := secret.Data[key]
+		if !ok {
+			if valueFrom.SecretKeyRef.Optional != nil && *valueFrom.SecretKeyRef.Optional {
+				return "", ErrOptionalResourceNotFound
+			}
+			return "", fmt.Errorf("key '%s' not found in secret '%s/%s'", key, namespace, secretName)
+		}
+
+		return string(value), nil
+	}
+
+	if valueFrom.ConfigMapKeyRef != nil {
+		configMap := &corev1.ConfigMap{}
+		configMapName := valueFrom.ConfigMapKeyRef.Name
+		key := valueFrom.ConfigMapKeyRef.Key
+		tConf := types.NamespacedName{
+			Namespace: namespace,
+			Name:      configMapName,
+		}
+
+		err := ctx.GetClient().Get(ctx, tConf, configMap)
+		if err != nil {
+			if valueFrom.ConfigMapKeyRef.Optional != nil && *valueFrom.ConfigMapKeyRef.Optional && client.IgnoreNotFound(err) == nil {
+				return "", ErrOptionalResourceNotFound
+			}
+			return "", fmt.Errorf("%w: namespace '%s': %w", ErrResourceNotFound, namespace, err)
+		}
+
+		value, ok := configMap.Data[key]
+		if !ok {
+			// Try binary data as well
+			valueBytes, ok := configMap.BinaryData[key]
+			if ok {
+				return string(valueBytes), nil
+			}
+			if valueFrom.ConfigMapKeyRef.Optional != nil && *valueFrom.ConfigMapKeyRef.Optional {
+				return "", ErrOptionalResourceNotFound
+			}
+			return "", fmt.Errorf("key '%s' not found in configmap '%s/%s'", key, namespace, configMapName)
+		}
+
+		return value, nil
+	}
+
+	return "", errors.New("valueFrom must specify either secretKeyRef or configMapKeyRef")
 }
 
 func matchSetting(setting v1beta1.Settings, keys ...string) bool {

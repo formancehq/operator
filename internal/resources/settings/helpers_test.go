@@ -1,12 +1,30 @@
 package settings
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
+	"net/http"
+
 	. "github.com/formancehq/go-libs/v2/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 func TestSplitKeywordWithDot(t *testing.T) {
@@ -189,7 +207,7 @@ func TestFindMatchingSettings(t *testing.T) {
 		tc := tc
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			t.Parallel()
-			value, err := findMatchingSettings(Map(tc.settings, func(from settings) v1beta1.Settings {
+			value, err := findMatchingSettings(core.NewContext(nil, context.Background()), "test", Map(tc.settings, func(from settings) v1beta1.Settings {
 				ret := v1beta1.Settings{
 					Spec: v1beta1.SettingsSpec{
 						Key:   from.key,
@@ -219,3 +237,372 @@ func TestParseKeyValuePair(t *testing.T) {
 		"h": "i,j",
 	}, ret)
 }
+
+func TestFindMatchingSettingsWithValueFrom(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	tests := []struct {
+		name           string
+		stack          string
+		setting        v1beta1.Settings
+		secrets        []*corev1.Secret
+		configMaps     []*corev1.ConfigMap
+		expectedResult string
+		expectedError  string
+	}{
+		{
+			name:  "resolve from secret in stack namespace",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "postgres-secret",
+							},
+							Key: "connection-string",
+						},
+					},
+				},
+			},
+			secrets: []*corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "postgres-secret",
+						Namespace: "test-stack",
+					},
+					Data: map[string][]byte{
+						"connection-string": []byte("postgresql://localhost:5432/test"),
+					},
+				},
+			},
+			expectedResult: "postgresql://localhost:5432/test",
+		},
+		{
+			name:  "resolve from configmap in stack namespace",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "postgres-config",
+							},
+							Key: "uri",
+						},
+					},
+				},
+			},
+			configMaps: []*corev1.ConfigMap{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "postgres-config",
+						Namespace: "test-stack",
+					},
+					Data: map[string]string{
+						"uri": "postgresql://localhost:5432/test",
+					},
+				},
+			},
+			expectedResult: "postgresql://localhost:5432/test",
+		},
+		{
+			name:  "fallback to formance-system namespace when not found in stack namespace",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "postgres-secret",
+							},
+							Key: "connection-string",
+						},
+					},
+				},
+			},
+			secrets: []*corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "postgres-secret",
+						Namespace: "formance-system",
+					},
+					Data: map[string][]byte{
+						"connection-string": []byte("postgresql://localhost:5432/test"),
+					},
+				},
+			},
+			expectedResult: "postgresql://localhost:5432/test",
+		},
+		{
+			name:  "value takes precedence over valueFrom",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key:   "postgres.ledger.uri",
+					Value: "postgresql://direct-value:5432/test",
+					ValueFrom: &v1beta1.ValueFrom{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "postgres-secret",
+							},
+							Key: "connection-string",
+						},
+					},
+				},
+			},
+			secrets: []*corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "postgres-secret",
+						Namespace: "test-stack",
+					},
+					Data: map[string][]byte{
+						"connection-string": []byte("postgresql://secret-value:5432/test"),
+					},
+				},
+			},
+			expectedResult: "postgresql://direct-value:5432/test",
+		},
+		{
+			name:  "optional secret not found returns empty string",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "missing-secret",
+							},
+							Key:      "connection-string",
+							Optional: func() *bool { b := true; return &b }(),
+						},
+					},
+				},
+			},
+			expectedResult: "", // Optional resources return empty string when not found
+		},
+		{
+			name:  "optional configmap not found returns empty string",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "missing-configmap",
+							},
+							Key:      "uri",
+							Optional: func() *bool { b := true; return &b }(),
+						},
+					},
+				},
+			},
+			expectedResult: "", // Optional resources return empty string when not found
+		},
+		{
+			name:  "secret not found returns error",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "missing-secret",
+							},
+							Key: "connection-string",
+						},
+					},
+				},
+			},
+			expectedError: "resource not found",
+		},
+		{
+			name:  "key not found in secret returns error",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "postgres-secret",
+							},
+							Key: "missing-key",
+						},
+					},
+				},
+			},
+			secrets: []*corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "postgres-secret",
+						Namespace: "test-stack",
+					},
+					Data: map[string][]byte{
+						"connection-string": []byte("postgresql://localhost:5432/test"),
+					},
+				},
+			},
+			expectedError: "not found in secret",
+		},
+		{
+			name:  "key not found in configmap returns error",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "postgres-config",
+							},
+							Key: "missing-key",
+						},
+					},
+				},
+			},
+			configMaps: []*corev1.ConfigMap{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "postgres-config",
+						Namespace: "test-stack",
+					},
+					Data: map[string]string{
+						"uri": "postgresql://localhost:5432/test",
+					},
+				},
+			},
+			expectedError: "not found in configmap",
+		},
+		{
+			name:  "configmap binary data",
+			stack: "test-stack",
+			setting: v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
+				Spec: v1beta1.SettingsSpec{
+					Key: "postgres.ledger.uri",
+					ValueFrom: &v1beta1.ValueFrom{
+						ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "postgres-config",
+							},
+							Key: "uri",
+						},
+					},
+				},
+			},
+			configMaps: []*corev1.ConfigMap{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "postgres-config",
+						Namespace: "test-stack",
+					},
+					BinaryData: map[string][]byte{
+						"uri": []byte("postgresql://localhost:5432/test"),
+					},
+				},
+			},
+			expectedResult: "postgresql://localhost:5432/test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Build list of objects for fake client
+			objects := make([]client.Object, 0)
+			for _, secret := range tt.secrets {
+				objects = append(objects, secret)
+			}
+			for _, cm := range tt.configMaps {
+				objects = append(objects, cm)
+			}
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objects...).
+				Build()
+
+			// Create a mock manager
+			mockMgr := &mockManager{
+				client: fakeClient,
+				scheme: scheme,
+			}
+
+			coreMgr := core.NewDefaultManager(mockMgr, core.Platform{
+				Region:      "test",
+				Environment: "test",
+			})
+
+			ctx := core.NewContext(coreMgr, context.Background())
+
+			value, err := findMatchingSettings(ctx, tt.stack, []v1beta1.Settings{tt.setting}, SplitKeywordWithDot(tt.setting.Spec.Key)...)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectedError)
+				require.Nil(t, value)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, value)
+				require.Equal(t, tt.expectedResult, *value)
+			}
+		})
+	}
+}
+
+// mockManager implements ctrl.Manager for testing
+type mockManager struct {
+	client client.Client
+	scheme *runtime.Scheme
+}
+
+func (m *mockManager) GetClient() client.Client {
+	return m.client
+}
+
+func (m *mockManager) GetScheme() *runtime.Scheme {
+	return m.scheme
+}
+
+func (m *mockManager) GetAPIReader() client.Reader {
+	return m.client
+}
+
+// Implement other required methods with no-ops or panics
+func (m *mockManager) Add(_ manager.Runnable) error                          { return nil }
+func (m *mockManager) SetFields(_ interface{}) error                         { return nil }
+func (m *mockManager) AddMetricsExtraHandler(_ string, _ http.Handler) error { return nil }
+func (m *mockManager) AddHealthzCheck(_ string, _ healthz.Checker) error     { return nil }
+func (m *mockManager) AddReadyzCheck(_ string, _ healthz.Checker) error      { return nil }
+func (m *mockManager) Start(_ context.Context) error                         { return nil }
+func (m *mockManager) GetWebhookServer() webhook.Server                      { return nil }
+func (m *mockManager) GetLogger() logr.Logger                                { return logr.Discard() }
+func (m *mockManager) GetControllerOptions() config.Controller               { return config.Controller{} }
+func (m *mockManager) GetCache() cache.Cache                                 { return nil }
+func (m *mockManager) GetEventRecorderFor(_ string) record.EventRecorder     { return nil }
+func (m *mockManager) GetRESTMapper() meta.RESTMapper                        { return nil }
+func (m *mockManager) GetHTTPClient() *http.Client                           { return nil }
+func (m *mockManager) GetConfig() *rest.Config                               { return nil }
+func (m *mockManager) Elected() <-chan struct{}                              { return nil }
+func (m *mockManager) GetFieldIndexer() client.FieldIndexer                  { return nil }

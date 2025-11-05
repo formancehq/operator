@@ -17,9 +17,11 @@ limitations under the License.
 package v1beta1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +kubebuilder:validation:ExactlyOneOf=value;valueFrom
 type SettingsSpec struct {
 	//+optional
 	// Stacks on which the setting is applied. Can contain `*` to indicate a wildcard.
@@ -27,7 +29,23 @@ type SettingsSpec struct {
 	// The setting Key. See the documentation of each module or [global settings](#global-settings) to discover them.
 	Key string `json:"key"`
 	// The value. It must have a specific format following the Key.
-	Value string `json:"value"`
+	// Either Value or ValueFrom must be set, but not both.
+	//+optional
+	Value string `json:"value,omitempty"`
+	// Source for the value. Can be used to reference a secret or configmap key.
+	// Either Value or ValueFrom must be set, but not both.
+	//+optional
+	ValueFrom *ValueFrom `json:"valueFrom,omitempty"`
+}
+
+// +kubebuilder:validation:ExactlyOneOf=secretKeyRef;configMapKeyRef
+type ValueFrom struct {
+	// Selects a key of a Secret.
+	//+optional
+	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef,omitempty"`
+	// Selects a key of a ConfigMap.
+	//+optional
+	ConfigMapKeyRef *corev1.ConfigMapKeySelector `json:"configMapKeyRef,omitempty"`
 }
 
 // Settings represents a configurable piece of the stacks.
@@ -90,6 +108,52 @@ type SettingsSpec struct {
 //	value: postgresql://postgresql.formance.svc.cluster.local:5432
 //
 // ```
+//
+// You can also fetch values from secrets or configmaps using `valueFrom`:
+// ```yaml
+// apiVersion: formance.com/v1beta1
+// kind: Settings
+// metadata:
+//
+//	name: postgres-uri-from-secret
+//
+// spec:
+//
+//	key: postgres.ledger.uri
+//	stacks:
+//	- stack0
+//	valueFrom:
+//	  secretKeyRef:
+//	    name: postgres-credentials
+//	    key: connection-string
+//	    optional: false
+//
+// ```
+//
+// Or from a configmap:
+// ```yaml
+// apiVersion: formance.com/v1beta1
+// kind: Settings
+// metadata:
+//
+//	name: postgres-uri-from-configmap
+//
+// spec:
+//
+//	key: postgres.ledger.uri
+//	stacks:
+//	- stack0
+//	valueFrom:
+//	  configMapKeyRef:
+//	    name: postgres-config
+//	    key: uri
+//	    optional: false
+//
+// ```
+//
+// Note: Secrets and configmaps are resolved from the stack's namespace (which has the same name as the stack)
+// and then from the formance-system namespace if not found in the stack namespace.
+// Either `value` or `valueFrom` must be set, but not both.
 //
 // Some settings are really global, while some are used by specific module.
 //
