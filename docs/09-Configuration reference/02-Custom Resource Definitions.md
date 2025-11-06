@@ -500,6 +500,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `signingKey` _string_ | Allow to override the default signing key used to sign JWT tokens. |  |  |
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
 | `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br /><br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### DelegatedOIDCServerConfiguration
 
@@ -527,6 +528,32 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `clientID` _string_ | ClientID is the client id to use for authentication |  |  |
 | `clientSecret` _string_ | ClientSecret is the client secret to use for authentication |  |  |
 | `clientSecretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | ClientSecretFromSecret is the client secret to use for authentication |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -774,6 +801,7 @@ Use setting `ledger.deployment-strategy` with either the value :
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `deploymentStrategy` _[DeploymentStrategy](#deploymentstrategy)_ | Deprecated. | single |  |
 | `locking` _[LockingStrategy](#lockingstrategy)_ | Locking is intended for ledger v1 only |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### DeploymentStrategy
 
@@ -848,6 +876,32 @@ _Underlying type:_ _string_
 | `insecure` _boolean_ |  | false |  |
 | `duration` _string_ |  |  |  |
 | `retry` _string_ |  |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -935,6 +989,33 @@ Orchestration is the Schema for the orchestrations API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -1024,6 +1105,33 @@ Payments is the Schema for the payments API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `encryptionKey` _string_ |  |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -1111,6 +1219,33 @@ Reconciliation is the Schema for the reconciliations API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -1199,6 +1334,7 @@ Search is the Schema for the searches API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `batching` _[Batching](#batching)_ |  |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### Batching
 
@@ -1224,6 +1360,32 @@ Batching allow to define custom batching configuration
 | --- | --- | --- | --- |
 | `count` _integer_ | Count indicates the number of messages that can be kept in memory before being flushed to ElasticSearch |  |  |
 | `period` _string_ | Period indicates the maximum duration messages can be kept in memory before being flushed to ElasticSearch |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -1542,6 +1704,33 @@ Webhooks is the Schema for the webhooks API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -1727,6 +1916,7 @@ Benthos is the Schema for the benthos API
 | `batching` _[Batching](#batching)_ |  |  |  |
 | `initContainers` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#container-v1-core) array_ |  |  |  |
 | `imagePullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#localobjectreference-v1-core) array_ |  |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### Batching
 
@@ -1752,6 +1942,32 @@ Batching allow to define custom batching configuration
 | --- | --- | --- | --- |
 | `count` _integer_ | Count indicates the number of messages that can be kept in memory before being flushed to ElasticSearch |  |  |
 | `period` _string_ | Period indicates the maximum duration messages can be kept in memory before being flushed to ElasticSearch |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 
@@ -2229,6 +2445,33 @@ It will be recreated with correct uri.
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `service` _string_ | Service is a discriminator for the created database.<br />Actually, it will be the module name (ledger, payments...).<br />Therefore, the created database will be named `<stack-name><service>` |  |  |
 | `debug` _boolean_ |  | false |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+
+###### ServiceAccountConfig
+
+
+
+ServiceAccountConfig defines the configuration for a Kubernetes service account
+that will be created and managed by the operator for deployments and jobs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `annotations` _object (keys:string, values:string)_ | Annotations to be added to the service account.<br />Common use case: eks.amazonaws.com/role-arn for AWS IAM roles. |  |  |
+| `labels` _object (keys:string, values:string)_ | Labels to be added to the service account. |  |  |
 
 
 

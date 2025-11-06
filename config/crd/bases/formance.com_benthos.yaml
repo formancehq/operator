@@ -1480,6 +1480,24 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              serviceAccount:
+                description: |-
+                  ServiceAccount configuration for deployments and jobs.
+                  If specified, the operator will create and manage a service account with the provided annotations and labels.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Annotations to be added to the service account.
+                      Common use case: eks.amazonaws.com/role-arn for AWS IAM roles.
+                    type: object
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels to be added to the service account.
+                    type: object
+                type: object
               stack:
                 description: Stack indicates the stack on which the module is installed
                 type: string
