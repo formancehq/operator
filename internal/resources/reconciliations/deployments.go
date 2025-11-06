@@ -9,6 +9,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -23,6 +24,7 @@ func createDeployment(
 	authClient *v1beta1.AuthClient,
 	imageConfiguration *registries.ImageConfiguration,
 ) error {
+	const deploymentName = "reconciliation"
 	env := make([]v1.EnvVar, 0)
 	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, reconciliation), " ")
 	if err != nil {
@@ -46,13 +48,13 @@ func createDeployment(
 	env = append(env, core.Env("POSTGRES_DATABASE_NAME", "$(POSTGRES_DATABASE)"))
 	env = append(env, authclients.GetEnvVars(authClient)...)
 
-	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "reconciliation", reconciliation.Spec.Auth)
+	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, deploymentName, reconciliation.Spec.Auth)
 	if err != nil {
 		return err
 	}
 	env = append(env, authEnvVars...)
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, reconciliation, reconciliation.Spec.ServiceAccount, deploymentName)
 	if err != nil {
 		return err
 	}
@@ -60,7 +62,7 @@ func createDeployment(
 	return applications.
 		New(reconciliation, &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "reconciliation",
+				Name: deploymentName,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{

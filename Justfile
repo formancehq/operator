@@ -45,6 +45,8 @@ helm-update:
   rm -f helm/crds/crds/*
 
   kustomize build config/default --output helm/operator/templates/gen
+  rm -f helm/operator/templates/gen/v1_serviceaccount_formance-controller-manager.yaml # we need to template this one
+
   kustomize build config/crd --output helm/crds/crds
 
   rm -f helm/operator/templates/gen/v1_namespace*.yaml

@@ -126,6 +126,24 @@ spec:
                   If not enabled, each service will check the authentication but will not restrict access following scopes.
                   in this case, if authenticated, it is ok.
                 type: boolean
+              serviceAccount:
+                description: |-
+                  ServiceAccount configuration for deployments and jobs.
+                  If specified, the operator will create and manage a service account with the provided annotations and labels.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Annotations to be added to the service account.
+                      Common use case: eks.amazonaws.com/role-arn for AWS IAM roles.
+                    type: object
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels to be added to the service account.
+                    type: object
+                type: object
               signingKey:
                 description: Allow to override the default signing key used to sign
                   JWT tokens.

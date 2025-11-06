@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
 	"github.com/formancehq/operator/internal/resources/registries"
 
 	"github.com/formancehq/go-libs/v2/collectionutils"
@@ -14,6 +15,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +34,7 @@ func HashFromHash(o ...string) string {
 
 func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, database *v1beta1.Database,
 	configMap *corev1.ConfigMap, imageConfiguration *registries.ImageConfiguration, version string, clients []*v1beta1.AuthClient) error {
+	const deploymentName = "auth"
 	annotations := map[string]string{
 		"config-hash": HashFromConfigMaps(configMap),
 	}
@@ -135,7 +138,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 		env = append(env, Env("CAOS_OIDC_DEV", "1"))
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, auth, auth.Spec.ServiceAccount, deploymentName)
 	if err != nil {
 		return err
 	}
@@ -143,7 +146,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 	return applications.
 		New(auth, &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "auth",
+				Name: deploymentName,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Template: corev1.PodTemplateSpec{

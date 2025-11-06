@@ -2,8 +2,9 @@ package orchestrations
 
 import (
 	"fmt"
-	"github.com/formancehq/operator/internal/resources/registries"
 	"strings"
+
+	"github.com/formancehq/operator/internal/resources/registries"
 
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokers"
@@ -19,6 +20,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -56,7 +58,7 @@ func createDeployment(
 	consumer *v1beta1.BrokerConsumer,
 	imageConfiguration *registries.ImageConfiguration,
 ) error {
-
+	const deploymentName = "orchestration"
 	env := make([]corev1.EnvVar, 0)
 	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, orchestration), " ")
 	if err != nil {
@@ -111,7 +113,7 @@ func createDeployment(
 		Env("WORKER", "true"),
 	)
 
-	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "orchestration", orchestration.Spec.Auth)
+	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, deploymentName, orchestration.Spec.Auth)
 	if err != nil {
 		return err
 	}
@@ -154,14 +156,14 @@ func createDeployment(
 		return err
 	}
 
-	brokerEnvVars, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "orchestration")
+	brokerEnvVars, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, deploymentName)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
 	env = append(env, brokerEnvVars...)
-	env = append(env, brokers.GetPublisherEnvVars(stack, broker, "orchestration", "")...)
+	env = append(env, brokers.GetPublisherEnvVars(stack, broker, deploymentName, "")...)
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, orchestration, orchestration.Spec.ServiceAccount, deploymentName)
 	if err != nil {
 		return err
 	}
@@ -171,7 +173,7 @@ func createDeployment(
 		annotations["database-secret-hash"] = temporalSecretResourceReference.Status.Hash
 	}
 
-	maxParallelActivities, err := settings.GetIntOrDefault(ctx, stack.Name, 10, "orchestration", "max-parallel-activities")
+	maxParallelActivities, err := settings.GetIntOrDefault(ctx, stack.Name, 10, deploymentName, "max-parallel-activities")
 	if err != nil {
 		return err
 	}
@@ -179,7 +181,7 @@ func createDeployment(
 
 	tpl := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "orchestration",
+			Name: deploymentName,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{

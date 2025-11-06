@@ -2,8 +2,9 @@ package databases
 
 import (
 	"fmt"
+
 	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/operator/internal/resources/settings"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/pkg/errors"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
@@ -27,7 +28,7 @@ func Migrate(
 		return err
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, database, database.Spec.ServiceAccount, fmt.Sprintf("%s-migration", database.Spec.Service))
 	if err != nil {
 		return errors.Wrap(err, "getting service account name")
 	}

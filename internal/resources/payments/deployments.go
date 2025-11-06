@@ -20,6 +20,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/auths"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/services"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -195,13 +196,13 @@ func createFullDeployment(
 	imageConfiguration *registries.ImageConfiguration,
 	v3 bool,
 ) error {
-
+	const deploymentName = "payments"
 	env, err := commonEnvVars(ctx, stack, payments, database)
 	if err != nil {
 		return err
 	}
 
-	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "payments", payments.Spec.Auth)
+	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, deploymentName, payments.Spec.Auth)
 	if err != nil {
 		return err
 	}
@@ -223,13 +224,13 @@ func createFullDeployment(
 		if !broker.Status.Ready {
 			return core.NewPendingError().WithMessage("broker not ready")
 		}
-		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "payments")
+		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, deploymentName)
 		if err != nil {
 			return err
 		}
 
 		env = append(env, brokerEnvVar...)
-		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments", "")...)
+		env = append(env, brokers.GetPublisherEnvVars(stack, broker, deploymentName, "")...)
 	}
 
 	if v3 {
@@ -241,7 +242,7 @@ func createFullDeployment(
 		env = append(env, temporalEnvVars...)
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, payments, payments.Spec.ServiceAccount, deploymentName)
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,7 @@ func createFullDeployment(
 	err = applications.
 		New(payments, &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "payments",
+				Name: deploymentName,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{
@@ -291,7 +292,7 @@ func createFullDeployment(
 }
 
 func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, env []v1.EnvVar, appOpts applications.ProbeOpts) error {
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, payments, payments.Spec.ServiceAccount, "payments-worker")
 	if err != nil {
 		return err
 	}
@@ -341,7 +342,7 @@ func createReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1be
 	}
 	env = append(env, authEnvVars...)
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, payments, payments.Spec.ServiceAccount, "payments-read")
 	if err != nil {
 		return err
 	}
@@ -415,7 +416,7 @@ func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments
 		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments", "")...)
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, payments, payments.Spec.ServiceAccount, "payments-connectors")
 	if err != nil {
 		return err
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/gateways"
 	. "github.com/formancehq/operator/internal/resources/registries"
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/batch/v1"
@@ -48,7 +49,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, search *v1beta1.Search, versio
 		return err
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, search, search.Spec.ServiceAccount, "search")
 	if err != nil {
 		return err
 	}

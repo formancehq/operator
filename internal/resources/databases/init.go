@@ -25,6 +25,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/registries"
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/pkg/errors"
 	batchv1 "k8s.io/api/batch/v1"
@@ -58,15 +59,27 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Databas
 		return err
 	}
 
-	awsRole, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-	if err != nil {
-		return err
-	}
-
-	if awsRole != "" {
-		_, err = resourcereferences.Create(ctx, database, "database", awsRole, &v1.ServiceAccount{})
+	// If ServiceAccount is specified in the database spec, create and manage it
+	if database.Spec.ServiceAccount != nil {
+		// Use "create-database" to match the primary job name
+		serviceAccountName := "create-database"
+		err = serviceaccounts.CreateOrUpdate(ctx, database, serviceAccountName, database.Spec.ServiceAccount)
+		if err != nil {
+			return errors.Wrap(err, "creating service account")
+		}
+		_, err = resourcereferences.Create(ctx, database, "database", serviceAccountName, &v1.ServiceAccount{})
 	} else {
-		err = resourcereferences.Delete(ctx, database, "database")
+		var awsRole string
+		// Fall back to legacy aws.service-account setting
+		awsRole, err = settings.GetAWSServiceAccount(ctx, stack.Name)
+		if err != nil {
+			return err
+		}
+		if awsRole != "" {
+			_, err = resourcereferences.Create(ctx, database, "database", awsRole, &v1.ServiceAccount{})
+		} else {
+			err = resourcereferences.Delete(ctx, database, "database")
+		}
 	}
 	if err != nil {
 		return err
@@ -162,7 +175,7 @@ func handleDatabaseJob(ctx core.Context, stack *v1beta1.Stack, database *v1beta1
 		env = append(env, core.Env("DEBUG", "true"))
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, database, database.Spec.ServiceAccount, name)
 	if err != nil {
 		return err
 	}

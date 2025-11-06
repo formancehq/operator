@@ -13,6 +13,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
 	benthosOperator "github.com/formancehq/operator/internal/resources/searches/benthos"
 	"github.com/formancehq/operator/internal/resources/services"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/formancehq/search/benthos"
 	"github.com/pkg/errors"
@@ -77,7 +78,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 		return errors.Wrap(err, "searching elasticsearch configuration")
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, b, b.Spec.ServiceAccount, "benthos")
 	if err != nil {
 		return err
 	}

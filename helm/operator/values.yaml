@@ -49,6 +49,10 @@ operator:
   # Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.
   enableLeaderElection: true
 
+  serviceAccount:
+    labels: {}
+    annotations: {}
+
   utils:
     tag: ""
 

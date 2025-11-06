@@ -2,9 +2,10 @@ package ledgers
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/formancehq/operator/internal/resources/auths"
 	"golang.org/x/mod/semver"
-	"strconv"
 
 	"github.com/formancehq/operator/internal/resources/brokers"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
@@ -17,6 +18,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/services"
 	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
@@ -241,7 +243,7 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		return err
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, ledger, ledger.Spec.ServiceAccount, "ledger")
 	if err != nil {
 		return err
 	}
@@ -288,7 +290,7 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 		return err
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, ledger, ledger.Spec.ServiceAccount, "ledger-worker")
 	if err != nil {
 		return err
 	}
@@ -411,7 +413,7 @@ func uninstallLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.St
 }
 
 func createDeployment(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, name string, container corev1.Container, v2 bool, replicas uint64, imageConfiguration *registries.ImageConfiguration) error {
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, ledger, ledger.Spec.ServiceAccount, name)
 	if err != nil {
 		return err
 	}

@@ -27,6 +27,10 @@ type PaymentsSpec struct {
 	EncryptionKey string `json:"encryptionKey"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
+	// +optional
+	// ServiceAccount configuration for deployments and jobs.
+	// If specified, the operator will create and manage a service account with the provided annotations and labels.
+	ServiceAccount *ServiceAccountConfig `json:"serviceAccount,omitempty"`
 }
 
 type PaymentsStatus struct {

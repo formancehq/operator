@@ -247,6 +247,18 @@ type AuthConfig struct {
 	CheckScopes bool `json:"checkScopes"`
 }
 
+// ServiceAccountConfig defines the configuration for a Kubernetes service account
+// that will be created and managed by the operator for deployments and jobs.
+type ServiceAccountConfig struct {
+	// +optional
+	// Annotations to be added to the service account.
+	// Common use case: eks.amazonaws.com/role-arn for AWS IAM roles.
+	Annotations map[string]string `json:"annotations,omitempty"`
+	// +optional
+	// Labels to be added to the service account.
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 // +kubebuilder:object:generate=false
 type Module interface {
 	Dependent

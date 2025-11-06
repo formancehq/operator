@@ -54,12 +54,19 @@ func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database 
 		)
 	}
 
-	awsRole, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-	if err != nil {
-		return nil, err
+	// Check if ServiceAccount is configured in database spec, or fall back to legacy setting
+	awsIAMEnabled := false
+	if database.Spec.ServiceAccount != nil {
+		awsIAMEnabled = true
+	} else {
+		awsRole, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+		if err != nil {
+			return nil, err
+		}
+		awsIAMEnabled = awsRole != ""
 	}
 
-	if awsRole != "" {
+	if awsIAMEnabled {
 		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_AWS_ENABLE_IAM", prefix), "true"))
 	}
 

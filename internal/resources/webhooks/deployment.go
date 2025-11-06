@@ -16,6 +16,7 @@ import (
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/internal/resources/serviceaccounts"
 	"github.com/formancehq/operator/internal/resources/settings"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -97,7 +98,7 @@ func createAPIDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1bet
 		env = append(env, topics...)
 	}
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, webhooks, webhooks.Spec.ServiceAccount, "webhooks")
 	if err != nil {
 		return err
 	}
@@ -136,7 +137,7 @@ func createWorkerDeployment(
 	consumer *v1beta1.BrokerConsumer,
 	version string,
 ) error {
-
+	const deploymentName = "webhooks-worker"
 	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "webhooks", version)
 	if err != nil {
 		return err
@@ -152,7 +153,7 @@ func createWorkerDeployment(
 		return fmt.Sprintf("%s-%s", stack.Name, from)
 	}), " ")))
 
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	serviceAccountName, err := serviceaccounts.GetServiceAccountName(ctx, webhooks, webhooks.Spec.ServiceAccount, deploymentName)
 	if err != nil {
 		return err
 	}
@@ -160,7 +161,7 @@ func createWorkerDeployment(
 	return applications.
 		New(webhooks, &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "webhooks-worker",
+				Name: deploymentName,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Template: v1.PodTemplateSpec{
