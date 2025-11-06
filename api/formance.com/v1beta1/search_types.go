@@ -25,10 +25,10 @@ type SearchSpec struct {
 	ModuleProperties `json:",inline"`
 	//+optional
 	Batching *Batching `json:"batching,omitempty"`
-	// +optional
+	//+optional
 	Auth *AuthConfig `json:"auth,omitempty"`
-	// +optional
-	// ServiceAccount configuration for deployments and jobs.
+	//+optional
+	// ServiceAccount configuration for the search.
 	// If specified, the operator will create and manage a service account with the provided annotations and labels.
 	ServiceAccount *ServiceAccountConfig `json:"serviceAccount,omitempty"`
 }

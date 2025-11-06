@@ -91,7 +91,7 @@ spec:
                 type: string
               serviceAccount:
                 description: |-
-                  ServiceAccount configuration for jobs.
+                  ServiceAccount configuration for database jobs.
                   If specified, the operator will create and manage a service account with the provided annotations and labels.
                 properties:
                   annotations:

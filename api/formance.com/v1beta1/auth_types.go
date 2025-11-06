@@ -52,8 +52,8 @@ type AuthSpec struct {
 	// in this case, if authenticated, it is ok.
 	// +kubebuilder:default:=false
 	EnableScopes bool `json:"enableScopes"`
-	// +optional
-	// ServiceAccount configuration for deployments and jobs.
+	//+optional
+	// ServiceAccount configuration for auth.
 	// If specified, the operator will create and manage a service account with the provided annotations and labels.
 	ServiceAccount *ServiceAccountConfig `json:"serviceAccount,omitempty"`
 }

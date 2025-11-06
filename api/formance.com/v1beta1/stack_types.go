@@ -22,21 +22,21 @@ import (
 
 type StackSpec struct {
 	DevProperties `json:",inline"`
-	// +optional
+	//+optional
 	// Version allow to specify the version of the components
 	// Must be a valid docker tag
 	Version string `json:"version,omitempty"`
-	// +optional
+	//+optional
 	// VersionsFromFile allow to specify a formance.com/Versions object which contains individual versions
 	// for each component.
 	// Must reference a valid formance.com/Versions object
 	VersionsFromFile string `json:"versionsFromFile"`
-	// +optional
+	//+optional
 	// +kubebuilder:default:=false
 	// EnableAudit enable audit at the stack level.
 	// Actually, it enables audit on [Gateway](#gateway)
 	EnableAudit bool `json:"enableAudit,omitempty"`
-	// +optional
+	//+optional
 	// +kubebuilder:default:=false
 	// Disabled indicate the stack is disabled.
 	// A disabled stack disable everything

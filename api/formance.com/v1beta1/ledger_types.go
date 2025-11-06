@@ -24,24 +24,24 @@ import (
 
 type LockingStrategyRedisConfig struct {
 	Uri string `json:"uri,omitempty"`
-	// +optional
+	//+optional
 	// +kubebuilder:default:=false
 	TLS bool `json:"tls"`
-	// +optional
+	//+optional
 	// +kubebuilder:default:=false
 	InsecureTLS bool `json:"insecure,omitempty"`
-	// +optional
+	//+optional
 	Duration time.Duration `json:"duration,omitempty"`
-	// +optional
+	//+optional
 	Retry time.Duration `json:"retry,omitempty"`
 }
 
 type LockingStrategy struct {
 	// +kubebuilder:Enum:={memory,redis}
 	// +kubebuilder:default:=memory
-	// +optional
+	//+optional
 	Strategy string `json:"strategy,omitempty"`
-	// +optional
+	//+optional
 	Redis *LockingStrategyRedisConfig `json:"redis"`
 }
 
@@ -55,7 +55,7 @@ const (
 type LedgerSpec struct {
 	ModuleProperties `json:",inline"`
 	StackDependency  `json:",inline"`
-	// +optional
+	//+optional
 	Auth *AuthConfig `json:"auth,omitempty"`
 	//+kubebuilder:Enum:={single, single-writer}
 	//+kubebuilder:default:=single
@@ -65,8 +65,8 @@ type LedgerSpec struct {
 	// Locking is intended for ledger v1 only
 	//+optional
 	Locking *LockingStrategy `json:"locking,omitempty"`
-	// +optional
-	// ServiceAccount configuration for deployments and jobs.
+	//+optional
+	// ServiceAccount configuration for deployment.
 	// If specified, the operator will create and manage a service account with the provided annotations and labels.
 	ServiceAccount *ServiceAccountConfig `json:"serviceAccount,omitempty"`
 }

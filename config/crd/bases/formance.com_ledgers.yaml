@@ -129,7 +129,7 @@ spec:
                 type: object
               serviceAccount:
                 description: |-
-                  ServiceAccount configuration for deployments and jobs.
+                  ServiceAccount configuration for deployment.
                   If specified, the operator will create and manage a service account with the provided annotations and labels.
                 properties:
                   annotations:

@@ -27,30 +27,30 @@ type AuthClientSpec struct {
 	// ID indicates the client id
 	// It must be used with oauth2 `client_id` parameter
 	ID string `json:"id" yaml:"id"`
-	// +optional
+	//+optional
 	// Public indicate whether a client is confidential or not.
 	// Confidential clients are clients which the secret can be kept secret...
 	// As opposed to public clients which cannot have a secret (application single page for example)
 	// +kubebuilder:default:=false
 	Public bool `json:"public" yaml:"public"`
-	// +optional
+	//+optional
 	// Description represents an optional description of the client
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
-	// +optional
+	//+optional
 	// RedirectUris allow to list allowed redirect uris for the client
 	RedirectUris []string `json:"redirectUris,omitempty" yaml:"redirectUris"`
-	// +optional
+	//+optional
 	// RedirectUris allow to list allowed post logout redirect uris for the client
 	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty" yaml:"postLogoutRedirectUris"`
-	// +optional
+	//+optional
 	// Scopes allow to five some scope to the client
 	Scopes []string `json:"scopes,omitempty" yaml:"scopes"`
-	// +optional
+	//+optional
 	// Secret allow to configure a secret for the client.
 	// It is not required as some client could use some oauth2 flows which does not requires a client secret
 	Secret string `json:"secret,omitempty"`
 
-	// +optional
+	//+optional
 	SecretFromSecret *v1.SecretKeySelector `json:"secretFromSecret,omitempty" yaml:"-"`
 }
 

@@ -78,7 +78,7 @@ spec:
                 type: string
               serviceAccount:
                 description: |-
-                  ServiceAccount configuration for deployments and jobs.
+                  ServiceAccount configuration for payments.
                   If specified, the operator will create and manage a service account with the provided annotations and labels.
                 properties:
                   annotations:

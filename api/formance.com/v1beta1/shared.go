@@ -19,11 +19,11 @@ type EventPublisher interface {
 }
 
 type DevProperties struct {
-	// +optional
+	//+optional
 	// Allow to enable debug mode on the module
 	// +kubebuilder:default:=false
 	Debug bool `json:"debug"`
-	// +optional
+	//+optional
 	// Allow to enable dev mode on the module
 	// Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
 	// +kubebuilder:default:=false
@@ -72,7 +72,7 @@ type Condition struct {
 	// observedGeneration represents the .metadata.generation that the condition was set based upon.
 	// For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
 	// with respect to the current state of the instance.
-	// +optional
+	//+optional
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,3,opt,name=observedGeneration"`
 	// lastTransitionTime is the last time the condition transitioned from one status to another.
@@ -92,7 +92,7 @@ type Condition struct {
 	// and whether the values are considered a guaranteed API.
 	// The value should be a CamelCase string.
 	// This field may not be empty.
-	// +optional
+	//+optional
 	// +kubebuilder:validation:MaxLength=1024
 	// +kubebuilder:validation:Pattern=`^([A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?)?$`
 	Reason string `json:"reason,omitempty" protobuf:"bytes,5,opt,name=reason"`
@@ -241,20 +241,20 @@ func (c *Status) SetError(err string) {
 }
 
 type AuthConfig struct {
-	// +optional
+	//+optional
 	ReadKeySetMaxRetries int `json:"readKeySetMaxRetries"`
-	// +optional
+	//+optional
 	CheckScopes bool `json:"checkScopes"`
 }
 
 // ServiceAccountConfig defines the configuration for a Kubernetes service account
 // that will be created and managed by the operator for deployments and jobs.
 type ServiceAccountConfig struct {
-	// +optional
+	//+optional
 	// Annotations to be added to the service account.
 	// Common use case: eks.amazonaws.com/role-arn for AWS IAM roles.
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// +optional
+	//+optional
 	// Labels to be added to the service account.
 	Labels map[string]string `json:"labels,omitempty"`
 }

@@ -28,8 +28,8 @@ type DatabaseSpec struct {
 	Service string `json:"service"`
 	// +kubebuilder:default:=false
 	Debug bool `json:"debug,omitempty"`
-	// +optional
-	// ServiceAccount configuration for jobs.
+	//+optional
+	// ServiceAccount configuration for database jobs.
 	// If specified, the operator will create and manage a service account with the provided annotations and labels.
 	ServiceAccount *ServiceAccountConfig `json:"serviceAccount,omitempty"`
 }

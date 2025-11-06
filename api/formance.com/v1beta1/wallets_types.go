@@ -23,7 +23,7 @@ import (
 type WalletsSpec struct {
 	ModuleProperties `json:",inline"`
 	StackDependency  `json:",inline"`
-	// +optional
+	//+optional
 	Auth *AuthConfig `json:"auth,omitempty"`
 }
 

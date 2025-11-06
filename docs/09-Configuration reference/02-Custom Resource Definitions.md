@@ -500,7 +500,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `signingKey` _string_ | Allow to override the default signing key used to sign JWT tokens. |  |  |
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
 | `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br /><br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for auth.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### DelegatedOIDCServerConfiguration
 
@@ -801,7 +801,7 @@ Use setting `ledger.deployment-strategy` with either the value :
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `deploymentStrategy` _[DeploymentStrategy](#deploymentstrategy)_ | Deprecated. | single |  |
 | `locking` _[LockingStrategy](#lockingstrategy)_ | Locking is intended for ledger v1 only |  |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployment.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### DeploymentStrategy
 
@@ -1105,7 +1105,7 @@ Payments is the Schema for the payments API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `encryptionKey` _string_ |  |  |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for payments.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### ServiceAccountConfig
 
@@ -1219,7 +1219,7 @@ Reconciliation is the Schema for the reconciliations API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for reconciliation.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### ServiceAccountConfig
 
@@ -1334,7 +1334,7 @@ Search is the Schema for the searches API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `batching` _[Batching](#batching)_ |  |  |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for the search.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### Batching
 
@@ -1704,7 +1704,7 @@ Webhooks is the Schema for the webhooks API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for webhooks.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### ServiceAccountConfig
 
@@ -1916,7 +1916,7 @@ Benthos is the Schema for the benthos API
 | `batching` _[Batching](#batching)_ |  |  |  |
 | `initContainers` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#container-v1-core) array_ |  |  |  |
 | `imagePullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#localobjectreference-v1-core) array_ |  |  |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for deployments and jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for benthos.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### Batching
 
@@ -2445,7 +2445,7 @@ It will be recreated with correct uri.
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `service` _string_ | Service is a discriminator for the created database.<br />Actually, it will be the module name (ledger, payments...).<br />Therefore, the created database will be named `<stack-name><service>` |  |  |
 | `debug` _boolean_ |  | false |  |
-| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
+| `serviceAccount` _[ServiceAccountConfig](#serviceaccountconfig)_ | ServiceAccount configuration for database jobs.<br />If specified, the operator will create and manage a service account with the provided annotations and labels. |  |  |
 
 ###### ServiceAccountConfig
 
