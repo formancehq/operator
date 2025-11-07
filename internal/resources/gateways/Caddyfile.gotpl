@@ -6,6 +6,7 @@
 		Access-Control-Allow-Origin *
 	}
 }
+
 {{- $values := . }}
 {{- if .EnableAudit }}
 (audit) {
@@ -34,11 +35,15 @@
 {{- end }}
 
 {
-	{{ if .Debug }}debug{{ end }}
-  servers {
-    metrics
-  }
-  admin :3080
+	servers {
+		metrics
+	}
+
+	{{- if .Debug }}
+	debug
+	{{- end }}
+
+	admin :3080
 
 	# Many directives manipulate the HTTP handler chain and the order in which
 	# those directives are evaluated matters. So the jwtauth directive must be
@@ -51,11 +56,12 @@
 }
 
 :{{ .Port }} {
-    {{- if .EnableOpenTelemetry }}
+	{{- if .EnableOpenTelemetry }}
 	tracing {
 		span gateway
 	}
 	{{- end }}
+
 	log {
 		output stdout
 		{{- if .Debug }}
@@ -74,11 +80,11 @@
 		method {{ join $rule.Methods " " }}
 		{{- end }}
 		uri strip_prefix /api/{{ $service.Name }}
-        import cors
+		import cors
 		reverse_proxy {{ $service.Name }}:8080 {
-            header_up Host {upstream_hostport}
-        }
-    }
+			header_up Host {upstream_hostport}
+		}
+	}
 	{{- end }}
 	{{- end }}
 
@@ -95,10 +101,10 @@
 
 				{{- if or (not (semver_is_valid $values.Gateway.Version)) (gt (semver_compare $values.Gateway.Version "v0.1.7") 0) }}
 				{{ $service.Name }} {
-                    http://{{ $service.Name }}:8080/_info http://{{ $service.Name }}:8080/{{ $service.HealthCheckEndpoint }}
-                }
+					http://{{ $service.Name }}:8080/_info http://{{ $service.Name }}:8080/{{ $service.HealthCheckEndpoint }}
+				}
 				{{- else }}
-					{{ $service.Name }} http://{{ $service.Name }}:8080/_info http://{{ $service.Name }}:8080/{{ $service.HealthCheckEndpoint }}
+				{{ $service.Name }} http://{{ $service.Name }}:8080/_info http://{{ $service.Name }}:8080/{{ $service.HealthCheckEndpoint }}
 				{{- end }}
 				{{- end }}
 			}
