@@ -65,15 +65,9 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 		core.Env(fmt.Sprintf("%sOTEL_%s", prefix, string(monitoringType)), "true"),
 		core.Env(fmt.Sprintf("%sOTEL_%s_BATCH", prefix, string(monitoringType)), "true"),
 		core.Env(fmt.Sprintf("%sOTEL_%s_EXPORTER", prefix, string(monitoringType)), "otlp"),
-		core.EnvFromBool(fmt.Sprintf("%sOTEL_%s_EXPORTER_OTLP_INSECURE", prefix, string(monitoringType)),
-			IsTrue(otlp.Query().Get("insecure"))),
-		core.Env(fmt.Sprintf("%sOTEL_%s_EXPORTER_OTLP_MODE", prefix, string(monitoringType)), otlp.Scheme),
-		core.Env(fmt.Sprintf("%sOTEL_%s_PORT", prefix, string(monitoringType)), otlp.Port()),
-		core.Env(fmt.Sprintf("%sOTEL_%s_ENDPOINT", prefix, string(monitoringType)), otlp.Hostname()),
-		core.Env(fmt.Sprintf("%sOTEL_%s_EXPORTER_OTLP_ENDPOINT", prefix, string(monitoringType)), core.ComputeEnvVar("%s:%s",
-			fmt.Sprintf("%sOTEL_%s_ENDPOINT", prefix, string(monitoringType)),
-			fmt.Sprintf("%sOTEL_%s_PORT", prefix, string(monitoringType)))),
+		core.EnvFromBool(fmt.Sprintf("%sOTEL_%s_EXPORTER_OTLP_INSECURE", prefix, string(monitoringType)), IsTrue(otlp.Query().Get("insecure"))),
 		core.Env(fmt.Sprintf("%sOTEL_SERVICE_NAME", prefix), serviceName),
+		core.Env(fmt.Sprintf("%sOTEL_%s_EXPORTER_OTLP_MODE", prefix, string(monitoringType)), otlp.Scheme),
 		{
 			Name: "POD_NAME",
 			ValueFrom: &v1.EnvVarSource{
@@ -83,6 +77,25 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 			},
 		},
 	}
+
+	// If the path is not empty, we use the full URL as the endpoint.
+	var otlpEndpoint v1.EnvVar
+	otlpEndpointEnvName := fmt.Sprintf("%sOTEL_%s_EXPORTER_OTLP_ENDPOINT", prefix, string(monitoringType))
+	if otlp.Path != "" {
+		otlpEndpoint = core.Env(otlpEndpointEnvName, otlp.String())
+	} else {
+		ret = append(ret, core.Env(fmt.Sprintf("%sOTEL_%s_PORT", prefix, string(monitoringType)), otlp.Port()))
+		ret = append(ret, core.Env(fmt.Sprintf("%sOTEL_%s_ENDPOINT", prefix, string(monitoringType)), otlp.Hostname()))
+		otlpEndpoint = core.Env(
+			otlpEndpointEnvName,
+			core.ComputeEnvVar(
+				"%s:%s",
+				fmt.Sprintf("%sOTEL_%s_ENDPOINT", prefix, string(monitoringType)),
+				fmt.Sprintf("%sOTEL_%s_PORT", prefix, string(monitoringType)),
+			),
+		)
+	}
+	ret = append(ret, otlpEndpoint)
 
 	resourceAttributes, err := GetMap(ctx, stack, "opentelemetry", strings.ToLower(string(monitoringType)), "resource-attributes")
 	if err != nil {
