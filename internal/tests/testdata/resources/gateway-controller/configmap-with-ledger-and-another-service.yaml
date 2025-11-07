@@ -8,11 +8,11 @@
 }
 
 {
-	
-  servers {
-    metrics
-  }
-  admin :3080
+	servers {
+		metrics
+	}
+
+	admin :3080
 
 	# Many directives manipulate the HTTP handler chain and the order in which
 	# those directives are evaluated matters. So the jwtauth directive must be
@@ -22,31 +22,32 @@
 }
 
 :8080 {
+
 	log {
 		output stdout
 	}
 	handle /api/another/webhooks* {
 		method POST
 		uri strip_prefix /api/another
-        import cors
+		import cors
 		reverse_proxy another:8080 {
-            header_up Host {upstream_hostport}
-        }
-    }
+			header_up Host {upstream_hostport}
+		}
+	}
 	handle /api/another* {
 		uri strip_prefix /api/another
-        import cors
+		import cors
 		reverse_proxy another:8080 {
-            header_up Host {upstream_hostport}
-        }
-    }
+			header_up Host {upstream_hostport}
+		}
+	}
 	handle /api/ledger* {
 		uri strip_prefix /api/ledger
-        import cors
+		import cors
 		reverse_proxy ledger:8080 {
-            header_up Host {upstream_hostport}
-        }
-    }
+			header_up Host {upstream_hostport}
+		}
+	}
 
 	handle /versions {
 		versions {
@@ -54,11 +55,11 @@
 			env "staging"
 			endpoints {
 				another {
-                    http://another:8080/_info http://another:8080/
-                }
+					http://another:8080/_info http://another:8080/
+				}
 				ledger {
-                    http://ledger:8080/_info http://ledger:8080/
-                }
+					http://ledger:8080/_info http://ledger:8080/
+				}
 			}
 		}
 	}

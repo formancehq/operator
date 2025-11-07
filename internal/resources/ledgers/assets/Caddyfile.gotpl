@@ -3,28 +3,28 @@
 }
 
 :8080 {
-    {{- if .EnableOpenTelemetry }}
-    tracing {
-        span gateway
-    }
-    {{- end }}
-    log {
+	{{- if .EnableOpenTelemetry }}
+	tracing {
+		span gateway
+	}
+	{{- end }}
+	log {
 		output stdout
 		{{- if .Debug }}
-		level  DEBUG
+		level DEBUG
 		{{- end }}
 	}
 
-    handle {
-        method GET
-        reverse_proxy ledger-read:8080 {
-          header_up Host {upstream_hostport}
-       }
-    }
+	handle {
+		method GET
+		reverse_proxy ledger-read:8080 {
+			header_up Host {upstream_hostport}
+		}
+	}
 
-    handle {
-        reverse_proxy ledger-write:8080 {
-          header_up Host {upstream_hostport}
-        }
-    }
+	handle {
+		reverse_proxy ledger-write:8080 {
+			header_up Host {upstream_hostport}
+		}
+	}
 }
