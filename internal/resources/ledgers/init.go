@@ -92,9 +92,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 			imageConfiguration,
 			database,
 			jobs.Mutator(func(t *batchv1.Job) error {
-				if IsLower(version, "v2.0.0-rc.6") {
-					t.Spec.Template.Spec.Containers[0].Command = []string{"buckets", "upgrade-all"}
-				}
 				t.Spec.Template.Spec.Containers[0].Env = append(t.Spec.Template.Spec.Containers[0].Env, Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"))
 
 				return nil

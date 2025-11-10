@@ -13,10 +13,6 @@ import (
 var Caddyfile string
 
 func EnvVarsIfEnabled(ctx core.Context, stackName string) ([]v1.EnvVar, error) {
-	return EnvVarsIfEnabledWithPrefix(ctx, stackName, "")
-}
-
-func EnvVarsIfEnabledWithPrefix(ctx core.Context, stackName, prefix string) ([]v1.EnvVar, error) {
 	gateway := &v1beta1.Gateway{}
 	ok, err := core.GetIfExists(ctx, stackName, gateway)
 	if err != nil {
@@ -26,21 +22,17 @@ func EnvVarsIfEnabledWithPrefix(ctx core.Context, stackName, prefix string) ([]v
 		return nil, nil
 	}
 
-	return GetEnvVarsWithPrefix(gateway, prefix), nil
+	return GetEnvVars(gateway), nil
 }
 
 func GetEnvVars(gateway *v1beta1.Gateway) []v1.EnvVar {
-	return GetEnvVarsWithPrefix(gateway, "")
-}
-
-func GetEnvVarsWithPrefix(gateway *v1beta1.Gateway, prefix string) []v1.EnvVar {
 	ret := []v1.EnvVar{{
-		Name:  fmt.Sprintf("%sSTACK_URL", prefix),
+		Name:  "STACK_URL",
 		Value: "http://gateway:8080",
 	}}
 	if gateway.Spec.Ingress != nil {
 		ret = append(ret, v1.EnvVar{
-			Name:  fmt.Sprintf("%sSTACK_PUBLIC_URL", prefix),
+			Name:  "STACK_PUBLIC_URL",
 			Value: fmt.Sprintf("%s://%s", gateway.Spec.Ingress.Scheme, gateway.Spec.Ingress.Host),
 		})
 	}

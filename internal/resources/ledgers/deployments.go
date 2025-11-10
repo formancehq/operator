@@ -21,11 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	ConditionTypeRestore                 = "Restore"
-	ConditionTypeReindexSchedulerEnabled = "ReindexSchedulerEnabled"
-)
-
 func installLedger(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, version string) (err error) {
 
 	if !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0 {
@@ -137,7 +132,7 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		}
 
 		container.Env = append(container.Env, brokerEnvVar...)
-		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger", "")...)
+		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger")...)
 	}
 
 	bulkMaxSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "bulk-max-size")
@@ -314,14 +309,14 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Le
 func setCommonContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, imageConfiguration *registries.ImageConfiguration, database *v1beta1.Database, container *corev1.Container) error {
 
 	env := make([]corev1.EnvVar, 0)
-	otlpEnv, err := settings.GetOTELEnvVarsWithPrefix(ctx, stack.Name, core.LowerCamelCaseKind(ctx, ledger), "", " ")
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, ledger), " ")
 	if err != nil {
 		return err
 	}
 	env = append(env, otlpEnv...)
-	env = append(env, core.GetDevEnvVarsWithPrefix(stack, ledger, "")...)
+	env = append(env, core.GetDevEnvVars(stack, ledger)...)
 
-	postgresEnvVar, err := databases.PostgresEnvVarsWithPrefix(ctx, stack, database, "")
+	postgresEnvVar, err := databases.GetPostgresEnvVars(ctx, stack, database)
 	if err != nil {
 		return err
 	}
@@ -341,13 +336,13 @@ func setCommonAPIContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, 
 		return err
 	}
 
-	authEnvVars, err := auths.ProtectedAPIEnvVarsWithPrefix(ctx, stack, "ledger", ledger.Spec.Auth, "")
+	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "ledger", ledger.Spec.Auth)
 	if err != nil {
 		return err
 	}
 	container.Env = append(container.Env, authEnvVars...)
 
-	gatewayEnv, err := gateways.EnvVarsIfEnabledWithPrefix(ctx, stack.Name, "")
+	gatewayEnv, err := gateways.EnvVarsIfEnabled(ctx, stack.Name)
 	if err != nil {
 		return err
 	}
@@ -386,13 +381,13 @@ func createLedgerContainerFull(ctx core.Context, stack *v1beta1.Stack) (*corev1.
 			return nil, core.NewPendingError().WithMessage("broker not ready")
 		}
 
-		brokerEnvVar, err := brokers.GetEnvVarsWithPrefix(ctx, broker.Status.URI, stack.Name, "ledger", "")
+		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "ledger")
 		if err != nil {
 			return nil, err
 		}
 
 		container.Env = append(container.Env, brokerEnvVar...)
-		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger", "")...)
+		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger")...)
 	}
 
 	logsBatchSize, err := settings.GetInt(ctx, stack.Name, "ledger", "logs", "max-batch-size")
