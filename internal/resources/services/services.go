@@ -66,14 +66,32 @@ func withAnnotations(additionalAnnotation map[string]string) core.ObjectMutator[
 
 }
 
+func withTrafficDistribution(trafficDistribution string) core.ObjectMutator[*corev1.Service] {
+	return func(t *corev1.Service) error {
+		if trafficDistribution == "" {
+			return nil
+		}
+
+		t.Spec.TrafficDistribution = &trafficDistribution
+
+		return nil
+	}
+}
+
 func Create(ctx core.Context, owner v1beta1.Dependent, serviceName string, mutators ...core.ObjectMutator[*corev1.Service]) (*corev1.Service, error) {
 	additionalAnnotations, err := settings.GetMapOrEmpty(ctx, owner.GetStack(), "services", serviceName, "annotations")
 	if err != nil {
 		return nil, err
 	}
 
+	trafficDistribution, err := settings.GetStringOrEmpty(ctx, owner.GetStack(), "services", serviceName, "traffic-distribution")
+	if err != nil {
+		return nil, err
+	}
+
 	mutators = append(mutators,
 		withAnnotations(additionalAnnotations),
+		withTrafficDistribution(trafficDistribution),
 		core.WithController[*corev1.Service](ctx.GetScheme(), owner),
 	)
 
