@@ -6,10 +6,12 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+
+	"github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 func NewListCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/stretchr/testify/require"
+
+	. "github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 func TestSplitKeywordWithDot(t *testing.T) {

@@ -3,20 +3,20 @@ package caddy
 import (
 	"bytes"
 	"fmt"
-	"github.com/formancehq/operator/internal/resources/registries"
 	"strings"
 	"text/template"
 
-	"github.com/formancehq/operator/internal/resources/settings"
-
-	"github.com/formancehq/operator/internal/core"
-
-	"github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
 
 func DeploymentTemplate(

@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/formancehq/go-libs/v2/pointer"
 	gomegaTypes "github.com/onsi/gomega/types"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/go-libs/v2/pointer"
 )
 
 type beOwnedByOption func(matcher *beOwnedByMatcher)

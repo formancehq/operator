@@ -4,13 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/formancehq/operator/internal/resources/brokers"
-	"github.com/formancehq/operator/internal/resources/brokertopics"
-	"github.com/formancehq/operator/internal/resources/caddy"
-	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/operator/internal/resources/resourcereferences"
-	"github.com/formancehq/operator/internal/resources/settings"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -18,11 +14,15 @@ import (
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/applications"
 	"github.com/formancehq/operator/internal/resources/auths"
+	"github.com/formancehq/operator/internal/resources/brokers"
+	"github.com/formancehq/operator/internal/resources/brokertopics"
+	"github.com/formancehq/operator/internal/resources/caddy"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
+	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/internal/resources/resourcereferences"
 	"github.com/formancehq/operator/internal/resources/services"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
 
 func getEncryptionKey(ctx core.Context, payments *v1beta1.Payments) (string, error) {

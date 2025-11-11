@@ -17,10 +17,11 @@ limitations under the License.
 package gatewayhttpapis
 
 import (
+	corev1 "k8s.io/api/core/v1"
+
 	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/services"
-	corev1 "k8s.io/api/core/v1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=gatewayhttpapis,verbs=get;list;watch;create;update;patch;delete

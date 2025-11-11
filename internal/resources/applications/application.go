@@ -6,20 +6,21 @@ import (
 	"maps"
 	"strconv"
 
-	"github.com/formancehq/operator/internal/resources/licence"
-	"github.com/formancehq/operator/internal/resources/settings"
+	"github.com/stoewer/go-strcase"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/policy/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/go-libs/v2/pointer"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	"github.com/stoewer/go-strcase"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"github.com/formancehq/operator/internal/resources/licence"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
 
 func checkStatus(deployment *appsv1.Deployment) (bool, string) {

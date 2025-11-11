@@ -3,17 +3,16 @@ package benthosstreams
 import (
 	"embed"
 	"fmt"
-
-	"github.com/formancehq/go-libs/v2/collectionutils"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	. "github.com/formancehq/operator/internal/core"
-
 	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/internal/core"
 )
 
 func LoadFromFileSystem(ctx Context, fs embed.FS,

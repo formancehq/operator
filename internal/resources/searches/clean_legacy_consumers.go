@@ -3,11 +3,12 @@ package searches
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/settings"
-	corev1 "k8s.io/api/core/v1"
 )
 
 func cleanConsumers(ctx Context, search *v1beta1.Search) error {

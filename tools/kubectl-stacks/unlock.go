@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 func NewUnlockCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {

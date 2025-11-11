@@ -1,13 +1,14 @@
 package gateways
 
 import (
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/applications"
 	"github.com/formancehq/operator/internal/resources/brokers"
 	"github.com/formancehq/operator/internal/resources/caddy"
 	"github.com/formancehq/operator/internal/resources/registries"
-	v1 "k8s.io/api/core/v1"
 )
 
 func createDeployment(ctx core.Context, stack *v1beta1.Stack,
