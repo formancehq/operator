@@ -404,7 +404,7 @@ func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.
 
 func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 
-	reconcileModule := func(ctx context.Context, mgr Manager, target client.Object, versionFileName string, limitingInterface workqueue.RateLimitingInterface) {
+	reconcileModule := func(ctx context.Context, mgr Manager, target client.Object, versionFileName string, limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 		stackList := &v1beta1.StackList{}
 		if err := mgr.GetClient().List(ctx, stackList, client.MatchingFields{
 			".spec.versionsFromFile": versionFileName,
@@ -439,10 +439,10 @@ func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 	options.Watchers[&v1beta1.Versions{}] = ReconcilerOptionsWatch{
 		Handler: func(mgr Manager, builder *builder.Builder, target client.Object) (handler.EventHandler, []builder.WatchesOption) {
 			return handler.Funcs{
-				CreateFunc: func(ctx context.Context, createEvent event.CreateEvent, limitingInterface workqueue.RateLimitingInterface) {
+				CreateFunc: func(ctx context.Context, createEvent event.TypedCreateEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 					reconcileModule(ctx, mgr, target, createEvent.Object.GetName(), limitingInterface)
 				},
-				UpdateFunc: func(ctx context.Context, updateEvent event.UpdateEvent, limitingInterface workqueue.RateLimitingInterface) {
+				UpdateFunc: func(ctx context.Context, updateEvent event.TypedUpdateEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 					oldObject := updateEvent.ObjectOld.(*v1beta1.Versions)
 					newObject := updateEvent.ObjectNew.(*v1beta1.Versions)
 
@@ -457,7 +457,7 @@ func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 
 					reconcileModule(ctx, mgr, target, updateEvent.ObjectNew.GetName(), limitingInterface)
 				},
-				DeleteFunc: func(ctx context.Context, deleteEvent event.DeleteEvent, limitingInterface workqueue.RateLimitingInterface) {
+				DeleteFunc: func(ctx context.Context, deleteEvent event.TypedDeleteEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 					reconcileModule(ctx, mgr, target, deleteEvent.Object.GetName(), limitingInterface)
 				},
 			}, nil
