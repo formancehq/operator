@@ -8,6 +8,7 @@ pre-commit: tidy lint generate manifests helm-update helm-validate generate-docs
 pc: pre-commit
 
 lint:
+  gci write --skip-generated --skip-vendor -s standard -s default -s "prefix(github.com/formancehq)" -s localmodule .
   golangci-lint run --fix --timeout 5m
   cd ./tools/kubectl-stacks && golangci-lint run --fix --timeout 5m
   cd ./tools/utils && golangci-lint run --fix --timeout 5m

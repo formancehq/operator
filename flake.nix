@@ -47,6 +47,7 @@
               gotools
               golangci-lint
               ginkgo
+              gci
               pkgs.nur.repos.goreleaser.goreleaser-pro
               just
               kubernetes-helm
