@@ -19,6 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
+var _ core.Manager = (*mockManager)(nil)
+
 // mockManager is a minimal implementation of core.Manager for testing
 type mockManager struct {
 	client client.Client
@@ -97,6 +99,10 @@ func (m *mockManager) SetFields(interface{}) error {
 }
 
 func (m *mockManager) AddMetricsExtraHandler(string, interface{}) error {
+	return nil
+}
+
+func (m *mockManager) AddMetricsServerExtraHandler(string, http.Handler) error {
 	return nil
 }
 
