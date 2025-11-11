@@ -6,21 +6,24 @@ import (
 	"maps"
 	"strconv"
 
-	"github.com/formancehq/operator/internal/resources/licence"
-	"github.com/formancehq/operator/internal/resources/settings"
+	"github.com/stoewer/go-strcase"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/policy/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/go-libs/v2/pointer"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	"github.com/stoewer/go-strcase"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"github.com/formancehq/operator/internal/resources/licence"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
+
+const RestartedAtAnnotationKey = "kubectl.kubernetes.io/restartedAt"
 
 func checkStatus(deployment *appsv1.Deployment) (bool, string) {
 	if deployment.Status.ObservedGeneration != deployment.Generation {
@@ -197,9 +200,25 @@ func (a Application) containersMutator(ctx core.Context, labels map[string]strin
 			return fmt.Errorf("failed to get grace period: %w", err)
 		}
 
+		// Preserve kubectl rollout restart annotation if it exists
+		restartedAtAnnotation := ""
+		if deployment.Spec.Template.Annotations != nil {
+			if val, exists := deployment.Spec.Template.Annotations[RestartedAtAnnotationKey]; exists {
+				restartedAtAnnotation = val
+			}
+		}
+
 		a.deploymentTpl.Spec.DeepCopyInto(&deployment.Spec)
 		deployment.SetName(a.deploymentTpl.Name)
 		deployment.SetNamespace(a.owner.GetStack())
+
+		// Restore kubectl rollout restart annotation if it was present
+		if restartedAtAnnotation != "" {
+			if deployment.Spec.Template.Annotations == nil {
+				deployment.Spec.Template.Annotations = map[string]string{}
+			}
+			deployment.Spec.Template.Annotations[RestartedAtAnnotationKey] = restartedAtAnnotation
+		}
 
 		// Configure matching labels
 		deployment.Spec.Selector = &metav1.LabelSelector{
