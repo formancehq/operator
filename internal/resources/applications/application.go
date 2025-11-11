@@ -399,6 +399,33 @@ func (a Application) withJsonLogging(ctx core.Context) core.ObjectMutator[*appsv
 	}
 }
 
+func (a Application) withSemconvMetricsNames(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		semconvMetricsNames, err := settings.GetBoolOrFalse(ctx, a.owner.GetStack(), "deployments", deployment.Name, "semconv-metrics-names")
+		if err != nil {
+			return err
+		}
+		if !semconvMetricsNames {
+			return nil
+		}
+
+		v := corev1.EnvVar{
+			Name:  "SEMCONV_METRICS_NAME",
+			Value: "true",
+		}
+		for i, container := range deployment.Spec.Template.Spec.InitContainers {
+			container.Env = append(container.Env, v)
+			deployment.Spec.Template.Spec.InitContainers[i] = container
+		}
+		for i, container := range deployment.Spec.Template.Spec.Containers {
+			container.Env = append(container.Env, v)
+			deployment.Spec.Template.Spec.Containers[i] = container
+		}
+
+		return nil
+	}
+}
+
 func (a Application) withNodeIP(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
 	return func(deployment *appsv1.Deployment) error {
 		nodeIPEnvVar := corev1.EnvVar{
@@ -445,6 +472,7 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		a.withEELicence(ctx),
 		a.withTopologySpreadConstraints(ctx),
 		a.withJsonLogging(ctx),
+		a.withSemconvMetricsNames(ctx),
 		a.withNodeIP(ctx),
 		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
 	)
