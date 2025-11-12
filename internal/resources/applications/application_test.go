@@ -461,6 +461,12 @@ type mockManager struct {
 	scheme *runtime.Scheme
 }
 
+var _ core.Manager = (*mockManager)(nil)
+
+func (m *mockManager) AddMetricsServerExtraHandler(string, http.Handler) error {
+	return nil
+}
+
 func (m *mockManager) GetClient() client.Client {
 	return m.client
 }
