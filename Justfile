@@ -30,11 +30,11 @@ release: helm-publish
   goreleaser release --clean
 
 manifests:
-  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 \
+  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0 \
     rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 generate:
-  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 \
+  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0 \
     object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 generate-mock:
