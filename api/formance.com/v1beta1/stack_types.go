@@ -35,6 +35,7 @@ type StackSpec struct {
 	// +kubebuilder:default:=false
 	// EnableAudit enable audit at the stack level.
 	// Actually, it enables audit on [Gateway](#gateway)
+	// deprecated
 	EnableAudit bool `json:"enableAudit,omitempty"`
 	// +optional
 	// +kubebuilder:default:=false

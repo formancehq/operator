@@ -60,6 +60,12 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		}
 	}
 
+	if broker != nil {
+		if !broker.Status.Ready {
+			return NewPendingError().WithMessage("broker not ready")
+		}
+	}
+
 	configMap, err := createConfigMap(ctx, stack, gateway, httpAPIs, broker)
 	if err != nil {
 		return err

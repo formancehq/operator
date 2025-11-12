@@ -20,13 +20,11 @@ import (
 	_ "embed"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/benthosstreams"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/search/benthos"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
@@ -53,14 +51,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 	}
 
 	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
-		return err
-	}
-
-	if err := benthosstreams.LoadFromFileSystem(ctx, benthos.Streams, ledger, "streams/ledger", "ingestion"); err != nil {
-		return err
-	}
-
-	if err := benthosstreams.LoadFromFileSystem(ctx, reindexStreams, ledger, "assets/reindex/v2.0.0", "reindex"); err != nil {
 		return err
 	}
 

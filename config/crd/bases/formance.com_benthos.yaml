@@ -51,21 +51,6 @@ spec:
             type: object
           spec:
             properties:
-              batching:
-                description: Batching allow to define custom batching configuration
-                properties:
-                  count:
-                    description: Count indicates the number of messages that can be
-                      kept in memory before being flushed to ElasticSearch
-                    type: integer
-                  period:
-                    description: Period indicates the maximum duration messages can
-                      be kept in memory before being flushed to ElasticSearch
-                    type: string
-                required:
-                - count
-                - period
-                type: object
               debug:
                 default: false
                 description: Allow to enable debug mode on the module
@@ -1480,9 +1465,17 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              resources:
+                additionalProperties:
+                  type: string
+                type: object
               stack:
                 description: Stack indicates the stack on which the module is installed
                 type: string
+              templates:
+                additionalProperties:
+                  type: string
+                type: object
             type: object
           status:
             properties:

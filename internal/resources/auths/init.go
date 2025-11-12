@@ -17,7 +17,6 @@ limitations under the License.
 package auths
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	. "github.com/formancehq/go-libs/v2/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
@@ -82,9 +81,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version st
 	if err != nil {
 		return errors.Wrap(err, "resolving image configuration")
 	}
-	spew.Dump(imageConfiguration)
 
-	if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
+	if databases.GetSavedModuleVersion(database) != version {
 		if err := databases.Migrate(ctx, stack, auth, imageConfiguration, database); err != nil {
 			return err
 		}

@@ -65,21 +65,6 @@ spec:
                   readKeySetMaxRetries:
                     type: integer
                 type: object
-              batching:
-                description: Batching allow to define custom batching configuration
-                properties:
-                  count:
-                    description: Count indicates the number of messages that can be
-                      kept in memory before being flushed to ElasticSearch
-                    type: integer
-                  period:
-                    description: Period indicates the maximum duration messages can
-                      be kept in memory before being flushed to ElasticSearch
-                    type: string
-                required:
-                - count
-                - period
-                type: object
               debug:
                 default: false
                 description: Allow to enable debug mode on the module
@@ -175,11 +160,6 @@ spec:
               ready:
                 description: Ready indicates if the resource is seen as completely
                   reconciled
-                type: boolean
-              topicCleaned:
-                default: false
-                description: TopicCleaned is used to flag stacks where the topics
-                  have been cleaned (still search-ledgerv2 and co consumers)
                 type: boolean
             type: object
         type: object

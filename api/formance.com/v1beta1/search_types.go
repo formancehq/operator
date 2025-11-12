@@ -23,8 +23,6 @@ import (
 type SearchSpec struct {
 	StackDependency  `json:",inline"`
 	ModuleProperties `json:",inline"`
-	//+optional
-	Batching *Batching `json:"batching,omitempty"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
 }
@@ -33,10 +31,6 @@ type SearchStatus struct {
 	Status `json:",inline"`
 	//+optional
 	ElasticSearchURI *URI `json:"elasticSearchURI,omitempty"`
-	// TopicCleaned is used to flag stacks where the topics have been cleaned (still search-ledgerv2 and co consumers)
-	//+optional
-	// +kubebuilder:default:=false
-	TopicCleaned bool `json:"topicCleaned,omitempty"`
 }
 
 // +kubebuilder:object:root=true

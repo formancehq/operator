@@ -27,11 +27,9 @@ import (
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/benthosstreams"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/search/benthos"
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -76,10 +74,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 
 	healthEndpoint := "_health"
 	switch {
-	case semver.IsValid(version) && semver.Compare(version, "v1.0.0-alpha") < 0:
-		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration, false); err != nil {
-			return err
-		}
 	case semver.IsValid(version) && semver.Compare(version, "v1.0.0-alpha") >= 0 &&
 		semver.Compare(version, "v3.0.0") < 0:
 		if err := createReadDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
@@ -101,10 +95,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration, true); err != nil {
 			return err
 		}
-	}
-
-	if err := benthosstreams.LoadFromFileSystem(ctx, benthos.Streams, p, "streams/payments", "ingestion"); err != nil {
-		return err
 	}
 
 	if err := gatewayhttpapis.Create(ctx, p,

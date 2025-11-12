@@ -30,7 +30,16 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=benthosstreams/finalizers,verbs=update
 
 func Reconcile(ctx Context, _ *v1beta1.Stack, stream *v1beta1.BenthosStream) error {
-	_, _, err := CreateOrUpdate[*corev1.ConfigMap](ctx, types.NamespacedName{
+
+	// todo(next-minor): remove that cleanup code
+	// clean legacy
+	// since we don't create any BenthosStream in the operator
+	// we can clean all streams owned by one of our component
+	if len(stream.GetOwnerReferences()) == 1 && stream.GetOwnerReferences()[0].APIVersion == "formance.com/v1beta1" {
+		return ctx.GetClient().Delete(ctx, stream)
+	}
+
+	cm, _, err := CreateOrUpdate[*corev1.ConfigMap](ctx, types.NamespacedName{
 		Namespace: stream.Spec.Stack,
 		Name:      fmt.Sprintf("stream-%s", stream.Name),
 	},
@@ -47,7 +56,9 @@ func Reconcile(ctx Context, _ *v1beta1.Stack, stream *v1beta1.BenthosStream) err
 		return err
 	}
 
-	return err
+	stream.Status.ConfigMapHash = HashFromConfigMaps(cm)
+
+	return nil
 }
 
 func init() {

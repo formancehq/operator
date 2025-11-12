@@ -107,6 +107,7 @@ spec:
                 description: |-
                   EnableAudit enable audit at the stack level.
                   Actually, it enables audit on [Gateway](#gateway)
+                  deprecated
                 type: boolean
               version:
                 description: |-

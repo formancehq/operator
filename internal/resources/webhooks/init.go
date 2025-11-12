@@ -68,14 +68,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 	}
 
 	if consumer.Status.Ready {
-		if IsGreaterOrEqual(version, "v0.7.1") {
-			if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-				return err
-			}
-		} else {
-			if err := createDualDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-				return err
-			}
+		if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
+			return err
 		}
 	}
 
