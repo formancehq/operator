@@ -129,6 +129,25 @@ make run
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin 
 privileges or be logged in as admin.
 
+## Namespace Prefix Configuration
+
+The operator creates namespaces for each stack with the format `<organisationID>-<stackID>`. You can configure a prefix to be added to all namespace names by using the `--namespace-prefix` command line flag.
+
+**Example:**
+- Without prefix: `myorg-mystack`
+- With prefix `dev-`: `dev-myorg-mystack`
+
+**Command line usage:**
+```sh
+make run -- --namespace-prefix=dev-
+```
+
+**Helm chart usage:**
+```yaml
+operator:
+  namespacePrefix: "dev-"
+```
+
 **Create instances of your solution**
 You can apply the samples (examples) from the config/sample:
 

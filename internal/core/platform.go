@@ -10,4 +10,6 @@ type Platform struct {
 	LicenceSecret string
 	// The operator utils image version
 	UtilsVersion string
+	// The namespace prefix to use when creating namespaces
+	NamespacePrefix string
 }

@@ -110,7 +110,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 		oldResource := &unstructured.Unstructured{}
 		oldResource.SetGroupVersionKind(gvk)
 		err := ctx.GetClient().Get(ctx, types.NamespacedName{
-			Namespace: stack.Name,
+			Namespace: core.GetNamespaceName(ctx.GetPlatform(), stack.Name),
 			Name:      req.Status.SyncedResource,
 		}, oldResource)
 		if client.IgnoreNotFound(err) != nil {
@@ -147,7 +147,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 
 	newResource := &unstructured.Unstructured{}
 	newResource.SetGroupVersionKind(gvk)
-	newResource.SetNamespace(stack.Name)
+	newResource.SetNamespace(core.GetNamespaceName(ctx.GetPlatform(), stack.Name))
 	newResource.SetName(req.Spec.Name)
 
 	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), newResource, func() error {

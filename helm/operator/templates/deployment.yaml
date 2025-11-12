@@ -52,6 +52,9 @@ spec:
             {{- with .Values.operator.region }}
             - --region={{ $.Values.operator.region }}
             {{- end }}
+            {{- with .Values.operator.namespacePrefix }}
+            - --namespace-prefix={{ $.Values.operator.namespacePrefix }}
+            {{- end }}
             {{- if and .Values.global.licence.createSecret (eq (len .Values.global.licence.existingSecret) 0) }}
             - --licence-secret={{ include "operator.fullname" . }}-licence
             {{- else }}
