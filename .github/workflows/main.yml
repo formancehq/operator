@@ -91,13 +91,23 @@ jobs:
           FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
   Deploy:
-    runs-on: "formance-runner"
+    runs-on: "shipfox-2vcpu-ubuntu-2404"
     if: github.ref == 'refs/heads/main'
     environment: staging
     needs:
       - GoReleaser
       - Tests
     steps:
+      - name: Tailscale
+        uses: formancehq/tailscale-github-action@v3+formance
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: ${{ vars.TS_TAGS }}
+          version: ${{ vars.TS_VERSION }}
+          args: ${{ vars.TS_ARGS }}
+          retry: ${{ vars.TS_RETRY }}
+          timeout: ${{ vars.TS_TIMEOUT }}
       - uses: 'actions/checkout@v4'
         with:
           fetch-depth: 0
@@ -106,5 +116,8 @@ jobs:
           TAG: ${{ github.sha }}
           ARGOCD_REGION_AUTH_TOKEN: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
         run: >
-          earthly   --no-output  --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN +deploy-staging --TAG=$TAG
-
+          earthly
+          --no-output
+          --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN
+          +deploy-staging
+          --TAG=$TAG
