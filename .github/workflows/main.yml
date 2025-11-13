@@ -111,10 +111,8 @@ jobs:
       - uses: 'actions/checkout@v4'
         with:
           fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/default
-        with:
-          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
       - name: "Deploy in staging"
         env:
           TAG: ${{ github.sha }}
