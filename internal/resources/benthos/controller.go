@@ -1,7 +1,10 @@
 package benthos
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -11,10 +14,8 @@ import (
 	"github.com/formancehq/operator/internal/resources/applications"
 	"github.com/formancehq/operator/internal/resources/registries"
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
-	benthosOperator "github.com/formancehq/operator/internal/resources/searches/benthos"
 	"github.com/formancehq/operator/internal/resources/services"
 	"github.com/formancehq/operator/internal/resources/settings"
-	"github.com/formancehq/search/benthos"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+//go:embed builtin-templates
+var builtinTemplates embed.FS
 
 //+kubebuilder:rbac:groups=formance.com,resources=benthos,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=benthos/status,verbs=get;update;patch
@@ -64,34 +68,21 @@ func createService(ctx Context, b *v1beta1.Benthos) error {
 	return err
 }
 
-// TODO(gfyrag): there is a ton of search related configuration
 // We need to this controller and keep it focused on benthos
 func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) error {
-	brokerURI, err := settings.RequireURL(ctx, stack.Name, "broker", "dsn")
-	if err != nil {
-		return errors.Wrap(err, "searching broker configuration")
-	}
-
-	elasticSearchURI, err := settings.RequireURL(ctx, stack.Name, "elasticsearch", "dsn")
-	if err != nil {
-		return errors.Wrap(err, "searching elasticsearch configuration")
-	}
-
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
 		return err
 	}
 
-	awsIAMEnabled := serviceAccountName != ""
-	var resourceReference *v1beta1.ResourceReference
-	if secret := elasticSearchURI.Query().Get("secret"); !awsIAMEnabled && secret != "" {
-		resourceReference, err = resourcereferences.Create(ctx, b, "elasticsearch", secret, &corev1.Secret{})
-	} else {
-		err = resourcereferences.Delete(ctx, b, "elasticsearch")
-	}
+	// Cleanup potential old resource reference (pre v3.0.0)
+	// todo(next-minor): remove
+	err = resourcereferences.Delete(ctx, b, "elasticsearch")
 	if err != nil {
 		return err
 	}
+
+	awsIAMEnabled := serviceAccountName != ""
 
 	broker := &v1beta1.Broker{}
 	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
@@ -112,65 +103,32 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	}
 
 	env := []corev1.EnvVar{
-		Env("OPENSEARCH_URL", elasticSearchURI.WithoutQuery().String()),
 		Env("TOPIC_PREFIX", topicPrefix),
-		Env("OPENSEARCH_INDEX", "stacks"),
 		Env("STACK", b.Spec.Stack),
+		Env("BROKER", broker.Status.URI.Scheme),
 	}
 	if awsIAMEnabled {
 		env = append(env, Env("AWS_IAM_ENABLED", "true"))
 	}
 
-	if b.Spec.Batching != nil {
-		if b.Spec.Batching.Count != 0 {
-			env = append(env, Env("OPENSEARCH_BATCHING_COUNT", fmt.Sprint(b.Spec.Batching.Count)))
-		}
-		if b.Spec.Batching.Period != "" {
-			env = append(env, Env("OPENSEARCH_BATCHING_PERIOD", b.Spec.Batching.Period))
-		}
-	}
-
-	if brokerURI.Scheme == "kafka" {
-		env = append(env, Env("KAFKA_ADDRESS", brokerURI.Host))
-		if settings.IsTrue(brokerURI.Query().Get("tls")) {
+	if broker.Status.URI.Scheme == "kafka" {
+		env = append(env, Env("KAFKA_ADDRESS", broker.Status.URI.Host))
+		if settings.IsTrue(broker.Status.URI.Query().Get("tls")) {
 			env = append(env, Env("KAFKA_TLS_ENABLED", "true"))
 		}
-		if settings.IsTrue(brokerURI.Query().Get("saslEnabled")) {
+		if settings.IsTrue(broker.Status.URI.Query().Get("saslEnabled")) {
 			env = append(env,
-				Env("KAFKA_SASL_USERNAME", brokerURI.Query().Get("saslUsername")),
-				Env("KAFKA_SASL_PASSWORD", brokerURI.Query().Get("saslPassword")),
-				Env("KAFKA_SASL_MECHANISM", brokerURI.Query().Get("saslMechanism")),
+				Env("KAFKA_SASL_USERNAME", broker.Status.URI.Query().Get("saslUsername")),
+				Env("KAFKA_SASL_PASSWORD", broker.Status.URI.Query().Get("saslPassword")),
+				Env("KAFKA_SASL_MECHANISM", broker.Status.URI.Query().Get("saslMechanism")),
 			)
 		}
 	}
-	if brokerURI.Scheme == "nats" {
-		env = append(env, Env("NATS_URL", brokerURI.Host))
+	if broker.Status.URI.Scheme == "nats" {
+		env = append(env, Env("NATS_URL", broker.Status.URI.Host))
 		if broker.Status.Mode == v1beta1.ModeOneStreamByStack {
 			env = append(env, Env("NATS_BIND", "true"))
 		}
-	}
-	if secret := elasticSearchURI.Query().Get("secret"); elasticSearchURI.User != nil || secret != "" {
-		env = append(env, Env("BASIC_AUTH_ENABLED", "true"))
-		if secret == "" {
-			password, _ := brokerURI.User.Password()
-			env = append(env,
-				Env("BASIC_AUTH_USERNAME", brokerURI.User.Username()),
-				Env("BASIC_AUTH_PASSWORD", password),
-			)
-		} else {
-			env = append(env,
-				EnvFromSecret("BASIC_AUTH_USERNAME", secret, "username"),
-				EnvFromSecret("BASIC_AUTH_PASSWORD", secret, "password"),
-			)
-		}
-	} else {
-		// Even if basic auth is not enabled, we need to set the env vars
-		// to avoid benthos to crash due to linting errors
-		env = append(env,
-			Env("BASIC_AUTH_ENABLED", "false"),
-			Env("BASIC_AUTH_USERNAME", "username"),
-			Env("BASIC_AUTH_PASSWORD", "password"),
-		)
 	}
 
 	cmd := []string{
@@ -181,58 +139,69 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 
 	cmd = append(cmd, "--log.level", "trace", "streams", "/streams/*.yaml")
 
+	// Drop config map if exists (pre v3.0.0)
+	kinds, _, err := ctx.GetScheme().ObjectKinds(&corev1.ConfigMap{})
+	if err != nil {
+		return err
+	}
+
+	object := &unstructured.Unstructured{}
+	object.SetGroupVersionKind(kinds[0])
+	object.SetNamespace(stack.Name)
+	object.SetName("benthos-audit")
+	if err := client.IgnoreNotFound(ctx.GetClient().Delete(ctx, object)); err != nil {
+		return errors.Wrap(err, "deleting audit config map")
+	}
+
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
-
-	type directory struct {
-		name string
-		fs   embed.FS
-	}
-
-	directories := []directory{
-		{
-			name: "templates",
-			fs:   benthos.Templates,
-		},
-		{
-			name: "resources",
-			fs:   benthos.Resources,
-		},
-	}
-
-	if stack.Spec.EnableAudit {
-		directories = append(directories, directory{
-			name: "audit",
-			fs:   benthosOperator.Audit,
-		})
-	} else {
-		kinds, _, err := ctx.GetScheme().ObjectKinds(&corev1.ConfigMap{})
-		if err != nil {
-			return err
-		}
-
-		object := &unstructured.Unstructured{}
-		object.SetGroupVersionKind(kinds[0])
-		object.SetNamespace(stack.Name)
-		object.SetName("benthos-audit")
-		if err := client.IgnoreNotFound(ctx.GetClient().Delete(ctx, object)); err != nil {
-			return errors.Wrap(err, "deleting audit config map")
-		}
-	}
-
 	configMaps := make([]*corev1.ConfigMap, 0)
 
-	for _, x := range directories {
-		data := make(map[string]string)
+	for _, object := range []struct {
+		discr string
+		files map[string]string
+	}{
+		{
+			discr: "resources",
+			files: b.Spec.Resources,
+		},
+		{
+			discr: "templates",
+			files: func() map[string]string {
+				ret := b.Spec.Templates
+				if ret == nil {
+					ret = make(map[string]string)
+				}
 
-		CopyDir(x.fs, x.name, x.name, &data)
+				files, err := builtinTemplates.ReadDir("builtin-templates")
+				if err != nil {
+					panic(err)
+				}
 
+				for _, file := range files {
+					data, err := builtinTemplates.ReadFile("builtin-templates/" + file.Name())
+					if err != nil {
+						panic(err)
+					}
+
+					ret[file.Name()] = string(data)
+				}
+
+				return ret
+			}(),
+		},
+	} {
+
+		configMapName := fmt.Sprintf("benthos-%s", object.discr)
 		configMap, _, err := CreateOrUpdate[*corev1.ConfigMap](ctx, types.NamespacedName{
 			Namespace: b.Spec.Stack,
-			Name:      "benthos-" + x.name,
+			Name:      configMapName,
 		},
 			func(t *corev1.ConfigMap) error {
-				t.Data = data
+				t.Data = object.files
+				if t.Data == nil {
+					t.Data = make(map[string]string)
+				}
 
 				return nil
 			},
@@ -244,25 +213,22 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 
 		configMaps = append(configMaps, configMap)
 
+		volumeName := object.discr
 		volumes = append(volumes, corev1.Volume{
-			Name: x.name,
+			Name: volumeName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "benthos-" + x.name,
+						Name: configMapName,
 					},
 				},
 			},
 		})
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      x.name,
+			Name:      volumeName,
 			ReadOnly:  true,
-			MountPath: "/" + x.name,
+			MountPath: fmt.Sprintf("/%s", object.discr),
 		})
-	}
-
-	if stack.Spec.EnableAudit {
-		cmd = append(cmd, "/audit/gateway_audit.yaml")
 	}
 
 	streamList := &v1beta1.BenthosStreamList{}
@@ -282,11 +248,19 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 		return err
 	}
 
-	podAnnotations := map[string]string{
-		"config-hash": HashFromConfigMaps(configMaps...),
+	digest := sha256.New()
+	for _, configMap := range configMaps {
+		if err := json.NewEncoder(digest).Encode(configMap.Data); err != nil {
+			panic(err)
+		}
 	}
-	if resourceReference != nil {
-		podAnnotations["elasticsearch-secret-hash"] = resourceReference.Status.Hash
+	for _, stream := range streams {
+		digest.Write([]byte(stream.Status.ConfigMapHash))
+	}
+	configHash := base64.StdEncoding.EncodeToString(digest.Sum(nil))
+
+	podAnnotations := map[string]string{
+		"config-hash": configHash,
 	}
 
 	return applications.

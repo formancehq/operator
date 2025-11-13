@@ -229,7 +229,7 @@ func createFullDeployment(
 		}
 
 		env = append(env, brokerEnvVar...)
-		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments", "")...)
+		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
 	}
 
 	if v3 {
@@ -412,7 +412,7 @@ func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments
 		}
 
 		env = append(env, brokerEnvVar...)
-		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments", "")...)
+		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
 	}
 
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)

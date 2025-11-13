@@ -1,7 +1,7 @@
 package tests_test
 
 import (
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/settings"
 	. "github.com/formancehq/operator/internal/tests/internal"
@@ -11,26 +11,22 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("BenthosController", func() {
 
 	Context("When creating a Benthos", func() {
 		var (
-			benthos                  *v1beta1.Benthos
-			broker                   *v1beta1.Broker
-			stack                    *v1beta1.Stack
-			brokerDSNSettings        *v1beta1.Settings
-			elasticSearchDSNSettings *v1beta1.Settings
+			benthos          *v1beta1.Benthos
+			broker           *v1beta1.Broker
+			stack            *v1beta1.Stack
+			brokerDSNSetting *v1beta1.Settings
 		)
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
 				Spec:       v1beta1.StackSpec{},
 			}
-			brokerDSNSettings = settings.New(uuid.NewString(), "broker.dsn", "nats://localhost:1234", stack.Name)
-			elasticSearchDSNSettings = settings.New(uuid.NewString(), "elasticsearch.dsn", "https://localhost", stack.Name)
 			broker = &v1beta1.Broker{
 				ObjectMeta: v1.ObjectMeta{
 					Name: stack.Name,
@@ -51,16 +47,14 @@ var _ = Describe("BenthosController", func() {
 			}
 		})
 		JustBeforeEach(func() {
-			Expect(Create(brokerDSNSettings)).To(BeNil())
 			Expect(Create(stack)).To(Succeed())
-			Expect(Create(elasticSearchDSNSettings)).To(Succeed())
+			brokerDSNSetting = settings.New(uuid.NewString(), "broker.dsn", "noop://do-nothing", stack.Name)
+			Expect(Create(brokerDSNSetting)).To(BeNil())
 			Expect(Create(broker)).To(Succeed())
 			Expect(Create(benthos)).To(Succeed())
 		})
 		JustAfterEach(func() {
 			Expect(Delete(stack)).To(Succeed())
-			Expect(Delete(elasticSearchDSNSettings)).To(Succeed())
-			Expect(Delete(brokerDSNSettings)).To(Succeed())
 		})
 		It("Should create appropriate resources", func() {
 			By("Should create a deployment", func() {
@@ -80,42 +74,6 @@ var _ = Describe("BenthosController", func() {
 				Eventually(func() error {
 					return Get(core.GetNamespacedResourceName(stack.Name, "benthos-resources"), t)
 				}).Should(BeNil())
-			})
-		})
-		Context("with audit enabled on stack", func() {
-			BeforeEach(func() {
-				stack.Spec.EnableAudit = true
-			})
-			It("Should properly configure the service", func() {
-				By("should add a config map for the stream", func() {
-					Eventually(func() error {
-						cm := &corev1.ConfigMap{}
-						return LoadResource(stack.Name, "benthos-audit", cm)
-					}).Should(Succeed())
-				})
-				By("should add a cmd args to the deployment", func() {
-					t := &appsv1.Deployment{}
-					Eventually(func(g Gomega) []string {
-						g.Expect(LoadResource(stack.Name, "benthos", t)).To(Succeed())
-						return t.Spec.Template.Spec.Containers[0].Command
-					}).Should(ContainElement("/audit/gateway_audit.yaml"))
-				})
-			})
-			Context("then disabling audit", func() {
-				JustBeforeEach(func() {
-					Eventually(func() error {
-						cm := &corev1.ConfigMap{}
-						return LoadResource(stack.Name, "benthos-audit", cm)
-					}).Should(Succeed())
-					patch := client.MergeFrom(stack.DeepCopy())
-					stack.Spec.EnableAudit = false
-					Expect(Patch(stack, patch)).To(Succeed())
-				})
-				It("should remove the associated config map", func() {
-					Eventually(func() error {
-						return LoadResource(stack.Name, "benthos-audit", &corev1.ConfigMap{})
-					}).Should(BeNotFound())
-				})
 			})
 		})
 	})

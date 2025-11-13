@@ -108,6 +108,50 @@ make docker-build docker-push IMG=<some-registry>/operator:tag
 And it is required to have access to pull the image from the working environment. 
 Make sure you have the proper permission to the registry if the above commands don’t work.
 
+**Enable audit for a stack**
+
+```sh
+cat <<EOF | kubectl create -f -
+---
+apiVersion: formance.com/v1beta1
+kind: BrokerConsumer
+metadata:
+  name: audit
+spec:
+  services:
+  - gateway
+  stack: <stack-name>
+  # Used for consumer group
+  queriedBy: admin
+---
+apiVersion: formance.com/v1beta1
+kind: Benthos
+metadata:
+  name: benthos
+spec:
+  stack: <stack-name>
+---
+# Create a stream
+apiVersion: formance.com/v1beta1
+kind: BenthosStream
+metadata:
+  name: audit-stream
+spec:
+  name: audit
+  stack: <stack-name>
+  data: |
+    input:
+      event_bus:
+        topic: gateway
+        consumer_group: audit
+    pipeline: {}
+    output:
+      label: "debug"
+      stdout:
+        codec: lines
+EOF
+```
+
 **Install the CRDs into the cluster:**
 
 ```sh

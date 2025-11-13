@@ -1,7 +1,6 @@
 package databases
 
 import (
-	"fmt"
 	"net/url"
 	"strconv"
 	"time"
@@ -13,43 +12,39 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, db *v1beta1.Database) ([]corev1.EnvVar, error) {
-	return PostgresEnvVarsWithPrefix(ctx, stack, db, "")
-}
-
-func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, prefix string) ([]corev1.EnvVar, error) {
+func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database) ([]corev1.EnvVar, error) {
 	ret := []corev1.EnvVar{
-		core.Env(fmt.Sprintf("%sPOSTGRES_HOST", prefix), database.Status.URI.Hostname()),
-		core.Env(fmt.Sprintf("%sPOSTGRES_PORT", prefix), database.Status.URI.Port()),
-		core.Env(fmt.Sprintf("%sPOSTGRES_DATABASE", prefix), database.Status.Database),
+		core.Env("POSTGRES_HOST", database.Status.URI.Hostname()),
+		core.Env("POSTGRES_PORT", database.Status.URI.Port()),
+		core.Env("POSTGRES_DATABASE", database.Status.Database),
 	}
 	if database.Status.URI.User.Username() != "" || database.Status.URI.Query().Get("secret") != "" {
 		if database.Status.URI.User.Username() != "" {
 			password, _ := database.Status.URI.User.Password()
 			ret = append(ret,
-				core.Env(fmt.Sprintf("%sPOSTGRES_USERNAME", prefix), database.Status.URI.User.Username()),
-				core.Env(fmt.Sprintf("%sPOSTGRES_PASSWORD", prefix), url.QueryEscape(password)),
+				core.Env("POSTGRES_USERNAME", database.Status.URI.User.Username()),
+				core.Env("POSTGRES_PASSWORD", url.QueryEscape(password)),
 			)
 		} else {
 			secret := database.Status.URI.Query().Get("secret")
 			ret = append(ret,
-				core.EnvFromSecret(fmt.Sprintf("%sPOSTGRES_USERNAME", prefix), secret, "username"),
-				core.EnvFromSecret(fmt.Sprintf("%sPOSTGRES_PASSWORD", prefix), secret, "password"),
+				core.EnvFromSecret("POSTGRES_USERNAME", secret, "username"),
+				core.EnvFromSecret("POSTGRES_PASSWORD", secret, "password"),
 			)
 		}
 		ret = append(ret,
-			core.Env(fmt.Sprintf("%sPOSTGRES_NO_DATABASE_URI", prefix), core.ComputeEnvVar("postgresql://%s:%s@%s:%s",
-				fmt.Sprintf("%sPOSTGRES_USERNAME", prefix),
-				fmt.Sprintf("%sPOSTGRES_PASSWORD", prefix),
-				fmt.Sprintf("%sPOSTGRES_HOST", prefix),
-				fmt.Sprintf("%sPOSTGRES_PORT", prefix),
+			core.Env("POSTGRES_NO_DATABASE_URI", core.ComputeEnvVar("postgresql://%s:%s@%s:%s",
+				"POSTGRES_USERNAME",
+				"POSTGRES_PASSWORD",
+				"POSTGRES_HOST",
+				"POSTGRES_PORT",
 			)),
 		)
 	} else {
 		ret = append(ret,
-			core.Env(fmt.Sprintf("%sPOSTGRES_NO_DATABASE_URI", prefix), core.ComputeEnvVar("postgresql://%s:%s",
-				fmt.Sprintf("%sPOSTGRES_HOST", prefix),
-				fmt.Sprintf("%sPOSTGRES_PORT", prefix),
+			core.Env("POSTGRES_NO_DATABASE_URI", core.ComputeEnvVar("postgresql://%s:%s",
+				"POSTGRES_HOST",
+				"POSTGRES_PORT",
 			)),
 		)
 	}
@@ -60,7 +55,7 @@ func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database 
 	}
 
 	if awsRole != "" {
-		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_AWS_ENABLE_IAM", prefix), "true"))
+		ret = append(ret, core.Env("POSTGRES_AWS_ENABLE_IAM", "true"))
 	}
 
 	f := "%s/%s"
@@ -68,9 +63,9 @@ func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database 
 		f += "?sslmode=disable"
 	}
 	ret = append(ret,
-		core.Env(fmt.Sprintf("%sPOSTGRES_URI", prefix), core.ComputeEnvVar(f,
-			fmt.Sprintf("%sPOSTGRES_NO_DATABASE_URI", prefix),
-			fmt.Sprintf("%sPOSTGRES_DATABASE", prefix))),
+		core.Env("POSTGRES_URI", core.ComputeEnvVar(f,
+			"POSTGRES_NO_DATABASE_URI",
+			"POSTGRES_DATABASE")),
 	)
 
 	config, err := settings.GetAs[connectionPoolConfiguration](ctx, stack.Name, "modules", database.Spec.Service, "database", "connection-pool")
@@ -83,28 +78,28 @@ func PostgresEnvVarsWithPrefix(ctx core.Context, stack *v1beta1.Stack, database 
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot parse max idle value")
 		}
-		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_MAX_IDLE_CONNS", prefix), config.MaxIdle))
+		ret = append(ret, core.Env("POSTGRES_MAX_IDLE_CONNS", config.MaxIdle))
 	}
 	if config.MaxIdleTime != "" {
 		_, err := time.ParseDuration(config.MaxIdleTime)
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot parse max idle time value")
 		}
-		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_CONN_MAX_IDLE_TIME", prefix), config.MaxIdleTime))
+		ret = append(ret, core.Env("POSTGRES_CONN_MAX_IDLE_TIME", config.MaxIdleTime))
 	}
 	if config.MaxOpen != "" {
 		_, err := strconv.ParseUint(config.MaxOpen, 10, 64)
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot parse max open conns value")
 		}
-		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_MAX_OPEN_CONNS", prefix), config.MaxOpen))
+		ret = append(ret, core.Env("POSTGRES_MAX_OPEN_CONNS", config.MaxOpen))
 	}
 	if config.MaxLifetime != "" {
 		_, err := time.ParseDuration(config.MaxLifetime)
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot parse max lifetime value")
 		}
-		ret = append(ret, core.Env(fmt.Sprintf("%sPOSTGRES_CONN_MAX_LIFETIME", prefix), config.MaxLifetime))
+		ret = append(ret, core.Env("POSTGRES_CONN_MAX_LIFETIME", config.MaxLifetime))
 	}
 
 	return ret, nil

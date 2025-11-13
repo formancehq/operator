@@ -1,14 +1,10 @@
 package webhooks
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/formancehq/operator/internal/resources/brokers"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	. "github.com/formancehq/go-libs/v2/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/applications"
@@ -128,70 +124,6 @@ func createAPIDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1bet
 		Install(ctx)
 }
 
-func createWorkerDeployment(
-	ctx core.Context,
-	stack *v1beta1.Stack,
-	webhooks *v1beta1.Webhooks,
-	database *v1beta1.Database,
-	consumer *v1beta1.BrokerConsumer,
-	version string,
-) error {
-
-	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "webhooks", version)
-	if err != nil {
-		return err
-	}
-
-	env, err := deploymentEnvVars(ctx, stack, webhooks, database)
-	if err != nil {
-		return err
-	}
-
-	env = append(env, core.Env("WORKER", "true"))
-	env = append(env, core.Env("KAFKA_TOPICS", strings.Join(Map(consumer.Spec.Services, func(from string) string {
-		return fmt.Sprintf("%s-%s", stack.Name, from)
-	}), " ")))
-
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-	if err != nil {
-		return err
-	}
-
-	return applications.
-		New(webhooks, &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "webhooks-worker",
-			},
-			Spec: appsv1.DeploymentSpec{
-				Template: v1.PodTemplateSpec{
-					Spec: v1.PodSpec{
-						ImagePullSecrets:   imageConfiguration.PullSecrets,
-						ServiceAccountName: serviceAccountName,
-						Containers: []v1.Container{{
-							Name:  "worker",
-							Env:   env,
-							Image: imageConfiguration.GetFullImageName(),
-							Args:  []string{"worker"},
-						}},
-					},
-				},
-			},
-		}).
-		IsEE().
-		Install(ctx)
-}
-
 func createSingleDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database, consumer *v1beta1.BrokerConsumer, version string) error {
 	return createAPIDeployment(ctx, stack, webhooks, database, consumer, version, true)
-}
-
-func createDualDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database, consumer *v1beta1.BrokerConsumer, version string) error {
-	if err := createAPIDeployment(ctx, stack, webhooks, database, consumer, version, false); err != nil {
-		return err
-	}
-	if err := createWorkerDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-		return err
-	}
-
-	return nil
 }

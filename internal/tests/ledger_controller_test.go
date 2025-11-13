@@ -1,7 +1,6 @@
 package tests_test
 
 import (
-	"github.com/formancehq/go-libs/v2/collectionutils"
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/settings"
@@ -10,9 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -167,64 +164,6 @@ var _ = Describe("LedgerController", func() {
 							ShouldNot(ContainElements(core.Env("BROKER", "nats")))
 						return true
 					}).Should(BeTrue())
-				})
-			})
-		})
-		Context("With Search enabled", func() {
-			var search *v1beta1.Search
-			BeforeEach(func() {
-				search = &v1beta1.Search{
-					ObjectMeta: RandObjectMeta(),
-					Spec: v1beta1.SearchSpec{
-						StackDependency: v1beta1.StackDependency{
-							Stack: stack.Name,
-						},
-					},
-				}
-			})
-			JustBeforeEach(func() {
-				Expect(Create(search)).To(Succeed())
-			})
-			JustAfterEach(func() {
-				Expect(client.IgnoreNotFound(Delete(search))).To(Succeed())
-			})
-			checkResourcesExists := func() {
-				l := &v1beta1.BenthosStreamList{}
-				Eventually(func(g Gomega) int {
-					g.Expect(List(l)).To(Succeed())
-					return len(collectionutils.Filter(l.Items, func(stream v1beta1.BenthosStream) bool {
-						return stream.Spec.Stack == stack.Name
-					}))
-				}).Should(BeNumerically(">", 0))
-
-				cronJob := &v1.CronJob{}
-				Eventually(func() error {
-					return Get(types.NamespacedName{
-						Namespace: stack.Name,
-						Name:      "reindex-ledger",
-					}, cronJob)
-				}).Should(BeNil())
-			}
-			It("Should create appropriate resources", checkResourcesExists)
-			Context("Then when removing search", func() {
-				JustBeforeEach(func() {
-					checkResourcesExists()
-					Expect(Delete(search)).To(Succeed())
-				})
-				It("Should remove resources", func() {
-					l := &v1beta1.BenthosStreamList{}
-					Eventually(func(g Gomega) int {
-						g.Expect(List(l)).To(Succeed())
-						return len(collectionutils.Filter(l.Items, func(stream v1beta1.BenthosStream) bool {
-							return stream.Spec.Stack == stack.Name
-						}))
-					}).Should(BeZero())
-					Eventually(func() error {
-						return Get(types.NamespacedName{
-							Namespace: stack.Name,
-							Name:      "reindex-ledger",
-						}, &v1.CronJob{})
-					}).Should(BeNotFound())
 				})
 			})
 		})

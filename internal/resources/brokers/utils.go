@@ -14,35 +14,31 @@ import (
 )
 
 func GetBrokerEnvVars(ctx core.Context, brokerURI *v1beta1.URI, stackName, serviceName string) ([]v1.EnvVar, error) {
-	return GetEnvVarsWithPrefix(ctx, brokerURI, stackName, serviceName, "")
-}
-
-func GetEnvVarsWithPrefix(ctx core.Context, brokerURI *v1beta1.URI, stackName, serviceName, prefix string) ([]v1.EnvVar, error) {
 	ret := make([]v1.EnvVar, 0)
 
-	ret = append(ret, core.Env(fmt.Sprintf("%sBROKER", prefix), brokerURI.Scheme))
+	ret = append(ret, core.Env("BROKER", brokerURI.Scheme))
 
 	if brokerURI.Query().Get("circuitBreakerEnabled") == "true" {
-		ret = append(ret, core.Env(fmt.Sprintf("%sPUBLISHER_CIRCUIT_BREAKER_ENABLED", prefix), "true"))
+		ret = append(ret, core.Env("PUBLISHER_CIRCUIT_BREAKER_ENABLED", "true"))
 		if openInterval := brokerURI.Query().Get("circuitBreakerOpenInterval"); openInterval != "" {
-			ret = append(ret, core.Env(fmt.Sprintf("%sPUBLISHER_CIRCUIT_BREAKER_OPEN_INTERVAL_DURATION", prefix), openInterval))
+			ret = append(ret, core.Env("PUBLISHER_CIRCUIT_BREAKER_OPEN_INTERVAL_DURATION", openInterval))
 		}
 	}
 
 	switch {
 	case brokerURI.Scheme == "kafka":
 		ret = append(ret,
-			core.Env(fmt.Sprintf("%sBROKER", prefix), "kafka"),
-			core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_ENABLED", prefix), "true"),
-			core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_BROKER", prefix), brokerURI.Host),
+			core.Env("BROKER", "kafka"),
+			core.Env("PUBLISHER_KAFKA_ENABLED", "true"),
+			core.Env("PUBLISHER_KAFKA_BROKER", brokerURI.Host),
 		)
 		if settings.IsTrue(brokerURI.Query().Get("saslEnabled")) {
 			ret = append(ret,
-				core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_SASL_ENABLED", prefix), "true"),
-				core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_SASL_USERNAME", prefix), brokerURI.Query().Get("saslUsername")),
-				core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_SASL_PASSWORD", prefix), brokerURI.Query().Get("saslPassword")),
-				core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_SASL_MECHANISM", prefix), brokerURI.Query().Get("saslMechanism")),
-				core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_SASL_SCRAM_SHA_SIZE", prefix), brokerURI.Query().Get("saslSCRAMSHASize")),
+				core.Env("PUBLISHER_KAFKA_SASL_ENABLED", "true"),
+				core.Env("PUBLISHER_KAFKA_SASL_USERNAME", brokerURI.Query().Get("saslUsername")),
+				core.Env("PUBLISHER_KAFKA_SASL_PASSWORD", brokerURI.Query().Get("saslPassword")),
+				core.Env("PUBLISHER_KAFKA_SASL_MECHANISM", brokerURI.Query().Get("saslMechanism")),
+				core.Env("PUBLISHER_KAFKA_SASL_SCRAM_SHA_SIZE", brokerURI.Query().Get("saslSCRAMSHASize")),
 			)
 
 			serviceAccount, err := settings.GetAWSServiceAccount(ctx, stackName)
@@ -51,39 +47,39 @@ func GetEnvVarsWithPrefix(ctx core.Context, brokerURI *v1beta1.URI, stackName, s
 			}
 
 			if serviceAccount != "" {
-				ret = append(ret, core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_SASL_IAM_ENABLED", prefix), "true"))
+				ret = append(ret, core.Env("PUBLISHER_KAFKA_SASL_IAM_ENABLED", "true"))
 			}
 		}
 		if settings.IsTrue(brokerURI.Query().Get("tls")) {
 			ret = append(ret,
-				core.Env(fmt.Sprintf("%sPUBLISHER_KAFKA_TLS_ENABLED", prefix), "true"),
+				core.Env("PUBLISHER_KAFKA_TLS_ENABLED", "true"),
 			)
 		}
 
 	case brokerURI.Scheme == "nats":
 		ret = append(ret,
-			core.Env(fmt.Sprintf("%sPUBLISHER_NATS_ENABLED", prefix), "true"),
-			core.Env(fmt.Sprintf("%sPUBLISHER_NATS_URL", prefix), brokerURI.Host),
-			core.Env(fmt.Sprintf("%sPUBLISHER_NATS_CLIENT_ID", prefix), fmt.Sprintf("%s-%s", stackName, serviceName)),
+			core.Env("PUBLISHER_NATS_ENABLED", "true"),
+			core.Env("PUBLISHER_NATS_URL", brokerURI.Host),
+			core.Env("PUBLISHER_NATS_CLIENT_ID", fmt.Sprintf("%s-%s", stackName, serviceName)),
 		)
 	}
 
 	return ret, nil
 }
 
-func GetPublisherEnvVars(stack *v1beta1.Stack, broker *v1beta1.Broker, service, prefix string) []v1.EnvVar {
+func GetPublisherEnvVars(stack *v1beta1.Stack, broker *v1beta1.Broker, service string) []v1.EnvVar {
 	switch broker.Status.Mode {
 	case v1beta1.ModeOneStreamByService:
 		return []v1.EnvVar{
-			core.Env(fmt.Sprintf("%sPUBLISHER_TOPIC_MAPPING", prefix), "*:"+core.GetObjectName(stack.Name, service)),
+			core.Env("PUBLISHER_TOPIC_MAPPING", "*:"+core.GetObjectName(stack.Name, service)),
 		}
 	case v1beta1.ModeOneStreamByStack:
 		ret := []v1.EnvVar{
-			core.Env(fmt.Sprintf("%sPUBLISHER_TOPIC_MAPPING", prefix), fmt.Sprintf("*:%s.%s", stack.Name, service)),
+			core.Env("PUBLISHER_TOPIC_MAPPING", fmt.Sprintf("*:%s.%s", stack.Name, service)),
 		}
 
 		if broker.Status.URI.Scheme == "nats" {
-			ret = append(ret, core.Env(fmt.Sprintf("%sPUBLISHER_NATS_AUTO_PROVISION", prefix), "false"))
+			ret = append(ret, core.Env("PUBLISHER_NATS_AUTO_PROVISION", "false"))
 		}
 		return ret
 	default:

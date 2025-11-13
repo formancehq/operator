@@ -193,13 +193,12 @@ var _ = Describe("GatewayController", func() {
 					MatchGoldenFile("gateway-controller", "configmap-with-ledger-and-another-service.yaml"))
 			})
 		})
-		Context("With audit enabled", func() {
+		Context("With a consumer on gateway", func() {
 			var (
 				brokerNatsDSNSettings *v1beta1.Settings
 				consumer              *v1beta1.BrokerConsumer
 			)
 			BeforeEach(func() {
-				stack.Spec.EnableAudit = true
 				brokerNatsDSNSettings = settings.New(uuid.NewString(), "broker.dsn", "nats://localhost:1234", stack.Name)
 				consumer = &v1beta1.BrokerConsumer{
 					ObjectMeta: RandObjectMeta(),

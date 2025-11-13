@@ -123,6 +123,8 @@ spec:
                   - type
                   type: object
                 type: array
+              configMapHash:
+                type: string
               info:
                 description: Info can contain any additional like reconciliation errors
                 type: string

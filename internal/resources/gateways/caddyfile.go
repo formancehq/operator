@@ -22,8 +22,7 @@ func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
 		},
 	}
 
-	// TODO(gfyrag): Check if search is enabled
-	if stack.Spec.EnableAudit && broker != nil {
+	if broker != nil {
 		data["EnableAudit"] = true
 		data["Broker"] = broker.Status.URI.Scheme
 	}

@@ -116,7 +116,7 @@ If `versions` and `versionsFromFile` are not specified, "latest" will be used.
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to specify the version of the components<br />Must be a valid docker tag |  |  |
 | `versionsFromFile` _string_ | VersionsFromFile allow to specify a formance.com/Versions object which contains individual versions<br />for each component.<br />Must reference a valid formance.com/Versions object |  |  |
-| `enableAudit` _boolean_ | EnableAudit enable audit at the stack level.<br />Actually, it enables audit on [Gateway](#gateway) | false |  |
+| `enableAudit` _boolean_ | EnableAudit enable audit at the stack level.<br />Actually, it enables audit on [Gateway](#gateway)<br />deprecated | false |  |
 | `disabled` _boolean_ | Disabled indicate the stack is disabled.<br />A disabled stack disable everything<br />It just keeps the namespace and the [Database](#database) resources. | false |  |
 
 
@@ -707,20 +707,8 @@ Gateway is the Schema for the gateways API
 Ledger is the module allowing to install a ledger instance.
 
 
-The ledger is actually a stateful application on the writer part.
-So we cannot scale the ledger as we want without prior configuration.
-
-
-So, the ledger can run in two modes :
-* single instance: Only one instance will be deployed. We cannot scale in that mode.
-* single writer / multiple reader: In this mode, we will have a single writer and multiple readers if needed.
-
-
-Use setting `ledger.deployment-strategy` with either the value :
-  - single : For the single instance mode.
-  - single-writer: For the single writer / multiple reader mode.
-    Under the hood, the operator create two deployments and force the scaling of the writer to stay at 1.
-    Then you can scale the deployment of the reader to the value you want.
+The ledger is a stateful application that manages financial transactions
+and maintains an immutable audit trail.
 
 
 
@@ -772,82 +760,6 @@ Use setting `ledger.deployment-strategy` with either the value :
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `deploymentStrategy` _[DeploymentStrategy](#deploymentstrategy)_ | Deprecated. | single |  |
-| `locking` _[LockingStrategy](#lockingstrategy)_ | Locking is intended for ledger v1 only |  |  |
-
-###### DeploymentStrategy
-
-_Underlying type:_ _string_
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###### LockingStrategy
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `strategy` _string_ |  | memory |  |
-| `redis` _[LockingStrategyRedisConfig](#lockingstrategyredisconfig)_ |  |  |  |
-
-###### LockingStrategyRedisConfig
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `uri` _string_ |  |  |  |
-| `tls` _boolean_ |  | false |  |
-| `insecure` _boolean_ |  | false |  |
-| `duration` _string_ |  |  |  |
-| `retry` _string_ |  |  |  |
 
 
 
@@ -1198,32 +1110,6 @@ Search is the Schema for the searches API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
-| `batching` _[Batching](#batching)_ |  |  |  |
-
-###### Batching
-
-
-
-Batching allow to define custom batching configuration
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `count` _integer_ | Count indicates the number of messages that can be kept in memory before being flushed to ElasticSearch |  |  |
-| `period` _string_ | Period indicates the maximum duration messages can be kept in memory before being flushed to ElasticSearch |  |  |
 
 
 
@@ -1254,7 +1140,6 @@ Batching allow to define custom batching configuration
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `elasticSearchURI` _string_ |  |  | Type: string <br /> |
-| `topicCleaned` _boolean_ | TopicCleaned is used to flag stacks where the topics have been cleaned (still search-ledgerv2 and co consumers) | false |  |
 
 
 #### Stargate
@@ -1724,34 +1609,10 @@ Benthos is the Schema for the benthos API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `resourceRequirements` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#resourcerequirements-v1-core)_ |  |  |  |
-| `batching` _[Batching](#batching)_ |  |  |  |
 | `initContainers` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#container-v1-core) array_ |  |  |  |
 | `imagePullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#localobjectreference-v1-core) array_ |  |  |  |
-
-###### Batching
-
-
-
-Batching allow to define custom batching configuration
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `count` _integer_ | Count indicates the number of messages that can be kept in memory before being flushed to ElasticSearch |  |  |
-| `period` _string_ | Period indicates the maximum duration messages can be kept in memory before being flushed to ElasticSearch |  |  |
+| `resources` _object (keys:string, values:string)_ |  |  |  |
+| `templates` _object (keys:string, values:string)_ |  |  |  |
 
 
 
@@ -1868,6 +1729,7 @@ BenthosStream is the Schema for the benthosstreams API
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `configMapHash` _string_ |  |  |  |
 
 
 #### Broker

@@ -27,7 +27,8 @@ type BenthosStreamSpec struct {
 }
 
 type BenthosStreamStatus struct {
-	Status `json:",inline"`
+	Status        `json:",inline"`
+	ConfigMapHash string `json:"configMapHash,omitempty"`
 }
 
 //+kubebuilder:object:root=true

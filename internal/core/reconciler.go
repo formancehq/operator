@@ -135,7 +135,7 @@ func WithWatchSettings[T client.Object]() ReconcilerOption[T] {
 func WithWatchDependency[T client.Object](t v1beta1.Dependent) ReconcilerOption[T] {
 	return func(options *ReconcilerOptions[T]) {
 		options.Watchers[t] = ReconcilerOptionsWatch{
-			Handler: func(mgr Manager, builder *builder.Builder, target client.Object) (handler.EventHandler, []builder.WatchesOption) {
+			Handler: func(mgr Manager, b *builder.Builder, target client.Object) (handler.EventHandler, []builder.WatchesOption) {
 				return handler.EnqueueRequestsFromMapFunc(WatchDependents(mgr, target)), nil
 			},
 		}
@@ -228,12 +228,6 @@ func withReconciler[T client.Object](controller ObjectController[T], opts ...Rec
 
 		return b.Complete(reconcile.Func(reconcileObject(mgr, controller, options)))
 	}
-}
-
-func WithReconciler[T client.Object](controller func(ctx Context, req T) error, opts ...ReconcilerOption[T]) Initializer {
-	return withReconciler(func(ctx Context, reconcilerOptions *ReconcilerOptions[T], req T) error {
-		return controller(ctx, req)
-	}, opts...)
 }
 
 func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T], reconcilerOptions ReconcilerOptions[T]) func(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {

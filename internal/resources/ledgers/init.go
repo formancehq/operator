@@ -18,24 +18,20 @@ package ledgers
 
 import (
 	_ "embed"
-	"fmt"
-	"github.com/formancehq/operator/internal/resources/jobs"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/benthosstreams"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/search/benthos"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=ledgers,verbs=get;list;watch;create;update;patch;delete
@@ -55,23 +51,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 	}
 
 	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
-		return err
-	}
-
-	isV2 := false
-	if !semver.IsValid(version) || semver.Compare(version, "v2.0.0-alpha") > 0 {
-		isV2 = true
-	}
-
-	if err := benthosstreams.LoadFromFileSystem(ctx, benthos.Streams, ledger, "streams/ledger", "ingestion"); err != nil {
-		return err
-	}
-
-	streamsVersion := "v1.0.0"
-	if isV2 {
-		streamsVersion = "v2.0.0"
-	}
-	if err := benthosstreams.LoadFromFileSystem(ctx, reindexStreams, ledger, fmt.Sprintf("assets/reindex/%s", streamsVersion), "reindex"); err != nil {
 		return err
 	}
 
@@ -95,7 +74,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		return NewPendingError().WithMessage("database not ready")
 	}
 
-	if isV2 && databases.GetSavedModuleVersion(database) != version {
+	if databases.GetSavedModuleVersion(database) != version {
 		err := databases.Migrate(
 			ctx,
 			stack,
@@ -103,9 +82,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 			imageConfiguration,
 			database,
 			jobs.Mutator(func(t *batchv1.Job) error {
-				if IsLower(version, "v2.0.0-rc.6") {
-					t.Spec.Template.Spec.Containers[0].Command = []string{"buckets", "upgrade-all"}
-				}
 				t.Spec.Template.Spec.Containers[0].Env = append(t.Spec.Template.Spec.Containers[0].Env, Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"))
 
 				return nil
@@ -134,7 +110,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 			}
 
 			if IsApplicationError(err) { // Start the ledger even if migrations are not terminated
-				return installLedger(ctx, stack, ledger, database, imageConfiguration, version, isV2)
+				return installLedger(ctx, stack, ledger, database, imageConfiguration, version)
 			}
 
 			return err
@@ -144,7 +120,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		}
 	}
 
-	return installLedger(ctx, stack, ledger, database, imageConfiguration, version, isV2)
+	return installLedger(ctx, stack, ledger, database, imageConfiguration, version)
 }
 
 func init() {

@@ -69,16 +69,9 @@ func GetDevEnvVars(stack *v1beta1.Stack, service interface {
 	IsDebug() bool
 	IsDev() bool
 }) []corev1.EnvVar {
-	return GetDevEnvVarsWithPrefix(stack, service, "")
-}
-
-func GetDevEnvVarsWithPrefix(stack *v1beta1.Stack, service interface {
-	IsDebug() bool
-	IsDev() bool
-}, prefix string) []corev1.EnvVar {
 	return []corev1.EnvVar{
-		EnvFromBool(fmt.Sprintf("%sDEBUG", prefix), stack.Spec.Debug || service.IsDebug()),
-		EnvFromBool(fmt.Sprintf("%sDEV", prefix), stack.Spec.Dev || service.IsDev()),
-		Env(fmt.Sprintf("%sSTACK", prefix), stack.Name),
+		EnvFromBool("DEBUG", stack.Spec.Debug || service.IsDebug()),
+		EnvFromBool("DEV", stack.Spec.Dev || service.IsDev()),
+		Env("STACK", stack.Name),
 	}
 }
