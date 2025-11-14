@@ -148,3 +148,13 @@ spec:
     - '*'
   value: 'true'
 {{- end }}
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: auth-check-scopes
+spec:
+  stacks:
+    - '*'
+  key: auth.*.check-scopes
+  value: "true"
