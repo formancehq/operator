@@ -70,7 +70,7 @@ helm-publish: helm-package
 
 generate-docs:
   mkdir -p "docs/09-Configuration reference"
-  go run github.com/elastic/crd-ref-docs@v0.0.12 \
+  go run github.com/elastic/crd-ref-docs@v0.2.0 \
     --source-path=api/formance.com/v1beta1 \
     --renderer=markdown \
     --output-path="./docs/09-Configuration reference/02-Custom Resource Definitions.md" \

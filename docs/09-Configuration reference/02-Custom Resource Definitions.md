@@ -51,18 +51,13 @@ Stack represents a formance stack.
 A Stack is basically a container. It holds some global properties and
 creates a namespace if not already existing.
 
-
 To do more, you need to create some [modules](#modules).
-
 
 The Stack resource allow to specify the version of the stack.
 
-
 It can be specified using either the field `.spec.version` or the `.spec.versionsFromFile` field (Refer to the documentation of [Versions](#versions) resource.
 
-
 The `version` field will have priority over `versionFromFile`.
-
 
 If `versions` and `versionsFromFile` are not specified, "latest" will be used.
 
@@ -156,9 +151,7 @@ If `versions` and `versionsFromFile` are not specified, "latest" will be used.
 
 Settings represents a configurable piece of the stacks.
 
-
 The purpose of this resource is to be able to configure some common settings between a set of stacks.
-
 
 Example :
 ```yaml
@@ -166,30 +159,22 @@ apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
 
-
 	name: postgres-uri
 
-
 spec:
-
 
 	key: postgres.ledger.uri
 	stacks:
 	- stack0
 	value: postgresql://postgresql.formance.svc.cluster.local:5432
 
-
 ```
-
 
 This example create a setting named `postgres-uri` targeting the stack named `stack0` and the service `ledger` (see the key `postgres.ledger.uri`).
 
-
 Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the uri `postgresql://postgresql.formance.svc.cluster.local:5432`.
 
-
 Settings allow to use wildcards in keys and in stacks list.
-
 
 For example, if you want to use the same database server for all the modules of a specific stack, you can write :
 ```yaml
@@ -197,21 +182,16 @@ apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
 
-
 	name: postgres-uri
 
-
 spec:
-
 
 	key: postgres.*.uri # There, we use a wildcard to indicate we want to use that setting of all services of the stack `stack0`
 	stacks:
 	- stack0
 	value: postgresql://postgresql.formance.svc.cluster.local:5432
 
-
 ```
-
 
 Also, we could use that setting for all of our stacks using :
 ```yaml
@@ -219,37 +199,27 @@ apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
 
-
 	name: postgres-uri
 
-
 spec:
-
 
 	key: postgres.*.uri # There, we use a wildcard to indicate we want to use that setting for all services of all stacks
 	stacks:
 	- * # There we select all the stacks
 	value: postgresql://postgresql.formance.svc.cluster.local:5432
 
-
 ```
-
 
 Some settings are really global, while some are used by specific module.
 
-
 Refer to the documentation of each module and resource to discover available Settings.
-
 
 ##### Global settings
 ###### AWS account
 
-
 A stack can use an AWS account for authentication.
 
-
 It can be used to connect to any AWS service we could use.
-
 
 It includes RDS, OpenSearch and MSK. To do so, you can create the following setting:
 ```yaml
@@ -257,25 +227,19 @@ apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
 
-
 	name: aws-service-account
 
-
 spec:
-
 
 	key: aws.service-account
 	stacks:
 	- '*'
 	value: aws-access
 
-
 ```
 This setting instruct the operator than there is somewhere on the cluster a service account named `aws-access`.
 
-
 So, each time a service has the capability to use AWS, the operator will use this service account.
-
 
 The service account could look like that :
 ```yaml
@@ -283,13 +247,11 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
 
-
 	annotations:
 	  eks.amazonaws.com/role-arn: arn:aws:iam::************:role/staging-eu-west-1-hosting-stack-access
 	labels:
 	  formance.com/stack: any
 	name: aws-access
-
 
 ```
 You can note two things :
@@ -297,9 +259,7 @@ You can note two things :
  2. We have a label `formance.com/stack=any` indicating we are targeting all stacks.
     Refer to the documentation of [ResourceReference](#resourcereference) for further information.
 
-
 ###### JSON logging
-
 
 You can use the setting `logging.json` with the value `true` to configure elligible service to log as json.
 Example:
@@ -308,28 +268,21 @@ apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
 
-
 	name: json-logging
 
-
 spec:
-
 
 	key: logging.json
 	stacks:
 	- '*'
 	value: "true"
 
-
 ```
-
 
 ###### Authentication scopes
 
-
 You can enable scope verification for modules using the setting `auth.<module-name>.check-scopes` or `auth.*.check-scopes` for all modules.
 When enabled, modules will verify that authenticated requests include the required scopes for the requested operation.
-
 
 Example to enable scope verification for all modules:
 ```yaml
@@ -337,21 +290,16 @@ apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
 
-
 	name: enable-scopes-all
 
-
 spec:
-
 
 	key: auth.*.check-scopes
 	stacks:
 	- '*'
 	value: "true"
 
-
 ```
-
 
 Example to enable scope verification only for the ledger module:
 ```yaml
@@ -359,21 +307,16 @@ apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
 
-
 	name: enable-scopes-ledger
 
-
 spec:
-
 
 	key: auth.ledger.check-scopes
 	stacks:
 	- production
 	value: "true"
 
-
 ```
-
 
 Note: The `auth.checkScopes` field in module specifications takes priority over Settings when specified.
 
@@ -437,12 +380,9 @@ Note: The `auth.checkScopes` field in module specifications takes priority over 
 
 Auth represent the authentication module of a stack.
 
-
 It is an OIDC compliant server.
 
-
 Creating it for a stack automatically add authentication on all supported modules.
-
 
 The auth service is basically a proxy to another OIDC compliant server.
 
@@ -499,7 +439,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `delegatedOIDCServer` _[DelegatedOIDCServerConfiguration](#delegatedoidcserverconfiguration)_ | Contains information about a delegated authentication server to use to delegate authentication |  |  |
 | `signingKey` _string_ | Allow to override the default signing key used to sign JWT tokens. |  |  |
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
-| `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br /><br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
+| `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
 
 ###### DelegatedOIDCServerConfiguration
 
@@ -640,7 +580,7 @@ Gateway is the Schema for the gateways API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example : `formance.example.com` |  |  |
-| `scheme` _string_ | Indicate the scheme.<br /><br />Actually, It should be `https` unless you know what you are doing. | https |  |
+| `scheme` _string_ | Indicate the scheme.<br />Actually, It should be `https` unless you know what you are doing. | https |  |
 | `ingressClassName` _string_ | Ingress class to use |  |  |
 | `annotations` _object (keys:string, values:string)_ | Custom annotations to add on the ingress |  |  |
 | `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Allow to customize the tls part of the ingress |  |  |
@@ -705,7 +645,6 @@ Gateway is the Schema for the gateways API
 
 
 Ledger is the module allowing to install a ledger instance.
-
 
 The ledger is a stateful application that manages financial transactions
 and maintains an immutable audit trail.
@@ -2018,10 +1957,8 @@ BrokerTopic is the Schema for the brokertopics API
 
 Database represent a concrete database on a PostgreSQL server, it is created by modules requiring a database ([Ledger](#ledger) for example).
 
-
 It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
 Additionally, the uri can define a query param `secret` indicating a k8s secret, than must be used to retrieve database credentials.
-
 
 On creation, the reconciler behind the Database object will create the database on the postgresql server using a k8s job.
 On Deletion, by default, the reconciler will let the database untouched.
@@ -2029,15 +1966,12 @@ You can allow the reconciler to drop the database on the server by using the [Se
 If you use that setting, the reconciler will use another job to drop the database.
 Be careful, no backup are performed!
 
-
 Database resource honors `aws.service-account` setting, so, you can create databases on an AWS server if you need.
 See [AWS accounts](#aws-account)
-
 
 Once a database is fully configured, it retains the postgres uri used.
 If the setting indicating the server uri changed, the Database object will set the field `.status.outOfSync` to true
 and will not change anything.
-
 
 Therefore, to switch to a new server, you must change the setting value, then drop the Database object.
 It will be recreated with correct uri.
@@ -2245,26 +2179,21 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 
 ResourceReference is a special resources used to refer to externally created resources.
 
-
 It includes k8s service accounts and secrets.
-
 
 Why? Because the operator create a namespace by stack, so, a stack does not have access to secrets and service
 accounts created externally.
-
 
 A ResourceReference is created by other resource who need to use a specific secret or service account.
 For example, if you want to use a secret for your database connection (see [Database](#database), you will
 create a setting indicating a secret name. You will need to create this secret yourself, and you will put this
 secret inside the namespace you want (`default` maybe).
 
-
 The Database reconciler will create a ResourceReference looking like that :
 ```
 apiVersion: formance.com/v1beta1
 kind: ResourceReference
 metadata:
-
 
 	name: jqkuffjxcezj-qlii-auth-postgres
 	ownerReferences:
@@ -2275,9 +2204,7 @@ metadata:
 	  name: jqkuffjxcezj-qlii-auth
 	  uid: 2cc4b788-3ffb-4e3d-8a30-07ed3941c8d2
 
-
 spec:
-
 
 	gvk:
 	  group: ""
@@ -2286,17 +2213,13 @@ spec:
 	name: postgres
 	stack: jqkuffjxcezj-qlii
 
-
 status:
 
-
 	...
-
 
 ```
 This reconciler behind this ResourceReference will search, in all namespaces, for a secret named "postgres".
 The secret must have a label `formance.com/stack` with the value matching either a specific stack or `any` to target any stack.
-
 
 Once the reconciler has found the secret, it will copy it inside the stack namespace, allowing the ResourceReconciler owner to use it.
 
