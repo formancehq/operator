@@ -1,7 +1,6 @@
 package core
 
 import (
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,6 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 type ObjectController[T client.Object] func(ctx Context, reconcilerOptions *ReconcilerOptions[T], req T) error

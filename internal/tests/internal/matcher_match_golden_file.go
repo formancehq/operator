@@ -29,7 +29,7 @@ func (c matchGoldenFile) Match(actual interface{}) (success bool, err error) {
 	updateTestData := os.Getenv("UPDATE_TEST_DATA")
 	isUpdating := updateTestData == "1" || updateTestData == "true"
 	if isUpdating {
-		if err := os.MkdirAll(directory, 0744); err != nil {
+		if err := os.MkdirAll(directory, 0750); err != nil {
 			return false, errors.Wrapf(err, "creating directory %s", directory)
 		}
 
@@ -40,7 +40,7 @@ func (c matchGoldenFile) Match(actual interface{}) (success bool, err error) {
 		return true, nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return false, errors.Wrapf(err, "reading file: %s", path)
 	}

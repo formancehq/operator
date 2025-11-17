@@ -1,13 +1,15 @@
 package main
 
 import (
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"time"
+
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
-	"time"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 func NewUpgradeCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {

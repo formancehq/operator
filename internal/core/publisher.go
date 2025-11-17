@@ -3,9 +3,10 @@ package core
 import (
 	"reflect"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 func ListEventPublishers(ctx Context, stackName string) ([]unstructured.Unstructured, error) {

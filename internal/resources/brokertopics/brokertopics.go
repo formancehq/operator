@@ -1,9 +1,10 @@
 package brokertopics
 
 import (
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func Find(ctx core.Context, stack *v1beta1.Stack, name string) (*v1beta1.BrokerTopic, error) {

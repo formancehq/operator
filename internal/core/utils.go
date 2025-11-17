@@ -10,18 +10,16 @@ import (
 	"reflect"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/formancehq/go-libs/v2/pointer"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	corev1 "k8s.io/api/core/v1"
+	"github.com/formancehq/go-libs/v2/pointer"
 )
 
 func HashFromConfigMaps(configMaps ...*corev1.ConfigMap) string {

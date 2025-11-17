@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"github.com/formancehq/go-libs/v2/logging"
 	"os"
 
-	"github.com/formancehq/go-libs/v2/service"
-
 	"github.com/spf13/cobra"
+
+	"github.com/formancehq/go-libs/v2/logging"
+	"github.com/formancehq/go-libs/v2/service"
 )
 
 var rootCmd = &cobra.Command{

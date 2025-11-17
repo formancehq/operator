@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/formancehq/operator/internal/core"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,7 +16,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"github.com/formancehq/operator/internal/core"
 )
+
+var _ core.Manager = (*mockManager)(nil)
 
 // mockManager is a minimal implementation of core.Manager for testing
 type mockManager struct {
@@ -97,6 +100,10 @@ func (m *mockManager) SetFields(interface{}) error {
 }
 
 func (m *mockManager) AddMetricsExtraHandler(string, interface{}) error {
+	return nil
+}
+
+func (m *mockManager) AddMetricsServerExtraHandler(string, http.Handler) error {
 	return nil
 }
 

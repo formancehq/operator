@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/internal/resources/settings"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/formancehq/go-libs/v2/collectionutils"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	v1 "k8s.io/api/core/v1"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
 
 func GetBrokerEnvVars(ctx core.Context, brokerURI *v1beta1.URI, stackName, serviceName string) ([]v1.EnvVar, error) {
@@ -25,8 +26,8 @@ func GetBrokerEnvVars(ctx core.Context, brokerURI *v1beta1.URI, stackName, servi
 		}
 	}
 
-	switch {
-	case brokerURI.Scheme == "kafka":
+	switch brokerURI.Scheme {
+	case "kafka":
 		ret = append(ret,
 			core.Env("BROKER", "kafka"),
 			core.Env("PUBLISHER_KAFKA_ENABLED", "true"),
@@ -56,7 +57,7 @@ func GetBrokerEnvVars(ctx core.Context, brokerURI *v1beta1.URI, stackName, servi
 			)
 		}
 
-	case brokerURI.Scheme == "nats":
+	case "nats":
 		ret = append(ret,
 			core.Env("PUBLISHER_NATS_ENABLED", "true"),
 			core.Env("PUBLISHER_NATS_URL", brokerURI.Host),

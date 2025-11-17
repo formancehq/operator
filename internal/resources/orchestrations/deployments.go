@@ -2,12 +2,11 @@ package orchestrations
 
 import (
 	"fmt"
-	"github.com/formancehq/operator/internal/resources/registries"
 	"strings"
 
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/brokers"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -16,12 +15,12 @@ import (
 	"github.com/formancehq/operator/internal/resources/applications"
 	"github.com/formancehq/operator/internal/resources/authclients"
 	"github.com/formancehq/operator/internal/resources/auths"
+	"github.com/formancehq/operator/internal/resources/brokers"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
+	"github.com/formancehq/operator/internal/resources/registries"
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
 	"github.com/formancehq/operator/internal/resources/settings"
-	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 )
 
 func createAuthClient(ctx Context, stack *v1beta1.Stack, orchestration *v1beta1.Orchestration) (*v1beta1.AuthClient, error) {
@@ -144,7 +143,7 @@ func createDeployment(
 	}
 
 	if initSearchAttributes := temporalURI.Query().Get("initSearchAttributes"); initSearchAttributes == "true" {
-		env = append(env, core.Env("TEMPORAL_INIT_SEARCH_ATTRIBUTES", "true"))
+		env = append(env, Env("TEMPORAL_INIT_SEARCH_ATTRIBUTES", "true"))
 	}
 
 	broker := &v1beta1.Broker{}

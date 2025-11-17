@@ -2,23 +2,24 @@ package ledgers
 
 import (
 	"fmt"
-	"github.com/formancehq/operator/internal/resources/auths"
-	"github.com/formancehq/operator/internal/resources/brokers"
-	"github.com/formancehq/operator/internal/resources/brokertopics"
-	"github.com/formancehq/operator/internal/resources/services"
+
 	"golang.org/x/mod/semver"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/applications"
+	"github.com/formancehq/operator/internal/resources/auths"
+	"github.com/formancehq/operator/internal/resources/brokers"
+	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/internal/resources/services"
 	"github.com/formancehq/operator/internal/resources/settings"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func installLedger(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, version string) (err error) {

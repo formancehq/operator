@@ -17,10 +17,11 @@ limitations under the License.
 package brokertopics
 
 import (
+	batchv1 "k8s.io/api/batch/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokers"
-	batchv1 "k8s.io/api/batch/v1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=brokertopics,verbs=get;list;watch;create;update;patch;delete

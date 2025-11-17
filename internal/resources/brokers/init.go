@@ -1,9 +1,10 @@
 package brokers
 
 import (
+	v1 "k8s.io/api/batch/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	v1 "k8s.io/api/batch/v1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=brokers,verbs=get;list;watch;create;update;patch;delete

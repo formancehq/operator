@@ -3,9 +3,10 @@ package gatewayhttpapis
 import (
 	"strings"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 type option func(spec *v1beta1.GatewayHTTPAPI)

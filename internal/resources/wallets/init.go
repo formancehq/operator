@@ -17,11 +17,12 @@ limitations under the License.
 package wallets
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/authclients"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	appsv1 "k8s.io/api/apps/v1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=wallets,verbs=get;list;watch;create;update;patch;delete
