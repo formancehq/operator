@@ -3,30 +3,20 @@ package applications
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
-	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/config"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
 
 func TestWithAnnotations(t *testing.T) {
@@ -455,95 +445,260 @@ func TestContainersMutatorPreservesRestartedAtAnnotation(t *testing.T) {
 	}
 }
 
-// mockManager is a minimal implementation of core.Manager for testing
-type mockManager struct {
-	client client.Client
-	scheme *runtime.Scheme
-}
+func TestWithSemconvMetricsNames(t *testing.T) {
+	//t.Parallel()
 
-func (m *mockManager) GetClient() client.Client {
-	return m.client
-}
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1beta1.AddToScheme(scheme))
 
-func (m *mockManager) GetScheme() *runtime.Scheme {
-	return m.scheme
-}
+	stackName := "test-stack"
+	deploymentName := "test-deployment"
 
-func (m *mockManager) GetAPIReader() client.Reader {
-	return m.client
-}
+	type testCase struct {
+		name         string
+		settingValue string
+		deployment   *appsv1.Deployment
+		expectEnvVar bool
+	}
 
-func (m *mockManager) GetCache() cache.Cache {
-	return nil
-}
+	testCases := []testCase{
+		{
+			name:         "setting disabled",
+			settingValue: "false",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: deploymentName,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:  "main",
+									Image: "test:latest",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectEnvVar: false,
+		},
+		{
+			name:         "setting enabled - empty deployment",
+			settingValue: "true",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: deploymentName,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:  "main",
+									Image: "test:latest",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectEnvVar: true,
+		},
+		{
+			name:         "setting enabled - deployment with existing env vars",
+			settingValue: "true",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: deploymentName,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:  "main",
+									Image: "test:latest",
+									Env: []v1.EnvVar{
+										{Name: "EXISTING_VAR", Value: "existing_value"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectEnvVar: true,
+		},
+		{
+			name:         "setting enabled - deployment with init containers",
+			settingValue: "true",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: deploymentName,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							InitContainers: []v1.Container{
+								{
+									Name:  "init",
+									Image: "init:latest",
+								},
+							},
+							Containers: []v1.Container{
+								{
+									Name:  "main",
+									Image: "test:latest",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectEnvVar: true,
+		},
+		{
+			name:         "setting enabled - deployment with multiple containers",
+			settingValue: "true",
+			deployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: deploymentName,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							InitContainers: []v1.Container{
+								{
+									Name:  "init1",
+									Image: "init1:latest",
+								},
+								{
+									Name:  "init2",
+									Image: "init2:latest",
+								},
+							},
+							Containers: []v1.Container{
+								{
+									Name:  "main",
+									Image: "test:latest",
+								},
+								{
+									Name:  "sidecar",
+									Image: "sidecar:latest",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectEnvVar: true,
+		},
+	}
 
-func (m *mockManager) GetConfig() *rest.Config {
-	return nil
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func (m *mockManager) GetEventRecorderFor(string) record.EventRecorder {
-	return nil
-}
+			// Create setting for this test case
+			settingKey := "deployments." + deploymentName + ".semconv-metrics-names"
+			setting := &v1beta1.Settings{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-semconv-setting",
+				},
+				Spec: v1beta1.SettingsSpec{
+					Stacks: []string{stackName},
+					Key:    settingKey,
+					Value:  tc.settingValue,
+				},
+			}
 
-func (m *mockManager) GetLogger() logr.Logger {
-	return logr.Discard()
-}
+			// Create fake client with the setting
+			var clientObjs []client.Object
+			if tc.settingValue != "" {
+				clientObjs = append(clientObjs, setting)
+			}
 
-func (m *mockManager) GetRESTMapper() meta.RESTMapper {
-	return nil
-}
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(clientObjs...).
+				WithIndex(&v1beta1.Settings{}, "stack", func(obj client.Object) []string {
+					return obj.(*v1beta1.Settings).GetStacks()
+				}).
+				WithIndex(&v1beta1.Settings{}, "keylen", func(obj client.Object) []string {
+					key := obj.(*v1beta1.Settings).Spec.Key
+					// Use the same logic as the actual indexer
+					keyParts := settings.SplitKeywordWithDot(key)
+					return []string{fmt.Sprintf("%d", len(keyParts))}
+				}).
+				Build()
 
-func (m *mockManager) GetFieldIndexer() client.FieldIndexer {
-	return nil
-}
+			// Create mock context
+			mockCtx := &mockContext{
+				Context:  context.Background(),
+				client:   fakeClient,
+				scheme:   scheme,
+				platform: core.Platform{Region: "testing", Environment: "testing"},
+			}
 
-func (m *mockManager) GetHTTPClient() *http.Client {
-	return nil
-}
+			owner := &v1beta1.Ledger{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-ledger",
+				},
+				Spec: v1beta1.LedgerSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stackName,
+					},
+				},
+			}
+			app := Application{
+				owner: owner,
+			}
 
-func (m *mockManager) GetWebhookServer() webhook.Server {
-	return nil
-}
+			deploymentCopy := tc.deployment.DeepCopy()
+			err := app.withSemconvMetricsNames(mockCtx)(deploymentCopy)
+			require.NoError(t, err)
 
-func (m *mockManager) GetMetricsServer() server.Server {
-	return nil
-}
+			if tc.expectEnvVar {
+				// Verify SEMCONV_METRICS_NAME is injected in all init containers
+				for i, container := range deploymentCopy.Spec.Template.Spec.InitContainers {
+					found := false
+					for _, env := range container.Env {
+						if env.Name == "SEMCONV_METRICS_NAME" {
+							found = true
+							require.Equal(t, "true", env.Value, "SEMCONV_METRICS_NAME should be set to 'true' in init container %d", i)
+							break
+						}
+					}
+					require.True(t, found, "SEMCONV_METRICS_NAME env var not found in init container %d", i)
+				}
 
-func (m *mockManager) GetControllerOptions() config.Controller {
-	return config.Controller{}
-}
-
-func (m *mockManager) GetPlatform() core.Platform {
-	return core.Platform{}
-}
-
-// Implement the required manager.Manager methods with minimal implementations
-func (m *mockManager) Add(runnable manager.Runnable) error {
-	return nil
-}
-
-func (m *mockManager) Elected() <-chan struct{} {
-	ch := make(chan struct{})
-	close(ch)
-	return ch
-}
-
-func (m *mockManager) SetFields(interface{}) error {
-	return nil
-}
-
-func (m *mockManager) AddMetricsExtraHandler(string, interface{}) error {
-	return nil
-}
-
-func (m *mockManager) AddHealthzCheck(string, healthz.Checker) error {
-	return nil
-}
-
-func (m *mockManager) AddReadyzCheck(string, healthz.Checker) error {
-	return nil
-}
-
-func (m *mockManager) Start(context.Context) error {
-	return nil
+				// Verify SEMCONV_METRICS_NAME is injected in all containers
+				for i, container := range deploymentCopy.Spec.Template.Spec.Containers {
+					found := false
+					for _, env := range container.Env {
+						if env.Name == "SEMCONV_METRICS_NAME" {
+							found = true
+							require.Equal(t, "true", env.Value, "SEMCONV_METRICS_NAME should be set to 'true' in container %d", i)
+							break
+						}
+					}
+					require.True(t, found, "SEMCONV_METRICS_NAME env var not found in container %d", i)
+				}
+			} else {
+				// Verify SEMCONV_METRICS_NAME is NOT injected
+				for i, container := range deploymentCopy.Spec.Template.Spec.InitContainers {
+					for _, env := range container.Env {
+						require.NotEqual(t, "SEMCONV_METRICS_NAME", env.Name, "SEMCONV_METRICS_NAME should not be set in init container %d when setting is false", i)
+					}
+				}
+				for i, container := range deploymentCopy.Spec.Template.Spec.Containers {
+					for _, env := range container.Env {
+						require.NotEqual(t, "SEMCONV_METRICS_NAME", env.Name, "SEMCONV_METRICS_NAME should not be set in container %d when setting is false", i)
+					}
+				}
+			}
+		})
+	}
 }
