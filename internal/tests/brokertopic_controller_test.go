@@ -1,18 +1,17 @@
 package tests_test
 
 import (
-	"github.com/formancehq/operator/internal/resources/settings"
-
-	. "github.com/formancehq/operator/internal/tests/internal"
-
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/settings"
+	. "github.com/formancehq/operator/internal/tests/internal"
 )
 
 var _ = Describe("BrokerTopicController", func() {

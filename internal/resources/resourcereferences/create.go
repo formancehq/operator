@@ -3,12 +3,13 @@ package resourcereferences
 import (
 	"fmt"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
 )
 
 func Create(ctx core.Context, owner v1beta1.Dependent, name, resourceName string, object client.Object) (*v1beta1.ResourceReference, error) {

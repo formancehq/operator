@@ -3,10 +3,11 @@ package brokertopics
 import (
 	"reflect"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
 )
 
 func Watch[T client.Object](service string) core.ReconcilerOption[T] {

@@ -2,12 +2,12 @@ package registries
 
 import (
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"strings"
 
-	"github.com/formancehq/operator/internal/resources/settings"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
 
 // ghcr.io/<organization>/<repository>:<version>

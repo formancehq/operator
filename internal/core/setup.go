@@ -4,11 +4,13 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 func Setup(mgr ctrl.Manager, platform Platform) error {

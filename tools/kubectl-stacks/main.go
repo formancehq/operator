@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"os"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 // NewRootCommand provides a cobra command wrapping NamespaceOptions

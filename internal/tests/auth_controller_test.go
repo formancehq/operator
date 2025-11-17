@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/settings"
-	. "github.com/formancehq/operator/internal/tests/internal"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/policy/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/settings"
+	. "github.com/formancehq/operator/internal/tests/internal"
 )
 
 var _ = Describe("AuthController", func() {

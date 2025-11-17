@@ -2,15 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
+
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
 func NewSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {
 	ret := &cobra.Command{
-		Use:  "settings",
+		Use: "settings",
 	}
 
 	ret.AddCommand(
@@ -21,11 +23,11 @@ func NewSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Comma
 	return ret
 }
 
-func  NewAddSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {
+func NewAddSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {
 	ret := &cobra.Command{
-		Use: "add <name> <key> <value>",
+		Use:   "add <name> <key> <value>",
 		Short: "Create a new settings",
-		Args: cobra.ExactArgs(3),
+		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getRestClient(configFlags)
 			if err != nil {
@@ -42,8 +44,8 @@ func  NewAddSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.C
 					Name: args[0],
 				},
 				Spec: v1beta1.SettingsSpec{
-					Key: args[1],
-					Value: args[2],
+					Key:    args[1],
+					Value:  args[2],
 					Stacks: stacks,
 				},
 			}
@@ -70,9 +72,9 @@ func  NewAddSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.C
 
 func NewRmSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {
 	return &cobra.Command{
-		Use: "rm",
+		Use:   "rm",
 		Short: "Delete a setting",
-		Args: cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getRestClient(configFlags)
 			if err != nil {

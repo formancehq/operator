@@ -1,10 +1,12 @@
 package settings
 
 import (
-	"github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/internal/core"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/internal/core"
 )
 
 func GetResourceRequirements(ctx core.Context, stack string, keys ...string) (*v1.ResourceRequirements, error) {

@@ -1,14 +1,15 @@
 package payments
 
 import (
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/jobs"
-	"github.com/formancehq/operator/internal/resources/registries"
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/jobs"
+	"github.com/formancehq/operator/internal/resources/registries"
 )
 
 func Clean(ctx core.Context, t *v1beta1.Payments) error {

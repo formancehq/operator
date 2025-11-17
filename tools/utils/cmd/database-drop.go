@@ -1,10 +1,11 @@
 package cmd
 
 import (
-	"github.com/formancehq/go-libs/v2/bun/bunconnect"
-	"github.com/formancehq/go-libs/v2/bun/bunmigrate"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+
+	"github.com/formancehq/go-libs/v2/bun/bunconnect"
+	"github.com/formancehq/go-libs/v2/bun/bunmigrate"
 )
 
 func NewDatabaseDropCommand() *cobra.Command {

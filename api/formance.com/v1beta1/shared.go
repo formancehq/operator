@@ -6,11 +6,12 @@ import (
 	"net/url"
 	"slices"
 
-	"github.com/formancehq/go-libs/v2/pointer"
 	"golang.org/x/mod/semver"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/go-libs/v2/pointer"
 )
 
 // +kubebuilder:object:generate=false

@@ -3,10 +3,11 @@ package auths
 import (
 	"strconv"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/settings"
-	v1 "k8s.io/api/core/v1"
 )
 
 func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth *v1beta1.AuthConfig) ([]v1.EnvVar, error) {

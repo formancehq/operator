@@ -1,14 +1,14 @@
 package tests_test
 
 import (
+	"github.com/google/uuid"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	coresettings "github.com/formancehq/operator/internal/resources/settings"
 	. "github.com/formancehq/operator/internal/tests/internal"
-	"github.com/google/uuid"
-	. "github.com/onsi/ginkgo/v2"
-	appsv1 "k8s.io/api/apps/v1"
-
-	. "github.com/onsi/gomega"
 )
 
 var _ = Context("When creating a Application", func() {

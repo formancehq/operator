@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	. "github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	. "github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
 )
 
 func Create(ctx core.Context, owner interface {

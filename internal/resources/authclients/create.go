@@ -3,12 +3,13 @@ package authclients
 import (
 	"fmt"
 
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
 )
 
 func Create(ctx core.Context, stack *v1beta1.Stack, owner client.Object, objectName string, options ...func(spec *v1beta1.AuthClientSpec)) (*v1beta1.AuthClient, error) {

@@ -1,12 +1,13 @@
 package tests
 
 import (
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	helperSettings "github.com/formancehq/operator/internal/resources/settings"
-	. "github.com/formancehq/operator/internal/tests/internal"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	helperSettings "github.com/formancehq/operator/internal/resources/settings"
+	. "github.com/formancehq/operator/internal/tests/internal"
 )
 
 var _ = Describe("SettingsController", func() {

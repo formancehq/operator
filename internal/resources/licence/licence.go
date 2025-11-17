@@ -1,11 +1,12 @@
 package licence
 
 import (
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/resourcereferences"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func GetLicenceEnvVars(ctx core.Context, ownerName string, owner v1beta1.Dependent) (*v1beta1.ResourceReference, []v1.EnvVar, error) {

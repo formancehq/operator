@@ -1,12 +1,13 @@
 package gateways
 
 import (
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/settings"
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/internal/resources/settings"
 )
 
 func withAnnotations(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {

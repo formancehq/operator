@@ -1,8 +1,6 @@
 package tests
 
 import (
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	. "github.com/formancehq/operator/internal/tests/internal"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -10,6 +8,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/internal/tests/internal"
 )
 
 var _ = Describe("ResourceReferenceController", func() {

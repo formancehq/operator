@@ -1,15 +1,16 @@
 package stargates
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/applications"
 	"github.com/formancehq/operator/internal/resources/gateways"
 	"github.com/formancehq/operator/internal/resources/registries"
 	"github.com/formancehq/operator/internal/resources/settings"
-	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func createDeployment(ctx core.Context, stack *v1beta1.Stack, stargate *v1beta1.Stargate, version string) error {

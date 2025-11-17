@@ -4,12 +4,14 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	. "github.com/formancehq/operator/internal/core"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	. "github.com/formancehq/go-libs/v2/collectionutils"
+
+	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/internal/core"
 )
 
 func AuthClientSecretToEnvVars(authClient *v1beta1.AuthClient) corev1.EnvVar {
