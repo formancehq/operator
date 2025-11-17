@@ -55,6 +55,8 @@ While we have some basic types (string, number, bool ...), we also have some com
 | namespace.labels                                                                         | Map    | somelabel=somevalue,anotherlabel=anothervalue           | Add static labels to namespace                                                                                                 |
 | namespace.annotations                                                                    | Map    | someannotation=somevalue,anotherannotation=anothervalue | Add static annotations to namespace                                                                                            |
 | gateway.ingress.tls.enabled                                                              | bool   | true                                                    | Enable TLS if not enabled at Gateway CRD level                                                                                 |
+| gateway.caddyfile.trusted-proxies                                                        | string | 10.0.0.0/8,192.168.0.0/16                              | Comma-separated list of IP ranges (CIDRs) of trusted proxy servers. Caddy will parse the real client IP from HTTP headers when requests come from these proxies. Use `private_ranges` to match all private IPv4 and IPv6 ranges. |
+| gateway.caddyfile.trusted-proxies-strict                                                 | bool   | false                                                   | Enable strict (right-to-left) parsing of the X-Forwarded-For header. Recommended when using upstream proxies like HAProxy, Cloudflare, AWS ALB, or CloudFront. |
 
 ### Postgres URI format
 
