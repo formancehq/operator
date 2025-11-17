@@ -18,7 +18,7 @@ tidy:
   cd ./tools/utils && go mod tidy
 
 tests args='':
-  KUBEBUILDER_ASSETS=$(setup-envtest use 1.28.0 -p path) ginkgo -p ./...
+  KUBEBUILDER_ASSETS=$(setup-envtest use 1.32.0 -p path) ginkgo -p ./...
 
 release-local:
   goreleaser release --nightly --skip=publish --clean
@@ -30,11 +30,11 @@ release: helm-publish
   goreleaser release --clean
 
 manifests:
-  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 \
+  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.18.0 \
     rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 generate:
-  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 \
+  go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.18.0 \
     object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 generate-mock:
