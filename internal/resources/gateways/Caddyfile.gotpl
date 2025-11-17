@@ -46,6 +46,12 @@
 {
 	servers {
 		metrics
+		{{- if and .TrustedProxies (gt (len .TrustedProxies) 0) }}
+		trusted_proxies {{ .TrustedProxies }}
+		{{- end }}
+		{{- if .TrustedProxiesStrict }}
+		trusted_proxies_strict
+		{{- end }}
 	}
 
 	{{- if .Debug }}
@@ -74,7 +80,7 @@
 	log {
 		output stdout
 		{{- if .Debug }}
-		level  DEBUG
+		level DEBUG
 		{{- end }}
 	}
 
