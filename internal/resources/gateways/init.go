@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
-	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
 	. "github.com/formancehq/go-libs/v2/collectionutils"
 
@@ -107,7 +106,7 @@ func init() {
 			WithOwn[*v1beta1.Gateway](&networkingv1.Ingress{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.BenthosStream{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.ResourceReference{}),
-			WithOwn[*v1beta1.Gateway](&externaldnsv1alpha1.DNSEndpoint{}),
+			//WithOwn[*v1beta1.Gateway](&externaldnsv1alpha1.DNSEndpoint{}),
 			WithWatchSettings[*v1beta1.Gateway](),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.Auth{}),
