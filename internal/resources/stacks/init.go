@@ -28,7 +28,6 @@ import (
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/dnsendpoints"
 	"github.com/formancehq/operator/internal/resources/settings"
 )
 
@@ -226,12 +225,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 		)
 	} else {
 		stack.GetConditions().Delete(v1beta1.ConditionTypeMatch("Skipped"))
-
-		// Reconcile DNS endpoints if configured
-		if err := dnsendpoints.Reconcile(ctx, stack); err != nil {
-			logger.Error(err, "failed to reconcile DNS endpoints")
-			return err
-		}
 	}
 	logger.Info("CONDITIONS", "conditions", stack.Status.Conditions)
 	return nil

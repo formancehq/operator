@@ -1,4 +1,4 @@
-package dnsendpoints
+package gateways
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ type DNSConfig struct {
 }
 
 func getDNSConfig(ctx core.Context, stack string, dnsType string) (*DNSConfig, error) {
-	enabled, err := settings.GetBoolOrDefault(ctx, stack, false, "dns", dnsType, "enabled")
+	enabled, err := settings.GetBoolOrDefault(ctx, stack, false, "gateway", "dns", dnsType, "enabled")
 	if err != nil {
 		return nil, err
 	}
@@ -34,41 +34,41 @@ func getDNSConfig(ctx core.Context, stack string, dnsType string) (*DNSConfig, e
 		return nil, nil
 	}
 
-	dnsNameStr, err := settings.GetStringOrEmpty(ctx, stack, "dns", dnsType, "dns-name")
+	dnsNameStr, err := settings.GetStringOrEmpty(ctx, stack, "gateway", "dns", dnsType, "dns-name")
 	if err != nil {
 		return nil, err
 	}
 	if dnsNameStr == "" {
-		return nil, fmt.Errorf("dns.%s.dns-name is required when dns.%s.enabled is true", dnsType, dnsType)
+		return nil, fmt.Errorf("gateway.dns.%s.dns-name is required when gateway.dns.%s.enabled is true", dnsType, dnsType)
 	}
 	dnsNames := strings.Split(dnsNameStr, ",")
 	for i := range dnsNames {
 		dnsNames[i] = strings.TrimSpace(dnsNames[i])
 	}
 
-	targetsStr, err := settings.GetStringOrEmpty(ctx, stack, "dns", dnsType, "targets")
+	targetsStr, err := settings.GetStringOrEmpty(ctx, stack, "gateway", "dns", dnsType, "targets")
 	if err != nil {
 		return nil, err
 	}
 	if targetsStr == "" {
-		return nil, fmt.Errorf("dns.%s.targets is required when dns.%s.enabled is true", dnsType, dnsType)
+		return nil, fmt.Errorf("gateway.dns.%s.targets is required when gateway.dns.%s.enabled is true", dnsType, dnsType)
 	}
 	targets := strings.Split(targetsStr, ",")
 	for i := range targets {
 		targets[i] = strings.TrimSpace(targets[i])
 	}
 
-	providerSpec, err := settings.GetMapOrEmpty(ctx, stack, "dns", dnsType, "provider-specific")
+	providerSpec, err := settings.GetMapOrEmpty(ctx, stack, "gateway", "dns", dnsType, "provider-specific")
 	if err != nil {
 		return nil, err
 	}
 
-	annotations, err := settings.GetMapOrEmpty(ctx, stack, "dns", dnsType, "annotations")
+	annotations, err := settings.GetMapOrEmpty(ctx, stack, "gateway", "dns", dnsType, "annotations")
 	if err != nil {
 		return nil, err
 	}
 
-	recordType, err := settings.GetStringOrDefault(ctx, stack, "CNAME", "dns", dnsType, "record-type")
+	recordType, err := settings.GetStringOrDefault(ctx, stack, "CNAME", "gateway", "dns", dnsType, "record-type")
 	if err != nil {
 		return nil, err
 	}
@@ -87,13 +87,14 @@ func expandDNSPattern(pattern, stack string) string {
 	return strings.ReplaceAll(pattern, "{stack}", stack)
 }
 
-func createDNSEndpoint(ctx core.Context, stack *v1beta1.Stack, dnsType string, config *DNSConfig) error {
-	name := fmt.Sprintf("%s-%s", stack.Name, dnsType)
+func createDNSEndpoint(ctx core.Context, gateway v1beta1.Dependent, dnsType string, config *DNSConfig) error {
+	name := fmt.Sprintf("%s-%s", gateway.GetName(), dnsType)
+	stackName := gateway.GetStack()
 
 	// Build endpoints array - one endpoint per DNS name
 	endpoints := []*endpoint.Endpoint{}
 	for _, dnsPattern := range config.DNSPatterns {
-		dnsName := expandDNSPattern(dnsPattern, stack.Name)
+		dnsName := expandDNSPattern(dnsPattern, stackName)
 		ep := &endpoint.Endpoint{
 			DNSName:    dnsName,
 			RecordType: config.RecordType,
@@ -118,7 +119,7 @@ func createDNSEndpoint(ctx core.Context, stack *v1beta1.Stack, dnsType string, c
 	// Create or update the DNSEndpoint
 	_, _, err := core.CreateOrUpdate(ctx, types.NamespacedName{
 		Name:      name,
-		Namespace: stack.Name,
+		Namespace: stackName,
 	}, func(d *v1alpha1.DNSEndpoint) error {
 		// Set the spec
 		d.Spec.Endpoints = endpoints
@@ -133,42 +134,45 @@ func createDNSEndpoint(ctx core.Context, stack *v1beta1.Stack, dnsType string, c
 			d.SetAnnotations(annotations)
 		}
 
-		// Set owner reference
-		return core.WithController[*v1alpha1.DNSEndpoint](ctx.GetScheme(), stack)(d)
+		// Set owner reference to gateway
+		return core.WithController[*v1alpha1.DNSEndpoint](ctx.GetScheme(), gateway)(d)
 	})
 
 	return err
 }
 
-func Reconcile(ctx core.Context, stack *v1beta1.Stack) error {
+func reconcileDNSEndpoints(ctx core.Context, gateway v1beta1.Dependent) error {
+	stackName := gateway.GetStack()
+	gatewayName := gateway.GetName()
+
 	// Handle private DNS endpoint
-	privateConfig, err := getDNSConfig(ctx, stack.Name, "private")
+	privateConfig, err := getDNSConfig(ctx, stackName, "private")
 	if err != nil {
 		return err
 	}
 	if privateConfig != nil {
-		if err := createDNSEndpoint(ctx, stack, "private", privateConfig); err != nil {
+		if err := createDNSEndpoint(ctx, gateway, "private", privateConfig); err != nil {
 			return err
 		}
 	} else {
 		// Delete private DNS endpoint if it exists and is disabled
-		if err := deleteDNSEndpoint(ctx, stack.Name, fmt.Sprintf("%s-private", stack.Name)); err != nil {
+		if err := deleteDNSEndpoint(ctx, stackName, fmt.Sprintf("%s-private", gatewayName)); err != nil {
 			return err
 		}
 	}
 
 	// Handle public DNS endpoint
-	publicConfig, err := getDNSConfig(ctx, stack.Name, "public")
+	publicConfig, err := getDNSConfig(ctx, stackName, "public")
 	if err != nil {
 		return err
 	}
 	if publicConfig != nil {
-		if err := createDNSEndpoint(ctx, stack, "public", publicConfig); err != nil {
+		if err := createDNSEndpoint(ctx, gateway, "public", publicConfig); err != nil {
 			return err
 		}
 	} else {
 		// Delete public DNS endpoint if it exists and is disabled
-		if err := deleteDNSEndpoint(ctx, stack.Name, fmt.Sprintf("%s-public", stack.Name)); err != nil {
+		if err := deleteDNSEndpoint(ctx, stackName, fmt.Sprintf("%s-public", gatewayName)); err != nil {
 			return err
 		}
 	}
@@ -191,3 +195,4 @@ func deleteDNSEndpoint(ctx core.Context, namespace, name string) error {
 
 	return ctx.GetClient().Delete(ctx, dnsEndpoint)
 }
+
