@@ -34,26 +34,20 @@ func getDNSConfig(ctx core.Context, stack string, dnsType string) (*DNSConfig, e
 		return nil, nil
 	}
 
-	dnsNames, err := settings.GetStringSlice(ctx, stack, "gateway", "dns", dnsType, "dns-names")
+	dnsNames, err := settings.GetTrimmedStringSlice(ctx, stack, "gateway", "dns", dnsType, "dns-names")
 	if err != nil {
 		return nil, err
 	}
 	if len(dnsNames) == 0 {
 		return nil, fmt.Errorf("gateway.dns.%s.dns-names is required when gateway.dns.%s.enabled is true", dnsType, dnsType)
 	}
-	for i := range dnsNames {
-		dnsNames[i] = strings.TrimSpace(dnsNames[i])
-	}
 
-	targets, err := settings.GetStringSlice(ctx, stack, "gateway", "dns", dnsType, "targets")
+	targets, err := settings.GetTrimmedStringSlice(ctx, stack, "gateway", "dns", dnsType, "targets")
 	if err != nil {
 		return nil, err
 	}
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("gateway.dns.%s.targets is required when gateway.dns.%s.enabled is true", dnsType, dnsType)
-	}
-	for i := range targets {
-		targets[i] = strings.TrimSpace(targets[i])
 	}
 
 	providerSpec, err := settings.GetMapOrEmpty(ctx, stack, "gateway", "dns", dnsType, "provider-specific")
