@@ -31,11 +31,13 @@ import (
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/services"
+	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=gateways/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=gateways/finalizers,verbs=update
+//+kubebuilder:rbac:groups=externaldns.k8s.io,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, version string) error {
 
@@ -84,6 +86,11 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		return err
 	}
 
+	// Reconcile DNS endpoints if configured
+	if err := reconcileDNSEndpoints(ctx, gateway); err != nil {
+		return err
+	}
+
 	gateway.Status.SyncHTTPAPIs = Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) string {
 		return from.Spec.Name
 	})
@@ -100,6 +107,7 @@ func init() {
 			WithOwn[*v1beta1.Gateway](&networkingv1.Ingress{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.BenthosStream{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.ResourceReference{}),
+			WithOwn[*v1beta1.Gateway](&externaldnsv1alpha1.DNSEndpoint{}),
 			WithWatchSettings[*v1beta1.Gateway](),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.Auth{}),
