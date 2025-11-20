@@ -195,4 +195,3 @@ func deleteDNSEndpoint(ctx core.Context, namespace, name string) error {
 
 	return ctx.GetClient().Delete(ctx, dnsEndpoint)
 }
-

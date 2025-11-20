@@ -10,7 +10,6 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	"github.com/formancehq/go-libs/v2/collectionutils"
-
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 )
 
