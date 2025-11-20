@@ -34,26 +34,24 @@ func getDNSConfig(ctx core.Context, stack string, dnsType string) (*DNSConfig, e
 		return nil, nil
 	}
 
-	dnsNameStr, err := settings.GetStringOrEmpty(ctx, stack, "gateway", "dns", dnsType, "dns-name")
+	dnsNames, err := settings.GetStringSlice(ctx, stack, "gateway", "dns", dnsType, "dns-names")
 	if err != nil {
 		return nil, err
 	}
-	if dnsNameStr == "" {
-		return nil, fmt.Errorf("gateway.dns.%s.dns-name is required when gateway.dns.%s.enabled is true", dnsType, dnsType)
+	if len(dnsNames) == 0 {
+		return nil, fmt.Errorf("gateway.dns.%s.dns-names is required when gateway.dns.%s.enabled is true", dnsType, dnsType)
 	}
-	dnsNames := strings.Split(dnsNameStr, ",")
 	for i := range dnsNames {
 		dnsNames[i] = strings.TrimSpace(dnsNames[i])
 	}
 
-	targetsStr, err := settings.GetStringOrEmpty(ctx, stack, "gateway", "dns", dnsType, "targets")
+	targets, err := settings.GetStringSlice(ctx, stack, "gateway", "dns", dnsType, "targets")
 	if err != nil {
 		return nil, err
 	}
-	if targetsStr == "" {
+	if len(targets) == 0 {
 		return nil, fmt.Errorf("gateway.dns.%s.targets is required when gateway.dns.%s.enabled is true", dnsType, dnsType)
 	}
-	targets := strings.Split(targetsStr, ",")
 	for i := range targets {
 		targets[i] = strings.TrimSpace(targets[i])
 	}
