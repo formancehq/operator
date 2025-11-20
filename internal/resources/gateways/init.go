@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
+	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
 	. "github.com/formancehq/go-libs/v2/collectionutils"
 
@@ -31,7 +32,6 @@ import (
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/services"
-	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
