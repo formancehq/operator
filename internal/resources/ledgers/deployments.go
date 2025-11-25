@@ -2,6 +2,7 @@ package ledgers
 
 import (
 	"fmt"
+	"strings"
 
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
@@ -88,6 +89,14 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		container.Env = append(container.Env,
 			core.Env("EXPERIMENTAL_NUMSCRIPT_INTERPRETER", "true"),
 		)
+	}
+
+	experimentalNumscriptFlags, err := settings.GetStringSlice(ctx, stack.Name, "ledger", "experimental-numscript-flags")
+	if err != nil {
+		return fmt.Errorf("failed to get experimental numscript: %w", err)
+	}
+	if len(experimentalNumscriptFlags) > 0 {
+		container.Env = append(container.Env, core.Env("EXPERIMENTAL_NUMSCRIPT_INTERPRETER_FLAGS", strings.Join(experimentalNumscriptFlags, " ")))
 	}
 
 	defaultPageSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "default-page-size")
