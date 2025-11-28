@@ -183,7 +183,7 @@ func createServiceNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer 
 			--defaults
 	}`
 
-	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.14.1")
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 		--defaults $filters
 	`
 
-	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.14.1")
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {
 		return err
 	}

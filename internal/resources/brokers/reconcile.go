@@ -115,7 +115,7 @@ func detectBrokerModeByCheckingExistentStreams(ctx core.Context, stack *v1beta1.
 	[[ -z "$v" ]] || exit 12;
 `
 
-	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.14.1")
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {
 		return false, err
 	}
@@ -194,7 +194,7 @@ func deleteBroker(ctx core.Context, broker *v1beta1.Broker) error {
 		return err
 	}
 
-	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.14.1")
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 			$STREAM
 	} || true`
 
-	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.14.1")
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {
 		return err
 	}
@@ -292,7 +292,7 @@ func createNatsTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Bro
 			$STREAM
 	fi`
 
-	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.14.1")
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {
 		return err
 	}
