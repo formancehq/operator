@@ -69,6 +69,25 @@ func GetStringSlice(ctx core.Context, stack string, keys ...string) ([]string, e
 	return strings.Split(*value, ","), nil
 }
 
+func GetTrimmedStringSlice(ctx core.Context, stack string, keys ...string) ([]string, error) {
+	value, err := GetString(ctx, stack, keys...)
+	if err != nil {
+		return nil, err
+	}
+	if value == nil {
+		return nil, err
+	}
+	strs := strings.Split(*value, ",")
+	strsTrimmed := make([]string, 0, len(strs))
+	for i := range strs {
+		trimmed := strings.TrimSpace(strs[i])
+		if trimmed != "" {
+			strsTrimmed = append(strsTrimmed, trimmed)
+		}
+	}
+	return strsTrimmed, nil
+}
+
 func RequireString(ctx core.Context, stack string, keys ...string) (string, error) {
 	value, err := GetString(ctx, stack, keys...)
 	if err != nil {

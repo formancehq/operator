@@ -23,7 +23,12 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
 	. "github.com/formancehq/go-libs/v2/collectionutils"
 
@@ -36,6 +41,8 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=gateways/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=gateways/finalizers,verbs=update
+//+kubebuilder:rbac:groups=externaldns.k8s.io,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, version string) error {
 
@@ -84,12 +91,21 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		return err
 	}
 
+	// Reconcile DNS endpoints if configured
+	if isDNSEndpointAvailable {
+		if err := reconcileDNSEndpoints(ctx, gateway); err != nil {
+			return err
+		}
+	}
+
 	gateway.Status.SyncHTTPAPIs = Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) string {
 		return from.Spec.Name
 	})
 
 	return nil
 }
+
+var isDNSEndpointAvailable bool
 
 func init() {
 	Init(
@@ -100,6 +116,40 @@ func init() {
 			WithOwn[*v1beta1.Gateway](&networkingv1.Ingress{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.BenthosStream{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.ResourceReference{}),
+			WithRaw[*v1beta1.Gateway](func(ctx Context, builder *builder.Builder) error {
+
+				// manager provided client is not ready at this stage
+				cfg := ctrl.GetConfigOrDie()
+
+				client, err := client.New(cfg, client.Options{
+					Scheme: ctx.GetScheme(),
+				})
+				if err != nil {
+					panic(err)
+				}
+
+				crds := apiextensionsv1.CustomResourceDefinitionList{}
+				err = client.List(ctx, &crds)
+				if err != nil {
+					return err
+				}
+
+				v := &externaldnsv1alpha1.DNSEndpoint{}
+				kinds, _, err := ctx.GetScheme().ObjectKinds(v)
+				if err != nil {
+					return err
+				}
+
+				for _, item := range crds.Items {
+					if item.GroupVersionKind() == kinds[0] {
+						isDNSEndpointAvailable = true
+						builder.Owns(v)
+						break
+					}
+				}
+
+				return nil
+			}),
 			WithWatchSettings[*v1beta1.Gateway](),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.Auth{}),
