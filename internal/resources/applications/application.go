@@ -426,7 +426,7 @@ func (a Application) withSemconvMetricsNames(ctx core.Context) core.ObjectMutato
 	}
 }
 
-func (a Application) withNodeIP(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+func (a Application) withNodeIP(_ core.Context) core.ObjectMutator[*appsv1.Deployment] {
 	return func(deployment *appsv1.Deployment) error {
 		nodeIPEnvVar := corev1.EnvVar{
 			Name: "NODE_IP",
@@ -444,6 +444,20 @@ func (a Application) withNodeIP(ctx core.Context) core.ObjectMutator[*appsv1.Dep
 		for i, container := range deployment.Spec.Template.Spec.Containers {
 			container.Env = append(container.Env, nodeIPEnvVar)
 			deployment.Spec.Template.Spec.Containers[i] = container
+		}
+
+		return nil
+	}
+}
+
+func (a Application) withTerminationGracePeriod(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		terminationGracePeriod, err := settings.GetInt64(ctx, a.owner.GetStack(), "deployments", deployment.Name, "spec", "template", "spec", "termination-grace-period-seconds")
+		if err != nil {
+			return err
+		}
+		if terminationGracePeriod != nil {
+			deployment.Spec.Template.Spec.TerminationGracePeriodSeconds = terminationGracePeriod
 		}
 
 		return nil
@@ -474,6 +488,7 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		a.withJsonLogging(ctx),
 		a.withSemconvMetricsNames(ctx),
 		a.withNodeIP(ctx),
+		a.withTerminationGracePeriod(ctx),
 		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
 	)
 
