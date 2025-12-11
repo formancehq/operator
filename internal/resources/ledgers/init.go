@@ -88,22 +88,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 
 				return nil
 			}),
-			jobs.PreCreate(func() error {
-				list := &appsv1.DeploymentList{}
-				if err := ctx.GetClient().List(ctx, list, client.InNamespace(stack.Name)); err != nil {
-					return err
-				}
-
-				for _, item := range list.Items {
-					if controller := metav1.GetControllerOf(&item); controller != nil && controller.UID == ledger.GetUID() {
-						if err := ctx.GetClient().Delete(ctx, &item); err != nil {
-							return err
-						}
-					}
-				}
-
-				return nil
-			}),
 		)
 		if err != nil {
 			isV2_2 := !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0
