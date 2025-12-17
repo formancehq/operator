@@ -52,6 +52,11 @@
 		{{- if .TrustedProxiesStrict }}
 		trusted_proxies_strict
 		{{- end }}
+		{{- if .IdleTimeout }}
+		timeouts {
+			idle {{ .IdleTimeout }}
+		}
+		{{- end }}
 	}
 
 	{{- if .Debug }}

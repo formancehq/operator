@@ -54,3 +54,10 @@ func withTrustedProxiesStrict() func(data map[string]any) error {
 		return nil
 	}
 }
+
+func withIdleTimeout(timeout string) func(data map[string]any) error {
+	return func(data map[string]any) error {
+		data["IdleTimeout"] = timeout
+		return nil
+	}
+}
