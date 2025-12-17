@@ -30,6 +30,14 @@ func createConfigMap(ctx core.Context, stack *v1beta1.Stack,
 		options = append(options, withTrustedProxiesStrict())
 	}
 
+	idleTimeout, err := settings.GetString(ctx, stack.Name, "gateway", "config", "idle-timeout")
+	if err != nil {
+		return nil, err
+	}
+	if idleTimeout != nil && *idleTimeout != "" {
+		options = append(options, withIdleTimeout(*idleTimeout))
+	}
+
 	caddyfile, err := CreateCaddyfile(ctx, stack, gateway, httpAPIs, broker, options...)
 	if err != nil {
 		return nil, err
