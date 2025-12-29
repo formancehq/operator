@@ -16,6 +16,7 @@ func init() {
 		core.WithResourceReconciler(Reconcile,
 			core.WithFinalizer[*v1beta1.Broker]("clear", deleteBroker),
 			core.WithOwn[*v1beta1.Broker](&v1.Job{}),
+			core.WithWatchSettings[*v1beta1.Broker](),
 		),
 	)
 }
