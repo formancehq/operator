@@ -19,7 +19,23 @@ func GetBrokerEnvVars(ctx core.Context, brokerURI *v1beta1.URI, stackName, servi
 
 	ret = append(ret, core.Env("BROKER", brokerURI.Scheme))
 
-	if brokerURI.Query().Get("circuitBreakerEnabled") == "true" {
+	// Circuit breaker configuration via Settings (takes precedence over URI query params)
+	circuitBreakerEnabled, err := settings.GetBoolOrFalse(ctx, stackName, "publisher", "circuit-breaker", "enabled")
+	if err != nil {
+		return nil, err
+	}
+
+	if circuitBreakerEnabled {
+		ret = append(ret, core.Env("PUBLISHER_CIRCUIT_BREAKER_ENABLED", "true"))
+		openInterval, err := settings.GetStringOrEmpty(ctx, stackName, "publisher", "circuit-breaker", "open-interval-duration")
+		if err != nil {
+			return nil, err
+		}
+		if openInterval != "" {
+			ret = append(ret, core.Env("PUBLISHER_CIRCUIT_BREAKER_OPEN_INTERVAL_DURATION", openInterval))
+		}
+	} else if brokerURI.Query().Get("circuitBreakerEnabled") == "true" {
+		// Fallback to URI query params for backward compatibility
 		ret = append(ret, core.Env("PUBLISHER_CIRCUIT_BREAKER_ENABLED", "true"))
 		if openInterval := brokerURI.Query().Get("circuitBreakerOpenInterval"); openInterval != "" {
 			ret = append(ret, core.Env("PUBLISHER_CIRCUIT_BREAKER_OPEN_INTERVAL_DURATION", openInterval))

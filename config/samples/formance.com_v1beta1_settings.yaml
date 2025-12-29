@@ -18,3 +18,23 @@ spec:
     - "*"
   key: search.batching
   value: count=10,period=10s
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: circuit-breaker-enabled
+spec:
+  stacks:
+    - "*"
+  key: publisher.circuit-breaker.enabled
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: circuit-breaker-open-interval
+spec:
+  stacks:
+    - "*"
+  key: publisher.circuit-breaker.open-interval-duration
+  value: "5s"
