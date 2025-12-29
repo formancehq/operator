@@ -24,8 +24,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
@@ -85,22 +83,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 			database,
 			jobs.Mutator(func(t *batchv1.Job) error {
 				t.Spec.Template.Spec.Containers[0].Env = append(t.Spec.Template.Spec.Containers[0].Env, Env("STORAGE_POSTGRES_CONN_STRING", "$(POSTGRES_URI)"))
-
-				return nil
-			}),
-			jobs.PreCreate(func() error {
-				list := &appsv1.DeploymentList{}
-				if err := ctx.GetClient().List(ctx, list, client.InNamespace(stack.Name)); err != nil {
-					return err
-				}
-
-				for _, item := range list.Items {
-					if controller := metav1.GetControllerOf(&item); controller != nil && controller.UID == ledger.GetUID() {
-						if err := ctx.GetClient().Delete(ctx, &item); err != nil {
-							return err
-						}
-					}
-				}
 
 				return nil
 			}),
