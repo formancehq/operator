@@ -163,6 +163,33 @@ func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Pay
 	return env, nil
 }
 
+func deleteAllPaymentsDeployments(ctx core.Context, stack *v1beta1.Stack) error {
+	remove := func(name string) error {
+		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := remove("payments-read"); err != nil {
+		return err
+	} // Only if upgrade from =< v3.0.0
+
+	if err := remove("payments-connectors"); err != nil {
+		return err
+	} // Only if upgrade from =< v3.0.0
+
+	if err := remove("payments-worker"); err != nil {
+		return err
+	}
+
+	if err := remove("payments"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func uninstallPaymentsReadAndConnectors(ctx core.Context, stack *v1beta1.Stack) error {
 	remove := func(name string) error {
 		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
