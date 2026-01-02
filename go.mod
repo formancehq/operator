@@ -2,7 +2,7 @@ module github.com/formancehq/operator
 
 go 1.24.4
 
-toolchain go1.25.4
+toolchain go1.25.5
 
 require (
 	github.com/formancehq/go-libs/v2 v2.2.3
