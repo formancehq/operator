@@ -76,32 +76,32 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 	switch {
 	case semver.IsValid(version) && semver.Compare(version, "v1.0.0-alpha") >= 0 &&
 		semver.Compare(version, "v3.0.0") < 0:
-		if err := createReadDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
+		if err := createV2ReadDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
 			return err
 		}
 
-		if err := createConnectorsDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
+		if err := createV2ConnectorsDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
 			return err
 		}
 		if err := createGateway(ctx, stack, p); err != nil {
 			return err
 		}
 	case semver.IsValid(version) && semver.Compare(version, "v3.0.0-beta.1") >= 0 &&
-			semver.Compare(version, "v3.1.0-alpha.1") < 0:
+		semver.Compare(version, "v3.1.0-alpha.1") < 0:
 		healthEndpoint = "_healthcheck"
 		if err := uninstallPaymentsReadAndConnectors(ctx, stack); err != nil {
 			return err
 		}
 
-		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration, true); err != nil {
+		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
 			return err
 		}
 	case !semver.IsValid(version) || semver.Compare(version, "v3.1.0-alpha.1") >= 0:
-		if err := deleteAllPaymentsDeployments(ctx, stack); err != nil {
+		if err := deleteDeployment(ctx, stack, "payments-worker"); err != nil {
 			return err
 		}
-
-		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration, false); err != nil {
+		// check if all deleted
+		if err := createFullDeployment(ctx, stack, p, database, imageConfiguration); err != nil {
 			return err
 		}
 	}

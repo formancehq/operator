@@ -163,27 +163,8 @@ func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Pay
 	return env, nil
 }
 
-func deleteAllPaymentsDeployments(ctx core.Context, stack *v1beta1.Stack) error {
-	remove := func(name string) error {
-		if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	if err := remove("payments-read"); err != nil {
-		return err
-	} // Only if upgrade from =< v3.0.0
-
-	if err := remove("payments-connectors"); err != nil {
-		return err
-	} // Only if upgrade from =< v3.0.0
-
-	if err := remove("payments-worker"); err != nil {
-		return err
-	}
-
-	if err := remove("payments"); err != nil {
+func deleteDeployment(ctx core.Context, stack *v1beta1.Stack, name string) error {
+	if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
 		return err
 	}
 
@@ -219,97 +200,14 @@ func createFullDeployment(
 	payments *v1beta1.Payments,
 	database *v1beta1.Database,
 	imageConfiguration *registries.ImageConfiguration,
-	v3 bool,
 ) error {
-
-	env, err := commonEnvVars(ctx, stack, payments, database)
+	// The deployment order matters here: Temporal workflows created on old code will not be successfully executed on
+	// old workers, so we need to make sure worker deployment happen before API deployment.
+	err := createV3Deployment(ctx, stack, payments, database, imageConfiguration, DeploymentTypeWorker)
 	if err != nil {
 		return err
 	}
-
-	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "payments", payments.Spec.Auth)
-	if err != nil {
-		return err
-	}
-	env = append(env, authEnvVars...)
-
-	var broker *v1beta1.Broker
-	if t, err := brokertopics.Find(ctx, stack, "payments"); err != nil {
-		return err
-	} else if t != nil && t.Status.Ready {
-		broker = &v1beta1.Broker{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
-			Name: stack.Name,
-		}, broker); err != nil {
-			return err
-		}
-	}
-
-	if broker != nil {
-		if !broker.Status.Ready {
-			return core.NewPendingError().WithMessage("broker not ready")
-		}
-		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "payments")
-		if err != nil {
-			return err
-		}
-
-		env = append(env, brokerEnvVar...)
-		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
-	}
-
-	if v3 {
-		temporalEnvVars, err := temporalEnvVars(ctx, stack, payments)
-		if err != nil {
-			return err
-		}
-
-		env = append(env, temporalEnvVars...)
-	}
-
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-	if err != nil {
-		return err
-	}
-
-	containerName := "api"
-	appOpts := applications.WithProbePath("/_health")
-	if v3 {
-		containerName = "payments-api"
-		appOpts = applications.WithProbePath("/_healthcheck")
-
-		err := createWorkerDeployment(ctx, stack, payments, database, imageConfiguration, env, appOpts)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = applications.
-		New(payments, &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "payments",
-			},
-			Spec: appsv1.DeploymentSpec{
-				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{
-						ServiceAccountName: serviceAccountName,
-						ImagePullSecrets:   imageConfiguration.PullSecrets,
-						Containers: []corev1.Container{{
-							Name:           containerName,
-							Args:           []string{"serve"},
-							Env:            env,
-							Image:          imageConfiguration.GetFullImageName(),
-							LivenessProbe:  applications.DefaultLiveness("http", appOpts),
-							ReadinessProbe: applications.DefaultReadiness("http", appOpts),
-							Ports:          []corev1.ContainerPort{applications.StandardHTTPPort()},
-						}},
-						// Ensure empty
-						InitContainers: []corev1.Container{},
-					},
-				},
-			},
-		}).
-		Install(ctx)
+	err = createV3Deployment(ctx, stack, payments, database, imageConfiguration, DeploymentTypeApi)
 	if err != nil {
 		return err
 	}
@@ -317,16 +215,49 @@ func createFullDeployment(
 	return nil
 }
 
-func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, env []corev1.EnvVar, appOpts applications.ProbeOpts) error {
+const DeploymentTypeWorker = "worker"
+const DeploymentTypeApi = "api"
+
+func createV3Deployment(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	payments *v1beta1.Payments,
+	database *v1beta1.Database,
+	imageConfiguration *registries.ImageConfiguration,
+	deploymentType string,
+) error {
+	var (
+		containerName string
+		metaName      string
+		arg           string
+	)
+
+	switch deploymentType {
+	case DeploymentTypeWorker:
+		containerName = "payments-worker"
+		metaName = "payments-worker"
+		arg = "worker"
+	case DeploymentTypeApi:
+		containerName = "payments-api"
+		metaName = "payments"
+		arg = "server"
+	default:
+		return fmt.Errorf("invalid deployment type: %s", deploymentType)
+	}
+
+	env, err := v3EnvVars(ctx, stack, payments, database)
+
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
 		return err
 	}
 
+	appOpts := applications.WithProbePath("/_healthcheck")
+
 	err = applications.
 		New(payments, &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "payments-worker",
+				Name: metaName,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Template: corev1.PodTemplateSpec{
@@ -334,11 +265,12 @@ func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1
 						ServiceAccountName: serviceAccountName,
 						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						Containers: []corev1.Container{{
-							Name:          "payments-worker",
-							Args:          []string{"worker"},
+							Name:          containerName,
+							Args:          []string{arg},
 							Env:           env,
 							Image:         imageConfiguration.GetFullImageName(),
 							LivenessProbe: applications.DefaultLiveness("http", appOpts),
+							ReadinessProbe: applications.DefaultReadiness("http", appOpts),
 							Ports:         []corev1.ContainerPort{applications.StandardHTTPPort()},
 						}},
 						// Ensure empty
@@ -355,7 +287,58 @@ func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1
 	return nil
 }
 
-func createReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
+func v3EnvVars(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	payments *v1beta1.Payments,
+	database *v1beta1.Database,
+) ([]corev1.EnvVar, error) {
+	env, err := commonEnvVars(ctx, stack, payments, database)
+	if err != nil {
+		return []corev1.EnvVar{}, err
+	}
+
+	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "payments", payments.Spec.Auth)
+	if err != nil {
+		return []corev1.EnvVar{}, err
+	}
+	env = append(env, authEnvVars...)
+
+	var broker *v1beta1.Broker
+	if t, err := brokertopics.Find(ctx, stack, "payments"); err != nil {
+		return []corev1.EnvVar{}, err
+	} else if t != nil && t.Status.Ready {
+		broker = &v1beta1.Broker{}
+		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+			Name: stack.Name,
+		}, broker); err != nil {
+			return []corev1.EnvVar{}, err
+		}
+	}
+
+	if broker != nil {
+		if !broker.Status.Ready {
+			return []corev1.EnvVar{}, core.NewPendingError().WithMessage("broker not ready")
+		}
+		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "payments")
+		if err != nil {
+			return []corev1.EnvVar{}, err
+		}
+
+		env = append(env, brokerEnvVar...)
+		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
+	}
+
+	temporalEnvVars, err := temporalEnvVars(ctx, stack, payments)
+	if err != nil {
+		return []corev1.EnvVar{}, err
+	}
+	env = append(env, temporalEnvVars...)
+
+	return env, nil
+}
+
+func createV2ReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
 
 	env, err := commonEnvVars(ctx, stack, payments, database)
 	if err != nil {
@@ -410,7 +393,7 @@ func createReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1be
 	return nil
 }
 
-func createConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
+func createV2ConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
 
 	env, err := commonEnvVars(ctx, stack, payments, database)
 	if err != nil {
