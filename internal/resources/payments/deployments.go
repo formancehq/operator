@@ -266,6 +266,9 @@ func createV3Deployment(
 	}
 
 	env, err := v3EnvVars(ctx, stack, payments, database)
+	if err != nil {
+		return err
+	}
 
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {

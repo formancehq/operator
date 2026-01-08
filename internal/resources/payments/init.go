@@ -20,6 +20,12 @@ import (
 	_ "embed"
 	"net/http"
 
+	"github.com/pkg/errors"
+	"golang.org/x/mod/semver"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
@@ -27,11 +33,6 @@ import (
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/internal/resources/jobs"
 	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/pkg/errors"
-	"golang.org/x/mod/semver"
-	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=payments,verbs=get;list;watch;create;update;patch;delete
