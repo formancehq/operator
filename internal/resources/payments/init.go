@@ -54,9 +54,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 		return err
 	}
 
-	requireChanges := false
-	if databases.GetSavedModuleVersion(database) != version {
-		requireChanges = true
+	savedVersion := databases.GetSavedModuleVersion(database)
+	if savedVersion != version {
 		encryptionKey, err := getEncryptionKey(ctx, p)
 		if err != nil {
 			return err
@@ -99,8 +98,12 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 			return err
 		}
 	case !semver.IsValid(version) || semver.Compare(version, "v3.1.0-alpha.1") >= 0:
-		// TODO can we check current installed version beside installing version
-		if requireChanges { // We need to make sure we're currently updating, if not it'll loop creating and deleting the new pods
+		if semver.Compare(savedVersion, "v3.0.0-beta.1") < 0 { // If we are running an update from <3.0.0-beta.1 we need to delete the old deployments
+			if err := uninstallPaymentsReadAndConnectors(ctx, stack); err != nil {
+				return err
+			}
+		}
+		if savedVersion != version { // We need to make sure we're currently updating, if not it'll loop creating and deleting the new pods
 			if err := deleteDeployment(ctx, stack, "payments-worker"); err != nil {
 				return err
 			}
