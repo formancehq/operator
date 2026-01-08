@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
@@ -164,11 +165,30 @@ func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Pay
 }
 
 func deleteDeployment(ctx core.Context, stack *v1beta1.Stack, name string) error {
-	if err := core.DeleteIfExists[*appsv1.Deployment](ctx, core.GetNamespacedResourceName(stack.Name, name)); err != nil {
+	deploymentName := core.GetNamespacedResourceName(stack.Name, name)
+	deployment := &appsv1.Deployment{}
+
+	if err := ctx.GetClient().Get(ctx, deploymentName, deployment); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			// Deployment doesn't exist, successfully deleted
+			return nil
+		}
 		return err
 	}
 
-	return nil
+	// Check if deployment is already being deleted
+	if !deployment.GetDeletionTimestamp().IsZero() {
+		// Deployment is still being deleted, wait for it to complete
+		return core.NewPendingError().WithMessage("waiting for deployment %s to be deleted", name)
+	}
+
+	// Deployment exists and is not being deleted, delete it now
+	if err := ctx.GetClient().Delete(ctx, deployment); err != nil {
+		return err
+	}
+
+	// Return pending error to wait for deletion to complete
+	return core.NewPendingError().WithMessage("waiting for deployment %s to be deleted", name)
 }
 
 func uninstallPaymentsReadAndConnectors(ctx core.Context, stack *v1beta1.Stack) error {
