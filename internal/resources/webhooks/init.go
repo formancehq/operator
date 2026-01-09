@@ -24,6 +24,7 @@ import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokerconsumers"
+	"github.com/formancehq/operator/internal/resources/brokers"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/internal/resources/registries"
@@ -89,6 +90,7 @@ func init() {
 			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Ledger{}),
 			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Payments{}),
 			databases.Watch[*v1beta1.Webhooks](),
+			brokers.Watch[*v1beta1.Webhooks](),
 		),
 	)
 }
