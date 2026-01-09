@@ -21,6 +21,21 @@ func liveness(handler corev1.ProbeHandler) *corev1.Probe {
 	}
 }
 
+func DefaultReadiness(port string, opts ...ProbeOpts) *corev1.Probe {
+	return readiness(newProbeHandler(port, opts...))
+}
+func readiness(handler corev1.ProbeHandler) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler:                  handler,
+		InitialDelaySeconds:           1,
+		TimeoutSeconds:                30,
+		PeriodSeconds:                 2,
+		SuccessThreshold:              1,
+		FailureThreshold:              20,
+		TerminationGracePeriodSeconds: nil,
+	}
+}
+
 type ProbeOpts func(*corev1.ProbeHandler) *corev1.ProbeHandler
 
 func newProbeHandler(port string, opts ...ProbeOpts) corev1.ProbeHandler {
