@@ -58,9 +58,9 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, stargate *v1beta1.
 					Spec: v1.PodSpec{
 						ImagePullSecrets: imageConfiguration.PullSecrets,
 						Containers: []v1.Container{{
-							Name:          "stargate",
-							Env:           env,
-							Image:         imageConfiguration.GetFullImageName(),
+							Name:           "stargate",
+							Env:            env,
+							Image:          imageConfiguration.GetFullImageName(),
 							Ports:          []v1.ContainerPort{applications.StandardHTTPPort()},
 							LivenessProbe:  applications.DefaultLiveness("http"),
 							ReadinessProbe: applications.DefaultReadiness("http"),
