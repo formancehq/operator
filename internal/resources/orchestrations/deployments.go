@@ -186,9 +186,9 @@ func createDeployment(
 					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					ServiceAccountName: serviceAccountName,
 					Containers: []corev1.Container{{
-						Name:          "api",
-						Env:           env,
-						Image:         imageConfiguration.GetFullImageName(),
+						Name:           "api",
+						Env:            env,
+						Image:          imageConfiguration.GetFullImageName(),
 						Ports:          []corev1.ContainerPort{applications.StandardHTTPPort()},
 						LivenessProbe:  applications.DefaultLiveness("http"),
 						ReadinessProbe: applications.DefaultReadiness("http"),
