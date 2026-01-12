@@ -69,9 +69,9 @@ func createDeployment(
 						ImagePullSecrets:   imageConfiguration.PullSecrets,
 						ServiceAccountName: serviceAccountName,
 						Containers: []v1.Container{{
-							Name:          "reconciliation",
-							Env:           env,
-							Image:         imageConfiguration.GetFullImageName(),
+							Name:           "reconciliation",
+							Env:            env,
+							Image:          imageConfiguration.GetFullImageName(),
 							Ports:          []v1.ContainerPort{applications.StandardHTTPPort()},
 							LivenessProbe:  applications.DefaultLiveness("http"),
 							ReadinessProbe: applications.DefaultReadiness("http"),
