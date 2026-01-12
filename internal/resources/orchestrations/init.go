@@ -24,6 +24,7 @@ import (
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/internal/core"
 	"github.com/formancehq/operator/internal/resources/brokerconsumers"
+	"github.com/formancehq/operator/internal/resources/brokers"
 	"github.com/formancehq/operator/internal/resources/brokertopics"
 	"github.com/formancehq/operator/internal/resources/databases"
 	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
@@ -102,6 +103,7 @@ func init() {
 			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Wallets{}),
 			brokertopics.Watch[*v1beta1.Orchestration]("orchestration"),
 			databases.Watch[*v1beta1.Orchestration](),
+			brokers.Watch[*v1beta1.Orchestration](),
 		),
 	)
 }
