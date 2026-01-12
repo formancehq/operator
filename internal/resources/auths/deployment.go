@@ -162,8 +162,9 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 							VolumeMounts: []corev1.VolumeMount{
 								NewVolumeMount("config", "/config", true),
 							},
-							Ports:         []corev1.ContainerPort{applications.StandardHTTPPort()},
-							LivenessProbe: applications.DefaultLiveness("http"),
+							Ports:          []corev1.ContainerPort{applications.StandardHTTPPort()},
+							LivenessProbe:  applications.DefaultLiveness("http"),
+							ReadinessProbe: applications.DefaultReadiness("http"),
 						}},
 						Volumes: []corev1.Volume{
 							NewVolumeFromConfigMap("config", configMap),

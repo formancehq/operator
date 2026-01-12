@@ -359,6 +359,7 @@ func setCommonAPIContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, 
 	container.Env = append(container.Env, gatewayEnv...)
 	container.Ports = []corev1.ContainerPort{applications.StandardHTTPPort()}
 	container.LivenessProbe = applications.DefaultLiveness("http")
+	container.ReadinessProbe = applications.DefaultReadiness("http")
 
 	return nil
 }
