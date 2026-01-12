@@ -343,37 +343,9 @@ func TestFindMatchingSettingsWithValueFrom(t *testing.T) {
 			},
 			expectedResult: "postgresql://localhost:5432/test",
 		},
-		{
-			name:  "value takes precedence over valueFrom",
-			stack: "test-stack",
-			setting: v1beta1.Settings{
-				ObjectMeta: metav1.ObjectMeta{Name: "test-setting"},
-				Spec: v1beta1.SettingsSpec{
-					Key:   "postgres.ledger.uri",
-					Value: "postgresql://direct-value:5432/test",
-					ValueFrom: &v1beta1.ValueFrom{
-						SecretKeyRef: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: "postgres-secret",
-							},
-							Key: "connection-string",
-						},
-					},
-				},
-			},
-			secrets: []*corev1.Secret{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "postgres-secret",
-						Namespace: "test-stack",
-					},
-					Data: map[string][]byte{
-						"connection-string": []byte("postgresql://secret-value:5432/test"),
-					},
-				},
-			},
-			expectedResult: "postgresql://direct-value:5432/test",
-		},
+		// Note: Test case "value takes precedence over valueFrom" removed because
+		// CEL validation now enforces exactly one of value/valueFrom to be set.
+		// Having both set is an impossible state at runtime.
 		{
 			name:  "optional secret not found returns empty string",
 			stack: "test-stack",

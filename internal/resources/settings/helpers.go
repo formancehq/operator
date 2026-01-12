@@ -399,10 +399,7 @@ func findMatchingSettings(ctx core.Context, stack string, settings []v1beta1.Set
 
 	for _, setting := range settings {
 		if matchSetting(setting, flattenKeys...) {
-			// Value takes precedence over ValueFrom (consistent with Kubernetes EnvVar behavior)
-			if setting.Spec.Value != "" {
-				return &setting.Spec.Value, nil
-			}
+			// Check valueFrom first since CEL validation ensures exactly one of value/valueFrom is set
 			if setting.Spec.ValueFrom != nil {
 				// Resolve value from secret or configmap
 				value, err := resolveValueFrom(ctx, stack, setting.Spec.ValueFrom)
@@ -414,8 +411,8 @@ func findMatchingSettings(ctx core.Context, stack string, settings []v1beta1.Set
 							return &value, nil
 						}
 
-						if errors.Is(err, ErrOptionalResourceNotFound) {
-							// Optional resource not found, return empty string
+						// If resource is optional and not found in either namespace, return empty string
+						if errors.Is(err2, ErrOptionalResourceNotFound) {
 							empty := ""
 							return &empty, nil
 						}
@@ -425,8 +422,8 @@ func findMatchingSettings(ctx core.Context, stack string, settings []v1beta1.Set
 				}
 				return &value, nil
 			}
-			// Both Value and ValueFrom are empty, skip this setting
-			continue
+			// Value is set (CEL validation ensures one of value/valueFrom is present)
+			return &setting.Spec.Value, nil
 		}
 	}
 
