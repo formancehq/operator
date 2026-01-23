@@ -12,7 +12,10 @@
 {{- if .EnableAudit }}
 (audit) {
 	audit {
+		{{- /* topic_name option is only available in Gateway >= v2.2.0 */}}
+		{{- if or (not (semver_is_valid $values.Gateway.Version)) (ge (semver_compare $values.Gateway.Version "v2.2.0") 0) }}
 		topic_name {$TOPIC_NAME}
+		{{- end }}
 		auto_provision false
 		auth_enabled {$AUTH_ENABLED:false}
 		auth_url {$AUTH_URL:http://auth:8080}
@@ -44,8 +47,10 @@
 {{- end }}
 
 {
+	# Global metrics endpoint (moved from servers block - deprecated location)
+	metrics
+
 	servers {
-		metrics
 		{{- if and .TrustedProxies (gt (len .TrustedProxies) 0) }}
 		trusted_proxies {{ .TrustedProxies }}
 		{{- end }}
