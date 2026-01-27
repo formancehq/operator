@@ -9,8 +9,10 @@
 }
 
 {
+	# Global metrics endpoint (moved from servers block - deprecated location)
+	metrics
+
 	servers {
-		metrics
 	}
 
 	admin :3080
