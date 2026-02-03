@@ -4,6 +4,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
     helm.sh/resource-policy: keep
+    {{- with .Values.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   name: databases.formance.com
 spec:
   group: formance.com

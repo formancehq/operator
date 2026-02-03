@@ -41,11 +41,26 @@ generate-mock:
   go generate -run mockgen ./...
 
 helm-update:
+  #!/bin/bash
+  set pipefail -e
+
   rm -f helm/operator/templates/gen/*
   rm -f helm/crds/templates/crds/*
 
   kustomize build config/default --output helm/operator/templates/gen
   kustomize build config/crd --output helm/crds/templates/crds
+
+  # Patch all CRD files to add helm.sh/resource-policy and custom annotations support
+  for file in helm/crds/templates/crds/*.yaml; do
+    awk '/controller-gen.kubebuilder.io\/version:/ {
+      print
+      print "    helm.sh/resource-policy: keep"
+      print "    {{{{- with .Values.annotations }}"
+      print "    {{{{- toYaml . | nindent 4 }}"
+      print "    {{{{- end }}"
+      next
+    } 1' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+  done
 
   rm -f helm/operator/templates/gen/v1_namespace*.yaml
   rm -f helm/operator/templates/gen/apps_v1_deployment_*.yaml
