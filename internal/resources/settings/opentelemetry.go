@@ -31,7 +31,18 @@ func GetOTELEnvVars(ctx core.Context, stack, serviceName string, sliceStringSepa
 		metrics = append(metrics, core.Env("OTEL_METRICS_RUNTIME", "true"))
 	}
 
-	return append(traces, metrics...), nil
+	ret := append(traces, metrics...)
+	if len(ret) > 0 {
+		ret = append(ret, v1.EnvVar{
+			Name: "POD_NAME",
+			ValueFrom: &v1.EnvVarSource{
+				FieldRef: &v1.ObjectFieldSelector{
+					FieldPath: "metadata.name",
+				},
+			},
+		})
+	}
+	return ret, nil
 }
 
 func HasOpenTelemetryTracesEnabled(ctx core.Context, stack string) (bool, error) {
@@ -64,14 +75,6 @@ func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, 
 		core.EnvFromBool(fmt.Sprintf("OTEL_%s_EXPORTER_OTLP_INSECURE", string(monitoringType)), IsTrue(otlp.Query().Get("insecure"))),
 		core.Env("OTEL_SERVICE_NAME", serviceName),
 		core.Env(fmt.Sprintf("OTEL_%s_EXPORTER_OTLP_MODE", string(monitoringType)), otlp.Scheme),
-		{
-			Name: "POD_NAME",
-			ValueFrom: &v1.EnvVarSource{
-				FieldRef: &v1.ObjectFieldSelector{
-					FieldPath: "metadata.name",
-				},
-			},
-		},
 	}
 
 	// If the path is not empty, we use the full URL as the endpoint.

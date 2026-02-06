@@ -254,7 +254,7 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 			core.Env("NATS_URI", fmt.Sprintf("nats://%s", broker.Status.URI.Host)),
 			core.Env("STREAM", stack.Name),
 			core.Env("NAME", consumerName),
-			core.Env("DELIVER", consumer.Spec.QueriedBy),
+			core.Env("DELIVER", consumerName),
 			core.Env("SUBJECTS", strings.Join(
 				collectionutils.Map(consumer.Spec.Services, func(from string) string {
 					return fmt.Sprintf("%s.%s", stack.Name, from)
