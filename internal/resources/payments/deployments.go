@@ -36,12 +36,10 @@ func getEncryptionKey(ctx core.Context, payments *v1beta1.Payments) (string, err
 func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments) (hash map[string]string, env []corev1.EnvVar, err error) {
 	hash = map[string]string{}
 	var (
-		ref *v1beta1.ResourceReference
-	)
-
-	var (
+		ref         *v1beta1.ResourceReference
 		temporalURI *v1beta1.URI
 	)
+
 	temporalURI, err = settings.RequireURL(ctx, stack.Name, "temporal", "dsn")
 	if err != nil {
 		return
