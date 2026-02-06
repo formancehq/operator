@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
 	"github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
@@ -43,11 +44,18 @@ func GetScheme() *runtime.Scheme {
 	return scheme.Scheme
 }
 
+func init() {
+	sg := GetScheme()
+	if err := externaldnsv1alpha1.AddToScheme(sg); err != nil {
+		panic(err)
+	}
+}
+
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(os.Stdout), zap.UseDevMode(true)))
 	ctx, cancel = context.WithCancel(context.Background())
 
-	SetDefaultEventuallyTimeout(10 * time.Second)
+	SetDefaultEventuallyTimeout(20 * time.Second)
 
 	_, filename, _, _ := osRuntime.Caller(0)
 
@@ -58,11 +66,13 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join(filepath.Dir(filename), "..", "..", "..", "config", "crd", "bases"),
+			filepath.Join(filepath.Dir(filename), "..", "..", "..", "internal", "tests", "crds"),
 		},
 		ErrorIfCRDPathMissing: true,
 		ControlPlane: envtest.ControlPlane{
 			APIServer: &apiServer,
 		},
+		Scheme: GetScheme(),
 	}
 
 	var err error

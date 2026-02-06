@@ -40,7 +40,7 @@ While we have some basic types (string, number, bool ...), we also have some com
 | deployments.`<deployment-name>`.replicas                                                 | string | 2                                                                                                                                                                                                                      |                                                                                                                                                                                                                                  |
 | deployments.`<deployment-name>`.semconv-metrics-names                                    | Bool   | true                                                                                                                                                                                                                   | Enable semantic convention metrics names by setting SEMCONV_METRICS_NAME environment variable to true in all containers                                                                                                          |
 | deployments.`<deployment-name>`.spec.template.annotations                                | Map    | firstannotations=X, anotherannotation=X                                                                                                                                                                                |                                                                                                                                                                                                                                  |
-| deployments.`<deployment-name>`.spec.template.spec.termination-grace-period-seconds      | Int    | 30                                                                                                                                                                                                                     | Specify the termination grace period for the deployment                                                                                                                                                                         |
+| deployments.`<deployment-name>`.spec.template.spec.termination-grace-period-seconds      | Int    | 30                                                                                                                                                                                                                     | Specify the termination grace period for the deployment                                                                                                                                                                          |
 | deployments.`<deployment-name>`.topology-spread-constraints                              | Bool   | true                                                                                                                                                                                                                   | Enable topology spread constraints in deployments to maximize high availability of deployments                                                                                                                                   |
 | caddy.image                                                                              | string |                                                                                                                                                                                                                        | Caddy image                                                                                                                                                                                                                      |
 | jobs.`<owner-kind>`.spec.template.annotations                                            | Map    | firstannotations=X, anotherannotations=Y                                                                                                                                                                               | Configure the annotations on specific jobs'modules                                                                                                                                                                               |
@@ -62,6 +62,18 @@ While we have some basic types (string, number, bool ...), we also have some com
 | gateway.caddyfile.trusted-proxies                                                        | string | 10.0.0.0/8,192.168.0.0/16                                                                                                                                                                                              | Comma-separated list of IP ranges (CIDRs) of trusted proxy servers. Caddy will parse the real client IP from HTTP headers when requests come from these proxies. Use `private_ranges` to match all private IPv4 and IPv6 ranges. |
 | gateway.caddyfile.trusted-proxies-strict                                                 | bool   | false                                                                                                                                                                                                                  | Enable strict (right-to-left) parsing of the X-Forwarded-For header. Recommended when using upstream proxies like HAProxy, Cloudflare, AWS ALB, or CloudFront.                                                                   |
 | gateway.config.idle-timeout                                                              | string | 10m                                                                                                                                                                                                                    | Configure the idle timeout for client connections (default: 5m). Use Go duration format (e.g., 30s, 5m, 1h).                                                                                                                     |
+| gateway.dns.private.enabled                                                              | bool   | false                                                                                                                                                                                                                  | Enable generation of private DNS endpoints for the gateway                                                                                                                                                                       |
+| gateway.dns.private.dns-names                                                            | string |                                                                                                                                                                                                                        | DNS name pattern(s) for private DNS endpoints. Comma-separated list. Supports `{stack}` placeholder                                                                                                                              |
+| gateway.dns.private.targets                                                              | string |                                                                                                                                                                                                                        | Target(s) for private DNS records. Comma-separated list                                                                                                                                                                          |
+| gateway.dns.private.record-type                                                          | string | CNAME                                                                                                                                                                                                                  | DNS record type (e.g., CNAME, A, AAAA)                                                                                                                                                                                           |
+| gateway.dns.private.provider-specific                                                    | Map    | alias=true,aws/target-hosted-zone=same-zone                                                                                                                                                                            | Provider-specific DNS settings for private endpoints                                                                                                                                                                             |
+| gateway.dns.private.annotations                                                          | Map    | service.beta.kubernetes.io/aws-load-balancer-internal=true                                                                                                                                                             | Annotations to add to the private DNSEndpoint resource                                                                                                                                                                           |
+| gateway.dns.public.enabled                                                               | bool   | false                                                                                                                                                                                                                  | Enable generation of public DNS endpoints for the gateway                                                                                                                                                                        |
+| gateway.dns.public.dns-names                                                             | string |                                                                                                                                                                                                                        | DNS name pattern(s) for public DNS endpoints. Comma-separated list. Supports `{stack}` placeholder                                                                                                                               |
+| gateway.dns.public.targets                                                               | string |                                                                                                                                                                                                                        | Target(s) for public DNS records. Comma-separated list                                                                                                                                                                           |
+| gateway.dns.public.record-type                                                           | string | CNAME                                                                                                                                                                                                                  | DNS record type (e.g., CNAME, A, AAAA)                                                                                                                                                                                           |
+| gateway.dns.public.provider-specific                                                     | Map    | alias=true,aws/target-hosted-zone=same-zone                                                                                                                                                                            | Provider-specific DNS settings for public endpoints                                                                                                                                                                              |
+| gateway.dns.public.annotations                                                           | Map    |                                                                                                                                                                                                                        | Annotations to add to the public DNSEndpoint resource                                                                                                                                                                            |
 
 ### Postgres URI format
 
@@ -265,6 +277,136 @@ spec:
     - 'formance-dev'
   value: user=1234,group=1234
 ```
+
+### Configure DNS Endpoints
+
+The operator can automatically generate `externaldns.k8s.io/v1alpha1` DNSEndpoint resources for your Gateway components. This allows you to configure DNS records that will be managed by the external-dns operator.
+
+DNS endpoints are linked to Gateway components and are created in the stack namespace. You can configure both private and public DNS endpoints independently.
+
+#### Private DNS Endpoint Example
+
+In this example, you'll configure a private DNS endpoint for the `formance-dev` stack. The DNS endpoint will be created with the name `{gateway-name}-private` and will point to the specified targets.
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-private-enabled
+spec:
+  key: gateway.dns.private.enabled
+  stacks:
+    - 'formance-dev'
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-private-dns-names
+spec:
+  key: gateway.dns.private.dns-names
+  stacks:
+    - 'formance-dev'
+  value: "{stack}-eks-euw1-01.dev.acme.frmnc.net,{stack}.dev.acme.frmnc.net"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-private-targets
+spec:
+  key: gateway.dns.private.targets
+  stacks:
+    - 'formance-dev'
+  value: "rp-01-eks-euw1-01.dev.acme.frmnc.net"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-private-provider-specific
+spec:
+  key: gateway.dns.private.provider-specific
+  stacks:
+    - 'formance-dev'
+  value: "alias=true,aws/target-hosted-zone=same-zone"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-private-annotations
+spec:
+  key: gateway.dns.private.annotations
+  stacks:
+    - 'formance-dev'
+  value: "service.beta.kubernetes.io/aws-load-balancer-internal=true"
+```
+
+#### Public DNS Endpoint Example
+
+In this example, you'll configure a public DNS endpoint for the `formance-dev` stack. The DNS endpoint will be created with the name `{gateway-name}-public`.
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-public-enabled
+spec:
+  key: gateway.dns.public.enabled
+  stacks:
+    - 'formance-dev'
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-public-dns-names
+spec:
+  key: gateway.dns.public.dns-names
+  stacks:
+    - 'formance-dev'
+  value: "{stack}.acme.frmnc.net"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-public-targets
+spec:
+  key: gateway.dns.public.targets
+  stacks:
+    - 'formance-dev'
+  value: "rp-01-eks-euw1-01.dev.acme.frmnc.net"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-dns-public-provider-specific
+spec:
+  key: gateway.dns.public.provider-specific
+  stacks:
+    - 'formance-dev'
+  value: "alias=true,aws/target-hosted-zone=same-zone"
+```
+
+#### DNS Settings Details
+
+- **DNS Names**: The `dns-names` setting supports the `{stack}` placeholder which will be replaced with the actual stack name. You can specify multiple DNS names by separating them with commas. Each DNS name will create a separate endpoint in the DNSEndpoint resource.
+
+- **Targets**: Multiple targets can be specified by separating them with commas. All targets will be added to each DNS record endpoint.
+
+- **Record Type**: Defaults to `CNAME` if not specified. Common values include `CNAME`, `A`, `AAAA`, `TXT`, etc.
+
+- **Provider-Specific Settings**: These are provider-specific DNS configurations. For AWS Route53, common settings include:
+  - `alias=true`: Enable alias records
+  - `aws/target-hosted-zone=same-zone`: Use the same hosted zone for the target
+
+- **Annotations**: Annotations added to the DNSEndpoint resource. Useful for provider-specific configurations or metadata.
+
+:::info
+DNS endpoints are created per Gateway component. If you have multiple Gateways in a stack, each will have its own DNS endpoints named `{gateway-name}-private` and `{gateway-name}-public`.
+:::
+
+:::warning
+The external-dns operator must be installed in your cluster for DNS endpoints to be processed. The operator only creates the DNSEndpoint resources; the external-dns operator is responsible for actually creating the DNS records.
+:::
 
 <!-- ### Define a Replicas -->
 <!-- In this example, we'll set up a configuration to define the number of replicas for the `formance-dev` stack. This configuration will apply to all modules in this stack. -->
