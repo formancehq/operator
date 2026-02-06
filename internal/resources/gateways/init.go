@@ -25,9 +25,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
 	. "github.com/formancehq/go-libs/v2/collectionutils"
@@ -118,18 +116,8 @@ func init() {
 			WithOwn[*v1beta1.Gateway](&v1beta1.ResourceReference{}),
 			WithRaw[*v1beta1.Gateway](func(ctx Context, builder *builder.Builder) error {
 
-				// manager provided client is not ready at this stage
-				cfg := ctrl.GetConfigOrDie()
-
-				client, err := client.New(cfg, client.Options{
-					Scheme: ctx.GetScheme(),
-				})
-				if err != nil {
-					panic(err)
-				}
-
 				crds := apiextensionsv1.CustomResourceDefinitionList{}
-				err = client.List(ctx, &crds)
+				err := ctx.GetAPIReader().List(ctx, &crds)
 				if err != nil {
 					return err
 				}
