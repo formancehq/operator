@@ -18,7 +18,7 @@ tidy:
   cd ./tools/utils && go mod tidy
 
 tests args='':
-  KUBEBUILDER_ASSETS=$(setup-envtest use 1.32.0 -p path) ginkgo --output-interceptor-mode=none -p ./...
+  KUBEBUILDER_ASSETS=$(setup-envtest use 1.32.0 -p path) ginkgo -p ./...
 
 release-local:
   goreleaser release --nightly --skip=publish --clean
