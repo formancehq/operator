@@ -35,7 +35,7 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 		return err
 	}
 
-	env, err := temporalEnvVars(ctx, stack, t)
+	_, env, err := temporalEnvVars(ctx, stack, t)
 	if err != nil {
 		return err
 	}

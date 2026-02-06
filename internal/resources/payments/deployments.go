@@ -33,54 +33,68 @@ func getEncryptionKey(ctx core.Context, payments *v1beta1.Payments) (string, err
 	return "", nil
 }
 
-func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments) ([]corev1.EnvVar, error) {
-	temporalURI, err := settings.RequireURL(ctx, stack.Name, "temporal", "dsn")
+func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments) (hash map[string]string, env []corev1.EnvVar, err error) {
+	hash = map[string]string{}
+	var (
+		ref *v1beta1.ResourceReference
+	)
+
+	var (
+		temporalURI *v1beta1.URI
+	)
+	temporalURI, err = settings.RequireURL(ctx, stack.Name, "temporal", "dsn")
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	if err := validateTemporalURI(temporalURI); err != nil {
-		return nil, err
+	if err = validateTemporalURI(temporalURI); err != nil {
+		return
 	}
 
 	if secret := temporalURI.Query().Get("secret"); secret != "" {
-		_, err = resourcereferences.Create(ctx, payments, "payments-temporal", secret, &corev1.Secret{})
+		ref, err = resourcereferences.Create(ctx, payments, "payments-temporal", secret, &corev1.Secret{})
+		hash[ref.Name] = ref.Status.Hash
 	} else {
 		err = resourcereferences.Delete(ctx, payments, "payments-temporal")
 	}
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	if secret := temporalURI.Query().Get("encryptionKeySecret"); secret != "" {
-		_, err = resourcereferences.Create(ctx, payments, "payments-temporal-encryption-key", secret, &corev1.Secret{})
+		ref, err = resourcereferences.Create(ctx, payments, "payments-temporal-encryption-key", secret, &corev1.Secret{})
+		hash[ref.Name] = ref.Status.Hash
 	} else {
 		err = resourcereferences.Delete(ctx, payments, "payments-temporal-encryption-key")
 	}
+
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	env := make([]corev1.EnvVar, 0)
+	env = make([]corev1.EnvVar, 0)
 	env = append(env,
 		core.Env("TEMPORAL_ADDRESS", temporalURI.Host),
 		core.Env("TEMPORAL_NAMESPACE", temporalURI.Path[1:]),
 	)
 
 	if secret := temporalURI.Query().Get("secret"); secret == "" {
-		temporalTLSCrt, err := settings.GetStringOrEmpty(ctx, stack.Name, "temporal", "tls", "crt")
+		var value string
+		value, err = settings.GetStringOrEmpty(ctx, stack.Name, "temporal", "tls", "crt")
 		if err != nil {
-			return nil, err
+			return
 		}
+		env = append(env,
+			core.Env("TEMPORAL_SSL_CLIENT_CERT", value),
+		)
 
-		temporalTLSKey, err := settings.GetStringOrEmpty(ctx, stack.Name, "temporal", "tls", "key")
+		value, err = settings.GetStringOrEmpty(ctx, stack.Name, "temporal", "tls", "key")
 		if err != nil {
-			return nil, err
+			return
 		}
 
 		env = append(env,
-			core.Env("TEMPORAL_SSL_CLIENT_KEY", temporalTLSKey),
-			core.Env("TEMPORAL_SSL_CLIENT_CERT", temporalTLSCrt),
+			core.Env("TEMPORAL_SSL_CLIENT_KEY", value),
 		)
 	} else {
 		env = append(env,
@@ -100,34 +114,41 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		env = append(env, core.Env("TEMPORAL_INIT_SEARCH_ATTRIBUTES", "true"))
 	}
 
-	temporalMaxConcurrentWorkflowTaskPollers, err := settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-workflow-task-pollers")
+	var value int
+	value, err = settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-workflow-task-pollers")
 	if err != nil {
-		return nil, err
+		return
 	}
+	env = append(env,
+		core.Env("TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLERS", fmt.Sprintf("%d", value)),
+	)
 
-	temporalMaxConcurrentActivityTaskPollers, err := settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-activity-task-pollers")
+	value, err = settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-activity-task-pollers")
 	if err != nil {
-		return nil, err
+		return
 	}
+	env = append(env,
+		core.Env("TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLERS", fmt.Sprintf("%d", value)),
+	)
 
-	temporalMaxSlotsPerPoller, err := settings.GetIntOrDefault(ctx, stack.Name, 10, "payments", "worker", "temporal-max-slots-per-poller")
+	value, err = settings.GetIntOrDefault(ctx, stack.Name, 10, "payments", "worker", "temporal-max-slots-per-poller")
 	if err != nil {
-		return nil, err
+		return
 	}
+	env = append(env,
+		core.Env("TEMPORAL_MAX_SLOTS_PER_POLLER", fmt.Sprintf("%d", value)),
+	)
 
-	temporalMaxLocalActivitySlots, err := settings.GetIntOrDefault(ctx, stack.Name, 50, "payments", "worker", "temporal-max-local-activity-slots")
+	value, err = settings.GetIntOrDefault(ctx, stack.Name, 50, "payments", "worker", "temporal-max-local-activity-slots")
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	env = append(env,
-		core.Env("TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLERS", fmt.Sprintf("%d", temporalMaxConcurrentWorkflowTaskPollers)),
-		core.Env("TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLERS", fmt.Sprintf("%d", temporalMaxConcurrentActivityTaskPollers)),
-		core.Env("TEMPORAL_MAX_SLOTS_PER_POLLER", fmt.Sprintf("%d", temporalMaxSlotsPerPoller)),
-		core.Env("TEMPORAL_MAX_LOCAL_ACTIVITY_SLOTS", fmt.Sprintf("%d", temporalMaxLocalActivitySlots)),
+		core.Env("TEMPORAL_MAX_LOCAL_ACTIVITY_SLOTS", fmt.Sprintf("%d", value)),
 	)
 
-	return env, nil
+	return
 }
 
 func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database) ([]corev1.EnvVar, error) {
@@ -265,7 +286,7 @@ func createV3Deployment(
 		return fmt.Errorf("invalid deployment type: %s", deploymentType)
 	}
 
-	env, err := v3EnvVars(ctx, stack, payments, database)
+	hashMap, env, err := v3EnvVars(ctx, stack, payments, database)
 	if err != nil {
 		return err
 	}
@@ -284,6 +305,9 @@ func createV3Deployment(
 			},
 			Spec: appsv1.DeploymentSpec{
 				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: hashMap,
+					},
 					Spec: corev1.PodSpec{
 						ServiceAccountName: serviceAccountName,
 						ImagePullSecrets:   imageConfiguration.PullSecrets,
@@ -315,50 +339,63 @@ func v3EnvVars(
 	stack *v1beta1.Stack,
 	payments *v1beta1.Payments,
 	database *v1beta1.Database,
-) ([]corev1.EnvVar, error) {
-	env, err := commonEnvVars(ctx, stack, payments, database)
+) (
+	hash map[string]string,
+	envVars []corev1.EnvVar,
+	err error,
+) {
+
+	envVars, err = commonEnvVars(ctx, stack, payments, database)
 	if err != nil {
-		return []corev1.EnvVar{}, err
+		return
 	}
 
-	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "payments", payments.Spec.Auth)
-	if err != nil {
-		return []corev1.EnvVar{}, err
-	}
-	env = append(env, authEnvVars...)
+	var (
+		additionalEnv []corev1.EnvVar
+	)
 
-	var broker *v1beta1.Broker
-	if t, err := brokertopics.Find(ctx, stack, "payments"); err != nil {
-		return []corev1.EnvVar{}, err
-	} else if t != nil && t.Status.Ready {
+	additionalEnv, err = auths.ProtectedEnvVars(ctx, stack, "payments", payments.Spec.Auth)
+	if err != nil {
+		return
+	}
+	envVars = append(envVars, additionalEnv...)
+
+	var (
+		broker *v1beta1.Broker
+		topic  *v1beta1.BrokerTopic
+	)
+	if topic, err = brokertopics.Find(ctx, stack, "payments"); err != nil {
+		return
+	} else if topic != nil && topic.Status.Ready {
 		broker = &v1beta1.Broker{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err = ctx.GetClient().Get(ctx, types.NamespacedName{
 			Name: stack.Name,
 		}, broker); err != nil {
-			return []corev1.EnvVar{}, err
+			return
 		}
 	}
 
 	if broker != nil {
 		if !broker.Status.Ready {
-			return []corev1.EnvVar{}, core.NewPendingError().WithMessage("broker not ready")
+			err = core.NewPendingError().WithMessage("broker not ready")
+			return
 		}
-		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "payments")
+		additionalEnv, err = brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "payments")
 		if err != nil {
-			return []corev1.EnvVar{}, err
+			return
 		}
 
-		env = append(env, brokerEnvVar...)
-		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
+		envVars = append(envVars, additionalEnv...)
+		envVars = append(envVars, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
 	}
 
-	temporalEnvVars, err := temporalEnvVars(ctx, stack, payments)
+	hash, additionalEnv, err = temporalEnvVars(ctx, stack, payments)
 	if err != nil {
-		return []corev1.EnvVar{}, err
+		return
 	}
-	env = append(env, temporalEnvVars...)
+	envVars = append(envVars, additionalEnv...)
 
-	return env, nil
+	return
 }
 
 func createV2ReadDeployment(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
