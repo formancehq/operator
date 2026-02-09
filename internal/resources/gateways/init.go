@@ -115,7 +115,6 @@ func init() {
 			WithOwn[*v1beta1.Gateway](&v1beta1.BenthosStream{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.ResourceReference{}),
 			WithRaw[*v1beta1.Gateway](func(ctx Context, builder *builder.Builder) error {
-
 				crds := apiextensionsv1.CustomResourceDefinitionList{}
 				err := ctx.GetAPIReader().List(ctx, &crds)
 				if err != nil {
@@ -129,7 +128,7 @@ func init() {
 				}
 
 				for _, item := range crds.Items {
-					if item.Spec.Group == kinds[0].Group && item.Spec.Names.Kind == kinds[0].Kind {
+					if item.GroupVersionKind() == kinds[0] {
 						isDNSEndpointAvailable = true
 						builder.Owns(v)
 						break
