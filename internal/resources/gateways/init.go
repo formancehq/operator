@@ -129,7 +129,7 @@ func init() {
 				}
 
 				for _, item := range crds.Items {
-					if item.GroupVersionKind() == kinds[0] {
+					if item.Spec.Group == kinds[0].Group && item.Spec.Names.Kind == kinds[0].Kind {
 						isDNSEndpointAvailable = true
 						builder.Owns(v)
 						break
