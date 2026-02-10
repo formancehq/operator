@@ -122,7 +122,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 			patch := client.MergeFrom(oldResource.DeepCopy())
 			if err := controllerutil.RemoveOwnerReference(req, oldResource, ctx.GetScheme()); err == nil {
 				if err := ctx.GetClient().Patch(ctx, oldResource, patch); err != nil {
-					return nil
+					return err
 				}
 			}
 			if len(oldResource.GetOwnerReferences()) == 0 {
