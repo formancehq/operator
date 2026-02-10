@@ -195,7 +195,7 @@ func findMatchingResource(ctx core.Context, stack string, gvk metav1.GroupVersio
 		Version: gvk.Version,
 		Kind:    gvk.Kind,
 	})
-	if err := ctx.GetClient().List(ctx, list, &client.ListOptions{
+	if err := ctx.GetAPIReader().List(ctx, list, &client.ListOptions{
 		LabelSelector: labels.NewSelector().Add(*requirement),
 	}); err != nil {
 		return nil, errors.Wrap(err, "listing resources")
