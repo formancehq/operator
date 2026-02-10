@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
@@ -128,9 +129,19 @@ func init() {
 				}
 
 				for _, item := range crds.Items {
-					if item.GroupVersionKind() == kinds[0] {
-						isDNSEndpointAvailable = true
-						builder.Owns(v)
+					for _, version := range item.Spec.Versions {
+						gvk := schema.GroupVersionKind{
+							Group:   item.Spec.Group,
+							Version: version.Name,
+							Kind:    item.Spec.Names.Kind,
+						}
+						if gvk == kinds[0] {
+							isDNSEndpointAvailable = true
+							builder.Owns(v)
+							break
+						}
+					}
+					if isDNSEndpointAvailable {
 						break
 					}
 				}
