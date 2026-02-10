@@ -22,10 +22,10 @@ var _ = Context("When creating a Application", func() {
 			ObjectMeta: RandObjectMeta(),
 			Spec:       v1beta1.StackSpec{},
 		}
-		settings = append(settings,
+		settings = []*v1beta1.Settings{
 			coresettings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name),
 			coresettings.New(uuid.NewString(), "deployments.*.spec.template.annotations", "annotations=annotations", stack.Name),
-		)
+		}
 		ledger = &v1beta1.Ledger{
 			ObjectMeta: RandObjectMeta(),
 			Spec: v1beta1.LedgerSpec{
