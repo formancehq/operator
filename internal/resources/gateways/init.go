@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
 	. "github.com/formancehq/go-libs/v2/collectionutils"
@@ -92,6 +93,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 
 	// Reconcile DNS endpoints if configured
 	if isDNSEndpointAvailable {
+		logger := log.FromContext(ctx)
+		logger.Info("DNSEndpoint is available, reconciling DNS endpoints", "stack", stack.Name)
 		if err := reconcileDNSEndpoints(ctx, gateway); err != nil {
 			return err
 		}
@@ -116,6 +119,8 @@ func init() {
 			WithOwn[*v1beta1.Gateway](&v1beta1.BenthosStream{}),
 			WithOwn[*v1beta1.Gateway](&v1beta1.ResourceReference{}),
 			WithRaw[*v1beta1.Gateway](func(ctx Context, builder *builder.Builder) error {
+				logger := log.FromContext(ctx)
+
 				crds := apiextensionsv1.CustomResourceDefinitionList{}
 				err := ctx.GetAPIReader().List(ctx, &crds)
 				if err != nil {
@@ -136,6 +141,7 @@ func init() {
 							Kind:    item.Spec.Names.Kind,
 						}
 						if gvk == kinds[0] {
+							logger.Info("DNSEndpoint is available", "gvk", gvk)
 							isDNSEndpointAvailable = true
 							builder.Owns(v)
 							break
@@ -144,6 +150,10 @@ func init() {
 					if isDNSEndpointAvailable {
 						break
 					}
+				}
+
+				if !isDNSEndpointAvailable {
+					logger.Info("DNSEndpoint is NOT available")
 				}
 
 				return nil
