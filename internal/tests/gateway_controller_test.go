@@ -10,6 +10,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
+	"sigs.k8s.io/external-dns/endpoint"
 
 	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/internal/core"
@@ -259,6 +261,55 @@ var _ = Describe("GatewayController", func() {
 						Name:  "OTEL_SERVICE_NAME",
 						Value: "gateway",
 					}))
+				})
+			})
+		})
+		Context("With DNS endpoints configured", func() {
+			var (
+				dnsEnabledSetting *v1beta1.Settings
+				dnsNamesSetting   *v1beta1.Settings
+				dnsTargetsSetting *v1beta1.Settings
+			)
+			JustBeforeEach(func() {
+				dnsEnabledSetting = settings.New(uuid.NewString(), "gateway.dns.private.enabled", "true", stack.Name)
+				dnsNamesSetting = settings.New(uuid.NewString(), "gateway.dns.private.dns-names", "{stack}.example.com", stack.Name)
+				dnsTargetsSetting = settings.New(uuid.NewString(), "gateway.dns.private.targets", "10.0.0.1", stack.Name)
+				Expect(Create(dnsEnabledSetting)).To(Succeed())
+				Expect(Create(dnsNamesSetting)).To(Succeed())
+				Expect(Create(dnsTargetsSetting)).To(Succeed())
+			})
+			AfterEach(func() {
+				Expect(Delete(dnsEnabledSetting)).To(Succeed())
+				Expect(Delete(dnsNamesSetting)).To(Succeed())
+				Expect(Delete(dnsTargetsSetting)).To(Succeed())
+			})
+			It("Should create a DNSEndpoint controlled by the gateway", func() {
+				dnsEndpoint := &externaldnsv1alpha1.DNSEndpoint{}
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource(stack.Name, fmt.Sprintf("%s-private", gateway.Name), dnsEndpoint)).To(Succeed())
+					g.Expect(dnsEndpoint).To(BeControlledBy(gateway))
+					g.Expect(dnsEndpoint.Spec.Endpoints).To(ContainElement(&endpoint.Endpoint{
+						DNSName:    fmt.Sprintf("%s.example.com", stack.Name),
+						Targets:    endpoint.Targets{"10.0.0.1"},
+						RecordType: "CNAME",
+					}))
+				}).Should(Succeed())
+			})
+			Context("Then disabling DNS", func() {
+				JustBeforeEach(func() {
+					dnsEndpoint := &externaldnsv1alpha1.DNSEndpoint{}
+					Eventually(func() error {
+						return LoadResource(stack.Name, fmt.Sprintf("%s-private", gateway.Name), dnsEndpoint)
+					}).Should(Succeed())
+
+					patch := client.MergeFrom(dnsEnabledSetting.DeepCopy())
+					dnsEnabledSetting.Spec.Value = "false"
+					Expect(Patch(dnsEnabledSetting, patch)).To(Succeed())
+				})
+				It("Should delete the DNSEndpoint", func() {
+					Eventually(func() error {
+						return LoadResource(stack.Name, fmt.Sprintf("%s-private", gateway.Name), &externaldnsv1alpha1.DNSEndpoint{})
+					}).Should(BeNotFound())
 				})
 			})
 		})
