@@ -49,7 +49,7 @@ spec:
     scheme: https
 ```
 
-Additional hosts can also be provided via a [Settings](../09-Configuration%20reference/01-Settings.md) resource using the `gateway.ingress.hosts` key. Hosts from the setting are merged with those defined on the Gateway CRD.
+Additional hosts can also be provided via a [Settings](../09-Configuration%20reference/01-Settings.md) resource using the `gateway.ingress.hosts` key. Hosts from the setting are merged with those defined on the Gateway CRD. The `{stack}` placeholder is replaced with the stack name.
 
 ```yaml
 apiVersion: formance.com/v1beta1
@@ -60,5 +60,5 @@ spec:
   key: gateway.ingress.hosts
   stacks:
     - '*'
-  value: "extra.example.com, extra.example.org"
+  value: "{stack}.example.com, {stack}.example.org"
 ```

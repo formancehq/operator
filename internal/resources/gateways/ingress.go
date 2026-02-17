@@ -1,6 +1,8 @@
 package gateways
 
 import (
+	"strings"
+
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,6 +54,10 @@ func getAllHosts(ctx core.Context, gateway *v1beta1.Gateway) ([]string, error) {
 	settingsHosts, err := settings.GetTrimmedStringSlice(ctx, gateway.Spec.Stack, "gateway", "ingress", "hosts")
 	if err != nil {
 		return nil, err
+	}
+
+	for i, h := range settingsHosts {
+		settingsHosts[i] = strings.ReplaceAll(h, "{stack}", gateway.Spec.Stack)
 	}
 
 	return v1beta1.DedupHosts(append(gateway.Spec.Ingress.GetHosts(), settingsHosts...)), nil
