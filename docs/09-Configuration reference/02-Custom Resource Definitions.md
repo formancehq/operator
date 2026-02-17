@@ -580,6 +580,7 @@ Gateway is the Schema for the gateways API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example : `formance.example.com` |  |  |
+| `hosts` _string array_ | Additional hosts for the ingress. Combined with `host`. |  |  |
 | `scheme` _string_ | Indicate the scheme.<br />Actually, It should be `https` unless you know what you are doing. | https |  |
 | `ingressClassName` _string_ | Ingress class to use |  |  |
 | `annotations` _object (keys:string, values:string)_ | Custom annotations to add on the ingress |  |  |
