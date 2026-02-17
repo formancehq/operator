@@ -54,22 +54,10 @@ func getAllHosts(ctx core.Context, gateway *v1beta1.Gateway) ([]string, error) {
 		return nil, err
 	}
 
-	seen := map[string]struct{}{}
-	var hosts []string
-	for _, h := range append(gateway.Spec.Ingress.GetHosts(), settingsHosts...) {
-		if h == "" {
-			continue
-		}
-		if _, ok := seen[h]; ok {
-			continue
-		}
-		seen[h] = struct{}{}
-		hosts = append(hosts, h)
-	}
-	return hosts, nil
+	return v1beta1.DedupHosts(append(gateway.Spec.Ingress.GetHosts(), settingsHosts...)), nil
 }
 
-func withTls(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
+func withTls(ctx core.Context, gateway *v1beta1.Gateway, hosts []string) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
 		var secretName string
 		if gateway.Spec.Ingress.TLS == nil {
@@ -83,11 +71,6 @@ func withTls(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.
 			secretName = gateway.Name + "-tls"
 		} else {
 			secretName = gateway.Spec.Ingress.TLS.SecretName
-		}
-
-		hosts, err := getAllHosts(ctx, gateway)
-		if err != nil {
-			return err
 		}
 
 		t.Spec.TLS = []v1.IngressTLS{{
@@ -119,13 +102,8 @@ func withIngressClassName(ctx core.Context, stack *v1beta1.Stack, gateway *v1bet
 	}
 }
 
-func withIngressRules(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
+func withIngressRules(hosts []string) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
-		hosts, err := getAllHosts(ctx, gateway)
-		if err != nil {
-			return err
-		}
-
 		pathType := v1.PathTypePrefix
 		var rules []v1.IngressRule
 		for _, host := range hosts {
@@ -166,12 +144,17 @@ func createIngress(ctx core.Context, stack *v1beta1.Stack,
 		return core.DeleteIfExists[*v1.Ingress](ctx, name)
 	}
 
-	_, _, err := core.CreateOrUpdate(ctx, name,
+	hosts, err := getAllHosts(ctx, gateway)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = core.CreateOrUpdate(ctx, name,
 		withAnnotations(ctx, stack, gateway),
 		withLabels(ctx, stack, gateway),
 		withIngressClassName(ctx, stack, gateway),
-		withIngressRules(ctx, gateway),
-		withTls(ctx, gateway),
+		withIngressRules(hosts),
+		withTls(ctx, gateway, hosts),
 		core.WithController[*v1.Ingress](ctx.GetScheme(), gateway),
 	)
 

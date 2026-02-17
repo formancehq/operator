@@ -184,6 +184,25 @@ var _ = Describe("GatewayController", func() {
 				}).Should(Succeed())
 			})
 		})
+		Context("with overlapping hosts between spec and settings", func() {
+			var hostsSetting *v1beta1.Settings
+			JustBeforeEach(func() {
+				hostsSetting = settings.New(uuid.NewString(), "gateway.ingress.hosts", "example.net, extra.example.com", stack.Name)
+				Expect(Create(hostsSetting)).To(Succeed())
+			})
+			AfterEach(func() {
+				Expect(Delete(hostsSetting)).To(Succeed())
+			})
+			It("Should deduplicate hosts in the ingress rules", func() {
+				ingress := &networkingv1.Ingress{}
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource(stack.Name, "gateway", ingress)).To(Succeed())
+					g.Expect(ingress.Spec.Rules).To(HaveLen(2))
+					g.Expect(ingress.Spec.Rules[0].Host).To(Equal("example.net"))
+					g.Expect(ingress.Spec.Rules[1].Host).To(Equal("extra.example.com"))
+				}).Should(Succeed())
+			})
+		})
 		Context("Configure ingress annotations", func() {
 			var ingressSetting *v1beta1.Settings
 			JustBeforeEach(func() {
