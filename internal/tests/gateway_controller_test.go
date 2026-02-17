@@ -167,20 +167,20 @@ var _ = Describe("GatewayController", func() {
 		Context("with additional hosts from settings", func() {
 			var hostsSetting *v1beta1.Settings
 			JustBeforeEach(func() {
-				hostsSetting = settings.New(uuid.NewString(), "gateway.ingress.hosts", "settings.example.com, settings.example.org", stack.Name)
+				hostsSetting = settings.New(uuid.NewString(), "gateway.ingress.hosts", "{stack}.example.com, {stack}.example.org", stack.Name)
 				Expect(Create(hostsSetting)).To(Succeed())
 			})
 			AfterEach(func() {
 				Expect(Delete(hostsSetting)).To(Succeed())
 			})
-			It("Should create an ingress with rules for spec host and settings hosts", func() {
+			It("Should create an ingress with rules for spec host and settings hosts with {stack} replaced", func() {
 				ingress := &networkingv1.Ingress{}
 				Eventually(func(g Gomega) {
 					g.Expect(LoadResource(stack.Name, "gateway", ingress)).To(Succeed())
 					g.Expect(ingress.Spec.Rules).To(HaveLen(3))
 					g.Expect(ingress.Spec.Rules[0].Host).To(Equal("example.net"))
-					g.Expect(ingress.Spec.Rules[1].Host).To(Equal("settings.example.com"))
-					g.Expect(ingress.Spec.Rules[2].Host).To(Equal("settings.example.org"))
+					g.Expect(ingress.Spec.Rules[1].Host).To(Equal(stack.Name + ".example.com"))
+					g.Expect(ingress.Spec.Rules[2].Host).To(Equal(stack.Name + ".example.org"))
 				}).Should(Succeed())
 			})
 		})
