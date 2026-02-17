@@ -50,11 +50,11 @@ type GatewayIngress struct {
 	TLS *GatewayIngressTLS `json:"tls,omitempty"`
 }
 
-// GetHosts returns the deduplicated union of Host and Hosts.
-func (in *GatewayIngress) GetHosts() []string {
+// DedupHosts returns the given hosts deduplicated, preserving order and skipping empty strings.
+func DedupHosts(input []string) []string {
 	seen := map[string]struct{}{}
 	var hosts []string
-	for _, h := range append([]string{in.Host}, in.Hosts...) {
+	for _, h := range input {
 		if h == "" {
 			continue
 		}
@@ -65,6 +65,11 @@ func (in *GatewayIngress) GetHosts() []string {
 		hosts = append(hosts, h)
 	}
 	return hosts
+}
+
+// GetHosts returns the deduplicated union of Host and Hosts.
+func (in *GatewayIngress) GetHosts() []string {
+	return DedupHosts(append([]string{in.Host}, in.Hosts...))
 }
 
 type GatewaySpec struct {
