@@ -1,6 +1,8 @@
 package gateways
 
 import (
+	"strings"
+
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,7 +50,20 @@ func withLabels(ctx core.Context, stack *v1beta1.Stack, owner client.Object) cor
 	}
 }
 
-func withTls(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
+func getAllHosts(ctx core.Context, gateway *v1beta1.Gateway) ([]string, error) {
+	settingsHosts, err := settings.GetTrimmedStringSlice(ctx, gateway.Spec.Stack, "gateway", "ingress", "hosts")
+	if err != nil {
+		return nil, err
+	}
+
+	for i, h := range settingsHosts {
+		settingsHosts[i] = strings.ReplaceAll(h, "{stack}", gateway.Spec.Stack)
+	}
+
+	return v1beta1.DedupHosts(append(gateway.Spec.Ingress.GetHosts(), settingsHosts...)), nil
+}
+
+func withTls(ctx core.Context, gateway *v1beta1.Gateway, hosts []string) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
 		var secretName string
 		if gateway.Spec.Ingress.TLS == nil {
@@ -66,7 +81,7 @@ func withTls(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.
 
 		t.Spec.TLS = []v1.IngressTLS{{
 			SecretName: secretName,
-			Hosts:      []string{gateway.Spec.Ingress.Host},
+			Hosts:      hosts,
 		}}
 
 		return nil
@@ -93,12 +108,13 @@ func withIngressClassName(ctx core.Context, stack *v1beta1.Stack, gateway *v1bet
 	}
 }
 
-func withIngressRules(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
+func withIngressRules(hosts []string) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
 		pathType := v1.PathTypePrefix
-		r := []v1.IngressRule{
-			{
-				Host: gateway.Spec.Ingress.Host,
+		var rules []v1.IngressRule
+		for _, host := range hosts {
+			rules = append(rules, v1.IngressRule{
+				Host: host,
 				IngressRuleValue: v1.IngressRuleValue{
 					HTTP: &v1.HTTPIngressRuleValue{
 						Paths: []v1.HTTPIngressPath{
@@ -117,9 +133,9 @@ func withIngressRules(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMut
 						},
 					},
 				},
-			},
+			})
 		}
-		t.Spec.Rules = r
+		t.Spec.Rules = rules
 		return nil
 	}
 }
@@ -134,12 +150,17 @@ func createIngress(ctx core.Context, stack *v1beta1.Stack,
 		return core.DeleteIfExists[*v1.Ingress](ctx, name)
 	}
 
-	_, _, err := core.CreateOrUpdate(ctx, name,
+	hosts, err := getAllHosts(ctx, gateway)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = core.CreateOrUpdate(ctx, name,
 		withAnnotations(ctx, stack, gateway),
 		withLabels(ctx, stack, gateway),
 		withIngressClassName(ctx, stack, gateway),
-		withIngressRules(ctx, gateway),
-		withTls(ctx, gateway),
+		withIngressRules(hosts),
+		withTls(ctx, gateway, hosts),
 		core.WithController[*v1.Ingress](ctx.GetScheme(), gateway),
 	)
 

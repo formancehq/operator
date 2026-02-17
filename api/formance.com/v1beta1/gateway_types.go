@@ -30,6 +30,9 @@ type GatewayIngress struct {
 	// Example : `formance.example.com`
 	//+required
 	Host string `json:"host"`
+	// Additional hosts for the ingress. Combined with Host.
+	//+optional
+	Hosts []string `json:"hosts,omitempty"`
 	// Indicate the scheme.
 	//
 	// Actually, It should be `https` unless you know what you are doing.
@@ -45,6 +48,28 @@ type GatewayIngress struct {
 	// Allow to customize the tls part of the ingress
 	//+optional
 	TLS *GatewayIngressTLS `json:"tls,omitempty"`
+}
+
+// DedupHosts returns the given hosts deduplicated, preserving order and skipping empty strings.
+func DedupHosts(input []string) []string {
+	seen := map[string]struct{}{}
+	var hosts []string
+	for _, h := range input {
+		if h == "" {
+			continue
+		}
+		if _, ok := seen[h]; ok {
+			continue
+		}
+		seen[h] = struct{}{}
+		hosts = append(hosts, h)
+	}
+	return hosts
+}
+
+// GetHosts returns the deduplicated union of Host and Hosts.
+func (in *GatewayIngress) GetHosts() []string {
+	return DedupHosts(append([]string{in.Host}, in.Hosts...))
 }
 
 type GatewaySpec struct {
