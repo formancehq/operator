@@ -48,6 +48,27 @@ func withLabels(ctx core.Context, stack *v1beta1.Stack, owner client.Object) cor
 	}
 }
 
+func getAllHosts(ctx core.Context, gateway *v1beta1.Gateway) ([]string, error) {
+	settingsHosts, err := settings.GetTrimmedStringSlice(ctx, gateway.Spec.Stack, "gateway", "ingress", "hosts")
+	if err != nil {
+		return nil, err
+	}
+
+	seen := map[string]struct{}{}
+	var hosts []string
+	for _, h := range append(gateway.Spec.Ingress.GetHosts(), settingsHosts...) {
+		if h == "" {
+			continue
+		}
+		if _, ok := seen[h]; ok {
+			continue
+		}
+		seen[h] = struct{}{}
+		hosts = append(hosts, h)
+	}
+	return hosts, nil
+}
+
 func withTls(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
 		var secretName string
@@ -64,9 +85,14 @@ func withTls(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.
 			secretName = gateway.Spec.Ingress.TLS.SecretName
 		}
 
+		hosts, err := getAllHosts(ctx, gateway)
+		if err != nil {
+			return err
+		}
+
 		t.Spec.TLS = []v1.IngressTLS{{
 			SecretName: secretName,
-			Hosts:      []string{gateway.Spec.Ingress.Host},
+			Hosts:      hosts,
 		}}
 
 		return nil
@@ -95,10 +121,16 @@ func withIngressClassName(ctx core.Context, stack *v1beta1.Stack, gateway *v1bet
 
 func withIngressRules(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
+		hosts, err := getAllHosts(ctx, gateway)
+		if err != nil {
+			return err
+		}
+
 		pathType := v1.PathTypePrefix
-		r := []v1.IngressRule{
-			{
-				Host: gateway.Spec.Ingress.Host,
+		var rules []v1.IngressRule
+		for _, host := range hosts {
+			rules = append(rules, v1.IngressRule{
+				Host: host,
 				IngressRuleValue: v1.IngressRuleValue{
 					HTTP: &v1.HTTPIngressRuleValue{
 						Paths: []v1.HTTPIngressPath{
@@ -117,9 +149,9 @@ func withIngressRules(ctx core.Context, gateway *v1beta1.Gateway) core.ObjectMut
 						},
 					},
 				},
-			},
+			})
 		}
-		t.Spec.Rules = r
+		t.Spec.Rules = rules
 		return nil
 	}
 }

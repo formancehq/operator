@@ -132,6 +132,58 @@ var _ = Describe("GatewayController", func() {
 				})
 			})
 		})
+		Context("with multiple hosts defined", func() {
+			JustBeforeEach(func() {
+				patch := client.MergeFrom(gateway.DeepCopy())
+				gateway.Spec.Ingress = &v1beta1.GatewayIngress{
+					Host:   "example.com",
+					Hosts:  []string{"example.org"},
+					Scheme: "https",
+					TLS: &v1beta1.GatewayIngressTLS{
+						SecretName: "my-tls-secret",
+					},
+				}
+				Expect(Patch(gateway, patch)).To(Succeed())
+			})
+			It("Should create an ingress with rules for all hosts", func() {
+				ingress := &networkingv1.Ingress{}
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource(stack.Name, "gateway", ingress)).To(Succeed())
+					g.Expect(ingress.Spec.Rules).To(HaveLen(2))
+					g.Expect(ingress.Spec.Rules[0].Host).To(Equal("example.com"))
+					g.Expect(ingress.Spec.Rules[1].Host).To(Equal("example.org"))
+				}).Should(Succeed())
+			})
+			It("Should include all hosts in TLS", func() {
+				ingress := &networkingv1.Ingress{}
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource(stack.Name, "gateway", ingress)).To(Succeed())
+					g.Expect(ingress.Spec.TLS).To(HaveLen(1))
+					g.Expect(ingress.Spec.TLS[0].Hosts).To(ConsistOf("example.com", "example.org"))
+					g.Expect(ingress.Spec.TLS[0].SecretName).To(Equal("my-tls-secret"))
+				}).Should(Succeed())
+			})
+		})
+		Context("with additional hosts from settings", func() {
+			var hostsSetting *v1beta1.Settings
+			JustBeforeEach(func() {
+				hostsSetting = settings.New(uuid.NewString(), "gateway.ingress.hosts", "settings.example.com, settings.example.org", stack.Name)
+				Expect(Create(hostsSetting)).To(Succeed())
+			})
+			AfterEach(func() {
+				Expect(Delete(hostsSetting)).To(Succeed())
+			})
+			It("Should create an ingress with rules for spec host and settings hosts", func() {
+				ingress := &networkingv1.Ingress{}
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource(stack.Name, "gateway", ingress)).To(Succeed())
+					g.Expect(ingress.Spec.Rules).To(HaveLen(3))
+					g.Expect(ingress.Spec.Rules[0].Host).To(Equal("example.net"))
+					g.Expect(ingress.Spec.Rules[1].Host).To(Equal("settings.example.com"))
+					g.Expect(ingress.Spec.Rules[2].Host).To(Equal("settings.example.org"))
+				}).Should(Succeed())
+			})
+		})
 		Context("Configure ingress annotations", func() {
 			var ingressSetting *v1beta1.Settings
 			JustBeforeEach(func() {
