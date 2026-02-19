@@ -24,6 +24,7 @@ resources:
 - bases/formance.com_resourcereferences.yaml
 - bases/formance.com_brokerconsumers.yaml
 - bases/formance.com_brokers.yaml
+- bases/formance.com_transactions.yaml
 
 #+kubebuilder:scaffold:crdkustomizeresource
 
