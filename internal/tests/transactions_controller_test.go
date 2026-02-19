@@ -15,15 +15,15 @@ import (
 var _ = Describe("TransactionsController", func() {
 	Context("When creating a Transactions object", func() {
 		var (
-			stack                    *v1beta1.Stack
-			gateway                  *v1beta1.Gateway
-			auth                     *v1beta1.Auth
-			ledger                   *v1beta1.Ledger
-			payments                 *v1beta1.Payments
-			transactions             *v1beta1.Transactions
-			databaseSettings         *v1beta1.Settings
-			brokerDSNSettings        *v1beta1.Settings
-			workerEnabledSettings    *v1beta1.Settings
+			stack                 *v1beta1.Stack
+			gateway               *v1beta1.Gateway
+			auth                  *v1beta1.Auth
+			ledger                *v1beta1.Ledger
+			payments              *v1beta1.Payments
+			transactions          *v1beta1.Transactions
+			databaseSettings      *v1beta1.Settings
+			brokerDSNSettings     *v1beta1.Settings
+			workerEnabledSettings *v1beta1.Settings
 		)
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
