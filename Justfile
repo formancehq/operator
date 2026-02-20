@@ -72,18 +72,19 @@ helm-validate args='':
     helm template ./$dir {{args}}; \
   done
 
-helm-package version='': helm-update
+helm-package suffix='': helm-update
   #!/bin/bash
   set -e
   for dir in $(ls -d helm/*); do
-    if [ -n "{{version}}" ]; then
-      pushd "$dir" && helm package . --version "{{version}}" && popd
+    if [ -n "{{suffix}}" ]; then
+      version=$(grep '^version:' "$dir/Chart.yaml" | awk '{print $2}' | tr -d '"')
+      pushd "$dir" && helm package . --version "${version}-{{suffix}}" && popd
     else
       pushd "$dir" && helm package . && popd
     fi
   done
 
-helm-publish version='': (helm-package version)
+helm-publish suffix='': (helm-package suffix)
   echo $GITHUB_TOKEN | docker login ghcr.io -u NumaryBot --password-stdin
   for path in $(ls -d helm/*/*.tgz); do \
     helm push ${path} oci://ghcr.io/formancehq/helm; \
