@@ -23,10 +23,10 @@ tests args='':
 release-local:
   goreleaser release --nightly --skip=publish --clean
 
-release-ci: helm-publish
+release-ci: (helm-publish `git rev-parse --short HEAD`)
   goreleaser release --nightly --clean
 
-release: helm-publish
+release: (helm-publish)
   goreleaser release --clean
 
 manifests:
@@ -72,12 +72,18 @@ helm-validate args='':
     helm template ./$dir {{args}}; \
   done
 
-helm-package: helm-update
-  for dir in $(ls -d helm/*); do \
-    pushd $dir && helm package . && popd; \
+helm-package version='': helm-update
+  #!/bin/bash
+  set -e
+  for dir in $(ls -d helm/*); do
+    if [ -n "{{version}}" ]; then
+      pushd "$dir" && helm package . --version "{{version}}" && popd
+    else
+      pushd "$dir" && helm package . && popd
+    fi
   done
 
-helm-publish: helm-package
+helm-publish version='': (helm-package version)
   echo $GITHUB_TOKEN | docker login ghcr.io -u NumaryBot --password-stdin
   for path in $(ls -d helm/*/*.tgz); do \
     helm push ${path} oci://ghcr.io/formancehq/helm; \
