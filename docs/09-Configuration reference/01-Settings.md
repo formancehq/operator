@@ -74,6 +74,7 @@ While we have some basic types (string, number, bool ...), we also have some com
 | gateway.dns.public.record-type                                                           | string | CNAME                                                                                                                                                                                                                  | DNS record type (e.g., CNAME, A, AAAA)                                                                                                                                                                                           |
 | gateway.dns.public.provider-specific                                                     | Map    | alias=true,aws/target-hosted-zone=same-zone                                                                                                                                                                            | Provider-specific DNS settings for public endpoints                                                                                                                                                                              |
 | gateway.dns.public.annotations                                                           | Map    |                                                                                                                                                                                                                        | Annotations to add to the public DNSEndpoint resource                                                                                                                                                                            |
+| networkpolicies.enabled                                                                   | bool   | true                                                                                                                                                                                                                   | Enable network micro-segmentation within a Stack namespace. When enabled, only the Gateway can reach other services                                                                                                              |
 
 ### Postgres URI format
 
@@ -406,6 +407,52 @@ DNS endpoints are created per Gateway component. If you have multiple Gateways i
 
 :::warning
 The external-dns operator must be installed in your cluster for DNS endpoints to be processed. The operator only creates the DNSEndpoint resources; the external-dns operator is responsible for actually creating the DNS records.
+:::
+
+### Configure Network Policies
+
+The operator can create Kubernetes NetworkPolicies to enforce network micro-segmentation within a Stack namespace. When enabled, the following rules are applied:
+
+- **All ingress traffic is denied by default** to all pods in the namespace
+- **The Gateway is accessible by everyone** (it is the entry point)
+- **All other services** (Ledger, Payments, Auth, etc.) **are only accessible from the Gateway**
+
+Egress traffic is not restricted — pods can still reach DNS, databases, brokers, and external services.
+
+NetworkPolicies are owned by the Stack and are automatically garbage-collected when the Stack is deleted.
+
+#### Enable Network Policies
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: enable-networkpolicies
+spec:
+  key: networkpolicies.enabled
+  stacks:
+    - '*'
+  value: "true"
+```
+
+#### Created NetworkPolicies
+
+When enabled, 3 NetworkPolicies are created in the Stack namespace:
+
+| Name | Effect |
+|------|--------|
+| `default-deny-ingress` | Denies all ingress traffic to all pods |
+| `allow-gateway-ingress` | Allows all ingress traffic to pods labeled `app.kubernetes.io/name: gateway` |
+| `allow-from-gateway` | Allows ingress traffic from gateway pods to all other pods |
+
+Since Kubernetes NetworkPolicies are additive, the Gateway receives both `deny-all` and `allow-all`, making it fully accessible. Other services receive `deny-all` and `allow-from-gateway`, restricting access to Gateway only.
+
+:::warning
+A CNI plugin that supports NetworkPolicies (Calico, Cilium, etc.) must be installed in your cluster. The default CNI in some environments (e.g., Flannel) does not enforce NetworkPolicies.
+:::
+
+:::info
+If no Gateway module is deployed, the policies are still created. The deny-all policy protects all services, and the allow-from-gateway rule has no matching source — resulting in all ingress being blocked, which is the safest default.
 :::
 
 <!-- ### Define a Replicas -->
