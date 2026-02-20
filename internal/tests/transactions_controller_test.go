@@ -13,7 +13,7 @@ import (
 )
 
 var _ = Describe("TransactionsController", func() {
-	Context("When creating a Transactions object", func() {
+	Context("When creating a Transactions object with worker enabled", func() {
 		var (
 			stack                 *v1beta1.Stack
 			gateway               *v1beta1.Gateway
@@ -92,7 +92,7 @@ var _ = Describe("TransactionsController", func() {
 			Expect(Delete(brokerDSNSettings)).To(Succeed())
 			Expect(Delete(workerEnabledSettings)).To(Succeed())
 		})
-		It("Should create appropriate components", func() {
+		It("Should create a single deployment with embedded worker", func() {
 			By("Should set the status to ready", func() {
 				Eventually(func(g Gomega) bool {
 					g.Expect(LoadResource("", transactions.Name, transactions)).To(Succeed())
@@ -107,7 +107,7 @@ var _ = Describe("TransactionsController", func() {
 					return reference
 				}).Should(BeTrue())
 			})
-			By("Should create a deployment", func() {
+			By("Should create a single deployment with WORKER_ENABLED=true", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func() error {
 					return LoadResource(stack.Name, "transactions", deployment)
@@ -134,6 +134,107 @@ var _ = Describe("TransactionsController", func() {
 				Eventually(func() error {
 					return LoadResource("", transactions.Name+"-transactions", consumer)
 				}).Should(Succeed())
+			})
+		})
+	})
+
+	Context("When creating a Transactions object with worker disabled (default)", func() {
+		var (
+			stack             *v1beta1.Stack
+			gateway           *v1beta1.Gateway
+			auth              *v1beta1.Auth
+			ledger            *v1beta1.Ledger
+			payments          *v1beta1.Payments
+			transactions      *v1beta1.Transactions
+			databaseSettings  *v1beta1.Settings
+			brokerDSNSettings *v1beta1.Settings
+		)
+		BeforeEach(func() {
+			stack = &v1beta1.Stack{
+				ObjectMeta: RandObjectMeta(),
+				Spec:       v1beta1.StackSpec{},
+			}
+			databaseSettings = settings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name)
+			brokerDSNSettings = settings.New(uuid.NewString(), "broker.dsn", "nats://localhost:1234", stack.Name)
+			gateway = &v1beta1.Gateway{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.GatewaySpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+					Ingress: &v1beta1.GatewayIngress{},
+				},
+			}
+			auth = &v1beta1.Auth{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.AuthSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+			ledger = &v1beta1.Ledger{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.LedgerSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+			payments = &v1beta1.Payments{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.PaymentsSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+			transactions = &v1beta1.Transactions{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.TransactionsSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+		})
+		JustBeforeEach(func() {
+			Expect(Create(stack)).To(Succeed())
+			Expect(Create(databaseSettings)).To(Succeed())
+			Expect(Create(brokerDSNSettings)).To(BeNil())
+			Expect(Create(gateway)).To(Succeed())
+			Expect(Create(auth)).To(Succeed())
+			Expect(Create(ledger)).To(Succeed())
+			Expect(Create(payments)).To(Succeed())
+			Expect(Create(transactions)).To(Succeed())
+		})
+		AfterEach(func() {
+			Expect(Delete(stack)).To(Succeed())
+			Expect(Delete(databaseSettings)).To(Succeed())
+			Expect(Delete(brokerDSNSettings)).To(Succeed())
+		})
+		It("Should create separate API and worker deployments", func() {
+			By("Should set the status to ready", func() {
+				Eventually(func(g Gomega) bool {
+					g.Expect(LoadResource("", transactions.Name, transactions)).To(Succeed())
+					return transactions.Status.Ready
+				}).Should(BeTrue())
+			})
+			By("Should create an API deployment", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func() error {
+					return LoadResource(stack.Name, "transactions", deployment)
+				}).Should(Succeed())
+				Expect(deployment).To(BeControlledBy(transactions))
+				Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(Equal([]string{"serve"}))
+			})
+			By("Should create a worker deployment", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func() error {
+					return LoadResource(stack.Name, "transactions-worker", deployment)
+				}).Should(Succeed())
+				Expect(deployment).To(BeControlledBy(transactions))
+				Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(Equal([]string{"worker"}))
 			})
 		})
 	})

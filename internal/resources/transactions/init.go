@@ -60,7 +60,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions, versi
 	}
 
 	if consumer.Status.Ready {
-		if err := createDeployment(ctx, stack, t, database, authClient, consumer, imageConfiguration); err != nil {
+		if err := createDeployments(ctx, stack, t, database, authClient, consumer, imageConfiguration); err != nil {
 			return err
 		}
 	} else {
