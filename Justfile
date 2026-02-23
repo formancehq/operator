@@ -90,6 +90,34 @@ helm-publish suffix='': (helm-package suffix)
     helm push ${path} oci://ghcr.io/formancehq/helm; \
   done
 
+deploy-staging TAG:
+  #!/bin/bash
+  set -euo pipefail
+
+  if [ -z "{{TAG}}" ]; then
+    echo "No tag provided"
+    exit 1
+  fi
+
+  if [ -z "${AUTH_TOKEN:-}" ]; then
+    echo "Error: AUTH_TOKEN environment variable is not set"
+    exit 1
+  fi
+
+  APPLICATION="staging-eu-west-1-hosting-operator"
+  SERVER="argocd.internal.formance.cloud"
+
+  echo "Updating image tag to {{TAG}}..."
+  argocd --auth-token="$AUTH_TOKEN" --server="$SERVER" --grpc-web \
+    app set "$APPLICATION" \
+    -p image.tag="{{TAG}}"
+
+  echo "Syncing application $APPLICATION..."
+  argocd --auth-token="$AUTH_TOKEN" --server="$SERVER" --grpc-web \
+    app sync "$APPLICATION"
+
+  echo "Successfully deployed {{TAG}} to staging"
+
 generate-docs:
   mkdir -p "docs/09-Configuration reference"
   go run github.com/elastic/crd-ref-docs@v0.2.0 \
@@ -98,6 +126,3 @@ generate-docs:
     --output-path="./docs/09-Configuration reference/02-Custom Resource Definitions.md" \
     --templates-dir=./crd-doc-templates \
     --config=./docs.config.yaml
-
-deploy: helm-update
-  earthly +deploy

@@ -34,8 +34,7 @@ jobs:
         uses: ./.github/actions/default
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just pre-commit
+      - run: just pre-commit
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
       - name: Get changed files
@@ -64,8 +63,7 @@ jobs:
         uses: ./.github/actions/default
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just tests
+      - run: just tests
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
   GoReleaser:
@@ -79,8 +77,7 @@ jobs:
         uses: ./.github/actions/default
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just release-ci
+      - run: just release-ci
         env:
           GITHUB_TOKEN: ${{ secrets.NUMARY_GITHUB_TOKEN }}
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
@@ -90,11 +87,17 @@ jobs:
     runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main'
     environment: staging
+    timeout-minutes: 5
     needs:
       - Dirty
       - GoReleaser
       - Tests
     steps:
+      - uses: 'actions/checkout@v4'
+      - name: Setup Env
+        uses: ./.github/actions/default
+        with:
+          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
       - name: Tailscale
         uses: formancehq/tailscale-github-action@v3+formance
         with:
@@ -105,19 +108,8 @@ jobs:
           args: ${{ vars.TS_ARGS }}
           retry: ${{ vars.TS_RETRY }}
           timeout: ${{ vars.TS_TIMEOUT }}
-      - uses: 'actions/checkout@v4'
-        with:
-          fetch-depth: 0
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
       - name: "Deploy in staging"
         env:
           TAG: ${{ github.sha }}
-          ARGOCD_REGION_AUTH_TOKEN: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
-        run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command
-          earthly
-          --no-output
-          --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN
-          +deploy-staging
-          --TAG=$TAG
+          AUTH_TOKEN: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
+        run: just deploy-staging $TAG
