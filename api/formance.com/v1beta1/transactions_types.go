@@ -49,7 +49,7 @@ type Transactions struct {
 	Status TransactionsStatus `json:"status,omitempty"`
 }
 
-func (in *Transactions) isEventPublisher() {}
+func (in Transactions) isEventPublisher() {}
 
 func (in *Transactions) IsEE() bool {
 	return false
