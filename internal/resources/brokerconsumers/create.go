@@ -60,6 +60,8 @@ func CreateOrUpdateOnAllServices(ctx core.Context, consumer interface {
 	}
 
 	filteredServices := Filter(services, func(u unstructured.Unstructured) bool {
+		fmt.Println("TOTO", u.GetKind())
+		fmt.Println("TATA", consumer.GetObjectKind().GroupVersionKind().Kind)
 		return u.GetKind() != consumer.GetObjectKind().GroupVersionKind().Kind
 	})
 
