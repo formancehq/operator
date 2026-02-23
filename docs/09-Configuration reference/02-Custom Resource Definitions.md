@@ -26,6 +26,7 @@ Modules :
 - [Reconciliation](#reconciliation)
 - [Search](#search)
 - [Stargate](#stargate)
+- [Transactions](#transactions)
 - [Wallets](#wallets)
 - [Webhooks](#webhooks)
 
@@ -1202,6 +1203,93 @@ Stargate is the Schema for the stargates API
 
 
 StargateStatus defines the observed state of Stargate
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
+| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+
+
+#### Transactions
+
+
+
+Transactions is the Schema for the transactions API
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `Transactions` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[TransactionsSpec](#transactionsspec)_ |  |  |  |
+| `status` _[TransactionsStatus](#transactionsstatus)_ |  |  |  |
+
+
+
+##### TransactionsSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
+| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
+| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+
+
+
+
+
+##### TransactionsStatus
+
+
+
+
 
 
 
