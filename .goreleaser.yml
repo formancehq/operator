@@ -64,6 +64,7 @@ dockers:
   use: buildx
   build_flag_templates:
   - --platform=linux/amd64
+  - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
   - --label=org.opencontainers.image.description=operator-utils
   - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
@@ -78,6 +79,7 @@ dockers:
   use: buildx
   build_flag_templates:
   - --platform=linux/arm64/v8
+  - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
   - --label=org.opencontainers.image.description=operator-utils
   - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
@@ -93,6 +95,7 @@ dockers:
   use: buildx
   build_flag_templates:
   - --platform=linux/amd64
+  - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
   - --label=org.opencontainers.image.description=operator-utils
   - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
@@ -107,6 +110,7 @@ dockers:
   use: buildx
   build_flag_templates:
   - --platform=linux/arm64/v8
+  - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
   - --label=org.opencontainers.image.description=operator-utils
   - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
