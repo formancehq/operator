@@ -53,16 +53,17 @@ func Create(ctx core.Context, owner interface {
 func CreateOrUpdateOnAllServices(ctx core.Context, consumer interface {
 	client.Object
 	GetStack() string
-}) (*v1beta1.BrokerConsumer, error) {
+}, includeItself bool) (*v1beta1.BrokerConsumer, error) {
 	services, err := core.ListEventPublishers(ctx, consumer.GetStack())
 	if err != nil {
 		return nil, err
 	}
 
 	filteredServices := Filter(services, func(u unstructured.Unstructured) bool {
-		fmt.Println("TOTO", u.GetKind())
-		fmt.Println("TATA", consumer.GetObjectKind().GroupVersionKind().Kind)
-		return u.GetKind() != consumer.GetObjectKind().GroupVersionKind().Kind
+		if !includeItself {
+			return u.GetKind() != consumer.GetObjectKind().GroupVersionKind().Kind
+		}
+		return true
 	})
 
 	return Create(ctx, consumer, "", Map(filteredServices, func(from unstructured.Unstructured) string {

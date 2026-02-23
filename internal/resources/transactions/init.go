@@ -31,7 +31,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions, versi
 		return err
 	}
 
-	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, t)
+	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, t, true)
 	if err != nil {
 		return err
 	}
