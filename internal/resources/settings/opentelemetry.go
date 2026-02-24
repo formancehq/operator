@@ -7,7 +7,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/v3/internal/core"
 )
 
 type MonitoringType string

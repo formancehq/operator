@@ -6,10 +6,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/jobs"
-	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/jobs"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
 func Clean(ctx core.Context, t *v1beta1.Payments) error {

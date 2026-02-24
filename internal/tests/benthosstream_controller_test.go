@@ -5,9 +5,9 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	. "github.com/formancehq/operator/internal/tests/internal"
+	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	. "github.com/formancehq/operator/v3/internal/tests/internal"
 )
 
 var _ = Describe("StreamController", func() {

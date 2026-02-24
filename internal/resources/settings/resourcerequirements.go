@@ -6,7 +6,7 @@ import (
 
 	"github.com/formancehq/go-libs/v2/collectionutils"
 
-	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/v3/internal/core"
 )
 
 func GetResourceRequirements(ctx core.Context, stack string, keys ...string) (*v1.ResourceRequirements, error) {

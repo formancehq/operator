@@ -6,15 +6,15 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/applications"
-	"github.com/formancehq/operator/internal/resources/auths"
-	"github.com/formancehq/operator/internal/resources/brokers"
-	"github.com/formancehq/operator/internal/resources/databases"
-	"github.com/formancehq/operator/internal/resources/gateways"
-	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/operator/internal/resources/settings"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/applications"
+	"github.com/formancehq/operator/v3/internal/resources/auths"
+	"github.com/formancehq/operator/v3/internal/resources/brokers"
+	"github.com/formancehq/operator/v3/internal/resources/databases"
+	"github.com/formancehq/operator/v3/internal/resources/gateways"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 func deploymentEnvVars(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database) ([]v1.EnvVar, error) {

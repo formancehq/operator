@@ -13,11 +13,11 @@ import (
 	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 	"sigs.k8s.io/external-dns/endpoint"
 
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/settings"
-	. "github.com/formancehq/operator/internal/tests/internal"
+	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
+	. "github.com/formancehq/operator/v3/internal/tests/internal"
 )
 
 var _ = Describe("GatewayController", func() {

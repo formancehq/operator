@@ -19,8 +19,8 @@ package stargates
 import (
 	appsv1 "k8s.io/api/apps/v1"
 
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
-	. "github.com/formancehq/operator/internal/core"
+	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/v3/internal/core"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=stargates,verbs=get;list;watch;create;update;patch;delete

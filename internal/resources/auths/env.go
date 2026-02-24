@@ -5,9 +5,9 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/settings"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth *v1beta1.AuthConfig) ([]v1.EnvVar, error) {

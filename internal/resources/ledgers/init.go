@@ -25,13 +25,13 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/brokertopics"
-	"github.com/formancehq/operator/internal/resources/databases"
-	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/jobs"
-	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/brokertopics"
+	"github.com/formancehq/operator/v3/internal/resources/databases"
+	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/jobs"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=ledgers,verbs=get;list;watch;create;update;patch;delete

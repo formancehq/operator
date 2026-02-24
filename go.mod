@@ -1,4 +1,4 @@
-module github.com/formancehq/operator
+module github.com/formancehq/operator/v3
 
 go 1.25
 
