@@ -26,9 +26,9 @@ builds:
   id: operator-utils
   dir: ./tools/utils
   ldflags:
-  - -X github.com/formancehq/operator-utils/cmd.BuildDate={{ .Date }}
-  - -X github.com/formancehq/operator-utils/cmd.Version=v{{ .Version }}
-  - -X github.com/formancehq/operator-utils/cmd.Commit={{ .ShortCommit }}
+  - -X github.com/formancehq/operator/tools/utils/v3/cmd.BuildDate={{ .Date }}
+  - -X github.com/formancehq/operator/tools/utils/v3/cmd.Version=v{{ .Version }}
+  - -X github.com/formancehq/operator/tools/utils/v3/cmd.Commit={{ .ShortCommit }}
   - -extldflags "-static"
   env:
   - CGO_ENABLED=0

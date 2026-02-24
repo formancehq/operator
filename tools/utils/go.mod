@@ -1,4 +1,4 @@
-module github.com/formancehq/operator/utils/v3
+module github.com/formancehq/operator/tools/utils/v3
 
 go 1.25.0
 
