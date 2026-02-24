@@ -26,9 +26,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	_ "github.com/formancehq/operator/internal/resources"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	_ "github.com/formancehq/operator/v3/internal/resources"
 )
 
 var (

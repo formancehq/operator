@@ -6,7 +6,7 @@ import (
 	gomegaTypes "github.com/onsi/gomega/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
 type beReadyMatcher struct{}

@@ -1,6 +1,6 @@
 package settings
 
-import "github.com/formancehq/operator/internal/core"
+import "github.com/formancehq/operator/v3/internal/core"
 
 func GetAWSServiceAccount(ctx core.Context, stackName string) (string, error) {
 	return GetStringOrEmpty(ctx, stackName, "aws", "service-account")

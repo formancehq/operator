@@ -441,33 +441,6 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
 | `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
 
-###### DelegatedOIDCServerConfiguration
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `issuer` _string_ | Issuer is the url of the delegated oidc server |  |  |
-| `clientID` _string_ | ClientID is the client id to use for authentication |  |  |
-| `clientSecret` _string_ | ClientSecret is the client secret to use for authentication |  |  |
-| `clientSecretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | ClientSecretFromSecret is the client secret to use for authentication |  |  |
-
 
 
 
@@ -556,58 +529,6 @@ Gateway is the Schema for the gateways API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `ingress` _[GatewayIngress](#gatewayingress)_ | Allow to customize the generated ingress |  |  |
-
-###### GatewayIngress
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example : `formance.example.com` |  |  |
-| `scheme` _string_ | Indicate the scheme.<br />Actually, It should be `https` unless you know what you are doing. | https |  |
-| `ingressClassName` _string_ | Ingress class to use |  |  |
-| `annotations` _object (keys:string, values:string)_ | Custom annotations to add on the ingress |  |  |
-| `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Allow to customize the tls part of the ingress |  |  |
-
-###### GatewayIngressTLS
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `secretName` _string_ | Specify the secret name used for the tls configuration on the ingress |  |  |
 
 
 
@@ -1142,56 +1063,6 @@ Stargate is the Schema for the stargates API
 | `stackID` _string_ |  |  |  |
 | `auth` _[StargateAuthSpec](#stargateauthspec)_ |  |  |  |
 | `tls` _[StargateTLSConfig](#stargatetlsconfig)_ |  |  |  |
-
-###### StargateAuthSpec
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `clientID` _string_ |  |  |  |
-| `clientSecret` _string_ |  |  |  |
-| `issuer` _string_ |  |  |  |
-
-###### StargateTLSConfig
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `disable` _boolean_ | Disable TLS protocol -- use at your own risks, the transmission will be in clear. |  |  |
 
 
 
@@ -1757,27 +1628,6 @@ Broker is the Schema for the brokers API
 | `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined :<br />* ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />* ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
 | `streams` _string array_ | Streams list streams created when Mode == ModeOneStreamByService |  |  |
 
-###### Mode
-
-_Underlying type:_ _string_
-
-Mode defined how streams are created on the broker (mainly nats)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #### BrokerConsumer
 
@@ -2115,32 +1965,6 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | `name` _string_ | Name indicates prefix api |  |  |
 | `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  |  |
 | `healthCheckEndpoint` _string_ | Health check endpoint |  |  |
-
-###### GatewayHTTPAPIRule
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `path` _string_ |  |  |  |
-| `methods` _string array_ |  |  |  |
-| `secured` _boolean_ |  | false |  |
 
 
 

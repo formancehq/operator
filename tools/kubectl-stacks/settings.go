@@ -7,7 +7,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
 func NewSettingsCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {

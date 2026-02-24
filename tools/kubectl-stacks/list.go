@@ -10,7 +10,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	"github.com/formancehq/go-libs/v2/collectionutils"
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
 func NewListCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {
