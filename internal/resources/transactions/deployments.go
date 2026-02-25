@@ -6,6 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
@@ -127,10 +128,33 @@ func createDeployments(
 	}
 
 	if workerEnabled {
+		if err := deleteDeployment(ctx, stack, "transactions-worker"); err != nil {
+			return err
+		}
 		return createSingleDeployment(ctx, t, imageConfiguration, serviceAccountName, env)
 	}
 
 	return createSeparateDeployments(ctx, t, imageConfiguration, serviceAccountName, env)
+}
+
+func deleteDeployment(ctx Context, stack *v1beta1.Stack, name string) error {
+	deployment := &appsv1.Deployment{}
+	if err := ctx.GetClient().Get(ctx, GetNamespacedResourceName(stack.Name, name), deployment); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			return nil
+		}
+		return err
+	}
+
+	if !deployment.GetDeletionTimestamp().IsZero() {
+		return NewPendingError().WithMessage("waiting for deployment %s to be deleted", name)
+	}
+
+	if err := ctx.GetClient().Delete(ctx, deployment); err != nil {
+		return err
+	}
+
+	return NewPendingError().WithMessage("waiting for deployment %s to be deleted", name)
 }
 
 func createSingleDeployment(

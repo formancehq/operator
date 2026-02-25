@@ -238,4 +238,112 @@ var _ = Describe("TransactionsController", func() {
 			})
 		})
 	})
+
+	Context("When switching from separate mode to single mode", func() {
+		var (
+			stack             *v1beta1.Stack
+			gateway           *v1beta1.Gateway
+			auth              *v1beta1.Auth
+			ledger            *v1beta1.Ledger
+			payments          *v1beta1.Payments
+			transactions      *v1beta1.Transactions
+			databaseSettings  *v1beta1.Settings
+			brokerDSNSettings *v1beta1.Settings
+		)
+		BeforeEach(func() {
+			stack = &v1beta1.Stack{
+				ObjectMeta: RandObjectMeta(),
+				Spec:       v1beta1.StackSpec{},
+			}
+			databaseSettings = settings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name)
+			brokerDSNSettings = settings.New(uuid.NewString(), "broker.dsn", "nats://localhost:1234", stack.Name)
+			gateway = &v1beta1.Gateway{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.GatewaySpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+					Ingress: &v1beta1.GatewayIngress{},
+				},
+			}
+			auth = &v1beta1.Auth{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.AuthSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+			ledger = &v1beta1.Ledger{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.LedgerSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+			payments = &v1beta1.Payments{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.PaymentsSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+			transactions = &v1beta1.Transactions{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.TransactionsSpec{
+					StackDependency: v1beta1.StackDependency{
+						Stack: stack.Name,
+					},
+				},
+			}
+		})
+		JustBeforeEach(func() {
+			Expect(Create(stack)).To(Succeed())
+			Expect(Create(databaseSettings)).To(Succeed())
+			Expect(Create(brokerDSNSettings)).To(BeNil())
+			Expect(Create(gateway)).To(Succeed())
+			Expect(Create(auth)).To(Succeed())
+			Expect(Create(ledger)).To(Succeed())
+			Expect(Create(payments)).To(Succeed())
+			Expect(Create(transactions)).To(Succeed())
+		})
+		AfterEach(func() {
+			Expect(Delete(stack)).To(Succeed())
+			Expect(Delete(databaseSettings)).To(Succeed())
+			Expect(Delete(brokerDSNSettings)).To(Succeed())
+		})
+		It("Should delete the orphaned transactions-worker deployment", func() {
+			By("Should start with separate deployments", func() {
+				Eventually(func(g Gomega) bool {
+					g.Expect(LoadResource("", transactions.Name, transactions)).To(Succeed())
+					return transactions.Status.Ready
+				}).Should(BeTrue())
+
+				workerDeployment := &appsv1.Deployment{}
+				Eventually(func() error {
+					return LoadResource(stack.Name, "transactions-worker", workerDeployment)
+				}).Should(Succeed())
+				Expect(workerDeployment).To(BeControlledBy(transactions))
+			})
+			By("Should delete transactions-worker after enabling single mode", func() {
+				workerEnabledSettings := settings.New(uuid.NewString(), "transactions.worker-enabled", "true", stack.Name)
+				Expect(Create(workerEnabledSettings)).To(Succeed())
+
+				Eventually(func() error {
+					return LoadResource(stack.Name, "transactions-worker", &appsv1.Deployment{})
+				}).Should(BeNotFound())
+			})
+			By("Should have a single deployment with WORKER_ENABLED=true", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource(stack.Name, "transactions", deployment)).To(Succeed())
+					g.Expect(deployment.Spec.Template.Spec.Containers[0].Env).To(ContainElements(
+						core.Env("WORKER_ENABLED", "true"),
+					))
+				}).Should(Succeed())
+			})
+		})
+	})
 })
