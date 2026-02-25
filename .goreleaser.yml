@@ -63,6 +63,7 @@ dockers:
   dockerfile: ./tools/utils/build.Dockerfile
   use: buildx
   build_flag_templates:
+  - --provenance=false
   - --platform=linux/amd64
   - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
@@ -78,6 +79,7 @@ dockers:
   dockerfile: ./tools/utils/build.Dockerfile
   use: buildx
   build_flag_templates:
+  - --provenance=false
   - --platform=linux/arm64/v8
   - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
@@ -94,6 +96,7 @@ dockers:
   dockerfile: ./tools/utils/scratch.Dockerfile
   use: buildx
   build_flag_templates:
+  - --provenance=false
   - --platform=linux/amd64
   - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
@@ -109,6 +112,7 @@ dockers:
   dockerfile: ./tools/utils/scratch.Dockerfile
   use: buildx
   build_flag_templates:
+  - --provenance=false
   - --platform=linux/arm64/v8
   - --provenance=false
   - --label=org.opencontainers.image.title=operator-utils
