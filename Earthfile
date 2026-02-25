@@ -103,6 +103,7 @@ deploy-staging:
     RUN --secret AUTH_TOKEN \
         argocd app set $APPLICATION \ 
         --parameter image.tag=$TAG \
+        --parameter operator.utils.tag=$TAG \
         --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web
     RUN --secret AUTH_TOKEN argocd --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web app sync $APPLICATION
 
