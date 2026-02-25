@@ -19,6 +19,7 @@ import (
 	_ "github.com/formancehq/operator/v3/internal/resources/settings"
 	_ "github.com/formancehq/operator/v3/internal/resources/stacks"
 	_ "github.com/formancehq/operator/v3/internal/resources/stargates"
+	_ "github.com/formancehq/operator/v3/internal/resources/transactions"
 	_ "github.com/formancehq/operator/v3/internal/resources/wallets"
 	_ "github.com/formancehq/operator/v3/internal/resources/webhooks"
 )
