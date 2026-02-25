@@ -17,9 +17,7 @@ jobs:
         uses: ./.github/actions/default
         with:
           token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes"
-          develop --impure --command just release
+      - run: just release
         env:
           GITHUB_TOKEN: ${{ secrets.NUMARY_GITHUB_TOKEN }}
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}

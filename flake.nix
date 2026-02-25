@@ -41,7 +41,7 @@
       devShells = forEachSupportedSystem ({ pkgs, pkgs-unstable, system }:
         let
           stablePackages = with pkgs; [
-            earthly
+            argocd
             ginkgo
             go_1_25
             gotools
