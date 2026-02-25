@@ -40,7 +40,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 		return err
 	}
 
-	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, webhooks)
+	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, webhooks, false)
 	if err != nil {
 		return err
 	}
