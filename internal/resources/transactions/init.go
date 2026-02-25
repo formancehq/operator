@@ -78,6 +78,7 @@ func init() {
 			WithOwn[*v1beta1.Transactions](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Transactions](&v1beta1.GatewayHTTPAPI{}),
 			WithOwn[*v1beta1.Transactions](&batchv1.Job{}),
+			WithOwn[*v1beta1.Transactions](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Transactions](),
 			WithWatchDependency[*v1beta1.Transactions](&v1beta1.Ledger{}),
 			WithWatchDependency[*v1beta1.Transactions](&v1beta1.Auth{}),
