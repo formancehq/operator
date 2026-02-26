@@ -1,8 +1,6 @@
 package gatewayhttpapis
 
 import (
-	"strings"
-
 	"github.com/iancoleman/strcase"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -18,7 +16,7 @@ var defaultOptions = []option{
 
 func Create(ctx core.Context, owner v1beta1.Module, options ...option) error {
 	kind := owner.GetObjectKind().GroupVersionKind().Kind
-	objectName := strings.ToLower(kind)
+	objectName := strcase.ToKebab(kind)
 	_, _, err := core.CreateOrUpdate[*v1beta1.GatewayHTTPAPI](ctx, types.NamespacedName{
 		Name: core.GetObjectName(owner.GetStack(), strcase.ToKebab(kind)),
 	},
