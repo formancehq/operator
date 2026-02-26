@@ -11,6 +11,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,6 +43,7 @@ import (
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=externaldns.k8s.io,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=formance.com,resources=stacks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=formance.com,resources=stacks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=formance.com,resources=stacks/finalizers,verbs=update
@@ -214,6 +216,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 		}
 	}
 
+	if err := reconcileNetworkPolicies(ctx, stack); err != nil {
+		return err
+	}
+
 	if err := setModulesCondition(ctx, stack); err != nil {
 		return err
 	}
@@ -366,6 +372,7 @@ func init() {
 		}),
 		WithStdReconciler(Reconcile,
 			WithOwn[*v1beta1.Stack](&corev1.Namespace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})),
+			WithOwn[*v1beta1.Stack](&networkingv1.NetworkPolicy{}),
 			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
 				for _, rtype := range ctx.GetScheme().AllKnownTypes() {
 					v := reflect.New(rtype).Interface()
@@ -404,6 +411,36 @@ func init() {
 					}
 				}
 
+				return nil
+			}),
+			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
+				b.Watches(&v1beta1.Settings{}, handler.EnqueueRequestsFromMapFunc(
+					func(watchCtx context.Context, object client.Object) []reconcile.Request {
+						s := object.(*v1beta1.Settings)
+						if s.Spec.Key != "networkpolicies.enabled" {
+							return nil
+						}
+						requests := make([]reconcile.Request, 0)
+						if s.IsWildcard() {
+							stackList := &v1beta1.StackList{}
+							if err := ctx.GetClient().List(watchCtx, stackList); err != nil {
+								return nil
+							}
+							for _, stack := range stackList.Items {
+								requests = append(requests, reconcile.Request{
+									NamespacedName: types.NamespacedName{Name: stack.Name},
+								})
+							}
+						} else {
+							for _, stackName := range s.GetStacks() {
+								requests = append(requests, reconcile.Request{
+									NamespacedName: types.NamespacedName{Name: stackName},
+								})
+							}
+						}
+						return requests
+					},
+				))
 				return nil
 			}),
 			// notes(gfyrag): Some resources need to be properly dropped before the stack is dropped
