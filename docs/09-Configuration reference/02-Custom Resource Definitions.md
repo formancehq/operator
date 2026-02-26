@@ -26,7 +26,7 @@ Modules :
 - [Reconciliation](#reconciliation)
 - [Search](#search)
 - [Stargate](#stargate)
-- [Transactions](#transactions)
+- [TransactionPlane](#transactionplane)
 - [Wallets](#wallets)
 - [Webhooks](#webhooks)
 
@@ -1095,11 +1095,11 @@ StargateStatus defines the observed state of Stargate
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 
 
-#### Transactions
+#### TransactionPlane
 
 
 
-Transactions is the Schema for the transactions API
+TransactionPlane is the Schema for the transactionplanes API
 
 
 
@@ -1118,14 +1118,14 @@ Transactions is the Schema for the transactions API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `formance.com/v1beta1` | | |
-| `kind` _string_ | `Transactions` | | |
+| `kind` _string_ | `TransactionPlane` | | |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[TransactionsSpec](#transactionsspec)_ |  |  |  |
-| `status` _[TransactionsStatus](#transactionsstatus)_ |  |  |  |
+| `spec` _[TransactionPlaneSpec](#transactionplanespec)_ |  |  |  |
+| `status` _[TransactionPlaneStatus](#transactionplanestatus)_ |  |  |  |
 
 
 
-##### TransactionsSpec
+##### TransactionPlaneSpec
 
 
 
@@ -1156,7 +1156,7 @@ Transactions is the Schema for the transactions API
 
 
 
-##### TransactionsStatus
+##### TransactionPlaneStatus
 
 
 

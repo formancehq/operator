@@ -100,7 +100,7 @@ rules:
   - settings
   - stacks
   - stargates
-  - transactions
+  - transactionplanes
   - versions
   - wallets
   - webhooks
@@ -134,7 +134,7 @@ rules:
   - settings/finalizers
   - stacks/finalizers
   - stargates/finalizers
-  - transactions/finalizers
+  - transactionplanes/finalizers
   - versions/finalizers
   - wallets/finalizers
   - webhooks/finalizers
@@ -162,7 +162,7 @@ rules:
   - settings/status
   - stacks/status
   - stargates/status
-  - transactions/status
+  - transactionplanes/status
   - versions/status
   - wallets/status
   - webhooks/status
