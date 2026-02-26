@@ -20,14 +20,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type TransactionsSpec struct {
+type TransactionPlaneSpec struct {
 	StackDependency  `json:",inline"`
 	ModuleProperties `json:",inline"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
 }
 
-type TransactionsStatus struct {
+type TransactionPlaneStatus struct {
 	Status `json:",inline"`
 }
 
@@ -40,64 +40,64 @@ type TransactionsStatus struct {
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=".spec.version",description="Version"
 // +kubebuilder:metadata:labels=formance.com/kind=module
 
-// Transactions is the Schema for the transactions API
-type Transactions struct {
+// TransactionPlane is the Schema for the transactionplanes API
+type TransactionPlane struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TransactionsSpec   `json:"spec,omitempty"`
-	Status TransactionsStatus `json:"status,omitempty"`
+	Spec   TransactionPlaneSpec   `json:"spec,omitempty"`
+	Status TransactionPlaneStatus `json:"status,omitempty"`
 }
 
-func (in Transactions) isEventPublisher() {}
+func (in TransactionPlane) isEventPublisher() {}
 
-func (in *Transactions) IsEE() bool {
+func (in *TransactionPlane) IsEE() bool {
 	return false
 }
 
-func (in *Transactions) SetReady(b bool) {
+func (in *TransactionPlane) SetReady(b bool) {
 	in.Status.Ready = b
 }
 
-func (in *Transactions) IsReady() bool {
+func (in *TransactionPlane) IsReady() bool {
 	return in.Status.Ready
 }
 
-func (in *Transactions) SetError(s string) {
+func (in *TransactionPlane) SetError(s string) {
 	in.Status.Info = s
 }
 
-func (in *Transactions) GetConditions() *Conditions {
+func (in *TransactionPlane) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
-func (in *Transactions) GetVersion() string {
+func (in *TransactionPlane) GetVersion() string {
 	return in.Spec.Version
 }
 
-func (a Transactions) GetStack() string {
+func (a TransactionPlane) GetStack() string {
 	return a.Spec.Stack
 }
 
-func (a Transactions) IsDebug() bool {
+func (a TransactionPlane) IsDebug() bool {
 	return a.Spec.Debug
 }
 
-func (a Transactions) IsDev() bool {
+func (a TransactionPlane) IsDev() bool {
 	return a.Spec.Dev
 }
 
 //+kubebuilder:object:root=true
 
-// TransactionsList contains a list of Transactions
-type TransactionsList struct {
+// TransactionPlaneList contains a list of TransactionPlane
+type TransactionPlaneList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Transactions `json:"items"`
+	Items           []TransactionPlane `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Transactions{}, &TransactionsList{})
+	SchemeBuilder.Register(&TransactionPlane{}, &TransactionPlaneList{})
 }
 
-var _ EventPublisher = (*Transactions)(nil)
+var _ EventPublisher = (*TransactionPlane)(nil)

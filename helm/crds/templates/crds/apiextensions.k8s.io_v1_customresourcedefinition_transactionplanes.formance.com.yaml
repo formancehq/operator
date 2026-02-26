@@ -9,14 +9,14 @@ metadata:
     {{- end }}
   labels:
     formance.com/kind: module
-  name: transactions.formance.com
+  name: transactionplanes.formance.com
 spec:
   group: formance.com
   names:
-    kind: Transactions
-    listKind: TransactionsList
-    plural: transactions
-    singular: transactions
+    kind: TransactionPlane
+    listKind: TransactionPlaneList
+    plural: transactionplanes
+    singular: transactionplane
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -39,7 +39,7 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: Transactions is the Schema for the transactions API
+        description: TransactionPlane is the Schema for the transactionplanes API
         properties:
           apiVersion:
             description: |-
