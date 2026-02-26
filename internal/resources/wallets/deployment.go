@@ -5,14 +5,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/applications"
-	"github.com/formancehq/operator/internal/resources/authclients"
-	"github.com/formancehq/operator/internal/resources/auths"
-	"github.com/formancehq/operator/internal/resources/gateways"
-	"github.com/formancehq/operator/internal/resources/registries"
-	"github.com/formancehq/operator/internal/resources/settings"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/applications"
+	"github.com/formancehq/operator/v3/internal/resources/authclients"
+	"github.com/formancehq/operator/v3/internal/resources/auths"
+	"github.com/formancehq/operator/v3/internal/resources/gateways"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 func createDeployment(ctx core.Context, stack *v1beta1.Stack, wallets *v1beta1.Wallets,

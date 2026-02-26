@@ -1,12 +1,10 @@
 package gatewayhttpapis
 
 import (
-	"strings"
-
 	"k8s.io/apimachinery/pkg/types"
 
-	v1beta1 "github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
+	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
 )
 
 type option func(spec *v1beta1.GatewayHTTPAPI)
@@ -16,9 +14,9 @@ var defaultOptions = []option{
 }
 
 func Create(ctx core.Context, owner v1beta1.Module, options ...option) error {
-	objectName := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+	objectName := core.LowerCaseKind(ctx, owner)
 	_, _, err := core.CreateOrUpdate[*v1beta1.GatewayHTTPAPI](ctx, types.NamespacedName{
-		Name: core.GetObjectName(owner.GetStack(), core.LowerCamelCaseKind(ctx, owner)),
+		Name: core.GetObjectName(owner.GetStack(), core.LowerCaseKind(ctx, owner)),
 	},
 		func(t *v1beta1.GatewayHTTPAPI) error {
 			t.Spec = v1beta1.GatewayHTTPAPISpec{

@@ -5,12 +5,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	"github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/applications"
-	"github.com/formancehq/operator/internal/resources/brokers"
-	"github.com/formancehq/operator/internal/resources/caddy"
-	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/applications"
+	"github.com/formancehq/operator/v3/internal/resources/brokers"
+	"github.com/formancehq/operator/v3/internal/resources/caddy"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
 func createDeployment(

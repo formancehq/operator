@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/formancehq/operator/internal/core"
+	"github.com/formancehq/operator/v3/internal/core"
 )
 
 var _ core.Manager = (*mockManager)(nil)

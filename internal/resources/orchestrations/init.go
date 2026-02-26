@@ -21,14 +21,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 
-	"github.com/formancehq/operator/api/formance.com/v1beta1"
-	. "github.com/formancehq/operator/internal/core"
-	"github.com/formancehq/operator/internal/resources/brokerconsumers"
-	"github.com/formancehq/operator/internal/resources/brokers"
-	"github.com/formancehq/operator/internal/resources/brokertopics"
-	"github.com/formancehq/operator/internal/resources/databases"
-	"github.com/formancehq/operator/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/internal/resources/registries"
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/brokerconsumers"
+	"github.com/formancehq/operator/v3/internal/resources/brokers"
+	"github.com/formancehq/operator/v3/internal/resources/brokertopics"
+	"github.com/formancehq/operator/v3/internal/resources/databases"
+	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=orchestrations,verbs=get;list;watch;create;update;patch;delete
@@ -47,7 +47,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, vers
 		return err
 	}
 
-	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, o)
+	consumer, err := brokerconsumers.CreateOrUpdateOnAllServices(ctx, o, false)
 	if err != nil {
 		return err
 	}

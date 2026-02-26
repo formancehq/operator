@@ -1,4 +1,4 @@
-module github.com/formancehq/operator/tools/kubectl-stacks
+module github.com/formancehq/operator/tools/kubectl-stacks/v3
 
 go 1.25
 
@@ -6,7 +6,7 @@ toolchain go1.25.5
 
 require (
 	github.com/formancehq/go-libs/v2 v2.2.3
-	github.com/formancehq/operator v0.0.0-00010101000000-000000000000
+	github.com/formancehq/operator/v3 v3.0.0-00010101000000-000000000000
 	github.com/pterm/pterm v0.12.81
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.10
@@ -14,6 +14,8 @@ require (
 	k8s.io/cli-runtime v0.33.5
 	k8s.io/client-go v0.34.2
 )
+
+replace github.com/formancehq/operator/v3 => ../../
 
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect
