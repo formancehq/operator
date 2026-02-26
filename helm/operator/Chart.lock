@@ -1,6 +1,6 @@
 dependencies:
 - name: operator-crds
   repository: file://../crds
-  version: 3.7.2
-digest: sha256:23d5030aafcce9acab71071319669e22d18c000bb03c5e4cadb93ce0a5b8f715
-generated: "2026-02-26T13:59:28.602586+01:00"
+  version: 3.8.0
+digest: sha256:580f97026a858af94473d18ae7037785828fd41ad002e373f05a35ee9d7c4a31
+generated: "2026-02-26T14:30:57.237157+01:00"
