@@ -3,6 +3,7 @@ package gatewayhttpapis
 import (
 	"strings"
 
+	"github.com/iancoleman/strcase"
 	"k8s.io/apimachinery/pkg/types"
 
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
@@ -16,9 +17,10 @@ var defaultOptions = []option{
 }
 
 func Create(ctx core.Context, owner v1beta1.Module, options ...option) error {
-	objectName := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+	kind := owner.GetObjectKind().GroupVersionKind().Kind
+	objectName := strings.ToLower(kind)
 	_, _, err := core.CreateOrUpdate[*v1beta1.GatewayHTTPAPI](ctx, types.NamespacedName{
-		Name: core.GetObjectName(owner.GetStack(), core.LowerCamelCaseKind(ctx, owner)),
+		Name: core.GetObjectName(owner.GetStack(), strcase.ToKebab(kind)),
 	},
 		func(t *v1beta1.GatewayHTTPAPI) error {
 			t.Spec = v1beta1.GatewayHTTPAPISpec{

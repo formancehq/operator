@@ -132,7 +132,7 @@ var _ = Describe("TransactionPlaneController", func() {
 			By("Should create a new BrokerConsumer object", func() {
 				consumer := &v1beta1.BrokerConsumer{}
 				Eventually(func() error {
-					return LoadResource("", transactionPlane.Name+"-transaction-plane", consumer)
+					return LoadResource("", transactionPlane.Name+"-transactionplane", consumer)
 				}).Should(Succeed())
 			})
 		})
