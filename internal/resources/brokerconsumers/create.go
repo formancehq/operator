@@ -3,8 +3,8 @@ package brokerconsumers
 import (
 	"fmt"
 	"sort"
-	"strings"
 
+	"github.com/iancoleman/strcase"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,13 +19,12 @@ func Create(ctx core.Context, owner interface {
 	client.Object
 	GetStack() string
 }, name string, services ...string) (*v1beta1.BrokerConsumer, error) {
-	queriedBy := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+	kind := owner.GetObjectKind().GroupVersionKind().Kind
+	queriedBy := strcase.ToKebab(kind)
 
 	sort.Strings(services)
 
-	brokerConsumerName := fmt.Sprintf("%s-%s", owner.GetName(),
-		strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind),
-	)
+	brokerConsumerName := fmt.Sprintf("%s-%s", owner.GetName(), strcase.ToKebab(kind))
 	if name != "" {
 		brokerConsumerName += "-" + name
 	}
@@ -67,6 +66,6 @@ func CreateOrUpdateOnAllServices(ctx core.Context, consumer interface {
 	})
 
 	return Create(ctx, consumer, "", Map(filteredServices, func(from unstructured.Unstructured) string {
-		return strings.ToLower(from.GetKind())
+		return strcase.ToKebab(from.GetKind())
 	})...)
 }
