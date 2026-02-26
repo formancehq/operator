@@ -120,6 +120,12 @@ func main() {
 		UtilsVersion:  utilsVersion,
 	}
 
+	if licenceSecret != "" {
+		setupLog.Info("licence management enabled", "secret", licenceSecret)
+	} else {
+		setupLog.Info("licence management disabled")
+	}
+
 	if err := core.Setup(mgr, platform); err != nil {
 		setupLog.Error(err, "unable to create controllers")
 		os.Exit(1)

@@ -26,11 +26,8 @@ func GetLicenceEnvVars(ctx core.Context, ownerName string, owner v1beta1.Depende
 			return nil, nil, err
 		}
 
-		ret = append(ret, core.Env("LICENCE_ENABLED", "false"))
 		return nil, ret, nil
 	}
-
-	ret = append(ret, core.Env("LICENCE_ENABLED", "false"))
 
 	ret = append(ret, core.EnvFromSecret("LICENCE_TOKEN", platform.LicenceSecret, "token"))
 	ret = append(ret, core.EnvFromSecret("LICENCE_ISSUER", platform.LicenceSecret, "issuer"))

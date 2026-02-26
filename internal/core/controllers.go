@@ -132,9 +132,6 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 				return err
 			}
 		} else {
-			if t.IsEE() && ctx.GetPlatform().LicenceSecret == "" {
-				return NewApplicationError().WithMessage("module requires an Enterprise Edition licence")
-			}
 			err = underlyingController(ctx, stack, reconcilerOptions, t, moduleVersion)
 			if err != nil {
 				return err
