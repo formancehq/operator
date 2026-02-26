@@ -15,4 +15,4 @@ spec:
   wallets: latest
   webhooks: latest
   stargate: latest
-  transactions: latest
+  transactionplane: latest

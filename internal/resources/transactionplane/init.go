@@ -1,4 +1,4 @@
-package transactions
+package transactionplane
 
 import (
 	"github.com/pkg/errors"
@@ -15,11 +15,11 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
-//+kubebuilder:rbac:groups=formance.com,resources=transactions,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=formance.com,resources=transactions/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=formance.com,resources=transactions/finalizers,verbs=update
+//+kubebuilder:rbac:groups=formance.com,resources=transactionplanes,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=formance.com,resources=transactionplanes/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=formance.com,resources=transactionplanes/finalizers,verbs=update
 
-func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions, version string) error {
+func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.TransactionPlane, version string) error {
 
 	database, err := databases.Create(ctx, stack, t)
 	if err != nil {
@@ -44,7 +44,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions, versi
 		return NewPendingError().WithMessage("database not ready")
 	}
 
-	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "transactions", version)
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "transaction-plane", version)
 	if err != nil {
 		return errors.Wrap(err, "resolving image")
 	}
@@ -73,19 +73,19 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions, versi
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
-			WithOwn[*v1beta1.Transactions](&v1beta1.BrokerConsumer{}),
-			WithOwn[*v1beta1.Transactions](&v1beta1.AuthClient{}),
-			WithOwn[*v1beta1.Transactions](&appsv1.Deployment{}),
-			WithOwn[*v1beta1.Transactions](&v1beta1.GatewayHTTPAPI{}),
-			WithOwn[*v1beta1.Transactions](&batchv1.Job{}),
-			WithOwn[*v1beta1.Transactions](&v1beta1.ResourceReference{}),
-			WithWatchSettings[*v1beta1.Transactions](),
-			WithWatchDependency[*v1beta1.Transactions](&v1beta1.Ledger{}),
-			WithWatchDependency[*v1beta1.Transactions](&v1beta1.Auth{}),
-			WithWatchDependency[*v1beta1.Transactions](&v1beta1.Payments{}),
-			brokertopics.Watch[*v1beta1.Transactions]("transactions"),
-			databases.Watch[*v1beta1.Transactions](),
-			brokers.Watch[*v1beta1.Transactions](),
+			WithOwn[*v1beta1.TransactionPlane](&v1beta1.BrokerConsumer{}),
+			WithOwn[*v1beta1.TransactionPlane](&v1beta1.AuthClient{}),
+			WithOwn[*v1beta1.TransactionPlane](&appsv1.Deployment{}),
+			WithOwn[*v1beta1.TransactionPlane](&v1beta1.GatewayHTTPAPI{}),
+			WithOwn[*v1beta1.TransactionPlane](&batchv1.Job{}),
+			WithOwn[*v1beta1.TransactionPlane](&v1beta1.ResourceReference{}),
+			WithWatchSettings[*v1beta1.TransactionPlane](),
+			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Ledger{}),
+			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Auth{}),
+			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Payments{}),
+			brokertopics.Watch[*v1beta1.TransactionPlane]("transaction-plane"),
+			databases.Watch[*v1beta1.TransactionPlane](),
+			brokers.Watch[*v1beta1.TransactionPlane](),
 		),
 	)
 }

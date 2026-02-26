@@ -12,15 +12,15 @@ import (
 	. "github.com/formancehq/operator/v3/internal/tests/internal"
 )
 
-var _ = Describe("TransactionsController", func() {
-	Context("When creating a Transactions object with worker enabled", func() {
+var _ = Describe("TransactionPlaneController", func() {
+	Context("When creating a TransactionPlane object with worker enabled", func() {
 		var (
 			stack                 *v1beta1.Stack
 			gateway               *v1beta1.Gateway
 			auth                  *v1beta1.Auth
 			ledger                *v1beta1.Ledger
 			payments              *v1beta1.Payments
-			transactions          *v1beta1.Transactions
+			transactionPlane      *v1beta1.TransactionPlane
 			databaseSettings      *v1beta1.Settings
 			brokerDSNSettings     *v1beta1.Settings
 			workerEnabledSettings *v1beta1.Settings
@@ -32,7 +32,7 @@ var _ = Describe("TransactionsController", func() {
 			}
 			databaseSettings = settings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name)
 			brokerDSNSettings = settings.New(uuid.NewString(), "broker.dsn", "nats://localhost:1234", stack.Name)
-			workerEnabledSettings = settings.New(uuid.NewString(), "transactions.worker-enabled", "true", stack.Name)
+			workerEnabledSettings = settings.New(uuid.NewString(), "transaction-plane.worker-enabled", "true", stack.Name)
 			gateway = &v1beta1.Gateway{
 				ObjectMeta: RandObjectMeta(),
 				Spec: v1beta1.GatewaySpec{
@@ -66,9 +66,9 @@ var _ = Describe("TransactionsController", func() {
 					},
 				},
 			}
-			transactions = &v1beta1.Transactions{
+			transactionPlane = &v1beta1.TransactionPlane{
 				ObjectMeta: RandObjectMeta(),
-				Spec: v1beta1.TransactionsSpec{
+				Spec: v1beta1.TransactionPlaneSpec{
 					StackDependency: v1beta1.StackDependency{
 						Stack: stack.Name,
 					},
@@ -84,7 +84,7 @@ var _ = Describe("TransactionsController", func() {
 			Expect(Create(auth)).To(Succeed())
 			Expect(Create(ledger)).To(Succeed())
 			Expect(Create(payments)).To(Succeed())
-			Expect(Create(transactions)).To(Succeed())
+			Expect(Create(transactionPlane)).To(Succeed())
 		})
 		AfterEach(func() {
 			Expect(Delete(stack)).To(Succeed())
@@ -95,14 +95,14 @@ var _ = Describe("TransactionsController", func() {
 		It("Should create a single deployment with embedded worker", func() {
 			By("Should set the status to ready", func() {
 				Eventually(func(g Gomega) bool {
-					g.Expect(LoadResource("", transactions.Name, transactions)).To(Succeed())
-					return transactions.Status.Ready
+					g.Expect(LoadResource("", transactionPlane.Name, transactionPlane)).To(Succeed())
+					return transactionPlane.Status.Ready
 				}).Should(BeTrue())
 			})
 			By("Should add an owner reference on the stack", func() {
 				Eventually(func(g Gomega) bool {
-					g.Expect(LoadResource("", transactions.Name, transactions)).To(Succeed())
-					reference, err := core.HasOwnerReference(TestContext(), stack, transactions)
+					g.Expect(LoadResource("", transactionPlane.Name, transactionPlane)).To(Succeed())
+					reference, err := core.HasOwnerReference(TestContext(), stack, transactionPlane)
 					g.Expect(err).To(BeNil())
 					return reference
 				}).Should(BeTrue())
@@ -110,9 +110,9 @@ var _ = Describe("TransactionsController", func() {
 			By("Should create a single deployment with WORKER_ENABLED=true", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func() error {
-					return LoadResource(stack.Name, "transactions", deployment)
+					return LoadResource(stack.Name, "transaction-plane", deployment)
 				}).Should(Succeed())
-				Expect(deployment).To(BeControlledBy(transactions))
+				Expect(deployment).To(BeControlledBy(transactionPlane))
 				Expect(deployment.Spec.Template.Spec.Containers[0].Env).To(ContainElements(
 					core.Env("WORKER_ENABLED", "true"),
 				))
@@ -120,32 +120,32 @@ var _ = Describe("TransactionsController", func() {
 			By("Should create a new GatewayHTTPAPI object", func() {
 				httpService := &v1beta1.GatewayHTTPAPI{}
 				Eventually(func() error {
-					return LoadResource("", core.GetObjectName(stack.Name, "transactions"), httpService)
+					return LoadResource("", core.GetObjectName(stack.Name, "transaction-plane"), httpService)
 				}).Should(Succeed())
 			})
 			By("Should create a new AuthClient object", func() {
 				authClient := &v1beta1.AuthClient{}
 				Eventually(func() error {
-					return LoadResource("", core.GetObjectName(stack.Name, "transactions"), authClient)
+					return LoadResource("", core.GetObjectName(stack.Name, "transaction-plane"), authClient)
 				}).Should(Succeed())
 			})
 			By("Should create a new BrokerConsumer object", func() {
 				consumer := &v1beta1.BrokerConsumer{}
 				Eventually(func() error {
-					return LoadResource("", transactions.Name+"-transactions", consumer)
+					return LoadResource("", transactionPlane.Name+"-transaction-plane", consumer)
 				}).Should(Succeed())
 			})
 		})
 	})
 
-	Context("When creating a Transactions object with worker disabled (default)", func() {
+	Context("When creating a TransactionPlane object with worker disabled (default)", func() {
 		var (
 			stack             *v1beta1.Stack
 			gateway           *v1beta1.Gateway
 			auth              *v1beta1.Auth
 			ledger            *v1beta1.Ledger
 			payments          *v1beta1.Payments
-			transactions      *v1beta1.Transactions
+			transactionPlane  *v1beta1.TransactionPlane
 			databaseSettings  *v1beta1.Settings
 			brokerDSNSettings *v1beta1.Settings
 		)
@@ -189,9 +189,9 @@ var _ = Describe("TransactionsController", func() {
 					},
 				},
 			}
-			transactions = &v1beta1.Transactions{
+			transactionPlane = &v1beta1.TransactionPlane{
 				ObjectMeta: RandObjectMeta(),
-				Spec: v1beta1.TransactionsSpec{
+				Spec: v1beta1.TransactionPlaneSpec{
 					StackDependency: v1beta1.StackDependency{
 						Stack: stack.Name,
 					},
@@ -206,7 +206,7 @@ var _ = Describe("TransactionsController", func() {
 			Expect(Create(auth)).To(Succeed())
 			Expect(Create(ledger)).To(Succeed())
 			Expect(Create(payments)).To(Succeed())
-			Expect(Create(transactions)).To(Succeed())
+			Expect(Create(transactionPlane)).To(Succeed())
 		})
 		AfterEach(func() {
 			Expect(Delete(stack)).To(Succeed())
@@ -216,24 +216,24 @@ var _ = Describe("TransactionsController", func() {
 		It("Should create separate API and worker deployments", func() {
 			By("Should set the status to ready", func() {
 				Eventually(func(g Gomega) bool {
-					g.Expect(LoadResource("", transactions.Name, transactions)).To(Succeed())
-					return transactions.Status.Ready
+					g.Expect(LoadResource("", transactionPlane.Name, transactionPlane)).To(Succeed())
+					return transactionPlane.Status.Ready
 				}).Should(BeTrue())
 			})
 			By("Should create an API deployment", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func() error {
-					return LoadResource(stack.Name, "transactions", deployment)
+					return LoadResource(stack.Name, "transaction-plane", deployment)
 				}).Should(Succeed())
-				Expect(deployment).To(BeControlledBy(transactions))
+				Expect(deployment).To(BeControlledBy(transactionPlane))
 				Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(Equal([]string{"serve"}))
 			})
 			By("Should create a worker deployment", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func() error {
-					return LoadResource(stack.Name, "transactions-worker", deployment)
+					return LoadResource(stack.Name, "transaction-plane-worker", deployment)
 				}).Should(Succeed())
-				Expect(deployment).To(BeControlledBy(transactions))
+				Expect(deployment).To(BeControlledBy(transactionPlane))
 				Expect(deployment.Spec.Template.Spec.Containers[0].Args).To(Equal([]string{"worker"}))
 			})
 		})
@@ -246,7 +246,7 @@ var _ = Describe("TransactionsController", func() {
 			auth              *v1beta1.Auth
 			ledger            *v1beta1.Ledger
 			payments          *v1beta1.Payments
-			transactions      *v1beta1.Transactions
+			transactionPlane  *v1beta1.TransactionPlane
 			databaseSettings  *v1beta1.Settings
 			brokerDSNSettings *v1beta1.Settings
 		)
@@ -290,9 +290,9 @@ var _ = Describe("TransactionsController", func() {
 					},
 				},
 			}
-			transactions = &v1beta1.Transactions{
+			transactionPlane = &v1beta1.TransactionPlane{
 				ObjectMeta: RandObjectMeta(),
-				Spec: v1beta1.TransactionsSpec{
+				Spec: v1beta1.TransactionPlaneSpec{
 					StackDependency: v1beta1.StackDependency{
 						Stack: stack.Name,
 					},
@@ -307,38 +307,38 @@ var _ = Describe("TransactionsController", func() {
 			Expect(Create(auth)).To(Succeed())
 			Expect(Create(ledger)).To(Succeed())
 			Expect(Create(payments)).To(Succeed())
-			Expect(Create(transactions)).To(Succeed())
+			Expect(Create(transactionPlane)).To(Succeed())
 		})
 		AfterEach(func() {
 			Expect(Delete(stack)).To(Succeed())
 			Expect(Delete(databaseSettings)).To(Succeed())
 			Expect(Delete(brokerDSNSettings)).To(Succeed())
 		})
-		It("Should delete the orphaned transactions-worker deployment", func() {
+		It("Should delete the orphaned transaction-plane-worker deployment", func() {
 			By("Should start with separate deployments", func() {
 				Eventually(func(g Gomega) bool {
-					g.Expect(LoadResource("", transactions.Name, transactions)).To(Succeed())
-					return transactions.Status.Ready
+					g.Expect(LoadResource("", transactionPlane.Name, transactionPlane)).To(Succeed())
+					return transactionPlane.Status.Ready
 				}).Should(BeTrue())
 
 				workerDeployment := &appsv1.Deployment{}
 				Eventually(func() error {
-					return LoadResource(stack.Name, "transactions-worker", workerDeployment)
+					return LoadResource(stack.Name, "transaction-plane-worker", workerDeployment)
 				}).Should(Succeed())
-				Expect(workerDeployment).To(BeControlledBy(transactions))
+				Expect(workerDeployment).To(BeControlledBy(transactionPlane))
 			})
-			By("Should delete transactions-worker after enabling single mode", func() {
-				workerEnabledSettings := settings.New(uuid.NewString(), "transactions.worker-enabled", "true", stack.Name)
+			By("Should delete transaction-plane-worker after enabling single mode", func() {
+				workerEnabledSettings := settings.New(uuid.NewString(), "transaction-plane.worker-enabled", "true", stack.Name)
 				Expect(Create(workerEnabledSettings)).To(Succeed())
 
 				Eventually(func() error {
-					return LoadResource(stack.Name, "transactions-worker", &appsv1.Deployment{})
+					return LoadResource(stack.Name, "transaction-plane-worker", &appsv1.Deployment{})
 				}).Should(BeNotFound())
 			})
 			By("Should have a single deployment with WORKER_ENABLED=true", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func(g Gomega) {
-					g.Expect(LoadResource(stack.Name, "transactions", deployment)).To(Succeed())
+					g.Expect(LoadResource(stack.Name, "transaction-plane", deployment)).To(Succeed())
 					g.Expect(deployment.Spec.Template.Spec.Containers[0].Env).To(ContainElements(
 						core.Env("WORKER_ENABLED", "true"),
 					))

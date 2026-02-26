@@ -1,4 +1,4 @@
-package transactions
+package transactionplane
 
 import (
 	"github.com/pkg/errors"
@@ -20,7 +20,7 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
-func createAuthClient(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions) (*v1beta1.AuthClient, error) {
+func createAuthClient(ctx Context, stack *v1beta1.Stack, t *v1beta1.TransactionPlane) (*v1beta1.AuthClient, error) {
 	hasAuth, err := HasDependency(ctx, stack.Name, &v1beta1.Auth{})
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func createAuthClient(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions
 		return nil, nil
 	}
 
-	return authclients.Create(ctx, stack, t, "transactions",
+	return authclients.Create(ctx, stack, t, "transaction-plane",
 		func(spec *v1beta1.AuthClientSpec) {
 			spec.Scopes = []string{
 				"ledger:read",
@@ -43,7 +43,7 @@ func createAuthClient(ctx Context, stack *v1beta1.Stack, t *v1beta1.Transactions
 func commonEnvVars(
 	ctx Context,
 	stack *v1beta1.Stack,
-	t *v1beta1.Transactions,
+	t *v1beta1.TransactionPlane,
 	database *v1beta1.Database,
 	client *v1beta1.AuthClient,
 	consumer *v1beta1.BrokerConsumer,
@@ -70,7 +70,7 @@ func commonEnvVars(
 	env = append(env, GetDevEnvVars(stack, t)...)
 	env = append(env, postgresEnvVar...)
 
-	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "transactions", t.Spec.Auth)
+	authEnvVars, err := auths.ProtectedEnvVars(ctx, stack, "transaction-plane", t.Spec.Auth)
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +93,12 @@ func commonEnvVars(
 		return nil, err
 	}
 
-	brokerEnvVars, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "transactions")
+	brokerEnvVars, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "transaction-plane")
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
 	env = append(env, brokerEnvVars...)
-	env = append(env, brokers.GetPublisherEnvVars(stack, broker, "transactions")...)
+	env = append(env, brokers.GetPublisherEnvVars(stack, broker, "transaction-plane")...)
 
 	return env, nil
 }
@@ -106,7 +106,7 @@ func commonEnvVars(
 func createDeployments(
 	ctx Context,
 	stack *v1beta1.Stack,
-	t *v1beta1.Transactions,
+	t *v1beta1.TransactionPlane,
 	database *v1beta1.Database,
 	client *v1beta1.AuthClient,
 	consumer *v1beta1.BrokerConsumer,
@@ -122,13 +122,13 @@ func createDeployments(
 		return err
 	}
 
-	workerEnabled, err := settings.GetBoolOrDefault(ctx, stack.Name, false, "transactions", "worker-enabled")
+	workerEnabled, err := settings.GetBoolOrDefault(ctx, stack.Name, false, "transaction-plane", "worker-enabled")
 	if err != nil {
 		return err
 	}
 
 	if workerEnabled {
-		if err := deleteDeployment(ctx, stack, "transactions-worker"); err != nil {
+		if err := deleteDeployment(ctx, stack, "transaction-plane-worker"); err != nil {
 			return err
 		}
 		return createSingleDeployment(ctx, t, imageConfiguration, serviceAccountName, env)
@@ -159,7 +159,7 @@ func deleteDeployment(ctx Context, stack *v1beta1.Stack, name string) error {
 
 func createSingleDeployment(
 	ctx Context,
-	t *v1beta1.Transactions,
+	t *v1beta1.TransactionPlane,
 	imageConfiguration *registries.ImageConfiguration,
 	serviceAccountName string,
 	env []corev1.EnvVar,
@@ -168,7 +168,7 @@ func createSingleDeployment(
 
 	tpl := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "transactions",
+			Name: "transaction-plane",
 		},
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
@@ -176,7 +176,7 @@ func createSingleDeployment(
 					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					ServiceAccountName: serviceAccountName,
 					Containers: []corev1.Container{{
-						Name:           "transactions",
+						Name:           "transaction-plane",
 						Args:           []string{"serve"},
 						Env:            env,
 						Image:          imageConfiguration.GetFullImageName(),
@@ -196,15 +196,14 @@ func createSingleDeployment(
 
 func createSeparateDeployments(
 	ctx Context,
-	t *v1beta1.Transactions,
+	t *v1beta1.TransactionPlane,
 	imageConfiguration *registries.ImageConfiguration,
 	serviceAccountName string,
 	env []corev1.EnvVar,
 ) error {
-	// Worker deployment first (same pattern as payments: deploy worker before API)
 	workerTpl := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "transactions-worker",
+			Name: "transaction-plane-worker",
 		},
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
@@ -212,7 +211,7 @@ func createSeparateDeployments(
 					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					ServiceAccountName: serviceAccountName,
 					Containers: []corev1.Container{{
-						Name:           "transactions-worker",
+						Name:           "transaction-plane-worker",
 						Args:           []string{"worker"},
 						Env:            env,
 						Image:          imageConfiguration.GetFullImageName(),
@@ -229,10 +228,9 @@ func createSeparateDeployments(
 		return err
 	}
 
-	// API deployment
 	apiTpl := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "transactions",
+			Name: "transaction-plane",
 		},
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
@@ -240,7 +238,7 @@ func createSeparateDeployments(
 					ImagePullSecrets:   imageConfiguration.PullSecrets,
 					ServiceAccountName: serviceAccountName,
 					Containers: []corev1.Container{{
-						Name:           "transactions",
+						Name:           "transaction-plane",
 						Args:           []string{"serve"},
 						Env:            env,
 						Image:          imageConfiguration.GetFullImageName(),
