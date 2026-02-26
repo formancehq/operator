@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
+	"github.com/iancoleman/strcase"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -448,7 +448,7 @@ func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 					if err != nil {
 						panic(err)
 					}
-					kind := strings.ToLower(kinds[0].Kind)
+					kind := strcase.ToKebab(kinds[0].Kind)
 					if oldObject.Spec[kind] == newObject.Spec[kind] {
 						return
 					}

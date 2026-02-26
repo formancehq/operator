@@ -1,8 +1,7 @@
 package core
 
 import (
-	"strings"
-
+	"github.com/iancoleman/strcase"
 	"golang.org/x/mod/semver"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,7 +29,7 @@ func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) 
 			if err != nil {
 				return "", err
 			}
-			kind := strings.ToLower(kinds[0].Kind)
+			kind := strcase.ToKebab(kinds[0].Kind)
 
 			version, ok := versions.Spec[kind]
 			if ok && version != "" {
