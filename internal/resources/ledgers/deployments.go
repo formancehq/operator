@@ -194,6 +194,18 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		Install(ctx)
 }
 
+type asyncBlockHasherConfiguration struct {
+	MaxBlockSize string `json:"max-block-size,omitempty"`
+	Schedule     string `json:"schedule,omitempty"`
+}
+
+type pipelinesConfiguration struct {
+	PullInterval    string `json:"pull-interval,omitempty"`
+	PushRetryPeriod string `json:"push-retry-period,omitempty"`
+	SyncPeriod      string `json:"sync-period,omitempty"`
+	LogsPageSize    string `json:"logs-page-size,omitempty"`
+}
+
 func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
 	container := corev1.Container{
 		Name: "ledger-worker",
@@ -203,6 +215,36 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 	err := setCommonContainerConfiguration(ctx, stack, ledger, imageConfiguration, database, &container)
 	if err != nil {
 		return err
+	}
+
+	// Async block hasher settings
+	asyncBlockHasher, err := settings.GetAs[asyncBlockHasherConfiguration](ctx, stack.Name, "ledger", "worker", "async-block-hasher")
+	if err != nil {
+		return err
+	}
+	if asyncBlockHasher.MaxBlockSize != "" {
+		container.Env = append(container.Env, core.Env("WORKER_ASYNC_BLOCK_HASHER_MAX_BLOCK_SIZE", asyncBlockHasher.MaxBlockSize))
+	}
+	if asyncBlockHasher.Schedule != "" {
+		container.Env = append(container.Env, core.Env("WORKER_ASYNC_BLOCK_HASHER_SCHEDULE", asyncBlockHasher.Schedule))
+	}
+
+	// Pipelines settings
+	pipelines, err := settings.GetAs[pipelinesConfiguration](ctx, stack.Name, "ledger", "worker", "pipelines")
+	if err != nil {
+		return err
+	}
+	if pipelines.PullInterval != "" {
+		container.Env = append(container.Env, core.Env("WORKER_PIPELINES_PULL_INTERVAL", pipelines.PullInterval))
+	}
+	if pipelines.PushRetryPeriod != "" {
+		container.Env = append(container.Env, core.Env("WORKER_PIPELINES_PUSH_RETRY_PERIOD", pipelines.PushRetryPeriod))
+	}
+	if pipelines.SyncPeriod != "" {
+		container.Env = append(container.Env, core.Env("WORKER_PIPELINES_SYNC_PERIOD", pipelines.SyncPeriod))
+	}
+	if pipelines.LogsPageSize != "" {
+		container.Env = append(container.Env, core.Env("WORKER_PIPELINES_LOGS_PAGE_SIZE", pipelines.LogsPageSize))
 	}
 
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
