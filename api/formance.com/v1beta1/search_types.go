@@ -52,7 +52,7 @@ type Search struct {
 }
 
 func (in *Search) IsEE() bool {
-	return false
+	return true
 }
 
 func (in *Search) SetReady(b bool) {

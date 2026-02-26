@@ -77,6 +77,7 @@ type AuthStatus struct {
 // +kubebuilder:printcolumn:name="Info",type=string,JSONPath=".status.info",description="Info"
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=".spec.version",description="Version"
 // +kubebuilder:metadata:labels=formance.com/kind=module
+// +kubebuilder:metadata:labels=formance.com/is-ee=true
 type Auth struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -86,7 +87,7 @@ type Auth struct {
 }
 
 func (in *Auth) IsEE() bool {
-	return false
+	return true
 }
 
 func (in *Auth) SetReady(b bool) {

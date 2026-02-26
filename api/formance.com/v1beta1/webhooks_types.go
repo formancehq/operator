@@ -50,7 +50,7 @@ type Webhooks struct {
 }
 
 func (in *Webhooks) IsEE() bool {
-	return false
+	return true
 }
 
 func (in *Webhooks) SetReady(b bool) {
