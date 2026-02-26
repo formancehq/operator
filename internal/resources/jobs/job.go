@@ -3,8 +3,8 @@ package jobs
 import (
 	"fmt"
 	"maps"
-	"strings"
 
+	"github.com/iancoleman/strcase"
 	"github.com/pkg/errors"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
@@ -58,7 +58,7 @@ func WithEnvVars(envVars ...v1.EnvVar) HandleJobOption {
 
 func withRunAs(ctx core.Context, owner v1beta1.Dependent) HandleJobOption {
 	return Mutator(func(job *batchv1.Job) error {
-		kind := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+		kind := strcase.ToKebab(owner.GetObjectKind().GroupVersionKind().Kind)
 		if kind == "" {
 			return errors.New("owner has no kind")
 		}
@@ -114,7 +114,7 @@ var defaultOptions = []HandleJobOption{
 
 func withSettingAnnotations(ctx core.Context, owner v1beta1.Dependent) HandleJobOption {
 	return Mutator(func(t *batchv1.Job) error {
-		kind := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+		kind := strcase.ToKebab(owner.GetObjectKind().GroupVersionKind().Kind)
 		if kind == "" {
 			return errors.New("owner has no kind")
 		}

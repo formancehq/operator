@@ -1,8 +1,7 @@
 package databases
 
 import (
-	"strings"
-
+	"github.com/iancoleman/strcase"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,7 +24,7 @@ func Create(ctx core.Context, stack *v1beta1.Stack, owner interface {
 		owner.GetConditions().AppendOrReplace(condition, v1beta1.ConditionTypeMatch("DatabaseReady"))
 	}()
 
-	serviceName := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+	serviceName := strcase.ToKebab(owner.GetObjectKind().GroupVersionKind().Kind)
 	database, _, err := core.CreateOrUpdate[*v1beta1.Database](ctx, types.NamespacedName{
 		Name: core.GetObjectName(stack.Name, serviceName),
 	},

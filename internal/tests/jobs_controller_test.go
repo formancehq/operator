@@ -3,7 +3,8 @@ package tests_test
 import (
 	"fmt"
 	"math/rand/v2"
-	"strings"
+
+	"github.com/iancoleman/strcase"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -107,14 +108,14 @@ var _ = Describe("Job", func() {
 				ObjectMeta: RandObjectMeta(),
 				Spec: v1beta1.SettingsSpec{
 					Stacks: []string{stack.Name},
-					Key:    fmt.Sprintf(`jobs.%s.containers.%s.run-as`, strings.ToLower(module.Kind), job.Spec.Template.Spec.Containers[0].Name),
+					Key:    fmt.Sprintf(`jobs.%s.containers.%s.run-as`, strcase.ToKebab(module.Kind), job.Spec.Template.Spec.Containers[0].Name),
 					Value:  runAS.String(),
 				},
 			}, v1beta1.Settings{
 				ObjectMeta: RandObjectMeta(),
 				Spec: v1beta1.SettingsSpec{
 					Stacks: []string{stack.Name},
-					Key:    fmt.Sprintf(`jobs.%s.init-containers.%s.run-as`, strings.ToLower(module.Kind), job.Spec.Template.Spec.InitContainers[0].Name),
+					Key:    fmt.Sprintf(`jobs.%s.init-containers.%s.run-as`, strcase.ToKebab(module.Kind), job.Spec.Template.Spec.InitContainers[0].Name),
 					Value:  runAS.String(),
 				},
 			},
