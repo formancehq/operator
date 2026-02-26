@@ -8,6 +8,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
   labels:
+    formance.com/is-ee: "true"
     formance.com/kind: module
   name: auths.formance.com
 spec:

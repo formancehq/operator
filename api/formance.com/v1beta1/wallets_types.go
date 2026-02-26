@@ -51,7 +51,7 @@ type Wallets struct {
 }
 
 func (in *Wallets) IsEE() bool {
-	return false
+	return true
 }
 
 func (in *Wallets) SetReady(b bool) {

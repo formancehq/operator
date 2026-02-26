@@ -50,7 +50,12 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 		return NewPendingError().WithMessage("database not ready")
 	}
 
-	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "payments", version)
+	imageName := "payments"
+	if ctx.GetPlatform().LicenceSecret != "" &&
+		(!semver.IsValid(version) || semver.Compare(version, "v3.2.0-beta.0") >= 0) {
+		imageName = "payments-ee"
+	}
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, imageName, version)
 	if err != nil {
 		return err
 	}

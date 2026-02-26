@@ -55,7 +55,7 @@ type Orchestration struct {
 func (in *Orchestration) isEventPublisher() {}
 
 func (in *Orchestration) IsEE() bool {
-	return false
+	return true
 }
 
 func (in *Orchestration) SetReady(b bool) {
