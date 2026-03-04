@@ -59,9 +59,19 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 		ret = append(ret, core.Env("POSTGRES_AWS_ENABLE_IAM", "true"))
 	}
 
-	f := "%s/%s"
+	params := make(url.Values)
+	for k, v := range database.Status.URI.Query() {
+		params[k] = v
+	}
+	delete(params, "disableSSLMode")
+	delete(params, "secret")
 	if settings.IsTrue(database.Status.URI.Query().Get("disableSSLMode")) {
-		f += "?sslmode=disable"
+		params.Set("sslmode", "disable")
+	}
+
+	f := "%s/%s"
+	if encoded := params.Encode(); encoded != "" {
+		f += "?" + encoded
 	}
 	ret = append(ret,
 		core.Env("POSTGRES_URI", core.ComputeEnvVar(f,

@@ -91,6 +91,16 @@ Query params :
 | secret         | string |         | Specify a secret where credentials are defined |
 | disableSSLMode | bool   | false   | Disable SSL on Postgres connection             |
 
+In addition to the parameters above, any extra query parameters included in the URI are passed through to the final `POSTGRES_URI` environment variable. This is useful for managed PostgreSQL providers (e.g. Google Cloud SQL, Azure Database) that require additional connection parameters.
+
+For example:
+
+```
+postgresql://user:pass@host:5432?sslmode=require&tcpKeepAlive=true
+```
+
+The `secret` and `disableSSLMode` parameters are consumed by the operator and will not appear in the resulting connection string. When `disableSSLMode=true` is set, it overrides any `sslmode` parameter with `sslmode=disable`.
+
 ### ElasticSearch URI format
 
 Scheme: elasticsearch

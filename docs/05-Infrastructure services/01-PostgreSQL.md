@@ -53,7 +53,27 @@ spec:
   value: postgresql://formance:formance@postgresql-payments.formance-system.svc:5432?disableSSLMode=true
 ```
 
-### Option 3: Use PostgreSQL on AWS RDS with an IAM role
+### Option 3: Use a managed PostgreSQL with custom connection parameters
+
+Any additional query parameters in the URI are passed through to the `POSTGRES_URI` connection string. This is useful for managed PostgreSQL providers (Google Cloud SQL, Azure Database, etc.) that require specific connection options.
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: formance-dev-postgres-uri
+spec:
+  key: postgres.*.uri
+  stacks:
+    - 'formance-dev'
+  value: postgresql://formance:formance@postgresql.formance-system.svc:5432?sslmode=require&tcpKeepAlive=true
+```
+
+:::info
+The `secret` and `disableSSLMode` parameters are consumed internally by the operator and will not appear in the final connection string. All other parameters are preserved as-is.
+:::
+
+### Option 4: Use PostgreSQL on AWS RDS with an IAM role
 
 In this example, you'll use an AWS IAM role to connect to the database. The `formance-dev` stack will use this configuration.
 
