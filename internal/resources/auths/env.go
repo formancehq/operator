@@ -31,6 +31,14 @@ func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth
 		Env("AUTH_ISSUER", url),
 	)
 
+	issuers, err := settings.GetStringOrEmpty(ctx, stack.Name, "auth", "issuers")
+	if err != nil {
+		return nil, err
+	}
+	if issuers != "" {
+		ret = append(ret, Env("AUTH_ISSUERS", issuers))
+	}
+
 	if auth != nil {
 		if auth.ReadKeySetMaxRetries != 0 {
 			ret = append(ret,

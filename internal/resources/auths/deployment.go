@@ -66,6 +66,14 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 	}
 	env = append(env, Env("BASE_URL", authUrl))
 
+	issuers, err := settings.GetStringOrEmpty(ctx, stack.Name, "auth", "issuers")
+	if err != nil {
+		return err
+	}
+	if issuers != "" {
+		env = append(env, Env("AUTH_ISSUERS", issuers))
+	}
+
 	if auth.Spec.SigningKey != "" && auth.Spec.SigningKeyFromSecret != nil {
 		return fmt.Errorf("cannot specify signing key using both .spec.signingKey and .spec.signingKeyFromSecret fields")
 	}
