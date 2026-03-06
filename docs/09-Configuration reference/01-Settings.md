@@ -95,7 +95,7 @@ In addition to the parameters above, any extra query parameters included in the 
 
 For example:
 
-```
+```text
 postgresql://user:pass@host:5432?sslmode=require&tcpKeepAlive=true
 ```
 
