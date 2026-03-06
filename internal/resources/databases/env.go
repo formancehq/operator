@@ -60,8 +60,8 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 	}
 
 	f := "%s/%s"
-	if settings.IsTrue(database.Status.URI.Query().Get("disableSSLMode")) {
-		f += "?sslmode=disable"
+	if encoded := BuildPostgresQueryString(database.Status.URI.Query()); encoded != "" {
+		f += "?" + encoded
 	}
 	ret = append(ret,
 		core.Env("POSTGRES_URI", core.ComputeEnvVar(f,
@@ -104,6 +104,21 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 	}
 
 	return ret, nil
+}
+
+// BuildPostgresQueryString takes the raw URI query params, filters internal
+// params (secret, disableSSLMode), and returns the final encoded query string.
+func BuildPostgresQueryString(rawQuery url.Values) string {
+	params := make(url.Values)
+	for k, v := range rawQuery {
+		params[k] = v
+	}
+	delete(params, "disableSSLMode")
+	delete(params, "secret")
+	if settings.IsTrue(rawQuery.Get("disableSSLMode")) {
+		params.Set("sslmode", "disable")
+	}
+	return params.Encode()
 }
 
 type connectionPoolConfiguration struct {
