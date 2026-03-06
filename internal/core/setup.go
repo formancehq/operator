@@ -64,11 +64,11 @@ func indexStackDependentsObjects(mgr ctrl.Manager) error {
 		us.SetGroupVersionKind(kinds[0])
 		if err := mgr.GetFieldIndexer().
 			IndexField(context.Background(), us, "stack", func(object client.Object) []string {
-				stack := object.(*unstructured.Unstructured).Object["spec"].(map[string]any)["stack"]
-				if stack == nil {
+				stackName, ok := GetStackNameFromUnstructured(object.(*unstructured.Unstructured))
+				if !ok {
 					return []string{}
 				}
-				return []string{stack.(string)}
+				return []string{stackName}
 			}); err != nil {
 			mgr.GetLogger().Error(err, "indexing stack field", "type", &unstructured.Unstructured{})
 			return err
@@ -95,14 +95,18 @@ func indexSettings(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().
 		IndexField(context.Background(), us, "stack", func(object client.Object) []string {
 			u := object.(*unstructured.Unstructured)
-			spec := u.UnstructuredContent()["spec"].(map[string]any)
-			if stacks, ok := spec["stacks"]; !ok {
+			spec, ok := GetSpecFromUnstructured(u)
+			if !ok {
 				return []string{}
-			} else {
-				return collectionutils.Map(stacks.([]any), func(v any) string {
-					return v.(string)
-				})
 			}
+			stacks, ok := spec["stacks"].([]any)
+			if !ok {
+				return []string{}
+			}
+			return collectionutils.Map(stacks, func(v any) string {
+				s, _ := v.(string)
+				return s
+			})
 		}); err != nil {
 		mgr.GetLogger().Error(err, "indexing stack field", "type", &unstructured.Unstructured{})
 		return err
