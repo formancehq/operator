@@ -182,3 +182,19 @@ func HasControllerReference(ctx Context, owner client.Object, object client.Obje
 func HasOwnerReference(ctx Context, owner client.Object, object client.Object) (bool, error) {
 	return hasOwnerReference(ctx, owner, object, false, false)
 }
+
+// GetStackNameFromUnstructured safely extracts .spec.stack from an unstructured object.
+func GetStackNameFromUnstructured(u *unstructured.Unstructured) (string, bool) {
+	spec, ok := u.Object["spec"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	stack, ok := spec["stack"].(string)
+	return stack, ok
+}
+
+// GetSpecFromUnstructured safely extracts .spec as map[string]any.
+func GetSpecFromUnstructured(u *unstructured.Unstructured) (map[string]any, bool) {
+	spec, ok := u.Object["spec"].(map[string]any)
+	return spec, ok
+}

@@ -293,7 +293,8 @@ func deleteModules(ctx Context, stack *v1beta1.Stack, logger logr.Logger) error 
 		}
 
 		items := collectionutils.Filter(l.Items, func(u unstructured.Unstructured) bool {
-			return u.Object["spec"].(map[string]any)["stack"].(string) == stack.Name
+			stackName, ok := GetStackNameFromUnstructured(&u)
+			return ok && stackName == stack.Name
 		})
 
 		for _, item := range items {
@@ -339,7 +340,8 @@ func deleteResources(ctx Context, stack *v1beta1.Stack, logger logr.Logger) erro
 		}
 
 		items := collectionutils.Filter(l.Items, func(u unstructured.Unstructured) bool {
-			return u.Object["spec"].(map[string]any)["stack"].(string) == stack.Name
+			stackName, ok := GetStackNameFromUnstructured(&u)
+			return ok && stackName == stack.Name
 		})
 
 		for _, item := range items {
@@ -387,9 +389,13 @@ func init() {
 						u.SetGroupVersionKind(gvk)
 
 						b.Watches(u, handler.EnqueueRequestsFromMapFunc(func(watchContext context.Context, object client.Object) []reconcile.Request {
+							stackName, ok := GetStackNameFromUnstructured(object.(*unstructured.Unstructured))
+							if !ok {
+								return nil
+							}
 							return []reconcile.Request{{
 								NamespacedName: types.NamespacedName{
-									Name: object.(*unstructured.Unstructured).Object["spec"].(map[string]any)["stack"].(string),
+									Name: stackName,
 								},
 							}}
 						}))
@@ -402,9 +408,13 @@ func init() {
 						u.SetGroupVersionKind(gvk)
 
 						b.Watches(u, handler.EnqueueRequestsFromMapFunc(func(watchContext context.Context, object client.Object) []reconcile.Request {
+							stackName, ok := GetStackNameFromUnstructured(object.(*unstructured.Unstructured))
+							if !ok {
+								return nil
+							}
 							return []reconcile.Request{{
 								NamespacedName: types.NamespacedName{
-									Name: object.(*unstructured.Unstructured).Object["spec"].(map[string]any)["stack"].(string),
+									Name: stackName,
 								},
 							}}
 						}))
