@@ -160,6 +160,11 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 		stackName = dep.GetStack()
 	}
 
+	ownerGVK, err := apiutil.GVKForObject(owner, ctx.GetScheme())
+	if err != nil {
+		return err
+	}
+
 	for object := range owns {
 		if _, ok := object.(v1beta1.Resource); ok {
 			// Resources must not be deleted
@@ -194,7 +199,7 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 			if hasControllerReference {
 				logger.Info(fmt.Sprintf("Deleting owned object %s %s/%s (owner: %s/%s)",
 					gvk.Kind, item.GetNamespace(), item.GetName(),
-					owner.GetObjectKind().GroupVersionKind().Kind, owner.GetName()))
+					ownerGVK.Kind, owner.GetName()))
 				if err := ctx.GetClient().Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
 					return err
 				}
