@@ -20,7 +20,7 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	configFlags := genericclioptions.NewConfigFlags(true)
-	configFlags.AddFlags(cmd.Flags())
+	configFlags.AddFlags(cmd.PersistentFlags())
 	cmd.AddCommand(
 		NewLockCommand(configFlags),
 		NewUnlockCommand(configFlags),
