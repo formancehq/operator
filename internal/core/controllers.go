@@ -1,6 +1,8 @@
 package core
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -152,6 +154,17 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 }
 
 func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[client.Object][]builder.OwnsOption) error {
+	logger := log.FromContext(ctx)
+	stackName := ""
+	if dep, ok := owner.(v1beta1.Dependent); ok {
+		stackName = dep.GetStack()
+	}
+
+	ownerGVK, err := apiutil.GVKForObject(owner, ctx.GetScheme())
+	if err != nil {
+		return err
+	}
+
 	for object := range owns {
 		if _, ok := object.(v1beta1.Resource); ok {
 			// Resources must not be deleted
@@ -165,7 +178,16 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 
 		list := &unstructured.UnstructuredList{}
 		list.SetGroupVersionKind(gvk)
-		if err := ctx.GetClient().List(ctx, list); err != nil {
+
+		listOpts := []client.ListOption{}
+		// Scope to the stack namespace for namespace-scoped resources (Deployments,
+		// Services, etc.) to avoid listing objects cluster-wide.
+		// Cluster-scoped Formance CRDs (group "formance.com") are not filtered by
+		// namespace since they don't live in one.
+		if stackName != "" && gvk.Group != "formance.com" {
+			listOpts = append(listOpts, client.InNamespace(stackName))
+		}
+		if err := ctx.GetClient().List(ctx, list, listOpts...); err != nil {
 			return err
 		}
 
@@ -175,7 +197,10 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 				return err
 			}
 			if hasControllerReference {
-				if err := ctx.GetClient().Delete(ctx, &item); err != nil {
+				logger.Info(fmt.Sprintf("Deleting owned object %s %s/%s (owner: %s/%s)",
+					gvk.Kind, item.GetNamespace(), item.GetName(),
+					ownerGVK.Kind, owner.GetName()))
+				if err := ctx.GetClient().Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
 					return err
 				}
 			}

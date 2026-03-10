@@ -150,6 +150,7 @@ func deleteDeployment(ctx Context, stack *v1beta1.Stack, name string) error {
 		return NewPendingError().WithMessage("waiting for deployment %s to be deleted", name)
 	}
 
+	LogDeletion(ctx, deployment, "transactionplane.deleteDeployment")
 	if err := ctx.GetClient().Delete(ctx, deployment); err != nil {
 		return err
 	}

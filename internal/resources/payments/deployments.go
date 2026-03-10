@@ -202,6 +202,7 @@ func deleteDeployment(ctx core.Context, stack *v1beta1.Stack, name string) error
 	}
 
 	// Deployment exists and is not being deleted, delete it now
+	core.LogDeletion(ctx, deployment, "payments.deleteDeployment")
 	if err := ctx.GetClient().Delete(ctx, deployment); err != nil {
 		return err
 	}
