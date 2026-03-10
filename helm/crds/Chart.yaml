@@ -4,6 +4,7 @@ description: Formance Operator CRDS Helm Chart
 home: "https://formance.com"
 sources:
 - "https://github.com/formancehq/operator"
+- "https://github.com/formancehq/operator/tree/main/helm/crds"
 maintainers:
 - name: "Formance Team"
   email: "support@formance.com"
@@ -12,7 +13,7 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: "3.8.0"
+version: "3.8.1"
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
