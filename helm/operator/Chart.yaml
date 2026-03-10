@@ -1,9 +1,8 @@
 apiVersion: v2
 name: operator
 description: Formance Operator Helm Chart
-home: "https://formance.com"
+home: "https://github.com/formancehq/operator"
 sources:
-- "https://github.com/formancehq/operator"
 - "https://github.com/formancehq/operator/tree/main/helm/operator"
 maintainers:
 - name: "Formance Team"

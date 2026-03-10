@@ -1,9 +1,8 @@
 apiVersion: v2
 name: operator-crds
 description: Formance Operator CRDS Helm Chart
-home: "https://formance.com"
+home: "https://github.com/formancehq/operator"
 sources:
-- "https://github.com/formancehq/operator"
 - "https://github.com/formancehq/operator/tree/main/helm/crds"
 maintainers:
 - name: "Formance Team"
