@@ -5,19 +5,23 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/formancehq/go-libs/v2/pointer"
 )
@@ -67,7 +71,7 @@ func CopyDir(f fs.FS, root, path string, ret *map[string]string) {
 
 type ObjectMutator[T any] func(t T) error
 
-func WithController[T client.Object](scheme *runtime.Scheme, owner client.Object) ObjectMutator[T] {
+func WithController[T client.Object](scheme *k8sruntime.Scheme, owner client.Object) ObjectMutator[T] {
 	return func(t T) error {
 		if !metav1.IsControlledBy(t, owner) {
 			if err := controllerutil.SetControllerReference(owner, t, scheme); err != nil {
@@ -78,7 +82,7 @@ func WithController[T client.Object](scheme *runtime.Scheme, owner client.Object
 	}
 }
 
-func WithOwner[T client.Object](scheme *runtime.Scheme, owner client.Object) ObjectMutator[T] {
+func WithOwner[T client.Object](scheme *k8sruntime.Scheme, owner client.Object) ObjectMutator[T] {
 	return func(t T) error {
 		if err := controllerutil.SetOwnerReference(owner, t, scheme); err != nil {
 			panic(err)
@@ -145,7 +149,42 @@ func DeleteIfExists[T client.Object](ctx Context, name types.NamespacedName) err
 		}
 		return err
 	}
+	LogDeletion(ctx, t, "DeleteIfExists")
 	return ctx.GetClient().Delete(ctx, t)
+}
+
+func LogDeletion(ctx Context, obj client.Object, caller string) {
+	logger := log.FromContext(ctx)
+	gvk, _ := apiutil.GVKForObject(obj, ctx.GetScheme())
+	// Capture caller stack for debugging unexpected deletions
+	stack := make([]byte, 4096)
+	stack = stack[:runtime.Stack(stack, false)]
+	callerFrames := formatCallerFrames(stack)
+	logger.Info(fmt.Sprintf("DELETE %s %s/%s (caller: %s)\n%s",
+		gvk.Kind, obj.GetNamespace(), obj.GetName(), caller, callerFrames))
+}
+
+func formatCallerFrames(stack []byte) string {
+	lines := strings.Split(string(stack), "\n")
+	// Skip first 2 lines (goroutine header) and the LogDeletion frames,
+	// keep up to 10 relevant frames
+	var result []string
+	skip := true
+	for _, line := range lines {
+		if skip && strings.Contains(line, "LogDeletion") {
+			continue
+		}
+		if skip && !strings.Contains(line, "LogDeletion") && !strings.HasPrefix(line, "goroutine") {
+			skip = false
+		}
+		if !skip {
+			result = append(result, line)
+			if len(result) >= 20 {
+				break
+			}
+		}
+	}
+	return strings.Join(result, "\n")
 }
 
 func hasOwnerReference(ctx Context, owner client.Object, object client.Object, controller, blockOwnerDeletion bool) (bool, error) {

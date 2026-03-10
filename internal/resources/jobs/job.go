@@ -166,6 +166,7 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 
 	if err == nil { // Job found
 		if !equality.Semantic.DeepDerivative(container, job.Spec.Template.Spec.Containers[0]) {
+			core.LogDeletion(ctx, job, "jobs.Handle(container changed)")
 			if err := ctx.GetClient().Delete(ctx, job, &client.DeleteOptions{
 				GracePeriodSeconds: pointer.For(int64(0)),
 				PropagationPolicy:  pointer.For(metav1.DeletePropagationForeground),
