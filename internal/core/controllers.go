@@ -175,7 +175,11 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 		list.SetGroupVersionKind(gvk)
 
 		listOpts := []client.ListOption{}
-		if stackName != "" {
+		// Scope to the stack namespace for namespace-scoped resources (Deployments,
+		// Services, etc.) to avoid listing objects cluster-wide.
+		// Cluster-scoped Formance CRDs (group "formance.com") are not filtered by
+		// namespace since they don't live in one.
+		if stackName != "" && gvk.Group != "formance.com" {
 			listOpts = append(listOpts, client.InNamespace(stackName))
 		}
 		if err := ctx.GetClient().List(ctx, list, listOpts...); err != nil {
