@@ -17,14 +17,17 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -44,6 +47,38 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
+
+func validateLicenceFromSecret(reader client.Reader, secretName string) (core.LicenceState, string) {
+	secret := &corev1.Secret{}
+	if err := reader.Get(context.Background(), types.NamespacedName{
+		Name:      secretName,
+		Namespace: "default",
+	}, secret); err != nil {
+		// Try all namespaces by looking for the secret with the formance label
+		secretList := &corev1.SecretList{}
+		if listErr := reader.List(context.Background(), secretList); listErr != nil {
+			return core.LicenceStateInvalid, fmt.Sprintf("failed to list secrets: %s", listErr)
+		}
+		found := false
+		for _, s := range secretList.Items {
+			if s.Name == secretName {
+				secret = &s
+				found = true
+				break
+			}
+		}
+		if !found {
+			return core.LicenceStateInvalid, fmt.Sprintf("licence secret %q not found", secretName)
+		}
+	}
+
+	token, ok := secret.Data["token"]
+	if !ok {
+		return core.LicenceStateInvalid, "licence secret missing 'token' key"
+	}
+
+	return core.ValidateLicenceToken(string(token))
+}
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -122,8 +157,13 @@ func main() {
 
 	if licenceSecret != "" {
 		setupLog.Info("licence management enabled", "secret", licenceSecret)
+		licenceState, licenceMessage := validateLicenceFromSecret(mgr.GetAPIReader(), licenceSecret)
+		platform.LicenceState = licenceState
+		platform.LicenceMessage = licenceMessage
+		setupLog.Info("licence validation result", "state", licenceState.String(), "message", licenceMessage)
 	} else {
 		setupLog.Info("licence management disabled")
+		platform.LicenceState = core.LicenceStateAbsent
 	}
 
 	if err := core.Setup(mgr, platform); err != nil {

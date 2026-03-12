@@ -186,6 +186,32 @@ func namespaceAnnotations(ctx Context, stack string) func(ns *corev1.Namespace) 
 	}
 }
 
+func setLicenceCondition(ctx Context, stack *v1beta1.Stack) {
+	platform := ctx.GetPlatform()
+	if platform.LicenceSecret == "" {
+		stack.GetConditions().Delete(v1beta1.ConditionTypeMatch("LicenceValid"))
+		return
+	}
+
+	condition := v1beta1.NewCondition("LicenceValid", stack.Generation)
+	switch platform.LicenceState {
+	case LicenceStateValid:
+		condition.SetStatus(metav1.ConditionTrue).SetReason("Valid").SetMessage("Licence is valid")
+	case LicenceStateExpired:
+		condition.SetStatus(metav1.ConditionFalse).SetReason("Expired").SetMessage("Licence token is expired")
+	case LicenceStateInvalid:
+		msg := "Licence token is invalid"
+		if platform.LicenceMessage != "" {
+			msg = platform.LicenceMessage
+		}
+		condition.SetStatus(metav1.ConditionFalse).SetReason("Invalid").SetMessage(msg)
+	default:
+		condition.SetStatus(metav1.ConditionFalse).SetReason("Unknown").SetMessage("Licence state unknown")
+	}
+
+	stack.GetConditions().AppendOrReplace(*condition, v1beta1.ConditionTypeMatch("LicenceValid"))
+}
+
 var errAlreadyExist = errors.New("namespace already exists")
 
 func namespaceCreatedByAgent(ctx Context, stack *v1beta1.Stack) func(ns *corev1.Namespace) error {
@@ -219,6 +245,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 	if err := reconcileNetworkPolicies(ctx, stack); err != nil {
 		return err
 	}
+
+	setLicenceCondition(ctx, stack)
 
 	if err := setModulesCondition(ctx, stack); err != nil {
 		return err
