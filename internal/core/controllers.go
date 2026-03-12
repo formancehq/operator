@@ -133,6 +133,25 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 			if err := removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns); err != nil {
 				return err
 			}
+		} else if t.IsEE() && ctx.GetPlatform().LicenceSecret != "" && ctx.GetPlatform().LicenceState != LicenceStateValid {
+			// EE module with an invalid/expired licence: skip reconciliation but don't delete anything.
+			// Non-EE modules and delete/finalizer flows are unaffected.
+			platform := ctx.GetPlatform()
+			reason := platform.LicenceState.String()
+			message := "Licence is " + reason
+			if platform.LicenceMessage != "" {
+				message = platform.LicenceMessage
+			}
+			t.GetConditions().AppendOrReplace(v1beta1.Condition{
+				Type:               "LicenceValid",
+				Status:             metav1.ConditionFalse,
+				ObservedGeneration: t.GetGeneration(),
+				LastTransitionTime: metav1.Now(),
+				Message:            message,
+				Reason:             reason,
+			}, v1beta1.ConditionTypeMatch("LicenceValid"))
+			log.FromContext(ctx).Info("EE module reconciliation skipped: licence not valid",
+				"module", t.GetName(), "licenceState", reason)
 		} else {
 			err = underlyingController(ctx, stack, reconcilerOptions, t, moduleVersion)
 			if err != nil {

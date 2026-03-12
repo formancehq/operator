@@ -10,4 +10,8 @@ type Platform struct {
 	LicenceSecret string
 	// The operator utils image version
 	UtilsVersion string
+	// Licence validation state (computed from the licence secret JWT)
+	LicenceState LicenceState
+	// Human-readable message about the licence state
+	LicenceMessage string
 }
