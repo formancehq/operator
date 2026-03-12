@@ -4,7 +4,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/formancehq/go-libs/v2/collectionutils"
+	"github.com/formancehq/go-libs/v4/collectionutils"
 
 	"github.com/formancehq/operator/v3/internal/core"
 )

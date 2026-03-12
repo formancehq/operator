@@ -15,7 +15,7 @@ func GetLicenceEnvVars(ctx core.Context, ownerName string, owner v1beta1.Depende
 
 	var resourceReference *v1beta1.ResourceReference
 	var err error
-	if platform.LicenceSecret != "" {
+	if platform.LicenceState == core.LicenceStateValid {
 		resourceReference, err = resourcereferences.Create(ctx, owner, ownerName+"-licence", platform.LicenceSecret, &v1.Secret{})
 		if err != nil {
 			return nil, nil, err

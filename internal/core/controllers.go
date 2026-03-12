@@ -133,6 +133,64 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 			if err := removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns); err != nil {
 				return err
 			}
+		} else if t.IsEE() {
+			platform := ctx.GetPlatform()
+			licenceState := platform.LicenceState
+			licenceMessage := platform.LicenceMessage
+
+			// Re-resolve licence state from Secret if a licence is configured,
+			// so we always have fresh state (not stale from startup).
+			if platform.LicenceSecret != "" {
+				licenceState, licenceMessage = ResolveLicenceState(
+					ctx.GetAPIReader(), platform.LicenceSecret, platform.LicenceNamespace)
+			}
+
+			switch licenceState {
+			case LicenceStateValid:
+				// Licence valid: clear any previous LicenceValid=False condition and proceed
+				t.GetConditions().AppendOrReplace(v1beta1.Condition{
+					Type:               "LicenceValid",
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: t.GetGeneration(),
+					LastTransitionTime: metav1.Now(),
+					Message:            "Licence is valid",
+					Reason:             "Valid",
+				}, v1beta1.ConditionTypeMatch("LicenceValid"))
+
+				err = underlyingController(ctx, stack, reconcilerOptions, t, moduleVersion)
+				if err != nil {
+					return err
+				}
+			case LicenceStateAbsent:
+				// No licence configured: EE modules should not be reconciled
+				t.GetConditions().AppendOrReplace(v1beta1.Condition{
+					Type:               "LicenceValid",
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: t.GetGeneration(),
+					LastTransitionTime: metav1.Now(),
+					Message:            "No licence configured",
+					Reason:             "Absent",
+				}, v1beta1.ConditionTypeMatch("LicenceValid"))
+				log.FromContext(ctx).Info("EE module reconciliation skipped: no licence configured",
+					"module", t.GetName())
+			default:
+				// Expired or Invalid: skip EE reconciliation, set condition
+				reason := licenceState.String()
+				message := "Licence is " + reason
+				if licenceMessage != "" {
+					message = licenceMessage
+				}
+				t.GetConditions().AppendOrReplace(v1beta1.Condition{
+					Type:               "LicenceValid",
+					Status:             metav1.ConditionFalse,
+					ObservedGeneration: t.GetGeneration(),
+					LastTransitionTime: metav1.Now(),
+					Message:            message,
+					Reason:             reason,
+				}, v1beta1.ConditionTypeMatch("LicenceValid"))
+				log.FromContext(ctx).Info("EE module reconciliation skipped: licence not valid",
+					"module", t.GetName(), "licenceState", reason)
+			}
 		} else {
 			err = underlyingController(ctx, stack, reconcilerOptions, t, moduleVersion)
 			if err != nil {

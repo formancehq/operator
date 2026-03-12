@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/formancehq/go-libs/v2/service"
+	"github.com/formancehq/go-libs/v4/service"
 
 	"github.com/formancehq/operator/tools/utils/v3/cmd"
 )

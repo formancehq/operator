@@ -61,6 +61,7 @@ func main() {
 		region               string
 		env                  string
 		licenceSecret        string
+		licenceNamespace     string
 		utilsVersion         string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -71,6 +72,7 @@ func main() {
 	flag.StringVar(&region, "region", "eu-west-1", "The cloud region in use for the operator")
 	flag.StringVar(&env, "env", "staging", "The current environment in use for the operator")
 	flag.StringVar(&licenceSecret, "licence-secret", "", "The licence secret that contains the token and the issuer")
+	flag.StringVar(&licenceNamespace, "licence-namespace", "", "The namespace where the licence secret lives (defaults to operator namespace)")
 	flag.StringVar(&utilsVersion, "utils-version", "latest", "The version of the operator utils image")
 	opts := zap.Options{
 		Development: false,
@@ -113,17 +115,31 @@ func main() {
 		os.Exit(1)
 	}
 
+	if licenceNamespace == "" {
+		licenceNamespace = os.Getenv("POD_NAMESPACE")
+		if licenceNamespace == "" {
+			licenceNamespace = "default"
+		}
+	}
+
 	platform := core.Platform{
-		Region:        region,
-		Environment:   env,
-		LicenceSecret: licenceSecret,
-		UtilsVersion:  utilsVersion,
+		Region:           region,
+		Environment:      env,
+		LicenceSecret:    licenceSecret,
+		LicenceNamespace: licenceNamespace,
+		UtilsVersion:     utilsVersion,
 	}
 
 	if licenceSecret != "" {
-		setupLog.Info("licence management enabled", "secret", licenceSecret)
+		setupLog.Info("licence management enabled", "secret", licenceSecret, "namespace", licenceNamespace)
+		// Initial validation at startup (will be re-resolved on each EE reconciliation)
+		licenceState, licenceMessage := core.ResolveLicenceState(mgr.GetAPIReader(), licenceSecret, licenceNamespace)
+		platform.LicenceState = licenceState
+		platform.LicenceMessage = licenceMessage
+		setupLog.Info("licence validation result", "state", licenceState.String(), "message", licenceMessage)
 	} else {
 		setupLog.Info("licence management disabled")
+		platform.LicenceState = core.LicenceStateAbsent
 	}
 
 	if err := core.Setup(mgr, platform); err != nil {
