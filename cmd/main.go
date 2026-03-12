@@ -17,17 +17,14 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 
-	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -48,38 +45,6 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-func validateLicenceFromSecret(reader client.Reader, secretName string) (core.LicenceState, string) {
-	secret := &corev1.Secret{}
-	if err := reader.Get(context.Background(), types.NamespacedName{
-		Name:      secretName,
-		Namespace: "default",
-	}, secret); err != nil {
-		// Try all namespaces by looking for the secret with the formance label
-		secretList := &corev1.SecretList{}
-		if listErr := reader.List(context.Background(), secretList); listErr != nil {
-			return core.LicenceStateInvalid, fmt.Sprintf("failed to list secrets: %s", listErr)
-		}
-		found := false
-		for _, s := range secretList.Items {
-			if s.Name == secretName {
-				secret = &s
-				found = true
-				break
-			}
-		}
-		if !found {
-			return core.LicenceStateInvalid, fmt.Sprintf("licence secret %q not found", secretName)
-		}
-	}
-
-	token, ok := secret.Data["token"]
-	if !ok {
-		return core.LicenceStateInvalid, "licence secret missing 'token' key"
-	}
-
-	return core.ValidateLicenceToken(string(token))
-}
-
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(formancev1beta1.AddToScheme(scheme))
@@ -96,6 +61,7 @@ func main() {
 		region               string
 		env                  string
 		licenceSecret        string
+		licenceNamespace     string
 		utilsVersion         string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -106,6 +72,7 @@ func main() {
 	flag.StringVar(&region, "region", "eu-west-1", "The cloud region in use for the operator")
 	flag.StringVar(&env, "env", "staging", "The current environment in use for the operator")
 	flag.StringVar(&licenceSecret, "licence-secret", "", "The licence secret that contains the token and the issuer")
+	flag.StringVar(&licenceNamespace, "licence-namespace", "", "The namespace where the licence secret lives (defaults to operator namespace)")
 	flag.StringVar(&utilsVersion, "utils-version", "latest", "The version of the operator utils image")
 	opts := zap.Options{
 		Development: false,
@@ -148,16 +115,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	if licenceNamespace == "" {
+		licenceNamespace = os.Getenv("POD_NAMESPACE")
+		if licenceNamespace == "" {
+			licenceNamespace = "default"
+		}
+	}
+
 	platform := core.Platform{
-		Region:        region,
-		Environment:   env,
-		LicenceSecret: licenceSecret,
-		UtilsVersion:  utilsVersion,
+		Region:           region,
+		Environment:      env,
+		LicenceSecret:    licenceSecret,
+		LicenceNamespace: licenceNamespace,
+		UtilsVersion:     utilsVersion,
 	}
 
 	if licenceSecret != "" {
-		setupLog.Info("licence management enabled", "secret", licenceSecret)
-		licenceState, licenceMessage := validateLicenceFromSecret(mgr.GetAPIReader(), licenceSecret)
+		setupLog.Info("licence management enabled", "secret", licenceSecret, "namespace", licenceNamespace)
+		// Initial validation at startup (will be re-resolved on each EE reconciliation)
+		licenceState, licenceMessage := core.ResolveLicenceState(mgr.GetAPIReader(), licenceSecret, licenceNamespace)
 		platform.LicenceState = licenceState
 		platform.LicenceMessage = licenceMessage
 		setupLog.Info("licence validation result", "state", licenceState.String(), "message", licenceMessage)

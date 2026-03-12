@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -8,6 +9,10 @@ import (
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // LicenceState represents the current state of the licence in the operator.
@@ -111,6 +116,45 @@ func ValidateLicenceToken(token string) (LicenceState, string) {
 	return LicenceStateValid, ""
 }
 
+// SetFormancePublicKeyForTest overrides the embedded public key for testing and restores it on cleanup.
+func SetFormancePublicKeyForTest(t interface {
+	Helper()
+	Cleanup(func())
+}, key string) {
+	t.Helper()
+	original := formancePublicKey
+	formancePublicKey = key
+	t.Cleanup(func() { formancePublicKey = original })
+}
+
 func isTokenExpired(err error) bool {
 	return errors.Is(err, jwt.ErrTokenExpired)
+}
+
+// ResolveLicenceState reads the licence Secret by name from the operator's namespace,
+// extracts the JWT token, and validates it. This is called during each EE reconciliation
+// to ensure the licence state is always fresh (not stale from startup).
+func ResolveLicenceState(reader client.Reader, secretName string, operatorNamespace string) (LicenceState, string) {
+	if secretName == "" {
+		return LicenceStateAbsent, ""
+	}
+
+	secret := &corev1.Secret{}
+	err := reader.Get(context.Background(), types.NamespacedName{
+		Name:      secretName,
+		Namespace: operatorNamespace,
+	}, secret)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return LicenceStateInvalid, fmt.Sprintf("licence secret %q not found in namespace %q", secretName, operatorNamespace)
+		}
+		return LicenceStateInvalid, fmt.Sprintf("failed to read licence secret %q: %s", secretName, err)
+	}
+
+	token, ok := secret.Data["token"]
+	if !ok || len(token) == 0 {
+		return LicenceStateInvalid, "licence secret missing non-empty 'token' key"
+	}
+
+	return ValidateLicenceToken(string(token))
 }
