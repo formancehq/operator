@@ -193,16 +193,20 @@ func setLicenceCondition(ctx Context, stack *v1beta1.Stack) {
 		return
 	}
 
+	// Re-resolve from Secret for fresh state
+	licenceState, licenceMessage := ResolveLicenceState(
+		ctx.GetAPIReader(), platform.LicenceSecret, platform.LicenceNamespace)
+
 	condition := v1beta1.NewCondition("LicenceValid", stack.Generation)
-	switch platform.LicenceState {
+	switch licenceState {
 	case LicenceStateValid:
 		condition.SetStatus(metav1.ConditionTrue).SetReason("Valid").SetMessage("Licence is valid")
 	case LicenceStateExpired:
 		condition.SetStatus(metav1.ConditionFalse).SetReason("Expired").SetMessage("Licence token is expired")
 	case LicenceStateInvalid:
 		msg := "Licence token is invalid"
-		if platform.LicenceMessage != "" {
-			msg = platform.LicenceMessage
+		if licenceMessage != "" {
+			msg = licenceMessage
 		}
 		condition.SetStatus(metav1.ConditionFalse).SetReason("Invalid").SetMessage(msg)
 	default:

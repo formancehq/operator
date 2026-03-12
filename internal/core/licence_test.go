@@ -30,9 +30,7 @@ func generateTestRSAKeyPair(t *testing.T) (*rsa.PrivateKey, string) {
 
 func setTestKey(t *testing.T, key string) {
 	t.Helper()
-	original := formancePublicKey
-	formancePublicKey = key
-	t.Cleanup(func() { formancePublicKey = original })
+	SetFormancePublicKeyForTest(t, key)
 }
 
 func createToken(t *testing.T, claims jwt.MapClaims, key *rsa.PrivateKey) string {
