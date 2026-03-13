@@ -70,7 +70,7 @@ spec:
 ```
 
 :::info
-The `secret` and `disableSSLMode` parameters are consumed internally by the operator and will not appear in the final connection string. All other parameters are preserved as-is.
+The `secret`, `disableSSLMode`, and `awsRole` parameters are consumed internally by the operator and will not appear in the final connection string. All other parameters are preserved as-is.
 :::
 
 ### Option 4: Use PostgreSQL on AWS RDS with an IAM role

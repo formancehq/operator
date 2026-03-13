@@ -52,6 +52,11 @@ func TestBuildPostgresQueryString(t *testing.T) {
 			uri:           "postgresql://user:pass@host:5432?disableSSLMode=true&sslmode=require",
 			expectedQuery: "sslmode=disable",
 		},
+		{
+			name:          "awsRole is filtered out",
+			uri:           "postgresql://user:pass@host:5432?awsRole=my-role&sslmode=require",
+			expectedQuery: "sslmode=require",
+		},
 	}
 
 	for _, tc := range testCases {
