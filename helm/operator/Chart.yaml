@@ -1,9 +1,10 @@
 apiVersion: v2
 name: operator
 description: Formance Operator Helm Chart
-home: "https://github.com/formancehq/operator"
+home: "https://formance.com"
 sources:
 - "https://github.com/formancehq/operator/tree/main/helm/operator"
+- "https://github.com/formancehq/operator"
 maintainers:
 - name: "Formance Team"
   email: "support@formance.com"
@@ -17,7 +18,7 @@ version: "3.8.1"
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "v3.8.1"
+appVersion: "v3.8.0"
 dependencies:
 - name: operator-crds
   version: "3.X"
