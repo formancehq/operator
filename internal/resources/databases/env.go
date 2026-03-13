@@ -115,6 +115,7 @@ func BuildPostgresQueryString(rawQuery url.Values) string {
 	}
 	delete(params, "disableSSLMode")
 	delete(params, "secret")
+	delete(params, "awsRole")
 	if settings.IsTrue(rawQuery.Get("disableSSLMode")) {
 		params.Set("sslmode", "disable")
 	}
