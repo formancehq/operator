@@ -278,6 +278,7 @@ var _ = Describe("StackController", func() {
 		})
 		When("locked", func() {
 			BeforeEach(func() {
+				stack.Spec.Version = "v1.0.0"
 				stack.Annotations = map[string]string{
 					v1beta1.SkipLabel: "true",
 				}
