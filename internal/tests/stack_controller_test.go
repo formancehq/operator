@@ -1,6 +1,8 @@
 package tests_test
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -38,10 +40,11 @@ var _ = Describe("StackController", func() {
 					return Get(core.GetResourceName(stack.Name), &corev1.Namespace{})
 				}).Should(Succeed())
 			})
-			By("Should resolve to 'latest' version", func() {
-				version, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{})
-				Expect(err).To(Succeed())
-				Expect(version).To(Equal("latest"))
+			By("Should return error when no version is specified", func() {
+				_, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{})
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, core.ErrNoVersionFound)).To(BeTrue())
+				Expect(err.Error()).To(ContainSubstring("stack must define spec.version"))
 			})
 			By("Should be ready", func() {
 				Eventually(func() bool {
@@ -123,10 +126,12 @@ var _ = Describe("StackController", func() {
 				Expect(Delete(versions)).To(Succeed())
 			})
 			Context("with no specific version", func() {
-				It("should resolve a module to 'latest'", func() {
-					version, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{})
-					Expect(err).To(Succeed())
-					Expect(version).To(Equal("latest"))
+				It("should return error when module not in versions file", func() {
+					_, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{})
+					Expect(err).To(HaveOccurred())
+					Expect(errors.Is(err, core.ErrNoVersionFound)).To(BeTrue())
+					Expect(err.Error()).To(ContainSubstring("module not found in Versions resource"))
+					Expect(err.Error()).To(ContainSubstring(versions.Name))
 				})
 			})
 			Context("with specific version for a module", func() {
@@ -146,6 +151,9 @@ var _ = Describe("StackController", func() {
 			var (
 				ledger *v1beta1.Ledger
 			)
+			BeforeEach(func() {
+				stack.Spec.Version = "v1.0.0"
+			})
 			JustBeforeEach(func() {
 				By("stack should be ready", func() {
 					Eventually(func() bool {

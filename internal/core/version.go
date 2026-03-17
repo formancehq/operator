@@ -1,6 +1,8 @@
 package core
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -10,7 +12,17 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
+// ErrNoVersionFound is returned when no version can be resolved for a module
+// through any of the configured sources (module, stack, or versionsFromFile).
+var ErrNoVersionFound = errors.New("no version found")
+
 func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) (string, error) {
+	kinds, _, err := ctx.GetScheme().ObjectKinds(module)
+	if err != nil {
+		return "", fmt.Errorf("resolving module kind: %w", err)
+	}
+	kind := strings.ToLower(kinds[0].Kind)
+
 	if module.GetVersion() != "" {
 		return module.GetVersion(), nil
 	}
@@ -26,20 +38,15 @@ func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) 
 			return "", err
 		}
 		if err == nil {
-			kinds, _, err := ctx.GetScheme().ObjectKinds(module)
-			if err != nil {
-				return "", err
-			}
-			kind := strings.ToLower(kinds[0].Kind)
-
 			version, ok := versions.Spec[kind]
 			if ok && version != "" {
 				return version, nil
 			}
 		}
+		return "", fmt.Errorf("%w for module %s on stack %s: module not found in Versions resource %s", ErrNoVersionFound, kind, stack.Name, stack.Spec.VersionsFromFile)
 	}
 
-	return "latest", nil
+	return "", fmt.Errorf("%w for module %s on stack %s: stack must define spec.version, spec.versionsFromFile, or the module must define its own version", ErrNoVersionFound, kind, stack.Name)
 }
 
 func IsGreaterOrEqual(version string, than string) bool {
