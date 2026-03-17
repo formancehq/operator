@@ -21,7 +21,7 @@ var _ = Describe("AuthClientController", func() {
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
-				Spec:       v1beta1.StackSpec{Version: "v1.0.0"},
+				Spec:       v1beta1.StackSpec{Version: "v99.0.0"},
 			}
 			authClient = &v1beta1.AuthClient{
 				ObjectMeta: RandObjectMeta(),

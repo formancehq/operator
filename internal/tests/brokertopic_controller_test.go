@@ -26,7 +26,7 @@ var _ = Describe("BrokerTopicController", func() {
 				ObjectMeta: v1.ObjectMeta{
 					Name: uuid.NewString(),
 				},
-				Spec: v1beta1.StackSpec{Version: "v1.0.0"},
+				Spec: v1beta1.StackSpec{Version: "v99.0.0"},
 			}
 			Expect(Create(stack)).To(BeNil())
 			brokerDSNSettings = settings.New(uuid.NewString(), "broker.dsn", "nats://localhost:1234", stack.Name)

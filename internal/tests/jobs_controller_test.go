@@ -41,7 +41,7 @@ var _ = Describe("Job", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: uuid.NewString()[:8],
 			},
-			Spec: v1beta1.StackSpec{Version: "v1.0.0"},
+			Spec: v1beta1.StackSpec{Version: "v99.0.0"},
 		}
 		runAS = &runAs{
 			user:  rand.IntN(65534),
