@@ -18,6 +18,7 @@ var _ = Describe("ResourceReferenceController", func() {
 	BeforeEach(func() {
 		stack = &v1beta1.Stack{
 			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.StackSpec{Version: "v1.0.0"},
 		}
 		Expect(Create(stack)).To(Succeed())
 	})

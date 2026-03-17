@@ -31,7 +31,7 @@ var _ = Describe("AuthController", func() {
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
-				Spec:       v1beta1.StackSpec{},
+				Spec:       v1beta1.StackSpec{Version: "v1.0.0"},
 			}
 			databaseSettings = settings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name)
 			pdbSettings = settings.New(uuid.NewString(), "deployments.*.pod-disruption-budget", "minAvailable=1", stack.Name)

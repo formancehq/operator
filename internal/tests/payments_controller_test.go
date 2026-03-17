@@ -23,7 +23,7 @@ var _ = Describe("PaymentsController", func() {
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
-				Spec:       v1beta1.StackSpec{},
+				Spec:       v1beta1.StackSpec{Version: "v1.0.0"},
 			}
 			payments = &v1beta1.Payments{
 				ObjectMeta: RandObjectMeta(),

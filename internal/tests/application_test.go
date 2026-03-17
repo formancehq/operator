@@ -20,7 +20,7 @@ var _ = Context("When creating a Application", func() {
 	BeforeEach(func() {
 		stack = &v1beta1.Stack{
 			ObjectMeta: RandObjectMeta(),
-			Spec:       v1beta1.StackSpec{},
+			Spec:       v1beta1.StackSpec{Version: "v1.0.0"},
 		}
 		settings = []*v1beta1.Settings{
 			coresettings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name),

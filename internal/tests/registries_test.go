@@ -22,6 +22,7 @@ var _ = Describe("Registries", func() {
 	BeforeEach(func() {
 		stack = &v1beta1.Stack{
 			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.StackSpec{Version: "v1.0.0"},
 		}
 		databaseSettings = settings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name)
 		ledger = &v1beta1.Ledger{
