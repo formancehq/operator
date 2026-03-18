@@ -25,8 +25,8 @@ func TestMergeEnvVars(t *testing.T) {
 			expected:  []corev1.EnvVar{{Name: "A", Value: "1"}},
 		},
 		{
-			name:     "empty base returns overrides",
-			base:     nil,
+			name:      "empty base returns overrides",
+			base:      nil,
 			overrides: []corev1.EnvVar{{Name: "A", Value: "1"}},
 			expected:  []corev1.EnvVar{{Name: "A", Value: "1"}},
 		},
