@@ -445,6 +445,199 @@ func TestContainersMutatorPreservesRestartedAtAnnotation(t *testing.T) {
 	}
 }
 
+func TestContainersMutatorEnvVarsFromSettings(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1beta1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, v1.AddToScheme(scheme))
+
+	stackName := "test-stack"
+	deploymentName := "test-deployment"
+
+	type testCase struct {
+		name             string
+		settings         []client.Object
+		deploymentTpl    *appsv1.Deployment
+		initialDeploy    *appsv1.Deployment
+		expectedMainEnvs map[string]string
+		expectedInitEnvs map[string]string
+	}
+
+	testCases := []testCase{
+		{
+			name: "env vars injected into main container from settings",
+			settings: []client.Object{
+				&v1beta1.Settings{
+					ObjectMeta: metav1.ObjectMeta{Name: "env-main"},
+					Spec: v1beta1.SettingsSpec{
+						Stacks: []string{stackName},
+						Key:    "deployments." + deploymentName + ".containers.main.env-vars",
+						Value:  "FOO=bar,HELLO=world",
+					},
+				},
+			},
+			deploymentTpl: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: deploymentName},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{{Name: "main", Image: "test:latest"}},
+						},
+					},
+				},
+			},
+			initialDeploy: &appsv1.Deployment{},
+			expectedMainEnvs: map[string]string{
+				"FOO":   "bar",
+				"HELLO": "world",
+			},
+		},
+		{
+			name: "env vars injected into init container from settings",
+			settings: []client.Object{
+				&v1beta1.Settings{
+					ObjectMeta: metav1.ObjectMeta{Name: "env-init"},
+					Spec: v1beta1.SettingsSpec{
+						Stacks: []string{stackName},
+						Key:    "deployments." + deploymentName + ".init-containers.init.env-vars",
+						Value:  "INIT_VAR=init_value",
+					},
+				},
+			},
+			deploymentTpl: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: deploymentName},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							InitContainers: []v1.Container{{Name: "init", Image: "init:latest"}},
+							Containers:     []v1.Container{{Name: "main", Image: "test:latest"}},
+						},
+					},
+				},
+			},
+			initialDeploy:    &appsv1.Deployment{},
+			expectedInitEnvs: map[string]string{"INIT_VAR": "init_value"},
+		},
+		{
+			name:     "no settings means no extra env vars",
+			settings: nil,
+			deploymentTpl: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: deploymentName},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{{
+								Name:  "main",
+								Image: "test:latest",
+								Env:   []v1.EnvVar{{Name: "EXISTING", Value: "kept"}},
+							}},
+						},
+					},
+				},
+			},
+			initialDeploy:    &appsv1.Deployment{},
+			expectedMainEnvs: map[string]string{"EXISTING": "kept"},
+		},
+		{
+			name: "wildcard stack targets all stacks",
+			settings: []client.Object{
+				&v1beta1.Settings{
+					ObjectMeta: metav1.ObjectMeta{Name: "env-wildcard"},
+					Spec: v1beta1.SettingsSpec{
+						Stacks: []string{"*"},
+						Key:    "deployments." + deploymentName + ".containers.main.env-vars",
+						Value:  "GLOBAL=yes",
+					},
+				},
+			},
+			deploymentTpl: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: deploymentName},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{{Name: "main", Image: "test:latest"}},
+						},
+					},
+				},
+			},
+			initialDeploy:    &appsv1.Deployment{},
+			expectedMainEnvs: map[string]string{"GLOBAL": "yes"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			builder := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithIndex(&v1beta1.Settings{}, "stack", func(obj client.Object) []string {
+					return obj.(*v1beta1.Settings).GetStacks()
+				}).
+				WithIndex(&v1beta1.Settings{}, "keylen", func(obj client.Object) []string {
+					key := obj.(*v1beta1.Settings).Spec.Key
+					keyParts := settings.SplitKeywordWithDot(key)
+					return []string{fmt.Sprintf("%d", len(keyParts))}
+				})
+			if len(tc.settings) > 0 {
+				builder = builder.WithObjects(tc.settings...)
+			}
+			fakeClient := builder.Build()
+
+			mockCtx := &mockContext{
+				Context:  context.Background(),
+				client:   fakeClient,
+				scheme:   scheme,
+				platform: core.Platform{Region: "testing", Environment: "testing"},
+			}
+
+			owner := &v1beta1.Ledger{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-ledger"},
+				Spec: v1beta1.LedgerSpec{
+					StackDependency: v1beta1.StackDependency{Stack: stackName},
+				},
+			}
+
+			app := Application{
+				owner:         owner,
+				deploymentTpl: tc.deploymentTpl,
+			}
+
+			deployment := tc.initialDeploy.DeepCopy()
+			deployment.SetName(tc.deploymentTpl.Name)
+			deployment.SetNamespace(stackName)
+
+			labels := map[string]string{"app.kubernetes.io/name": tc.deploymentTpl.Name}
+			err := app.containersMutator(mockCtx, labels)(deployment)
+			require.NoError(t, err)
+
+			if tc.expectedMainEnvs != nil {
+				require.NotEmpty(t, deployment.Spec.Template.Spec.Containers)
+				envMap := make(map[string]string)
+				for _, e := range deployment.Spec.Template.Spec.Containers[0].Env {
+					envMap[e.Name] = e.Value
+				}
+				for k, v := range tc.expectedMainEnvs {
+					require.Equal(t, v, envMap[k], "expected env var %s=%s in main container", k, v)
+				}
+			}
+
+			if tc.expectedInitEnvs != nil {
+				require.NotEmpty(t, deployment.Spec.Template.Spec.InitContainers)
+				envMap := make(map[string]string)
+				for _, e := range deployment.Spec.Template.Spec.InitContainers[0].Env {
+					envMap[e.Name] = e.Value
+				}
+				for k, v := range tc.expectedInitEnvs {
+					require.Equal(t, v, envMap[k], "expected env var %s=%s in init container", k, v)
+				}
+			}
+		})
+	}
+}
+
 func TestWithSemconvMetricsNames(t *testing.T) {
 	//t.Parallel()
 

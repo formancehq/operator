@@ -249,6 +249,14 @@ func (a Application) containersMutator(ctx core.Context, labels map[string]strin
 			}
 
 			ConfigureSecurityContext(&container, runAs)
+
+			envVars, err := settings.GetEnvVars(ctx, a.owner.GetStack(),
+				"deployments", deployment.Name, "init-containers", container.Name)
+			if err != nil {
+				return err
+			}
+			container.Env = append(container.Env, envVars...)
+
 			deployment.Spec.Template.Spec.InitContainers[ind] = container
 		}
 		for ind, container := range deployment.Spec.Template.Spec.Containers {
@@ -270,6 +278,13 @@ func (a Application) containersMutator(ctx core.Context, labels map[string]strin
 			if gracePeriod != "" {
 				container.Env = append(container.Env, core.Env("GRACE_PERIOD", gracePeriod))
 			}
+
+			envVars, err := settings.GetEnvVars(ctx, a.owner.GetStack(),
+				"deployments", deployment.Name, "containers", container.Name)
+			if err != nil {
+				return err
+			}
+			container.Env = append(container.Env, envVars...)
 
 			deployment.Spec.Template.Spec.Containers[ind] = container
 		}
