@@ -21,7 +21,7 @@ spec:
   stack: formance-dev
 ```
 
-## Settings (v2.3+)
+## Settings (v2.4+)
 
 ### Schema Enforcement Mode
 
@@ -61,7 +61,7 @@ Available fields:
 - `max-block-size`: Maximum block size for the async block hasher
 - `schedule`: Cron schedule for the async block hasher
 
-### Bucket Cleanup
+### Bucket Cleanup (v2.4+)
 
 Configure the worker bucket cleanup behavior:
 
