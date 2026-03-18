@@ -541,6 +541,38 @@ func TestContainersMutatorEnvVarsFromSettings(t *testing.T) {
 			expectedMainEnvs: map[string]string{"EXISTING": "kept"},
 		},
 		{
+			name: "settings override existing env vars",
+			settings: []client.Object{
+				&v1beta1.Settings{
+					ObjectMeta: metav1.ObjectMeta{Name: "env-override"},
+					Spec: v1beta1.SettingsSpec{
+						Stacks: []string{stackName},
+						Key:    "deployments." + deploymentName + ".containers.main.env-vars",
+						Value:  "EXISTING=overridden,NEW_VAR=added",
+					},
+				},
+			},
+			deploymentTpl: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: deploymentName},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{{
+								Name:  "main",
+								Image: "test:latest",
+								Env:   []v1.EnvVar{{Name: "EXISTING", Value: "original"}},
+							}},
+						},
+					},
+				},
+			},
+			initialDeploy: &appsv1.Deployment{},
+			expectedMainEnvs: map[string]string{
+				"EXISTING": "overridden",
+				"NEW_VAR":  "added",
+			},
+		},
+		{
 			name: "wildcard stack targets all stacks",
 			settings: []client.Object{
 				&v1beta1.Settings{

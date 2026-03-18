@@ -124,7 +124,7 @@ func withSettingEnvVars(ctx core.Context, owner v1beta1.Dependent) HandleJobOpti
 			if err != nil {
 				return err
 			}
-			container.Env = append(container.Env, envVars...)
+			container.Env = core.MergeEnvVars(container.Env, envVars)
 			job.Spec.Template.Spec.Containers[i] = container
 		}
 
@@ -134,7 +134,7 @@ func withSettingEnvVars(ctx core.Context, owner v1beta1.Dependent) HandleJobOpti
 			if err != nil {
 				return err
 			}
-			initContainer.Env = append(initContainer.Env, envVars...)
+			initContainer.Env = core.MergeEnvVars(initContainer.Env, envVars)
 			job.Spec.Template.Spec.InitContainers[i] = initContainer
 		}
 		return nil

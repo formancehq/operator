@@ -255,7 +255,7 @@ func (a Application) containersMutator(ctx core.Context, labels map[string]strin
 			if err != nil {
 				return err
 			}
-			container.Env = append(container.Env, envVars...)
+			container.Env = core.MergeEnvVars(container.Env, envVars)
 
 			deployment.Spec.Template.Spec.InitContainers[ind] = container
 		}
@@ -284,7 +284,7 @@ func (a Application) containersMutator(ctx core.Context, labels map[string]strin
 			if err != nil {
 				return err
 			}
-			container.Env = append(container.Env, envVars...)
+			container.Env = core.MergeEnvVars(container.Env, envVars)
 
 			deployment.Spec.Template.Spec.Containers[ind] = container
 		}

@@ -65,6 +65,37 @@ func ComputeEnvVar(format string, keys ...string) string {
 	)
 }
 
+// MergeEnvVars merges overrides into base env vars with deduplication.
+// Keys from overrides take precedence. Order is preserved: base entries first
+// (with overridden values where applicable), then new entries from overrides.
+func MergeEnvVars(base, overrides []corev1.EnvVar) []corev1.EnvVar {
+	if len(overrides) == 0 {
+		return base
+	}
+
+	overrideMap := make(map[string]corev1.EnvVar, len(overrides))
+	for _, e := range overrides {
+		overrideMap[e.Name] = e
+	}
+
+	seen := make(map[string]bool, len(base))
+	result := make([]corev1.EnvVar, 0, len(base)+len(overrides))
+	for _, e := range base {
+		if override, ok := overrideMap[e.Name]; ok {
+			result = append(result, override)
+		} else {
+			result = append(result, e)
+		}
+		seen[e.Name] = true
+	}
+	for _, e := range overrides {
+		if !seen[e.Name] {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
 // TODO: The stack reconciler can create a config map container env var for dev and debug
 // This way, we avoid the need to fetch the stack object at each reconciliation loop
 func GetDevEnvVars(stack *v1beta1.Stack, service interface {
