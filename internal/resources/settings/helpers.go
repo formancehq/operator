@@ -402,11 +402,17 @@ func GetEnvVars(ctx core.Context, stack string, keys ...string) ([]corev1.EnvVar
 		return nil, nil
 	}
 
+	names := make([]string, 0, len(m))
+	for k := range m {
+		names = append(names, k)
+	}
+	slices.Sort(names)
+
 	envVars := make([]corev1.EnvVar, 0, len(m))
-	for k, v := range m {
+	for _, k := range names {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  k,
-			Value: v,
+			Value: m[k],
 		})
 	}
 	return envVars, nil
