@@ -49,6 +49,12 @@ func TestMergeEnvVars(t *testing.T) {
 			expected:  []corev1.EnvVar{{Name: "A", Value: "1"}, {Name: "B", Value: "override"}, {Name: "C", Value: "3"}},
 		},
 		{
+			name:      "result is sorted by name",
+			base:      []corev1.EnvVar{{Name: "Z", Value: "1"}, {Name: "A", Value: "2"}},
+			overrides: []corev1.EnvVar{{Name: "M", Value: "3"}},
+			expected:  []corev1.EnvVar{{Name: "A", Value: "2"}, {Name: "M", Value: "3"}, {Name: "Z", Value: "1"}},
+		},
+		{
 			name:      "both empty",
 			base:      nil,
 			overrides: nil,

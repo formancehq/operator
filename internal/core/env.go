@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -66,8 +67,8 @@ func ComputeEnvVar(format string, keys ...string) string {
 }
 
 // MergeEnvVars merges overrides into base env vars with deduplication.
-// Keys from overrides take precedence. Order is preserved: base entries first
-// (with overridden values where applicable), then new entries from overrides.
+// Keys from overrides take precedence. The result is sorted by env var name
+// for deterministic output that avoids unnecessary Kubernetes reconciliations.
 func MergeEnvVars(base, overrides []corev1.EnvVar) []corev1.EnvVar {
 	if len(overrides) == 0 {
 		return base
@@ -93,6 +94,17 @@ func MergeEnvVars(base, overrides []corev1.EnvVar) []corev1.EnvVar {
 			result = append(result, e)
 		}
 	}
+
+	slices.SortFunc(result, func(a, b corev1.EnvVar) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
+
 	return result
 }
 
