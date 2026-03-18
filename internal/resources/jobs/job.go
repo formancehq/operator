@@ -112,6 +112,35 @@ var defaultOptions = []HandleJobOption{
 	}),
 }
 
+func withSettingEnvVars(ctx core.Context, owner v1beta1.Dependent) HandleJobOption {
+	return Mutator(func(job *batchv1.Job) error {
+		kind := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
+		if kind == "" {
+			return errors.New("owner has no kind")
+		}
+		for i, container := range job.Spec.Template.Spec.Containers {
+			envVars, err := settings.GetEnvVars(ctx, owner.GetStack(),
+				"jobs", kind, "containers", container.Name)
+			if err != nil {
+				return err
+			}
+			container.Env = core.MergeEnvVars(container.Env, envVars)
+			job.Spec.Template.Spec.Containers[i] = container
+		}
+
+		for i, initContainer := range job.Spec.Template.Spec.InitContainers {
+			envVars, err := settings.GetEnvVars(ctx, owner.GetStack(),
+				"jobs", kind, "init-containers", initContainer.Name)
+			if err != nil {
+				return err
+			}
+			initContainer.Env = core.MergeEnvVars(initContainer.Env, envVars)
+			job.Spec.Template.Spec.InitContainers[i] = initContainer
+		}
+		return nil
+	})
+}
+
 func withSettingAnnotations(ctx core.Context, owner v1beta1.Dependent) HandleJobOption {
 	return Mutator(func(t *batchv1.Job) error {
 		kind := strings.ToLower(owner.GetObjectKind().GroupVersionKind().Kind)
@@ -144,6 +173,7 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 
 	options = append(options,
 		withRunAs(ctx, owner),
+		withSettingEnvVars(ctx, owner),
 		withSettingAnnotations(ctx, owner),
 	)
 	for _, option := range append(defaultOptions, options...) {

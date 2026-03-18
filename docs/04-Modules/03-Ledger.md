@@ -21,6 +21,23 @@ spec:
   stack: formance-dev
 ```
 
+## Settings (v2.4+)
+
+### Schema Enforcement Mode
+
+Configure the schema enforcement mode for both the Ledger API and worker:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-schema-enforcement-mode
+spec:
+  stacks: ["*"]
+  key: ledger.schema-enforcement-mode
+  value: strict
+```
+
 ## Worker Settings (v2.3+)
 
 Starting with Ledger v2.3, a separate worker process is deployed alongside the main Ledger API. The worker can be configured using the Settings CRD.
@@ -43,6 +60,25 @@ spec:
 Available fields:
 - `max-block-size`: Maximum block size for the async block hasher
 - `schedule`: Cron schedule for the async block hasher
+
+### Bucket Cleanup (v2.4+)
+
+Configure the worker bucket cleanup behavior:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-worker-bucket-cleanup
+spec:
+  stacks: ["*"]
+  key: ledger.worker.bucket-cleanup
+  value: retention-period=720h, schedule="0 0 * * *"
+```
+
+Available fields:
+- `retention-period`: Retention period before bucket deletion
+- `schedule`: Cron schedule for the bucket cleanup job
 
 ### Pipelines
 

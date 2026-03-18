@@ -211,6 +211,56 @@ func TestFindMatchingSettings(t *testing.T) {
 
 }
 
+func TestGetEnvVarsFromParsedMap(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name           string
+		input          string
+		expectedEnvLen int
+		expectedEnvs   map[string]string
+	}
+
+	testCases := []testCase{
+		{
+			name:           "single env var",
+			input:          "FOO=bar",
+			expectedEnvLen: 1,
+			expectedEnvs:   map[string]string{"FOO": "bar"},
+		},
+		{
+			name:           "multiple env vars",
+			input:          "FOO=bar,BAZ=qux",
+			expectedEnvLen: 2,
+			expectedEnvs:   map[string]string{"FOO": "bar", "BAZ": "qux"},
+		},
+		{
+			name:           "quoted values",
+			input:          `FOO="hello world",BAR=simple`,
+			expectedEnvLen: 2,
+			expectedEnvs:   map[string]string{"FOO": "hello world", "BAR": "simple"},
+		},
+		{
+			name:           "value with comma in quotes",
+			input:          `FOO="a,b",BAR=c`,
+			expectedEnvLen: 2,
+			expectedEnvs:   map[string]string{"FOO": "a,b", "BAR": "c"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m, err := parseKeyValueList(tc.input)
+			require.NoError(t, err)
+			require.Len(t, m, tc.expectedEnvLen)
+			for k, v := range tc.expectedEnvs {
+				require.Equal(t, v, m[k])
+			}
+		})
+	}
+}
+
 func TestParseKeyValuePair(t *testing.T) {
 	ret, err := parseKeyValueList(`a=b,c="d e", f=g,h="i,j"`)
 	require.NoError(t, err)

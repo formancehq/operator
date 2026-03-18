@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -63,6 +64,48 @@ func ComputeEnvVar(format string, keys ...string) string {
 			return EnvVarPlaceholder(key)
 		})...,
 	)
+}
+
+// MergeEnvVars merges overrides into base env vars with deduplication.
+// Keys from overrides take precedence. The result is sorted by env var name
+// for deterministic output that avoids unnecessary Kubernetes reconciliations.
+func MergeEnvVars(base, overrides []corev1.EnvVar) []corev1.EnvVar {
+	if len(overrides) == 0 {
+		return base
+	}
+
+	overrideMap := make(map[string]corev1.EnvVar, len(overrides))
+	for _, e := range overrides {
+		overrideMap[e.Name] = e
+	}
+
+	seen := make(map[string]bool, len(base))
+	result := make([]corev1.EnvVar, 0, len(base)+len(overrides))
+	for _, e := range base {
+		if override, ok := overrideMap[e.Name]; ok {
+			result = append(result, override)
+		} else {
+			result = append(result, e)
+		}
+		seen[e.Name] = true
+	}
+	for _, e := range overrides {
+		if !seen[e.Name] {
+			result = append(result, e)
+		}
+	}
+
+	slices.SortFunc(result, func(a, b corev1.EnvVar) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
+
+	return result
 }
 
 // TODO: The stack reconciler can create a config map container env var for dev and debug

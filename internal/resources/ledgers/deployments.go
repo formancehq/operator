@@ -153,6 +153,14 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		container.Env = append(container.Env, core.Env("BULK_MAX_SIZE", fmt.Sprint(*bulkMaxSize)))
 	}
 
+	schemaEnforcementMode, err := settings.GetStringOrEmpty(ctx, stack.Name, "ledger", "schema-enforcement-mode")
+	if err != nil {
+		return err
+	}
+	if schemaEnforcementMode != "" {
+		container.Env = append(container.Env, core.Env("SCHEMA_ENFORCEMENT_MODE", schemaEnforcementMode))
+	}
+
 	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, imageConfiguration, database, &container)
 	if err != nil {
 		return err
@@ -206,6 +214,11 @@ type pipelinesConfiguration struct {
 	LogsPageSize    string `json:"logs-page-size,omitempty"`
 }
 
+type bucketCleanupConfiguration struct {
+	RetentionPeriod string `json:"retention-period,omitempty"`
+	Schedule        string `json:"schedule,omitempty"`
+}
+
 func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
 	container := corev1.Container{
 		Name: "ledger-worker",
@@ -245,6 +258,27 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 	}
 	if pipelines.LogsPageSize != "" {
 		container.Env = append(container.Env, core.Env("WORKER_PIPELINES_LOGS_PAGE_SIZE", pipelines.LogsPageSize))
+	}
+
+	// Schema enforcement mode
+	schemaEnforcementMode, err := settings.GetStringOrEmpty(ctx, stack.Name, "ledger", "schema-enforcement-mode")
+	if err != nil {
+		return err
+	}
+	if schemaEnforcementMode != "" {
+		container.Env = append(container.Env, core.Env("SCHEMA_ENFORCEMENT_MODE", schemaEnforcementMode))
+	}
+
+	// Bucket cleanup settings
+	bucketCleanup, err := settings.GetAs[bucketCleanupConfiguration](ctx, stack.Name, "ledger", "worker", "bucket-cleanup")
+	if err != nil {
+		return err
+	}
+	if bucketCleanup.RetentionPeriod != "" {
+		container.Env = append(container.Env, core.Env("WORKER_BUCKET_CLEANUP_RETENTION_PERIOD", bucketCleanup.RetentionPeriod))
+	}
+	if bucketCleanup.Schedule != "" {
+		container.Env = append(container.Env, core.Env("WORKER_BUCKET_CLEANUP_SCHEDULE", bucketCleanup.Schedule))
 	}
 
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)

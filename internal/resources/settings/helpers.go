@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/go-libs/v2/pointer"
@@ -390,6 +391,25 @@ func GetAs[T any](ctx core.Context, stack string, keys ...string) (*T, error) {
 	}
 
 	return &ret, nil
+}
+
+func GetEnvVars(ctx core.Context, stack string, keys ...string) ([]corev1.EnvVar, error) {
+	m, err := GetMap(ctx, stack, append(keys, "env-vars")...)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, nil
+	}
+
+	envVars := make([]corev1.EnvVar, 0, len(m))
+	for k, v := range m {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  k,
+			Value: v,
+		})
+	}
+	return envVars, nil
 }
 
 func GetMapOrEmpty(ctx core.Context, stack string, keys ...string) (map[string]string, error) {
