@@ -138,6 +138,9 @@ var _ = BeforeSuite(func() {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testLicenceSecretName,
 			Namespace: testLicenceSecretNamespace,
+			Labels: map[string]string{
+				v1beta1.StackLabel: "any",
+			},
 		},
 		Data: map[string][]byte{
 			"token":  []byte(licenceToken),
