@@ -2,15 +2,22 @@ package internal
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	osRuntime "runtime"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -31,6 +38,11 @@ import (
 	_ "github.com/formancehq/operator/v3/internal/resources"
 )
 
+const (
+	testLicenceSecretName      = "formance-licence"
+	testLicenceSecretNamespace = "default"
+)
+
 var (
 	ctx        context.Context
 	cancel     func()
@@ -49,6 +61,29 @@ func init() {
 	if err := externaldnsv1alpha1.AddToScheme(sg); err != nil {
 		panic(err)
 	}
+}
+
+// generateTestLicence creates a test RSA key pair, overrides the embedded public key,
+// and returns a signed JWT token valid for 24 hours.
+func generateTestLicence() string {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	Expect(err).ToNot(HaveOccurred())
+
+	pubBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	Expect(err).ToNot(HaveOccurred())
+
+	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
+
+	// Override the embedded Formance public key so the test JWT validates
+	core.SetFormancePublicKeyForTest(GinkgoT(), string(pubPEM))
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"exp": time.Now().Add(24 * time.Hour).Unix(),
+	})
+	signed, err := token.SignedString(privateKey)
+	Expect(err).ToNot(HaveOccurred())
+
+	return signed
 }
 
 var _ = BeforeSuite(func() {
@@ -88,6 +123,36 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	// Generate a test licence JWT and create the Secret in the cluster
+	licenceToken := generateTestLicence()
+
+	licenceSecret := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testLicenceSecretNamespace,
+		},
+	}
+	// default namespace should already exist, ignore error
+	_ = k8sClient.Create(context.Background(), licenceSecret)
+
+	Expect(k8sClient.Create(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testLicenceSecretName,
+			Namespace: testLicenceSecretNamespace,
+		},
+		Data: map[string][]byte{
+			"token":  []byte(licenceToken),
+			"issuer": []byte("https://license.formance.cloud/keys"),
+		},
+	})).To(Succeed())
+
+	testPlatform := core.Platform{
+		Region:           "us-west-1",
+		Environment:      "staging",
+		LicenceSecret:    testLicenceSecretName,
+		LicenceNamespace: testLicenceSecretNamespace,
+		LicenceState:     core.LicenceStateValid,
+	}
+
 	ctx, cancel = context.WithCancel(context.Background())
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme: GetScheme(),
@@ -101,17 +166,9 @@ var _ = BeforeSuite(func() {
 		},
 	})
 	Expect(err).ToNot(HaveOccurred())
-	coreMgr = core.NewDefaultManager(mgr, core.Platform{
-		Region:       "testing",
-		Environment:  "testing",
-		LicenceState: core.LicenceStateValid,
-	})
+	coreMgr = core.NewDefaultManager(mgr, testPlatform)
 
-	Expect(core.Setup(mgr, core.Platform{
-		Region:       "us-west-1",
-		Environment:  "staging",
-		LicenceState: core.LicenceStateValid,
-	})).To(Succeed())
+	Expect(core.Setup(mgr, testPlatform)).To(Succeed())
 
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&appsv1.Deployment{}).
