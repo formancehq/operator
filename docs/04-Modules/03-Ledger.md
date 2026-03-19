@@ -73,7 +73,7 @@ metadata:
 spec:
   stacks: ["*"]
   key: ledger.worker.bucket-cleanup
-  value: retention-period=720h, schedule="0 0 * * *"
+  value: retention-period=720h, schedule="0 0 * * * *"
 ```
 
 Available fields:
