@@ -102,13 +102,15 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 	coreMgr = core.NewDefaultManager(mgr, core.Platform{
-		Region:      "testing",
-		Environment: "testing",
+		Region:       "testing",
+		Environment:  "testing",
+		LicenceState: core.LicenceStateValid,
 	})
 
 	Expect(core.Setup(mgr, core.Platform{
-		Region:      "us-west-1",
-		Environment: "staging",
+		Region:       "us-west-1",
+		Environment:  "staging",
+		LicenceState: core.LicenceStateValid,
 	})).To(Succeed())
 
 	err = ctrl.NewControllerManagedBy(mgr).
