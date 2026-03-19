@@ -19,7 +19,7 @@ var _ = Describe("StargateController", func() {
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
-				Spec:       v1beta1.StackSpec{},
+				Spec:       v1beta1.StackSpec{Version: "v99.0.0"},
 			}
 			stargate = &v1beta1.Stargate{
 				ObjectMeta: RandObjectMeta(),

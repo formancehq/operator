@@ -30,7 +30,7 @@ var _ = Describe("GatewayController", func() {
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
-				Spec:       v1beta1.StackSpec{},
+				Spec:       v1beta1.StackSpec{Version: "v99.0.0"},
 			}
 			gateway = &v1beta1.Gateway{
 				ObjectMeta: RandObjectMeta(),

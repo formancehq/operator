@@ -74,7 +74,7 @@ type StackStatus struct {
 //
 // The `version` field will have priority over `versionFromFile`.
 //
-// If `versions` and `versionsFromFile` are not specified, "latest" will be used.
+// If `versions` and `versionsFromFile` are not specified, modules will fail to reconcile with an explicit error.
 type Stack struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -96,9 +96,6 @@ func (in *Stack) SetError(s string) {
 }
 
 func (in *Stack) GetVersion() string {
-	if in.Spec.Version == "" {
-		return "latest"
-	}
 	return in.Spec.Version
 }
 

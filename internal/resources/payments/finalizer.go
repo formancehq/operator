@@ -1,6 +1,8 @@
 package payments
 
 import (
+	"errors"
+
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,6 +24,10 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 
 	version, err := core.GetModuleVersion(ctx, stack, t)
 	if err != nil {
+		if errors.Is(err, core.ErrNoVersionFound) {
+			log.FromContext(ctx).Info("No version configured, skipping version-gated finalizer logic")
+			return nil
+		}
 		return err
 	}
 	if semver.IsValid(version) && semver.Compare(version, "v3.0.0-beta.1") < 0 {
