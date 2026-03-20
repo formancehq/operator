@@ -5,7 +5,8 @@ go 1.25.0
 toolchain go1.25.5
 
 require (
-	github.com/formancehq/go-libs/v2 v2.2.3
+	github.com/formancehq/go-libs/v2 v2.2.4
+	github.com/formancehq/go-libs/v4 v4.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.9.1
 )
@@ -46,10 +47,13 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/lithammer/shortuuid/v3 v3.0.7 // indirect
+	github.com/lithammer/shortuuid/v4 v4.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
+	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
+	github.com/puzpuzpuz/xsync/v4 v4.4.0 // indirect
 	github.com/riandyrn/otelchi v0.12.2 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
