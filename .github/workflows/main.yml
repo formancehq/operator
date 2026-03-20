@@ -21,13 +21,13 @@ jobs:
     permissions:
       statuses: write
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
+      - uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   Dirty:
     runs-on: "shipfox-4vcpu-ubuntu-2404"
     steps:
-      - uses: 'actions/checkout@v4'
+      - uses: 'actions/checkout@v6'
         with:
           fetch-depth: 0
       - name: Setup Env
@@ -57,7 +57,7 @@ jobs:
   Tests:
     runs-on: "shipfox-8vcpu-ubuntu-2404"
     steps:
-      - uses: 'actions/checkout@v4'
+      - uses: 'actions/checkout@v6'
         with:
           fetch-depth: 0
       - name: Setup Env
@@ -72,7 +72,7 @@ jobs:
     runs-on: "shipfox-4vcpu-ubuntu-2404"
     if: contains(github.event.pull_request.labels.*.name, 'build-images') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
     steps:
-      - uses: 'actions/checkout@v4'
+      - uses: 'actions/checkout@v6'
         with:
           fetch-depth: 0
       - name: Setup Env
@@ -105,7 +105,7 @@ jobs:
           args: ${{ vars.TS_ARGS }}
           retry: ${{ vars.TS_RETRY }}
           timeout: ${{ vars.TS_TIMEOUT }}
-      - uses: 'actions/checkout@v4'
+      - uses: 'actions/checkout@v6'
         with:
           fetch-depth: 0
       - name: Install Nix
