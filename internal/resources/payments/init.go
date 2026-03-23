@@ -51,7 +51,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 	}
 
 	imageName := "payments"
-	if ctx.GetPlatform().LicenceSecret != "" &&
+	if ctx.GetPlatform().LicenceState == LicenceStateValid &&
 		(!semver.IsValid(version) || semver.Compare(version, "v3.2.0-beta.0") >= 0) {
 		imageName = "payments-ee"
 	}
