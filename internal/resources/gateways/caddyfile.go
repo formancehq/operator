@@ -1,6 +1,7 @@
 package gateways
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/formancehq/go-libs/v2/collectionutils"
@@ -15,6 +16,9 @@ type CaddyOptions func(data map[string]any) error
 func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
 	gateway *v1beta1.Gateway, httpAPIs []*v1beta1.GatewayHTTPAPI, broker *v1beta1.Broker, options ...CaddyOptions) (string, error) {
 
+	for _, httpAPI := range httpAPIs {
+		fmt.Println("CreateCaddyfile", httpAPI.Name)
+	}
 	data := map[string]any{
 		"Services": collectionutils.Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) v1beta1.GatewayHTTPAPISpec {
 			return from.Spec
