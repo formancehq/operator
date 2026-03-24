@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	"golang.org/x/mod/semver"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -62,49 +61,9 @@ func detectBrokerMode(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Br
 		broker.Status.Mode = v1beta1.ModeOneStreamByService
 		return nil
 	}
-	if ok, err := hasAllVersionsGreaterThan(ctx, stack, "v2.0.0-rc.27"); err != nil {
-		return err
-	} else if ok {
-		broker.Status.Mode = v1beta1.ModeOneStreamByStack
-	} else {
-		broker.Status.Mode = v1beta1.ModeOneStreamByService
-	}
 
+	broker.Status.Mode = v1beta1.ModeOneStreamByStack
 	return nil
-}
-
-func hasAllVersionsGreaterThan(ctx core.Context, stack *v1beta1.Stack, ref string) (bool, error) {
-	switch {
-	case stack.Spec.Version != "":
-		if !semver.IsValid(stack.Spec.Version) {
-			return true, nil
-		}
-		return semver.Compare(stack.Spec.Version, ref) >= 0, nil
-	case stack.Spec.VersionsFromFile != "":
-		versions := &v1beta1.Versions{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
-			Name: stack.Spec.VersionsFromFile,
-		}, versions); err != nil {
-			return false, err
-		}
-		for service, v := range versions.Spec {
-			// notes(gfyrag): control is stick to version v1.7.0
-			if service == "control" {
-				continue
-			}
-			if !semver.IsValid(v) {
-				continue
-			}
-			if semver.Compare(v, ref) < 0 {
-				return false, nil
-			}
-		}
-
-		return true, nil
-	default:
-		// notes(gfyrag): Using latest, be careful, we cannot sure `latest` image on the nodes are really latest
-		return true, nil
-	}
 }
 
 func detectBrokerModeByCheckingExistentStreams(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, uri *v1beta1.URI) (bool, error) {

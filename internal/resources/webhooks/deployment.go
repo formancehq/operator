@@ -79,10 +79,6 @@ func createAPIDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1bet
 
 	args := []string{"serve"}
 
-	// notes(gfyrag): upgrade command introduced in version v2.0.0-rc.5
-	if core.IsGreaterOrEqual(version, "v2.0.0-alpha") && core.IsLower(version, "v2.0.0-rc.5") {
-		args = append(args, "--auto-migrate")
-	}
 	if withWorker {
 		env = append(env, core.Env("WORKER", "true"))
 
