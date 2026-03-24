@@ -20,7 +20,6 @@ import (
 	_ "embed"
 
 	"github.com/pkg/errors"
-	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -88,11 +87,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 			}),
 		)
 		if err != nil {
-			isV2_2 := !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0
-			if !isV2_2 {
-				return err
-			}
-
 			if IsApplicationError(err) { // Start the ledger even if migrations are not terminated
 				return installLedger(ctx, stack, ledger, database, imageConfiguration, version)
 			}

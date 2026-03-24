@@ -16,6 +16,18 @@ import (
 // through any of the configured sources (module, stack, or versionsFromFile).
 var ErrNoVersionFound = errors.New("no version found")
 
+// MinimumStackVersion is the minimum Stack version the operator supports deploying.
+const MinimumStackVersion = "v2.2.0"
+
+// ValidateMinimumVersion checks that a resolved version meets the minimum requirement.
+// Non-semver versions (dev tags, SHA refs) are allowed through.
+func ValidateMinimumVersion(version string) error {
+	if semver.IsValid(version) && semver.Compare(version, MinimumStackVersion) < 0 {
+		return fmt.Errorf("version %s is not supported, minimum required: %s - please upgrade your stack", version, MinimumStackVersion)
+	}
+	return nil
+}
+
 func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) (string, error) {
 	kinds, _, err := ctx.GetScheme().ObjectKinds(module)
 	if err != nil {
@@ -23,13 +35,14 @@ func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) 
 	}
 	kind := strings.ToLower(kinds[0].Kind)
 
-	if module.GetVersion() != "" {
-		return module.GetVersion(), nil
-	}
-	if stack.Spec.Version != "" {
-		return stack.Spec.Version, nil
-	}
-	if stack.Spec.VersionsFromFile != "" {
+	var version string
+
+	switch {
+	case module.GetVersion() != "":
+		version = module.GetVersion()
+	case stack.Spec.Version != "":
+		version = stack.Spec.Version
+	case stack.Spec.VersionsFromFile != "":
 		versions := &v1beta1.Versions{}
 		err := ctx.GetClient().Get(ctx, types.NamespacedName{
 			Name: stack.Spec.VersionsFromFile,
@@ -38,33 +51,21 @@ func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) 
 			return "", err
 		}
 		if err == nil {
-			version, ok := versions.Spec[kind]
-			if ok && version != "" {
-				return version, nil
+			v, ok := versions.Spec[kind]
+			if ok && v != "" {
+				version = v
 			}
 		}
-		return "", fmt.Errorf("%w for module %s on stack %s: module not found in Versions resource %s", ErrNoVersionFound, kind, stack.Name, stack.Spec.VersionsFromFile)
+		if version == "" {
+			return "", fmt.Errorf("%w for module %s on stack %s: module not found in Versions resource %s", ErrNoVersionFound, kind, stack.Name, stack.Spec.VersionsFromFile)
+		}
+	default:
+		return "", fmt.Errorf("%w for module %s on stack %s: stack must define spec.version, spec.versionsFromFile, or the module must define its own version", ErrNoVersionFound, kind, stack.Name)
 	}
 
-	return "", fmt.Errorf("%w for module %s on stack %s: stack must define spec.version, spec.versionsFromFile, or the module must define its own version", ErrNoVersionFound, kind, stack.Name)
-}
+	if err := ValidateMinimumVersion(version); err != nil {
+		return "", err
+	}
 
-func IsGreaterOrEqual(version string, than string) bool {
-	if !semver.IsValid(than) {
-		return !semver.IsValid(version) // Any semver version is considered lower
-	}
-	if !semver.IsValid(version) {
-		return true
-	}
-	return semver.Compare(version, than) >= 0
-}
-
-func IsLower(version string, than string) bool {
-	if !semver.IsValid(than) {
-		return semver.IsValid(version) // Any semver version is considered higher
-	}
-	if !semver.IsValid(version) {
-		return false
-	}
-	return semver.Compare(version, than) < 0
+	return version, nil
 }
