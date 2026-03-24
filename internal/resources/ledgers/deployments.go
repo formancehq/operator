@@ -386,4 +386,3 @@ func setCommonAPIContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, 
 
 	return nil
 }
-
