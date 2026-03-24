@@ -24,42 +24,17 @@ import (
 )
 
 func installLedger(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration, version string) (err error) {
-
-	if !semver.IsValid(version) || semver.Compare(version, "v2.2.0-alpha") > 0 {
-		if err := uninstallLedgerMonoWriterMultipleReader(ctx, stack); err != nil {
+	if err := uninstallLedgerMonoWriterMultipleReader(ctx, stack); err != nil {
+		return err
+	}
+	if err := installLedgerStateless(ctx, stack, ledger, database, imageConfiguration); err != nil {
+		return err
+	}
+	if !semver.IsValid(version) || semver.Compare(version, "v2.3.0-alpha") > 0 {
+		if err := installLedgerWorker(ctx, stack, ledger, database, imageConfiguration); err != nil {
 			return err
 		}
-		if err := installLedgerStateless(ctx, stack, ledger, database, imageConfiguration); err != nil {
-			return err
-		}
-		if !semver.IsValid(version) || semver.Compare(version, "v2.3.0-alpha") > 0 {
-			if err := installLedgerWorker(ctx, stack, ledger, database, imageConfiguration); err != nil {
-				return err
-			}
-		}
-		return nil
 	}
-
-	// For older versions, just use single instance deployment
-	return installLedgerSingleInstance(ctx, stack, ledger, database, imageConfiguration)
-}
-
-func installLedgerSingleInstance(ctx core.Context, stack *v1beta1.Stack,
-	ledger *v1beta1.Ledger, database *v1beta1.Database, imageConfiguration *registries.ImageConfiguration) error {
-	container, err := createLedgerContainerFull(ctx, stack)
-	if err != nil {
-		return err
-	}
-
-	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, imageConfiguration, database, container)
-	if err != nil {
-		return err
-	}
-
-	if err := createDeployment(ctx, stack, ledger, "ledger", *container, 1, imageConfiguration); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -364,34 +339,6 @@ func uninstallLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.St
 	return nil
 }
 
-func createDeployment(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, name string, container corev1.Container, replicas uint64, imageConfiguration *registries.ImageConfiguration) error {
-	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
-	if err != nil {
-		return err
-	}
-
-	// No volumes needed for v2
-	tpl := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					ImagePullSecrets:   imageConfiguration.PullSecrets,
-					Containers:         []corev1.Container{container},
-					ServiceAccountName: serviceAccountName,
-				},
-			},
-		},
-	}
-
-	return applications.
-		New(ledger, tpl).
-		WithStateful(replicas > 0).
-		Install(ctx)
-}
-
 func setCommonContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, imageConfiguration *registries.ImageConfiguration, database *v1beta1.Database, container *corev1.Container) error {
 
 	env := make([]corev1.EnvVar, 0)
@@ -438,52 +385,4 @@ func setCommonAPIContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, 
 	container.ReadinessProbe = applications.DefaultReadiness("http")
 
 	return nil
-}
-
-func createBaseLedgerContainer() *corev1.Container {
-	ret := &corev1.Container{
-		Name: "ledger",
-	}
-	ret.Env = append(ret.Env, core.Env("BIND", ":8080"))
-	return ret
-}
-
-func createLedgerContainerFull(ctx core.Context, stack *v1beta1.Stack) (*corev1.Container, error) {
-	container := createBaseLedgerContainer()
-
-	var broker *v1beta1.Broker
-	if t, err := brokertopics.Find(ctx, stack, "ledger"); err != nil {
-		return nil, err
-	} else if t != nil && t.Status.Ready {
-		broker = &v1beta1.Broker{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
-			Name: stack.Name,
-		}, broker); err != nil {
-			return nil, err
-		}
-	}
-
-	if broker != nil {
-		if !broker.Status.Ready {
-			return nil, core.NewPendingError().WithMessage("broker not ready")
-		}
-
-		brokerEnvVar, err := brokers.GetBrokerEnvVars(ctx, broker.Status.URI, stack.Name, "ledger")
-		if err != nil {
-			return nil, err
-		}
-
-		container.Env = append(container.Env, brokerEnvVar...)
-		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger")...)
-	}
-
-	logsBatchSize, err := settings.GetInt(ctx, stack.Name, "ledger", "logs", "max-batch-size")
-	if err != nil {
-		return nil, err
-	}
-	if logsBatchSize != nil && *logsBatchSize != 0 {
-		container.Env = append(container.Env, core.Env("LEDGER_BATCH_SIZE", fmt.Sprint(*logsBatchSize)))
-	}
-
-	return container, nil
 }

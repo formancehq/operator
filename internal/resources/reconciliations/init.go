@@ -52,7 +52,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconc
 			return errors.Wrap(err, "resolving image")
 		}
 
-		if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
+		if databases.GetSavedModuleVersion(database) != version {
 
 			if err := databases.Migrate(ctx, stack, reconciliation, imageConfiguration, database); err != nil {
 				return err
