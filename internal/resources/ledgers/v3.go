@@ -231,6 +231,13 @@ func buildV3PodTemplate(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 				},
 			},
 		},
+		Lifecycle: &corev1.Lifecycle{
+			PreStop: &corev1.LifecycleHandler{
+				Exec: &corev1.ExecAction{
+					Command: []string{"/bin/sh", "-c", buildV3PreStopScript(walDir)},
+				},
+			},
+		},
 	}
 
 	return &corev1.PodTemplateSpec{
@@ -276,6 +283,22 @@ fi`, dataDir),
 		`  --node-id "$NODE_ID" \`,
 		`  --advertise-addr "$ADVERTISE_ADDR" \`,
 		`  $CLUSTER_FLAG`,
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// buildV3PreStopScript returns a shell script executed by the Kubernetes preStop
+// lifecycle hook before a pod is terminated. It deregisters the local node from
+// the Raft cluster and cleans the WAL directory so that a future re-join (after
+// scale-up) starts as a fresh learner.
+func buildV3PreStopScript(walDir string) string {
+	lines := []string{
+		// Best-effort deregister: call the admin endpoint to remove this node
+		// from the Raft cluster. Ignore errors (e.g., last node, or already removed).
+		fmt.Sprintf(`wget --post-data='' -q -O- http://localhost:%d/_admin/deregister || true`, v3PortHTTP),
+		// Clean WAL so that if this pod restarts (scale-up), it joins as a fresh learner.
+		fmt.Sprintf(`rm -rf %s/* || true`, walDir),
 	}
 
 	return strings.Join(lines, "\n")

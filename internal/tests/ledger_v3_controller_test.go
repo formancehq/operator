@@ -126,6 +126,20 @@ var _ = Describe("LedgerV3Controller", func() {
 			Expect(container.StartupProbe.HTTPGet.Path).To(Equal("/livez"))
 		})
 
+		It("Should configure a preStop lifecycle hook for Raft deregistration", func() {
+			sts := &appsv1.StatefulSet{}
+			Eventually(func() error {
+				return LoadResource(stack.Name, "ledger", sts)
+			}).Should(Succeed())
+			container := sts.Spec.Template.Spec.Containers[0]
+			Expect(container.Lifecycle).NotTo(BeNil())
+			Expect(container.Lifecycle.PreStop).NotTo(BeNil())
+			Expect(container.Lifecycle.PreStop.Exec).NotTo(BeNil())
+			Expect(container.Lifecycle.PreStop.Exec.Command).To(HaveLen(3))
+			Expect(container.Lifecycle.PreStop.Exec.Command[2]).To(ContainSubstring("/_admin/deregister"))
+			Expect(container.Lifecycle.PreStop.Exec.Command[2]).To(ContainSubstring("rm -rf"))
+		})
+
 		It("Should set CLUSTER_ID env var with default value", func() {
 			sts := &appsv1.StatefulSet{}
 			Eventually(func() error {
