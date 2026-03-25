@@ -15,7 +15,6 @@ import (
 	"github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
-	"github.com/formancehq/operator/v3/internal/resources/services"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -39,15 +38,8 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		return err
 	}
 
-	// ClusterIP service: port 8080 → container port 9000 (gateway compatibility)
-	if _, err := services.Create(ctx, ledger, "ledger", services.WithConfig(services.PortConfig{
-		ServiceName: "ledger",
-		PortName:    "http",
-		Port:        8080,
-		TargetPort:  "http",
-	})); err != nil {
-		return err
-	}
+	// The GatewayHTTPAPI reconciler creates a ClusterIP service "ledger" with port 8080→"http".
+	// Since our container port named "http" is 9000, the service routes 8080→9000 automatically.
 
 	if err := installV3StatefulSet(ctx, stack, ledger, imageConfiguration); err != nil {
 		return err
@@ -95,12 +87,12 @@ func createV3HeadlessService(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 func installV3StatefulSet(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, image *registries.ImageConfiguration) error {
 	stackName := stack.Name
 
-	replicas, err := settings.GetInt32OrDefault(ctx, stackName, 3, "ledger", "v3", "replicas")
+	replicas, err := settings.GetInt32OrDefault(ctx, stackName, 3, "module", "ledger", "v3", "replicas")
 	if err != nil {
 		return err
 	}
 	if replicas%2 == 0 {
-		return fmt.Errorf("ledger.v3.replicas must be odd, got %d", replicas)
+		return fmt.Errorf("module.ledger.v3.replicas must be odd, got %d", replicas)
 	}
 
 	volumeClaims, err := buildV3VolumeClaimTemplates(ctx, stackName)
@@ -148,7 +140,7 @@ func buildV3PodTemplate(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 		return nil, err
 	}
 
-	clusterID, err := settings.GetStringOrDefault(ctx, stackName, "default", "ledger", "v3", "cluster-id")
+	clusterID, err := settings.GetStringOrDefault(ctx, stackName, "default", "module", "ledger", "v3", "cluster-id")
 	if err != nil {
 		return nil, err
 	}
@@ -298,9 +290,9 @@ func buildV3VolumeClaimTemplates(ctx core.Context, stackName string) ([]corev1.P
 	}
 
 	specs := []volumeSpec{
-		{"wal", "ledger.v3.persistence.wal.size", "5Gi", "ledger.v3.persistence.wal.storage-class"},
-		{"data", "ledger.v3.persistence.data.size", "10Gi", "ledger.v3.persistence.data.storage-class"},
-		{"cold-cache", "ledger.v3.persistence.cold-cache.size", "10Gi", "ledger.v3.persistence.cold-cache.storage-class"},
+		{"wal", "module.ledger.v3.persistence.wal.size", "5Gi", "module.ledger.v3.persistence.wal.storage-class"},
+		{"data", "module.ledger.v3.persistence.data.size", "10Gi", "module.ledger.v3.persistence.data.storage-class"},
+		{"cold-cache", "module.ledger.v3.persistence.cold-cache.size", "10Gi", "module.ledger.v3.persistence.cold-cache.storage-class"},
 	}
 
 	var claims []corev1.PersistentVolumeClaim
@@ -355,7 +347,7 @@ var v3PebbleSettings = []struct {
 func buildV3PebbleEnvVars(ctx core.Context, stackName string) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 	for _, s := range v3PebbleSettings {
-		val, err := settings.GetStringOrEmpty(ctx, stackName, "ledger", "v3", "pebble", s.key)
+		val, err := settings.GetStringOrEmpty(ctx, stackName, "module", "ledger", "v3", "pebble", s.key)
 		if err != nil {
 			return nil, err
 		}
@@ -382,7 +374,7 @@ var v3RaftSettings = []struct {
 func buildV3RaftEnvVars(ctx core.Context, stackName string) ([]corev1.EnvVar, error) {
 	var envVars []corev1.EnvVar
 	for _, s := range v3RaftSettings {
-		val, err := settings.GetStringOrEmpty(ctx, stackName, "ledger", "v3", "raft", s.key)
+		val, err := settings.GetStringOrEmpty(ctx, stackName, "module", "ledger", "v3", "raft", s.key)
 		if err != nil {
 			return nil, err
 		}

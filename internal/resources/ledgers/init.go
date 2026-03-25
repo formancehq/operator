@@ -41,7 +41,7 @@ import (
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
-	isV3 := !semver.IsValid(version) || semver.Compare(version, "v3.0.0-alpha") >= 0
+	isV3 := semver.IsValid(version) && semver.Major(version) == "v3"
 	if isV3 {
 		return reconcileV3(ctx, stack, ledger, version)
 	}
