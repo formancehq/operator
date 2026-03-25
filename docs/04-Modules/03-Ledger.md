@@ -100,3 +100,118 @@ Available fields:
 - `push-retry-period`: Retry period for failed pushes
 - `sync-period`: Synchronization period
 - `logs-page-size`: Number of logs per page
+
+## Ledger v3
+
+Ledger v3 is an architecturally different version that uses Raft consensus with Pebble embedded storage instead of PostgreSQL. When the version is `>= v3.0.0-alpha`, the operator deploys a **StatefulSet** instead of a Deployment.
+
+### Requirements
+
+Ledger v3 does **not** require PostgreSQL or a message broker. Storage is fully embedded (Pebble LSM).
+
+### Architecture
+
+The operator creates the following resources for v3:
+
+| Resource | Purpose |
+|----------|---------|
+| `StatefulSet/ledger` | Raft cluster nodes with `OrderedReady` pod management |
+| `Service/ledger-raft` (headless) | DNS-based peer discovery for Raft consensus |
+| `Service/ledger` (ClusterIP) | Gateway-facing service, maps port 8080 to container port 9000 |
+| 3 PVCs per pod | `wal`, `data`, `cold-cache` |
+
+### Cluster Settings
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-replicas
+spec:
+  stacks: ["*"]
+  key: ledger.v3.replicas
+  value: "3"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-cluster-id
+spec:
+  stacks: ["*"]
+  key: ledger.v3.cluster-id
+  value: default
+```
+
+- `ledger.v3.replicas`: Number of Raft nodes. **Must be odd** for quorum (default: 3).
+- `ledger.v3.cluster-id`: Raft cluster identifier (default: "default").
+
+### Persistence Settings
+
+Each pod gets three PVCs. Size and storage class are configurable:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-persistence
+spec:
+  stacks: ["*"]
+  key: ledger.v3.persistence.wal.size
+  value: "5Gi"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-data-size
+spec:
+  stacks: ["*"]
+  key: ledger.v3.persistence.data.size
+  value: "10Gi"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-cold-cache-size
+spec:
+  stacks: ["*"]
+  key: ledger.v3.persistence.cold-cache.size
+  value: "10Gi"
+```
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `ledger.v3.persistence.wal.size` | 5Gi | WAL PVC size |
+| `ledger.v3.persistence.wal.storage-class` | (cluster default) | WAL storage class |
+| `ledger.v3.persistence.data.size` | 10Gi | Pebble data PVC size |
+| `ledger.v3.persistence.data.storage-class` | (cluster default) | Data storage class |
+| `ledger.v3.persistence.cold-cache.size` | 10Gi | Cold cache PVC size |
+| `ledger.v3.persistence.cold-cache.storage-class` | (cluster default) | Cold cache storage class |
+
+### Pebble Tunables
+
+All Pebble settings are optional. When unset, the ledger binary defaults apply.
+
+| Key | Example | Description |
+|-----|---------|-------------|
+| `ledger.v3.pebble.cache-size` | 1073741824 | Block cache size in bytes |
+| `ledger.v3.pebble.memtable-size` | 268435456 | Memtable size in bytes |
+| `ledger.v3.pebble.memtable-stop-writes-threshold` | 2 | Memtable count before stopping writes |
+| `ledger.v3.pebble.l0-compaction-threshold` | 4 | L0 files to trigger compaction |
+| `ledger.v3.pebble.l0-stop-writes-threshold` | 12 | L0 files before stopping writes |
+| `ledger.v3.pebble.lbase-max-bytes` | 67108864 | L1 max size in bytes |
+| `ledger.v3.pebble.target-file-size` | 67108864 | SST file target size |
+| `ledger.v3.pebble.max-concurrent-compactions` | 2 | Compaction parallelism |
+
+### Raft Tunables
+
+All Raft settings are optional. When unset, the ledger binary defaults apply.
+
+| Key | Example | Description |
+|-----|---------|-------------|
+| `ledger.v3.raft.snapshot-threshold` | 5000 | Log entries before snapshot |
+| `ledger.v3.raft.election-tick` | 10 | Election timeout in ticks |
+| `ledger.v3.raft.heartbeat-tick` | 1 | Heartbeat interval in ticks |
+| `ledger.v3.raft.tick-interval` | 100ms | Duration of one tick |
+| `ledger.v3.raft.max-size-per-msg` | 1048576 | Max message size in bytes |
+| `ledger.v3.raft.max-inflight-msgs` | 256 | Max in-flight messages |
+| `ledger.v3.raft.compaction-margin` | 1000 | Log retention after snapshot |
