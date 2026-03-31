@@ -9,9 +9,11 @@
       url = "github:nix-community/NUR";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    just-lib = { url = "git+ssh://git@github.com/formancehq/just-lib"; flake = false; };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nur }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nur, just-lib }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -46,7 +48,6 @@
             go_1_26
             gotools
             just
-            kubernetes-helm
             kustomize_4
             setup-envtest
             yq
@@ -60,7 +61,11 @@
         in
         {
           default = pkgs.mkShell {
-            packages = stablePackages ++ unstablePackages ++ otherPackages;
+            shellHook = ''
+              ln -sfn ${just-lib} .just-lib
+            '';
+            packages = stablePackages ++ unstablePackages ++ otherPackages
+            ++ (import "${just-lib}/helm/pkgs.nix" { inherit pkgs; });
           };
         }
       );
