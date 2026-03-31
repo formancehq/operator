@@ -101,13 +101,47 @@ Available fields:
 - `sync-period`: Synchronization period
 - `logs-page-size`: Number of logs per page
 
-## Ledger v3
+## Ledger v3 Mirror
 
-Ledger v3 is an architecturally different version that uses Raft consensus with Pebble embedded storage instead of PostgreSQL. When the version is `>= v3.0.0-alpha`, the operator deploys a **StatefulSet** instead of a Deployment.
+Ledger v3 can run alongside an existing v2 deployment as a **mirror**: it continuously replicates v2 ledger data into its own Raft-based storage. This allows gradual migration or read-offloading without disrupting v2.
 
-### Requirements
+When the `modules.ledger.v3-mirror` setting is present, the operator:
+1. Deploys v2 normally (database, migrations, Deployment)
+2. Deploys a v3 Raft StatefulSet in parallel
+3. Runs a provisioning Job that creates mirror ledgers in v3, each sourcing data from the v2 PostgreSQL database
 
-Ledger v3 does **not** require PostgreSQL or a message broker. Storage is fully embedded (Pebble LSM).
+### Enabling v3 Mirror
+
+Create a Settings resource with the key `modules.ledger.v3-mirror`. The value format is:
+
+```
+<v3-image-tag>:<ledger1>,<ledger2>,...
+```
+
+- **v3-image-tag**: The container image tag of the ledger v3 binary (e.g. `v3.0.0-alpha.1`)
+- **ledger names**: Comma-separated list of v2 ledger names to mirror
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-mirror
+spec:
+  stacks: ["my-stack"]
+  key: modules.ledger.v3-mirror
+  value: "v3.0.0-alpha.1:default,payments"
+```
+
+This example deploys a v3 cluster using image tag `v3.0.0-alpha.1` and creates two mirror ledgers (`default` and `payments`) that replicate from the v2 PostgreSQL database.
+
+### How It Works
+
+The provisioning Job connects to the v3 cluster's gRPC endpoint and calls `ledgerctl ledgers create` for each listed ledger with:
+- `--mode mirror` — marks the ledger as a mirror (read-only, no direct writes)
+- `--mirror-source-type postgres` — uses direct PostgreSQL access for replication
+- `--mirror-dsn` — the PostgreSQL DSN of the v2 database (derived automatically from the Database resource)
+
+The Job is idempotent: if a mirror ledger already exists, the error is ignored. It retries on failure (e.g. if the v3 cluster is not yet ready).
 
 ### Architecture
 
@@ -117,8 +151,12 @@ The operator creates the following resources for v3:
 |----------|---------|
 | `StatefulSet/ledger` | Raft cluster nodes with `OrderedReady` pod management |
 | `Service/ledger-raft` (headless) | DNS-based peer discovery for Raft consensus |
-| `Service/ledger` (ClusterIP) | Gateway-facing service, maps port 8080 to container port 9000 |
+| `Job/v3-mirror-provision` | Creates mirror ledgers in the v3 cluster |
 | 3 PVCs per pod | `wal`, `data`, `cold-cache` |
+
+### Requirements
+
+Ledger v3 does **not** require its own PostgreSQL or message broker. Storage is fully embedded (Pebble LSM). However, the v3 pods need network access to the v2 PostgreSQL database for mirror replication.
 
 ### Cluster Settings
 
@@ -131,19 +169,11 @@ spec:
   stacks: ["*"]
   key: module.ledger.v3.replicas
   value: "3"
----
-apiVersion: formance.com/v1beta1
-kind: Settings
-metadata:
-  name: ledger-v3-cluster-id
-spec:
-  stacks: ["*"]
-  key: module.ledger.v3.cluster-id
-  value: default
 ```
 
 - `module.ledger.v3.replicas`: Number of Raft nodes. **Must be odd** for quorum (default: 3).
-- `module.ledger.v3.cluster-id`: Raft cluster identifier (default: "default").
+
+The Raft cluster ID is automatically set to the stack name.
 
 ### Persistence Settings
 

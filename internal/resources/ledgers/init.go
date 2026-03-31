@@ -18,6 +18,8 @@ package ledgers
 
 import (
 	_ "embed"
+	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"golang.org/x/mod/semver"
@@ -32,6 +34,7 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/jobs"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=ledgers,verbs=get;list;watch;create;update;patch;delete
@@ -41,11 +44,6 @@ import (
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
-	isV3 := semver.IsValid(version) && semver.Major(version) == "v3"
-	if isV3 {
-		return reconcileV3(ctx, stack, ledger, version)
-	}
-
 	database, err := databases.Create(ctx, stack, ledger)
 	if err != nil {
 		return err
@@ -110,7 +108,52 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		}
 	}
 
-	return installLedger(ctx, stack, ledger, database, imageConfiguration, version)
+	if err := installLedger(ctx, stack, ledger, database, imageConfiguration, version); err != nil {
+		return err
+	}
+
+	// If v3 mirror is configured, deploy the v3 StatefulSet and provision mirror ledgers.
+	// The setting value is "image:ledger1,ledger2,..." (e.g. "v3.0.0-alpha.1:default,payments").
+	v3MirrorSetting, err := settings.GetString(ctx, stack.Name, "modules", "ledger", "v3-mirror")
+	if err != nil {
+		return err
+	}
+	if v3MirrorSetting != nil {
+		v3Image, mirrorLedgers, err := parseV3MirrorSetting(*v3MirrorSetting)
+		if err != nil {
+			return err
+		}
+		if err := reconcileV3(ctx, stack, ledger, database, v3Image, mirrorLedgers); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// parseV3MirrorSetting parses the setting value "image:ledger1,ledger2,...".
+// Returns the image tag and the list of ledger names to mirror.
+func parseV3MirrorSetting(value string) (string, []string, error) {
+	parts := strings.SplitN(value, ":", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", nil, fmt.Errorf("invalid v3-mirror setting %q: expected format \"tag:ledger1,ledger2,...\"", value)
+	}
+
+	image := parts[0]
+
+	var ledgers []string
+	for _, l := range strings.Split(parts[1], ",") {
+		l = strings.TrimSpace(l)
+		if l != "" {
+			ledgers = append(ledgers, l)
+		}
+	}
+
+	if len(ledgers) == 0 {
+		return "", nil, fmt.Errorf("invalid v3-mirror setting %q: no ledger names specified", value)
+	}
+
+	return image, ledgers, nil
 }
 
 func init() {

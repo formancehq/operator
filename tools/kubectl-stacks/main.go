@@ -29,6 +29,7 @@ func NewRootCommand() *cobra.Command {
 		NewSetDebugCommand(configFlags),
 		NewDisableCommand(configFlags),
 		NewEnableCommand(configFlags),
+		NewEnableModuleCommand(configFlags),
 		NewUpgradeCommand(configFlags),
 		NewSettingsCommand(configFlags),
 	)

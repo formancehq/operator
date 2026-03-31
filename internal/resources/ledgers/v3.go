@@ -13,7 +13,8 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
-	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/databases"
+	"github.com/formancehq/operator/v3/internal/resources/jobs"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
@@ -24,13 +25,9 @@ const (
 	v3PortRaft = int32(7777)
 )
 
-func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
-	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
+func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, database *v1beta1.Database, version string, mirrorLedgers []string) error {
+	imageConfiguration, err := registries.GetImageConfiguration(ctx, stack.Name, fmt.Sprintf("ghcr.io/formancehq/ledger-v3:%s", version))
 	if err != nil {
-		return err
-	}
-
-	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("health")); err != nil {
 		return err
 	}
 
@@ -38,10 +35,17 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		return err
 	}
 
-	// The GatewayHTTPAPI reconciler creates a ClusterIP service "ledger" with port 8080→"http".
-	// Since our container port named "http" is 9000, the service routes 8080→9000 automatically.
-
 	if err := installV3StatefulSet(ctx, stack, ledger, imageConfiguration); err != nil {
+		return err
+	}
+
+	// Build postgres env vars from the v2 database for the mirror source.
+	postgresEnvVars, err := buildV2PostgresEnvVars(ctx, stack, database)
+	if err != nil {
+		return err
+	}
+
+	if err := createV3MirrorProvisioningJob(ctx, stack, ledger, imageConfiguration, postgresEnvVars, mirrorLedgers); err != nil {
 		return err
 	}
 
@@ -74,7 +78,7 @@ func createV3HeadlessService(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 					},
 				},
 				Selector: map[string]string{
-					"app.kubernetes.io/name": "ledger",
+					"app.kubernetes.io/name": "ledger-v3",
 				},
 			}
 			return nil
@@ -113,18 +117,21 @@ func installV3StatefulSet(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta
 		Namespace: stackName,
 	},
 		func(t *appsv1.StatefulSet) error {
-			t.Spec = appsv1.StatefulSetSpec{
-				Replicas:            &replicas,
-				ServiceName:         headlessSvcName,
-				PodManagementPolicy: appsv1.OrderedReadyPodManagement,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app.kubernetes.io/name": "ledger",
-					},
-				},
-				Template:             *podTemplate,
-				VolumeClaimTemplates: volumeClaims,
+			// VolumeClaimTemplates are immutable after creation.
+			// Only set them when the StatefulSet is new (no UID yet).
+			if t.UID == "" {
+				t.Spec.VolumeClaimTemplates = volumeClaims
 			}
+
+			t.Spec.Replicas = &replicas
+			t.Spec.ServiceName = headlessSvcName
+			t.Spec.PodManagementPolicy = appsv1.OrderedReadyPodManagement
+			t.Spec.Selector = &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app.kubernetes.io/name": "ledger-v3",
+				},
+			}
+			t.Spec.Template = *podTemplate
 			return nil
 		},
 		core.WithController[*appsv1.StatefulSet](ctx.GetScheme(), ledger),
@@ -140,10 +147,7 @@ func buildV3PodTemplate(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 		return nil, err
 	}
 
-	clusterID, err := settings.GetStringOrDefault(ctx, stackName, "default", "module", "ledger", "v3", "cluster-id")
-	if err != nil {
-		return nil, err
-	}
+	clusterID := stackName
 
 	dataDir := "/data/app"
 	walDir := "/data/raft"
@@ -243,7 +247,7 @@ func buildV3PodTemplate(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
-				"app.kubernetes.io/name": "ledger",
+				"app.kubernetes.io/name": "ledger-v3",
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -406,4 +410,67 @@ func buildV3RaftEnvVars(ctx core.Context, stackName string) ([]corev1.EnvVar, er
 		}
 	}
 	return envVars, nil
+}
+
+// buildV2PostgresEnvVars builds env vars that resolve to the v2 postgres DSN at runtime,
+// using the same secret-based credential resolution as GetPostgresEnvVars.
+func buildV2PostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database) ([]corev1.EnvVar, error) {
+	pgEnvVars, err := databases.GetPostgresEnvVars(ctx, stack, database)
+	if err != nil {
+		return nil, err
+	}
+
+	// POSTGRES_URI is already computed by GetPostgresEnvVars.
+	// Alias it as MIRROR_POSTGRES_DSN for the provisioning job.
+	pgEnvVars = append(pgEnvVars, core.Env("MIRROR_POSTGRES_DSN", core.EnvVarPlaceholder("POSTGRES_URI")))
+
+	return pgEnvVars, nil
+}
+
+// createV3MirrorProvisioningJob creates a Job that provisions mirror ledgers in the v3 cluster.
+// It uses ledgerctl to create each mirror ledger with the postgres source pointing at the v2 database.
+func createV3MirrorProvisioningJob(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	ledger *v1beta1.Ledger,
+	image *registries.ImageConfiguration,
+	postgresEnvVars []corev1.EnvVar,
+	mirrorLedgers []string,
+) error {
+	headlessSvcName := "ledger-raft"
+	grpcAddr := fmt.Sprintf("ledger-0.%s.%s.svc.cluster.local:%d", headlessSvcName, stack.Name, v3PortGRPC)
+
+	// Build a shell script that creates each mirror ledger.
+	// "already exists" errors are ignored (idempotent), all others are fatal.
+	var scriptLines []string
+	scriptLines = append(scriptLines, `set -e`)
+	for _, name := range mirrorLedgers {
+		scriptLines = append(scriptLines, fmt.Sprintf(
+			`echo "Creating mirror ledger %s..."
+OUT=$(./ledgerctl ledgers create --name %s --mode mirror --mirror-source-type postgres --mirror-dsn "$MIRROR_POSTGRES_DSN" --server %s --insecure 2>&1) || {
+  if echo "$OUT" | grep -qi "already exists"; then
+    echo "Ledger %s already exists, skipping."
+  else
+    echo "$OUT" >&2
+    exit 1
+  fi
+}`,
+			name, name, grpcAddr, name,
+		))
+	}
+	scriptLines = append(scriptLines, `echo "All mirror ledgers provisioned."`)
+
+	script := strings.Join(scriptLines, "\n")
+
+	container := corev1.Container{
+		Name:    "provision-mirrors",
+		Image:   image.GetFullImageName(),
+		Command: []string{"/bin/sh", "-c"},
+		Args:    []string{script},
+		Env: postgresEnvVars,
+	}
+
+	return jobs.Handle(ctx, ledger, "v3-mirror-provision", container,
+		jobs.WithImagePullSecrets(image.PullSecrets),
+	)
 }
