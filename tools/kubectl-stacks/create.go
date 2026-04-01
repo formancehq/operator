@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
+
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
 func NewCreateCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Command {

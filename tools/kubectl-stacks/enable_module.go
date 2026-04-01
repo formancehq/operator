@@ -16,8 +16,8 @@ import (
 
 // moduleCRD holds the kind and plural resource name extracted from a CRD.
 type moduleCRD struct {
-	Kind     string
-	Plural   string
+	Kind   string
+	Plural string
 }
 
 // discoverModules lists CRDs with label formance.com/kind=module and returns

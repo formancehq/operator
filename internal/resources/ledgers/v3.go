@@ -467,7 +467,7 @@ OUT=$(./ledgerctl ledgers create --name %s --mode mirror --mirror-source-type po
 		Image:   image.GetFullImageName(),
 		Command: []string{"/bin/sh", "-c"},
 		Args:    []string{script},
-		Env: postgresEnvVars,
+		Env:     postgresEnvVars,
 	}
 
 	return jobs.Handle(ctx, ledger, "v3-mirror-provision", container,

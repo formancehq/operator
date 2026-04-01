@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
@@ -14,16 +15,20 @@ import (
 )
 
 var _ = Describe("LedgerV3Controller", func() {
-	Context("When creating a Ledger with v3 version", func() {
+	Context("When creating a Ledger with v3-mirror setting", func() {
 		var (
-			stack  *v1beta1.Stack
-			ledger *v1beta1.Ledger
+			stack            *v1beta1.Stack
+			ledger           *v1beta1.Ledger
+			databaseSettings *v1beta1.Settings
+			v3MirrorSetting  *v1beta1.Settings
 		)
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
-				Spec:       v1beta1.StackSpec{Version: "v3.0.0"},
+				Spec:       v1beta1.StackSpec{Version: "v99.0.0"},
 			}
+			databaseSettings = settings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", stack.Name)
+			v3MirrorSetting = settings.New(uuid.NewString(), "modules.ledger.v3-mirror", "v3.0.0:default,payments", stack.Name)
 			ledger = &v1beta1.Ledger{
 				ObjectMeta: RandObjectMeta(),
 				Spec: v1beta1.LedgerSpec{
@@ -35,10 +40,14 @@ var _ = Describe("LedgerV3Controller", func() {
 		})
 		JustBeforeEach(func() {
 			Expect(Create(stack)).To(Succeed())
+			Expect(Create(databaseSettings)).To(Succeed())
+			Expect(Create(v3MirrorSetting)).To(Succeed())
 			Expect(Create(ledger)).To(Succeed())
 		})
 		AfterEach(func() {
 			Expect(Delete(ledger)).To(Succeed())
+			Expect(Delete(v3MirrorSetting)).To(Succeed())
+			Expect(Delete(databaseSettings)).To(Succeed())
 			Expect(Delete(stack)).To(Succeed())
 		})
 
@@ -140,13 +149,13 @@ var _ = Describe("LedgerV3Controller", func() {
 			Expect(container.Lifecycle.PreStop.Exec.Command[2]).To(ContainSubstring("rm -rf"))
 		})
 
-		It("Should set CLUSTER_ID env var with default value", func() {
+		It("Should set CLUSTER_ID env var to the stack name", func() {
 			sts := &appsv1.StatefulSet{}
 			Eventually(func() error {
 				return LoadResource(stack.Name, "ledger", sts)
 			}).Should(Succeed())
 			Expect(sts.Spec.Template.Spec.Containers[0].Env).To(
-				ContainElement(core.Env("CLUSTER_ID", "default")),
+				ContainElement(core.Env("CLUSTER_ID", stack.Name)),
 			)
 		})
 
@@ -174,27 +183,49 @@ var _ = Describe("LedgerV3Controller", func() {
 			))
 		})
 
-		It("Should create a GatewayHTTPAPI with health endpoint", func() {
+		It("Should also create a v2 GatewayHTTPAPI with _healthcheck endpoint", func() {
 			httpAPI := &v1beta1.GatewayHTTPAPI{}
 			Eventually(func() error {
 				return LoadResource("", core.GetObjectName(stack.Name, "ledger"), httpAPI)
 			}).Should(Succeed())
-			Expect(httpAPI.Spec.HealthCheckEndpoint).To(Equal("health"))
+			Expect(httpAPI.Spec.HealthCheckEndpoint).To(Equal("_healthcheck"))
 		})
 
-		It("Should NOT create a Database object", func() {
-			Consistently(func() error {
-				return LoadResource("", core.GetObjectName(stack.Name, "ledger"), &v1beta1.Database{})
-			}).ShouldNot(Succeed())
+		It("Should also create a Database object for the v2 path", func() {
+			database := &v1beta1.Database{}
+			Eventually(func() error {
+				return LoadResource("", core.GetObjectName(stack.Name, "ledger"), database)
+			}).Should(Succeed())
 		})
 
-		It("Should use the correct image", func() {
+		It("Should use the correct v3 image", func() {
 			sts := &appsv1.StatefulSet{}
 			Eventually(func() error {
 				return LoadResource(stack.Name, "ledger", sts)
 			}).Should(Succeed())
-			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(ContainSubstring("ledger"))
+			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(ContainSubstring("ledger-v3"))
 			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(ContainSubstring("v3.0.0"))
+		})
+
+		It("Should create a mirror provisioning job", func() {
+			jobList := &batchv1.JobList{}
+			Eventually(func(g Gomega) {
+				g.Expect(List(jobList)).To(Succeed())
+				found := false
+				for _, j := range jobList.Items {
+					if j.Namespace == stack.Name {
+						for _, c := range j.Spec.Template.Spec.Containers {
+							if c.Name == "provision-mirrors" {
+								found = true
+								g.Expect(c.Image).To(ContainSubstring("ledger-v3"))
+								g.Expect(c.Args[0]).To(ContainSubstring("default"))
+								g.Expect(c.Args[0]).To(ContainSubstring("payments"))
+							}
+						}
+					}
+				}
+				g.Expect(found).To(BeTrue())
+			}).Should(Succeed())
 		})
 
 		Context("with custom replicas setting", func() {
@@ -214,26 +245,6 @@ var _ = Describe("LedgerV3Controller", func() {
 					g.Expect(LoadResource(stack.Name, "ledger", sts)).To(Succeed())
 					return *sts.Spec.Replicas
 				}).Should(Equal(int32(5)))
-			})
-		})
-
-		Context("with custom cluster-id setting", func() {
-			var clusterIDSetting *v1beta1.Settings
-			BeforeEach(func() {
-				clusterIDSetting = settings.New(uuid.NewString(), "module.ledger.v3.cluster-id", "my-cluster", stack.Name)
-			})
-			JustBeforeEach(func() {
-				Expect(Create(clusterIDSetting)).To(Succeed())
-			})
-			AfterEach(func() {
-				Expect(Delete(clusterIDSetting)).To(Succeed())
-			})
-			It("Should set CLUSTER_ID env var to custom value", func() {
-				sts := &appsv1.StatefulSet{}
-				Eventually(func(g Gomega) []corev1.EnvVar {
-					g.Expect(LoadResource(stack.Name, "ledger", sts)).To(Succeed())
-					return sts.Spec.Template.Spec.Containers[0].Env
-				}).Should(ContainElement(core.Env("CLUSTER_ID", "my-cluster")))
 			})
 		})
 
