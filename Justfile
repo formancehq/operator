@@ -1,6 +1,9 @@
 set dotenv-load
 set positional-arguments
 
+import '.just-lib/helm/recipes.just'
+export HELM_DIR := "helm"
+
 default:
   @just --list
 
@@ -39,56 +42,6 @@ generate:
 
 generate-mock:
   go generate -run mockgen ./...
-
-helm-update:
-  #!/bin/bash
-  set pipefail -e
-
-  rm -f helm/operator/templates/gen/*
-  rm -f helm/crds/templates/crds/*
-
-  kustomize build config/default --output helm/operator/templates/gen
-  kustomize build config/crd --output helm/crds/templates/crds
-
-  # Patch all CRD files to add helm.sh/resource-policy and custom annotations support
-  for file in helm/crds/templates/crds/*.yaml; do
-    awk '/controller-gen.kubebuilder.io\/version:/ {
-      print
-      print "    helm.sh/resource-policy: keep"
-      print "    {{{{- with .Values.annotations }}"
-      print "    {{{{- toYaml . | nindent 4 }}"
-      print "    {{{{- end }}"
-      next
-    } 1' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
-  done
-
-  rm -f helm/operator/templates/gen/v1_namespace*.yaml
-  rm -f helm/operator/templates/gen/apps_v1_deployment_*.yaml
-  helm dependencies update ./helm/operator
-
-helm-validate args='':
-  for dir in $(ls -d helm/*); do \
-    helm lint ./$dir --strict {{args}}; \
-    helm template ./$dir {{args}}; \
-  done
-
-helm-package suffix='': helm-update
-  #!/bin/bash
-  set -e
-  for dir in $(ls -d helm/*); do
-    if [ -n "{{suffix}}" ]; then
-      version=$(grep '^version:' "$dir/Chart.yaml" | awk '{print $2}' | tr -d '"')
-      pushd "$dir" && helm package . --version "${version}-{{suffix}}" && popd
-    else
-      pushd "$dir" && helm package . && popd
-    fi
-  done
-
-helm-publish suffix='': (helm-package suffix)
-  echo $GITHUB_TOKEN | docker login ghcr.io -u NumaryBot --password-stdin
-  for path in $(ls -d helm/*/*.tgz); do \
-    helm push ${path} oci://ghcr.io/formancehq/helm; \
-  done
 
 generate-docs:
   mkdir -p "docs/09-Configuration reference"
