@@ -10,7 +10,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    just-lib = { url = "git+ssh://git@github.com/formancehq/just-lib"; flake = false; };
+    just-lib = { url = "github:formancehq/just-lib/feat/actions-and-tests"; flake = false; };
   };
 
   outputs = { self, nixpkgs, nixpkgs-unstable, nur, just-lib }:
@@ -63,6 +63,7 @@
           default = pkgs.mkShell {
             shellHook = ''
               ln -sfn ${just-lib} .just-lib
+              source ${just-lib}/helm/setup-plugins.sh
             '';
             packages = stablePackages ++ unstablePackages ++ otherPackages
             ++ (import "${just-lib}/helm/pkgs.nix" { inherit pkgs; });
