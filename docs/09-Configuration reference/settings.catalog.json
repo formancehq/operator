@@ -1,0 +1,668 @@
+{
+  "source": "code",
+  "settings": [
+    {
+      "key": "auth.\u003cmodule-name\u003e.check-scopes",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/auths/env.go:79"
+      ]
+    },
+    {
+      "key": "auth.issuers",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/auths/deployment.go:69",
+        "internal/resources/auths/env.go:34"
+      ]
+    },
+    {
+      "key": "aws.service-account",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/settings/aws_role.go:6"
+      ]
+    },
+    {
+      "key": "broker.dsn",
+      "valueType": "uri",
+      "sources": [
+        "internal/resources/brokers/reconcile.go:25",
+        "internal/resources/webhooks/deployment.go:22"
+      ]
+    },
+    {
+      "key": "caddy.image",
+      "valueType": "string",
+      "default": "defaultCaddyImage",
+      "sources": [
+        "internal/resources/registries/image.go:50"
+      ]
+    },
+    {
+      "key": "clear-database",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/databases/init.go:112"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.env-vars",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/applications/application.go:282"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.resource-requirements.claims",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/applications/application.go:263"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.resource-requirements.limits",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/applications/application.go:263"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.resource-requirements.requests",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/applications/application.go:263"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.run-as",
+      "valueType": "object",
+      "objectType": "RunAs",
+      "objectFields": [
+        {
+          "name": "user",
+          "type": "*int64"
+        },
+        {
+          "name": "group",
+          "type": "*int64"
+        }
+      ],
+      "sources": [
+        "internal/resources/applications/application.go:270"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.env-vars",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/applications/application.go:253"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.resource-requirements.claims",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/applications/application.go:238"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.resource-requirements.limits",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/applications/application.go:238"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.resource-requirements.requests",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/applications/application.go:238"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.run-as",
+      "valueType": "object",
+      "objectType": "RunAs",
+      "objectFields": [
+        {
+          "name": "user",
+          "type": "*int64"
+        },
+        {
+          "name": "group",
+          "type": "*int64"
+        }
+      ],
+      "sources": [
+        "internal/resources/applications/application.go:245"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.pod-disruption-budget",
+      "valueType": "object",
+      "objectType": "podDisruptionBudgetConfiguration",
+      "objectFields": [
+        {
+          "name": "minAvailable",
+          "type": "string"
+        },
+        {
+          "name": "maxUnavailable",
+          "type": "string"
+        }
+      ],
+      "sources": [
+        "internal/resources/applications/application.go:554"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.replicas",
+      "valueType": "int32",
+      "sources": [
+        "internal/resources/applications/application.go:299"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.semconv-metrics-names",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/applications/application.go:419"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.spec.template.annotations",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/applications/application.go:176"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.spec.template.spec.termination-grace-period-seconds",
+      "valueType": "int64",
+      "sources": [
+        "internal/resources/applications/application.go:470"
+      ]
+    },
+    {
+      "key": "deployments.\u003cdeployment-name\u003e.topology-spread-constraints",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/applications/application.go:357"
+      ]
+    },
+    {
+      "key": "gateway.caddyfile.trusted-proxies",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/gateways/configuration.go:17"
+      ]
+    },
+    {
+      "key": "gateway.caddyfile.trusted-proxies-strict",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/gateways/configuration.go:25"
+      ]
+    },
+    {
+      "key": "gateway.config.idle-timeout",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/gateways/configuration.go:33"
+      ]
+    },
+    {
+      "key": "gateway.dns.\u003cdns-type\u003e.annotations",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/gateways/dnsendpoints.go:58"
+      ]
+    },
+    {
+      "key": "gateway.dns.\u003cdns-type\u003e.dns-names",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/gateways/dnsendpoints.go:37"
+      ]
+    },
+    {
+      "key": "gateway.dns.\u003cdns-type\u003e.enabled",
+      "valueType": "bool",
+      "default": "false",
+      "sources": [
+        "internal/resources/gateways/dnsendpoints.go:28"
+      ]
+    },
+    {
+      "key": "gateway.dns.\u003cdns-type\u003e.provider-specific",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/gateways/dnsendpoints.go:53"
+      ]
+    },
+    {
+      "key": "gateway.dns.\u003cdns-type\u003e.record-type",
+      "valueType": "string",
+      "default": "CNAME",
+      "sources": [
+        "internal/resources/gateways/dnsendpoints.go:63"
+      ]
+    },
+    {
+      "key": "gateway.dns.\u003cdns-type\u003e.targets",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/gateways/dnsendpoints.go:45"
+      ]
+    },
+    {
+      "key": "gateway.ingress.annotations",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/gateways/ingress.go:17"
+      ]
+    },
+    {
+      "key": "gateway.ingress.class",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/gateways/ingress.go:93"
+      ]
+    },
+    {
+      "key": "gateway.ingress.hosts",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/gateways/ingress.go:54"
+      ]
+    },
+    {
+      "key": "gateway.ingress.labels",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/gateways/ingress.go:39"
+      ]
+    },
+    {
+      "key": "gateway.ingress.tls.enabled",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/gateways/ingress.go:70"
+      ]
+    },
+    {
+      "key": "jobs.\u003cowner-kind\u003e.containers.\u003ccontainer-name\u003e.env-vars",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/jobs/job.go:122"
+      ]
+    },
+    {
+      "key": "jobs.\u003cowner-kind\u003e.containers.\u003ccontainer-name\u003e.run-as",
+      "valueType": "object",
+      "objectType": "RunAs",
+      "objectFields": [
+        {
+          "name": "user",
+          "type": "*int64"
+        },
+        {
+          "name": "group",
+          "type": "*int64"
+        }
+      ],
+      "sources": [
+        "internal/resources/jobs/job.go:66"
+      ]
+    },
+    {
+      "key": "jobs.\u003cowner-kind\u003e.init-containers.\u003ccontainer-name\u003e.env-vars",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/jobs/job.go:132"
+      ]
+    },
+    {
+      "key": "jobs.\u003cowner-kind\u003e.init-containers.\u003ccontainer-name\u003e.run-as",
+      "valueType": "object",
+      "objectType": "RunAs",
+      "objectFields": [
+        {
+          "name": "user",
+          "type": "*int64"
+        },
+        {
+          "name": "group",
+          "type": "*int64"
+        }
+      ],
+      "sources": [
+        "internal/resources/jobs/job.go:77"
+      ]
+    },
+    {
+      "key": "jobs.\u003cowner-kind\u003e.spec.template.annotations",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/jobs/job.go:150"
+      ]
+    },
+    {
+      "key": "ledger.api.bulk-max-size",
+      "valueType": "int",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:148"
+      ]
+    },
+    {
+      "key": "ledger.api.default-page-size",
+      "valueType": "int",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:102"
+      ]
+    },
+    {
+      "key": "ledger.api.max-page-size",
+      "valueType": "int",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:112"
+      ]
+    },
+    {
+      "key": "ledger.experimental-exporters",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:174",
+        "internal/resources/ledgers/deployments.go:289"
+      ]
+    },
+    {
+      "key": "ledger.experimental-features",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:74"
+      ]
+    },
+    {
+      "key": "ledger.experimental-numscript",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:84"
+      ]
+    },
+    {
+      "key": "ledger.experimental-numscript-flags",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:94"
+      ]
+    },
+    {
+      "key": "ledger.logs.max-batch-size",
+      "valueType": "int",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:480"
+      ]
+    },
+    {
+      "key": "ledger.schema-enforcement-mode",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:156",
+        "internal/resources/ledgers/deployments.go:264"
+      ]
+    },
+    {
+      "key": "ledger.worker.async-block-hasher",
+      "valueType": "object",
+      "objectType": "asyncBlockHasherConfiguration",
+      "objectFields": [
+        {
+          "name": "max-block-size",
+          "type": "string"
+        },
+        {
+          "name": "schedule",
+          "type": "string"
+        }
+      ],
+      "sources": [
+        "internal/resources/ledgers/deployments.go:234"
+      ]
+    },
+    {
+      "key": "ledger.worker.bucket-cleanup",
+      "valueType": "object",
+      "objectType": "bucketCleanupConfiguration",
+      "objectFields": [
+        {
+          "name": "retention-period",
+          "type": "string"
+        },
+        {
+          "name": "schedule",
+          "type": "string"
+        }
+      ],
+      "sources": [
+        "internal/resources/ledgers/deployments.go:273"
+      ]
+    },
+    {
+      "key": "ledger.worker.pipelines",
+      "valueType": "object",
+      "objectType": "pipelinesConfiguration",
+      "objectFields": [
+        {
+          "name": "pull-interval",
+          "type": "string"
+        },
+        {
+          "name": "push-retry-period",
+          "type": "string"
+        },
+        {
+          "name": "sync-period",
+          "type": "string"
+        },
+        {
+          "name": "logs-page-size",
+          "type": "string"
+        }
+      ],
+      "sources": [
+        "internal/resources/ledgers/deployments.go:246"
+      ]
+    },
+    {
+      "key": "logging.json",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/applications/application.go:392"
+      ]
+    },
+    {
+      "key": "modules.\u003cmodule-name\u003e.database.connection-pool",
+      "valueType": "object",
+      "objectType": "connectionPoolConfiguration",
+      "objectFields": [
+        {
+          "name": "max-idle",
+          "type": "string"
+        },
+        {
+          "name": "max-idle-time",
+          "type": "string"
+        },
+        {
+          "name": "max-open",
+          "type": "string"
+        },
+        {
+          "name": "max-lifetime",
+          "type": "string"
+        }
+      ],
+      "sources": [
+        "internal/resources/databases/env.go:72"
+      ]
+    },
+    {
+      "key": "namespace.annotations",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/stacks/init.go:173"
+      ]
+    },
+    {
+      "key": "namespace.labels",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/stacks/init.go:154"
+      ]
+    },
+    {
+      "key": "networkpolicies.enabled",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/stacks/networkpolicies.go:14"
+      ]
+    },
+    {
+      "key": "opentelemetry.\u003cmonitoring-type\u003e.dsn",
+      "valueType": "uri",
+      "sources": [
+        "internal/resources/settings/opentelemetry.go:52"
+      ]
+    },
+    {
+      "key": "opentelemetry.\u003cmonitoring-type\u003e.resource-attributes",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/settings/opentelemetry.go:96"
+      ]
+    },
+    {
+      "key": "opentelemetry.traces.dsn",
+      "valueType": "uri",
+      "sources": [
+        "internal/resources/settings/opentelemetry.go:38"
+      ]
+    },
+    {
+      "key": "orchestration.max-parallel-activities",
+      "valueType": "int",
+      "default": "10",
+      "sources": [
+        "internal/resources/orchestrations/deployments.go:173"
+      ]
+    },
+    {
+      "key": "payments.encryption-key",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/payments/deployments.go:31"
+      ]
+    },
+    {
+      "key": "payments.worker.temporal-max-concurrent-activity-task-pollers",
+      "valueType": "int",
+      "default": "4",
+      "sources": [
+        "internal/resources/payments/deployments.go:124"
+      ]
+    },
+    {
+      "key": "payments.worker.temporal-max-concurrent-workflow-task-pollers",
+      "valueType": "int",
+      "default": "4",
+      "sources": [
+        "internal/resources/payments/deployments.go:116"
+      ]
+    },
+    {
+      "key": "payments.worker.temporal-max-local-activity-slots",
+      "valueType": "int",
+      "default": "50",
+      "sources": [
+        "internal/resources/payments/deployments.go:140"
+      ]
+    },
+    {
+      "key": "payments.worker.temporal-max-slots-per-poller",
+      "valueType": "int",
+      "default": "10",
+      "sources": [
+        "internal/resources/payments/deployments.go:132"
+      ]
+    },
+    {
+      "key": "postgres.\u003cmodule-name\u003e.uri",
+      "valueType": "uri",
+      "sources": [
+        "internal/resources/databases/init.go:49"
+      ]
+    },
+    {
+      "key": "registries.\u003cname\u003e.endpoint",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/registries/registries.go:76"
+      ]
+    },
+    {
+      "key": "registries.\u003cname\u003e.images.\u003cpath\u003e.rewrite",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/registries/registries.go:68"
+      ]
+    },
+    {
+      "key": "services.\u003cservice-name\u003e.annotations",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/services/services.go:83"
+      ]
+    },
+    {
+      "key": "services.\u003cservice-name\u003e.traffic-distribution",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/services/services.go:88"
+      ]
+    },
+    {
+      "key": "temporal.dsn",
+      "valueType": "uri",
+      "sources": [
+        "internal/resources/orchestrations/deployments.go:80",
+        "internal/resources/payments/deployments.go:43"
+      ]
+    },
+    {
+      "key": "temporal.tls.crt",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/orchestrations/deployments.go:124",
+        "internal/resources/payments/deployments.go:81"
+      ]
+    },
+    {
+      "key": "temporal.tls.key",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/orchestrations/deployments.go:129",
+        "internal/resources/payments/deployments.go:89"
+      ]
+    },
+    {
+      "key": "transactionplane.worker-enabled",
+      "valueType": "bool",
+      "default": "false",
+      "sources": [
+        "internal/resources/transactionplane/deployments.go:125"
+      ]
+    }
+  ]
+}

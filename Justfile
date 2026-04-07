@@ -4,7 +4,7 @@ set positional-arguments
 default:
   @just --list
 
-pre-commit: tidy lint generate manifests helm-update helm-validate generate-docs
+pre-commit: tidy lint generate manifests helm-update helm-validate generate-docs generate-settings-catalog
 pc: pre-commit
 
 lint:
@@ -98,6 +98,9 @@ generate-docs:
     --output-path="./docs/09-Configuration reference/02-Custom Resource Definitions.md" \
     --templates-dir=./crd-doc-templates \
     --config=./docs.config.yaml
+
+generate-settings-catalog:
+  go run ./cmd/settings-catalog --format json --output "./docs/09-Configuration reference/settings.catalog.json"
 
 deploy: helm-update
   earthly +deploy
