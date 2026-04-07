@@ -36,11 +36,6 @@ type objectField struct {
 	Type string `json:"type" yaml:"type"`
 }
 
-type structField struct {
-	Name string
-	Type string
-}
-
 type functionSpec struct {
 	Name         string
 	ValueType    string
@@ -77,10 +72,10 @@ func main() {
 		return
 	}
 
-	if err := os.MkdirAll(filepath.Dir(*output), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(*output), 0o750); err != nil {
 		fail(err)
 	}
-	if err := os.WriteFile(*output, data, 0o644); err != nil {
+	if err := os.WriteFile(*output, data, 0o600); err != nil {
 		fail(err)
 	}
 }
