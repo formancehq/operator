@@ -23,12 +23,12 @@ type catalog struct {
 }
 
 type catalogSetting struct {
-	Key         string         `json:"key" yaml:"key"`
-	ValueType   string         `json:"valueType" yaml:"valueType"`
-	Default     string         `json:"default,omitempty" yaml:"default,omitempty"`
-	ObjectType  string         `json:"objectType,omitempty" yaml:"objectType,omitempty"`
+	Key          string        `json:"key" yaml:"key"`
+	ValueType    string        `json:"valueType" yaml:"valueType"`
+	Default      string        `json:"default,omitempty" yaml:"default,omitempty"`
+	ObjectType   string        `json:"objectType,omitempty" yaml:"objectType,omitempty"`
 	ObjectFields []objectField `json:"objectFields,omitempty" yaml:"objectFields,omitempty"`
-	Sources     []string       `json:"sources" yaml:"sources"`
+	Sources      []string      `json:"sources" yaml:"sources"`
 }
 
 type objectField struct {
@@ -37,17 +37,17 @@ type objectField struct {
 }
 
 type functionSpec struct {
-	Name         string
-	ValueType    string
-	KeyArgStart  int
-	Expand       func(prefix []string, defaultValue string, objectType string, objectFields []objectField, source string) []catalogSetting
-	ExtractType  func(*ast.CallExpr) (string, []objectField)
+	Name        string
+	ValueType   string
+	KeyArgStart int
+	Expand      func(prefix []string, defaultValue string, objectType string, objectFields []objectField, source string) []catalogSetting
+	ExtractType func(*ast.CallExpr) (string, []objectField)
 }
 
 type scanner struct {
-	root        string
-	fset        *token.FileSet
-	structsByDir map[string]map[string][]objectField
+	root          string
+	fset          *token.FileSet
+	structsByDir  map[string]map[string][]objectField
 	structsByName map[string][]objectField
 }
 
@@ -102,9 +102,9 @@ func marshalCatalog(c catalog, formatName string) ([]byte, error) {
 
 func newScanner(root string) *scanner {
 	return &scanner{
-		root:         root,
-		fset:         token.NewFileSet(),
-		structsByDir: map[string]map[string][]objectField{},
+		root:          root,
+		fset:          token.NewFileSet(),
+		structsByDir:  map[string]map[string][]objectField{},
 		structsByName: map[string][]objectField{},
 	}
 }
@@ -302,26 +302,26 @@ func settingsImportAliases(file *ast.File) map[string]bool {
 
 func knownFunction(name string) (functionSpec, bool) {
 	specs := map[string]functionSpec{
-		"GetString":          directSpec("string", 2),
-		"GetStringOrDefault": directSpec("string", 3),
-		"GetStringOrEmpty":   directSpec("string", 2),
-		"RequireString":      directSpec("string", 2),
-		"GetStringSlice":     directSpec("string[]", 2),
+		"GetString":             directSpec("string", 2),
+		"GetStringOrDefault":    directSpec("string", 3),
+		"GetStringOrEmpty":      directSpec("string", 2),
+		"RequireString":         directSpec("string", 2),
+		"GetStringSlice":        directSpec("string[]", 2),
 		"GetTrimmedStringSlice": directSpec("string[]", 2),
-		"GetURL":             directSpec("uri", 2),
-		"RequireURL":         directSpec("uri", 2),
-		"GetInt":             directSpec("int", 2),
-		"GetInt32":           directSpec("int32", 2),
-		"GetInt64":           directSpec("int64", 2),
-		"GetIntOrDefault":    directSpec("int", 3),
-		"GetInt32OrDefault":  directSpec("int32", 3),
-		"GetUInt16OrDefault": directSpec("uint16", 3),
-		"GetBool":            directSpec("bool", 2),
-		"GetBoolOrDefault":   directSpec("bool", 3),
-		"GetBoolOrFalse":     directSpec("bool", 2),
-		"GetBoolOrTrue":      directSpec("bool", 2),
-		"GetMap":             directSpec("map[string]string", 2),
-		"GetMapOrEmpty":      directSpec("map[string]string", 2),
+		"GetURL":                directSpec("uri", 2),
+		"RequireURL":            directSpec("uri", 2),
+		"GetInt":                directSpec("int", 2),
+		"GetInt32":              directSpec("int32", 2),
+		"GetInt64":              directSpec("int64", 2),
+		"GetIntOrDefault":       directSpec("int", 3),
+		"GetInt32OrDefault":     directSpec("int32", 3),
+		"GetUInt16OrDefault":    directSpec("uint16", 3),
+		"GetBool":               directSpec("bool", 2),
+		"GetBoolOrDefault":      directSpec("bool", 3),
+		"GetBoolOrFalse":        directSpec("bool", 2),
+		"GetBoolOrTrue":         directSpec("bool", 2),
+		"GetMap":                directSpec("map[string]string", 2),
+		"GetMapOrEmpty":         directSpec("map[string]string", 2),
 		"GetEnvVars": {
 			Name:        "GetEnvVars",
 			ValueType:   "map[string]string",
