@@ -104,7 +104,7 @@ var _ = Describe("LedgerController", func() {
 				}).Should(Succeed())
 
 				patch := client.MergeFrom(ledger.DeepCopy())
-				ledger.Spec.Version = "v0.0.0-test"
+				ledger.Spec.Version = "v2.2.0"
 				Expect(Patch(ledger, patch)).To(Succeed())
 			})
 			It("Should update the generation deployment", func() {
@@ -112,7 +112,7 @@ var _ = Describe("LedgerController", func() {
 				Eventually(func(g Gomega) string {
 					g.Expect(Get(core.GetNamespacedResourceName(stack.Name, "ledger"), deployment)).To(Succeed())
 					return deployment.Spec.Template.Spec.Containers[0].Image
-				}).Should(ContainSubstring("v0.0.0-test"))
+				}).Should(ContainSubstring("v2.2.0"))
 				Expect(deployment.Generation).ToNot(Equal(cp.Generation))
 			})
 		})

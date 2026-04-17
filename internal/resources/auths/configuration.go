@@ -29,7 +29,7 @@ func createConfiguration(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, 
 		Clients []v1beta1.AuthClientSpec `yaml:"clients"`
 	}{
 		Clients: Map(items, func(from *v1beta1.AuthClient) v1beta1.AuthClientSpec {
-			if from.Spec.SecretFromSecret != nil && IsGreaterOrEqual(version, "v2.1.0") {
+			if from.Spec.SecretFromSecret != nil {
 				envVar := AuthClientSecretToEnvVars(from)
 				from.Spec.Secret = "$" + envVar.Name
 			}
