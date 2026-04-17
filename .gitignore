@@ -28,3 +28,5 @@ Dockerfile.cross
 charts
 
 *.tgz
+
+.just-lib
