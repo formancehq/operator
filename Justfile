@@ -99,5 +99,8 @@ generate-docs:
     --templates-dir=./crd-doc-templates \
     --config=./docs.config.yaml
 
+install-kubectl-stacks:
+  cd tools/kubectl-stacks && go build -o {{env('GOPATH', `go env GOPATH`)}}/bin/kubectl-stacks .
+
 deploy: helm-update
   earthly +deploy
