@@ -161,7 +161,7 @@ func createIngress(ctx core.Context, stack *v1beta1.Stack,
 		withIngressClassName(ctx, stack, gateway),
 		withIngressRules(hosts),
 		withTls(ctx, gateway, hosts),
-		core.WithController[*v1.Ingress](ctx.GetScheme(), gateway),
+		core.WithController[*v1.Ingress](core.GetScheme(ctx), gateway),
 	)
 
 	return err

@@ -41,7 +41,7 @@ func Create(ctx core.Context, owner interface {
 
 			return nil
 		},
-		core.WithController[*v1beta1.BrokerConsumer](ctx.GetScheme(), owner),
+		core.WithController[*v1beta1.BrokerConsumer](core.GetScheme(ctx), owner),
 	)
 	if err != nil {
 		return nil, err

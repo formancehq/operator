@@ -37,7 +37,7 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 			}
 			return nil
 		},
-		WithController[*networkingv1.NetworkPolicy](ctx.GetScheme(), stack),
+		WithController[*networkingv1.NetworkPolicy](GetScheme(ctx), stack),
 	); err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 			}
 			return nil
 		},
-		WithController[*networkingv1.NetworkPolicy](ctx.GetScheme(), stack),
+		WithController[*networkingv1.NetworkPolicy](GetScheme(ctx), stack),
 	); err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 			}
 			return nil
 		},
-		WithController[*networkingv1.NetworkPolicy](ctx.GetScheme(), stack),
+		WithController[*networkingv1.NetworkPolicy](GetScheme(ctx), stack),
 	); err != nil {
 		return err
 	}

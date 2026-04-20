@@ -22,7 +22,7 @@ import (
 
 func Get(ctx core.Context, stack string, keys ...string) (*string, error) {
 	allSettingsTargetingStack := &v1beta1.SettingsList{}
-	if err := ctx.GetClient().List(ctx, allSettingsTargetingStack, client.MatchingFields{
+	if err := core.GetClient(ctx).List(ctx, allSettingsTargetingStack, client.MatchingFields{
 		"stack":  stack,
 		"keylen": fmt.Sprint(len(keys)),
 	}); err != nil {
@@ -30,7 +30,7 @@ func Get(ctx core.Context, stack string, keys ...string) (*string, error) {
 	}
 
 	allSettingsTargetingAllStacks := &v1beta1.SettingsList{}
-	if err := ctx.GetClient().List(ctx, allSettingsTargetingAllStacks, client.MatchingFields{
+	if err := core.GetClient(ctx).List(ctx, allSettingsTargetingAllStacks, client.MatchingFields{
 		"stack":  "*",
 		"keylen": fmt.Sprint(len(keys)),
 	}); err != nil {

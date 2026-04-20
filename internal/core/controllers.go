@@ -66,7 +66,7 @@ type StackDependentObjectController[T v1beta1.Dependent] func(ctx Context, stack
 func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController[T], allowDeleted bool) ObjectController[T] {
 	return func(ctx Context, t T) error {
 		stack := &v1beta1.Stack{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err := GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: t.GetStack(),
 		}, stack); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -116,10 +116,10 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 
 		if !hasOwnerReference {
 			patch := client.MergeFrom(t.DeepCopyObject().(T))
-			if err := controllerutil.SetOwnerReference(stack, t, ctx.GetScheme()); err != nil {
+			if err := controllerutil.SetOwnerReference(stack, t, GetScheme(ctx)); err != nil {
 				return err
 			}
-			if err := ctx.GetClient().Patch(ctx, t, patch); err != nil {
+			if err := GetClient(ctx).Patch(ctx, t, patch); err != nil {
 				return errors.Wrap(err, "patching object to add owner reference on stack")
 			}
 			log.FromContext(ctx).Info("Add owner reference on stack")
@@ -160,7 +160,7 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 		stackName = dep.GetStack()
 	}
 
-	ownerGVK, err := apiutil.GVKForObject(owner, ctx.GetScheme())
+	ownerGVK, err := apiutil.GVKForObject(owner, GetScheme(ctx))
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 			continue
 		}
 
-		gvk, err := apiutil.GVKForObject(object, ctx.GetScheme())
+		gvk, err := apiutil.GVKForObject(object, GetScheme(ctx))
 		if err != nil {
 			return err
 		}
@@ -187,7 +187,7 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 		if stackName != "" && gvk.Group != "formance.com" {
 			listOpts = append(listOpts, client.InNamespace(stackName))
 		}
-		if err := ctx.GetClient().List(ctx, list, listOpts...); err != nil {
+		if err := GetClient(ctx).List(ctx, list, listOpts...); err != nil {
 			return err
 		}
 
@@ -200,7 +200,7 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 				logger.Info(fmt.Sprintf("Deleting owned object %s %s/%s (owner: %s/%s)",
 					gvk.Kind, item.GetNamespace(), item.GetName(),
 					ownerGVK.Kind, owner.GetName()))
-				if err := ctx.GetClient().Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
+				if err := GetClient(ctx).Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
 					return err
 				}
 			}

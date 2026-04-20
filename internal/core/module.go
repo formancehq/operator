@@ -8,7 +8,7 @@ import (
 )
 
 func LowerCamelCaseKind(ctx Context, ob client.Object) string {
-	kinds, _, err := ctx.GetScheme().ObjectKinds(ob)
+	kinds, _, err := GetScheme(ctx).ObjectKinds(ob)
 	if err != nil {
 		panic(err)
 	}
@@ -16,7 +16,7 @@ func LowerCamelCaseKind(ctx Context, ob client.Object) string {
 }
 
 func LowerCaseKind(ctx Context, ob client.Object) string {
-	kinds, _, err := ctx.GetScheme().ObjectKinds(ob)
+	kinds, _, err := GetScheme(ctx).ObjectKinds(ob)
 	if err != nil {
 		panic(err)
 	}

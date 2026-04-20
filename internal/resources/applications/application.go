@@ -504,7 +504,7 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		a.withSemconvMetricsNames(ctx),
 		a.withNodeIP(ctx),
 		a.withTerminationGracePeriod(ctx),
-		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
+		core.WithController[*appsv1.Deployment](core.GetScheme(ctx), a.owner),
 	)
 
 	deployment, _, err := core.CreateOrUpdate(ctx, types.NamespacedName{
@@ -582,7 +582,7 @@ func (a Application) handlePDB(ctx core.Context, deploymentLabels map[string]str
 			}
 			return nil
 		},
-			core.WithController[*v1.PodDisruptionBudget](ctx.GetScheme(), a.owner),
+			core.WithController[*v1.PodDisruptionBudget](core.GetScheme(ctx), a.owner),
 		)
 		if err != nil {
 			podDisruptionBudgetConfiguredCondition.SetStatus(metav1.ConditionFalse).SetMessage(err.Error())
@@ -603,7 +603,7 @@ func (a Application) deletePDBIfExists(ctx core.Context) error {
 	pdb.SetName(a.deploymentTpl.Name)
 	pdb.SetNamespace(a.owner.GetStack())
 
-	return client.IgnoreNotFound(ctx.GetClient().Delete(ctx, pdb))
+	return client.IgnoreNotFound(core.GetClient(ctx).Delete(ctx, pdb))
 }
 
 func New(owner v1beta1.Dependent, deploymentTpl *appsv1.Deployment) *Application {

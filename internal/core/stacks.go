@@ -18,7 +18,7 @@ func GetAllStackDependencies(ctx Context, stackName string, to any) error {
 	slice := reflect.Indirect(reflect.ValueOf(to)).Interface()
 	objectType := reflect.TypeOf(slice).Elem()
 
-	kinds, _, err := ctx.GetScheme().ObjectKinds(reflect.New(objectType.Elem()).Interface().(client.Object))
+	kinds, _, err := GetScheme(ctx).ObjectKinds(reflect.New(objectType.Elem()).Interface().(client.Object))
 	if err != nil {
 		return err
 	}
@@ -26,7 +26,7 @@ func GetAllStackDependencies(ctx Context, stackName string, to any) error {
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(kinds[0])
 
-	err = ctx.GetClient().List(ctx, list, client.MatchingFields{
+	err = GetClient(ctx).List(ctx, list, client.MatchingFields{
 		"stack": stackName,
 	})
 	if err != nil {

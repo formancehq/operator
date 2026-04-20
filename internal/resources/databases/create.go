@@ -36,8 +36,8 @@ func Create(ctx core.Context, stack *v1beta1.Stack, owner interface {
 
 			return nil
 		},
-		core.WithController[*v1beta1.Database](ctx.GetScheme(), owner),
-		core.WithOwner[*v1beta1.Database](ctx.GetScheme(), stack),
+		core.WithController[*v1beta1.Database](core.GetScheme(ctx), owner),
+		core.WithOwner[*v1beta1.Database](core.GetScheme(ctx), stack),
 	)
 	if err != nil {
 		condition.Message = err.Error()
@@ -63,7 +63,7 @@ func SaveModuleVersion(ctx core.Context, database *v1beta1.Database, version str
 		database.Annotations = make(map[string]string)
 	}
 	database.Annotations[ServiceVersion] = version
-	return errors.Wrap(ctx.GetClient().Patch(ctx, database, patch), "patching database")
+	return errors.Wrap(core.GetClient(ctx).Patch(ctx, database, patch), "patching database")
 }
 
 func GetSavedModuleVersion(database *v1beta1.Database) string {

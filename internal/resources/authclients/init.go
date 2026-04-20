@@ -62,7 +62,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, authClient *v1beta1.AuthClient
 
 			return nil
 		},
-		WithController[*corev1.Secret](ctx.GetScheme(), authClient),
+		WithController[*corev1.Secret](GetScheme(ctx), authClient),
 	)
 
 	return err

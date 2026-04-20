@@ -87,7 +87,7 @@ func commonEnvVars(
 	env = append(env, topics...)
 
 	broker := &v1beta1.Broker{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: stack.Name,
 	}, broker); err != nil {
 		return nil, err
@@ -139,7 +139,7 @@ func createDeployments(
 
 func deleteDeployment(ctx Context, stack *v1beta1.Stack, name string) error {
 	deployment := &appsv1.Deployment{}
-	if err := ctx.GetClient().Get(ctx, GetNamespacedResourceName(stack.Name, name), deployment); err != nil {
+	if err := GetClient(ctx).Get(ctx, GetNamespacedResourceName(stack.Name, name), deployment); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
 		}
@@ -151,7 +151,7 @@ func deleteDeployment(ctx Context, stack *v1beta1.Stack, name string) error {
 	}
 
 	LogDeletion(ctx, deployment, "transactionplane.deleteDeployment")
-	if err := ctx.GetClient().Delete(ctx, deployment); err != nil {
+	if err := GetClient(ctx).Delete(ctx, deployment); err != nil {
 		return err
 	}
 

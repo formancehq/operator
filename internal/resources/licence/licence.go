@@ -11,7 +11,7 @@ import (
 func GetLicenceEnvVars(ctx core.Context, ownerName string, owner v1beta1.Dependent) (*v1beta1.ResourceReference, []v1.EnvVar, error) {
 	ret := make([]v1.EnvVar, 0)
 
-	platform := ctx.GetPlatform()
+	platform := core.GetPlatform(ctx)
 
 	var resourceReference *v1beta1.ResourceReference
 	var err error

@@ -28,16 +28,6 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
-type coreContextKey struct{}
-
-func contextWithCoreContext(ctx context.Context, coreCtx Context) context.Context {
-	return context.WithValue(ctx, coreContextKey{}, coreCtx)
-}
-
-func coreContextFromContext(ctx context.Context) Context {
-	return ctx.Value(coreContextKey{}).(Context)
-}
-
 type finalizerFunc func(context.Context, client.Object) (finalizer.Result, error)
 
 func (f finalizerFunc) Finalize(ctx context.Context, obj client.Object) (finalizer.Result, error) {
@@ -261,7 +251,7 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 	for _, fc := range reconcilerOptions.Finalizers {
 		fn := fc.fn
 		if err := f.Register(fc.name, finalizerFunc(func(ctx context.Context, obj client.Object) (finalizer.Result, error) {
-			return finalizer.Result{}, fn(coreContextFromContext(ctx), obj.(T))
+			return finalizer.Result{}, fn(ctx, obj.(T))
 		})); err != nil {
 			panic(err)
 		}
@@ -283,7 +273,7 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 		reconcileContext := NewContext(mgr, contextWithOwnedObjects(ctx, reconcilerOptions.Owns))
 
 		// Handle finalizers (add on non-deleted, call+remove on deleted)
-		finResult, finErr := f.Finalize(contextWithCoreContext(ctx, reconcileContext), object)
+		finResult, finErr := f.Finalize(reconcileContext, object)
 		if finResult.Updated {
 			if err := mgr.GetClient().Update(ctx, object); err != nil {
 				if apierrors.IsConflict(err) {

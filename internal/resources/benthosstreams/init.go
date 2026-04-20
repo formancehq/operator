@@ -37,14 +37,14 @@ func Reconcile(ctx Context, _ *v1beta1.Stack, stream *v1beta1.BenthosStream) err
 	// since we don't create any BenthosStream in the operator
 	// we can clean all streams owned by one of our component
 	if len(stream.GetOwnerReferences()) == 1 && stream.GetOwnerReferences()[0].APIVersion == "formance.com/v1beta1" {
-		return ctx.GetClient().Delete(ctx, stream)
+		return GetClient(ctx).Delete(ctx, stream)
 	}
 
 	cm, _, err := CreateOrUpdate[*corev1.ConfigMap](ctx, types.NamespacedName{
 		Namespace: stream.Spec.Stack,
 		Name:      fmt.Sprintf("stream-%s", stream.Name),
 	},
-		WithController[*corev1.ConfigMap](ctx.GetScheme(), stream),
+		WithController[*corev1.ConfigMap](GetScheme(ctx), stream),
 		func(t *corev1.ConfigMap) error {
 			t.Data = map[string]string{
 				"stream.yaml": stream.Spec.Data,

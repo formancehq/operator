@@ -91,7 +91,7 @@ func GetPublisherEnvVars(stack *v1beta1.Stack, broker *v1beta1.Broker, service s
 func GetTopicsEnvVars(ctx core.Context, stack *v1beta1.Stack, key string, services ...string) ([]v1.EnvVar, error) {
 
 	broker := &v1beta1.Broker{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: stack.Name,
 	}, broker); err != nil {
 		return nil, err

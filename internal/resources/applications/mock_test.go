@@ -119,26 +119,3 @@ func (m *mockManager) Start(context.Context) error {
 	return nil
 }
 
-// mockContext is a mock implementation of core.Context
-type mockContext struct {
-	context.Context
-	client   client.Client
-	scheme   *runtime.Scheme
-	platform core.Platform
-}
-
-func (m *mockContext) GetClient() client.Client {
-	return m.client
-}
-
-func (m *mockContext) GetScheme() *runtime.Scheme {
-	return m.scheme
-}
-
-func (m *mockContext) GetAPIReader() client.Reader {
-	return m.client
-}
-
-func (m *mockContext) GetPlatform() core.Platform {
-	return m.platform
-}

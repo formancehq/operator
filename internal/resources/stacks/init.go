@@ -56,20 +56,20 @@ var (
 )
 
 func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
-	for _, rtype := range ctx.GetScheme().AllKnownTypes() {
+	for _, rtype := range GetScheme(ctx).AllKnownTypes() {
 		v := reflect.New(rtype).Interface()
 		r, ok := v.(v1beta1.Module)
 		if !ok {
 			continue
 		}
 
-		gvk, err := apiutil.GVKForObject(r, ctx.GetScheme())
+		gvk, err := apiutil.GVKForObject(r, GetScheme(ctx))
 		if err != nil {
 			return err
 		}
 		l := &unstructured.UnstructuredList{}
 		l.SetGroupVersionKind(gvk)
-		if err := ctx.GetClient().List(ctx, l, client.MatchingFields{
+		if err := GetClient(ctx).List(ctx, l, client.MatchingFields{
 			"stack": stack.Name,
 		}); err != nil {
 			return err
@@ -210,7 +210,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 		namespaceLabel(ctx, stack.Name),
 		namespaceAnnotations(ctx, stack.Name),
 		namespaceCreatedByAgent(ctx, stack),
-		WithController[*corev1.Namespace](ctx.GetScheme(), stack)); err != nil {
+		WithController[*corev1.Namespace](GetScheme(ctx), stack)); err != nil {
 		if !errors.Is(err, errAlreadyExist) {
 			return err
 		}
@@ -274,21 +274,21 @@ func (p pendingDeletions) String() string {
 
 func deleteModules(ctx Context, stack *v1beta1.Stack, logger logr.Logger) error {
 	pendingModuleDeletions := pendingDeletions{}
-	for _, rtype := range ctx.GetScheme().AllKnownTypes() {
+	for _, rtype := range GetScheme(ctx).AllKnownTypes() {
 		v := reflect.New(rtype).Interface()
 		module, ok := v.(v1beta1.Module)
 		if !ok {
 			continue
 		}
 
-		gvk, err := apiutil.GVKForObject(module, ctx.GetScheme())
+		gvk, err := apiutil.GVKForObject(module, GetScheme(ctx))
 		if err != nil {
 			return err
 		}
 
 		l := &unstructured.UnstructuredList{}
 		l.SetGroupVersionKind(gvk)
-		if err := ctx.GetAPIReader().List(ctx, l); err != nil {
+		if err := GetAPIReader(ctx).List(ctx, l); err != nil {
 			return err
 		}
 
@@ -304,7 +304,7 @@ func deleteModules(ctx Context, stack *v1beta1.Stack, logger logr.Logger) error 
 			}
 			if item.GetDeletionTimestamp().IsZero() {
 				logger.Info(fmt.Sprintf("Delete module %s [%s]", item.GetName(), gvk))
-				if err := ctx.GetClient().Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
+				if err := GetClient(ctx).Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
 					return err
 				}
 				pendingModuleDeletion.JustDeleted = true
@@ -322,20 +322,20 @@ func deleteModules(ctx Context, stack *v1beta1.Stack, logger logr.Logger) error 
 
 func deleteResources(ctx Context, stack *v1beta1.Stack, logger logr.Logger) error {
 	pendingResourceDeletions := pendingDeletions{}
-	for _, rtype := range ctx.GetScheme().AllKnownTypes() {
+	for _, rtype := range GetScheme(ctx).AllKnownTypes() {
 		v := reflect.New(rtype).Interface()
 		resource, ok := v.(v1beta1.Resource)
 		if !ok {
 			continue
 		}
-		gvk, err := apiutil.GVKForObject(resource, ctx.GetScheme())
+		gvk, err := apiutil.GVKForObject(resource, GetScheme(ctx))
 		if err != nil {
 			return err
 		}
 
 		l := &unstructured.UnstructuredList{}
 		l.SetGroupVersionKind(gvk)
-		if err := ctx.GetAPIReader().List(ctx, l); err != nil {
+		if err := GetAPIReader(ctx).List(ctx, l); err != nil {
 			return err
 		}
 
@@ -352,7 +352,7 @@ func deleteResources(ctx Context, stack *v1beta1.Stack, logger logr.Logger) erro
 			if item.GetDeletionTimestamp().IsZero() {
 				pendingResourceDeletion.JustDeleted = true
 				logger.Info(fmt.Sprintf("Delete resource %s [%s]", item.GetName(), gvk))
-				if err := ctx.GetClient().Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
+				if err := GetClient(ctx).Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
 					return err
 				}
 			}
@@ -376,13 +376,13 @@ func init() {
 			WithOwn[*v1beta1.Stack](&corev1.Namespace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})),
 			WithOwn[*v1beta1.Stack](&networkingv1.NetworkPolicy{}),
 			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
-				for _, rtype := range ctx.GetScheme().AllKnownTypes() {
+				for _, rtype := range GetScheme(ctx).AllKnownTypes() {
 					v := reflect.New(rtype).Interface()
 
 					switch v := v.(type) {
 					case v1beta1.Module:
 						u := &unstructured.Unstructured{}
-						gvk, err := apiutil.GVKForObject(v, ctx.GetScheme())
+						gvk, err := apiutil.GVKForObject(v, GetScheme(ctx))
 						if err != nil {
 							return err
 						}
@@ -401,7 +401,7 @@ func init() {
 						}))
 					case v1beta1.Resource:
 						u := &unstructured.Unstructured{}
-						gvk, err := apiutil.GVKForObject(v, ctx.GetScheme())
+						gvk, err := apiutil.GVKForObject(v, GetScheme(ctx))
 						if err != nil {
 							return err
 						}
@@ -433,7 +433,7 @@ func init() {
 						requests := make([]reconcile.Request, 0)
 						if s.IsWildcard() {
 							stackList := &v1beta1.StackList{}
-							if err := ctx.GetClient().List(watchCtx, stackList); err != nil {
+							if err := GetClient(ctx).List(watchCtx, stackList); err != nil {
 								return nil
 							}
 							for _, stack := range stackList.Items {

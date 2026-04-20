@@ -127,7 +127,7 @@ func createDNSEndpoint(ctx core.Context, gateway v1beta1.Dependent, dnsType stri
 		}
 
 		// Set owner reference to gateway
-		return core.WithController[*v1alpha1.DNSEndpoint](ctx.GetScheme(), gateway)(d)
+		return core.WithController[*v1alpha1.DNSEndpoint](core.GetScheme(ctx), gateway)(d)
 	})
 
 	return err
@@ -177,7 +177,7 @@ func deleteDNSEndpoint(ctx core.Context, namespace, name string) error {
 	dnsEndpoint.SetName(name)
 	dnsEndpoint.SetNamespace(namespace)
 
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name:      name,
 		Namespace: namespace,
 	}, dnsEndpoint); err != nil {
@@ -185,5 +185,5 @@ func deleteDNSEndpoint(ctx core.Context, namespace, name string) error {
 		return client.IgnoreNotFound(err)
 	}
 
-	return ctx.GetClient().Delete(ctx, dnsEndpoint)
+	return core.GetClient(ctx).Delete(ctx, dnsEndpoint)
 }
