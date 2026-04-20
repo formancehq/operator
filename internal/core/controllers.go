@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -13,14 +14,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
-type ObjectController[T client.Object] func(ctx Context, req T) error
+// ObjectReconcilerFunc adapts a function into a reconcile.ObjectReconciler[T].
+type ObjectReconcilerFunc[T client.Object] func(context.Context, T) (reconcile.Result, error)
 
-func ForObjectController[T v1beta1.Object](controller ObjectController[T]) ObjectController[T] {
-	return func(ctx Context, object T) error {
+func (f ObjectReconcilerFunc[T]) Reconcile(ctx context.Context, obj T) (reconcile.Result, error) {
+	return f(ctx, obj)
+}
+
+func ForObjectController[T v1beta1.Object](controller reconcile.ObjectReconciler[T]) reconcile.ObjectReconciler[T] {
+	return ObjectReconcilerFunc[T](func(ctx context.Context, object T) (reconcile.Result, error) {
 		setStatus := func(err error) {
 			if err != nil {
 				object.SetReady(false)
@@ -31,78 +38,77 @@ func ForObjectController[T v1beta1.Object](controller ObjectController[T]) Objec
 			}
 		}
 
-		var reconcilerError error
-		err := controller(ctx, object)
+		result, err := controller.Reconcile(ctx, object)
 		if err != nil {
 			setStatus(err)
 			if !IsApplicationError(err) {
-				reconcilerError = err
+				return result, err
 			}
-		} else {
-			for _, condition := range *object.GetConditions() {
-				if condition.ObservedGeneration != object.GetGeneration() {
-					continue
-				}
-
-				if condition.Status != metav1.ConditionTrue {
-					str := condition.Type
-					if condition.Reason != "" {
-						str += "/" + condition.Reason
-					}
-
-					setStatus(NewPendingError().WithMessage("%s", "pending condition: "+str))
-					return nil
-				}
-			}
-			setStatus(nil)
+			return result, nil
 		}
 
-		return reconcilerError
-	}
+		for _, condition := range *object.GetConditions() {
+			if condition.ObservedGeneration != object.GetGeneration() {
+				continue
+			}
+
+			if condition.Status != metav1.ConditionTrue {
+				str := condition.Type
+				if condition.Reason != "" {
+					str += "/" + condition.Reason
+				}
+
+				setStatus(NewPendingError().WithMessage("%s", "pending condition: "+str))
+				return reconcile.Result{}, nil
+			}
+		}
+		setStatus(nil)
+
+		return result, nil
+	})
 }
 
-type StackDependentObjectController[T v1beta1.Dependent] func(ctx Context, stack *v1beta1.Stack, req T) error
+type StackDependentObjectController[T v1beta1.Dependent] func(ctx context.Context, stack *v1beta1.Stack, req T) error
 
-func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController[T], allowDeleted bool) ObjectController[T] {
-	return func(ctx Context, t T) error {
+func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController[T], allowDeleted bool) reconcile.ObjectReconciler[T] {
+	return ObjectReconcilerFunc[T](func(ctx context.Context, t T) (reconcile.Result, error) {
 		stack := &v1beta1.Stack{}
 		if err := GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: t.GetStack(),
 		}, stack); err != nil {
 			if apierrors.IsNotFound(err) {
-				return NewStackNotFoundError()
-			} else {
-				return err
+				return reconcile.Result{}, NewStackNotFoundError()
 			}
-		} else {
-			if stack.GetAnnotations()[v1beta1.SkipLabel] == "true" {
-				t.GetConditions().
-					AppendOrReplace(v1beta1.Condition{
-						Type:               "ReconciledWithStack",
-						Status:             metav1.ConditionTrue,
-						ObservedGeneration: stack.GetGeneration(),
-						LastTransitionTime: metav1.Now(),
-						Message:            "Reconciled with stack specification",
-						Reason:             "Skipped",
-					}, v1beta1.ConditionTypeMatch("ReconciledWithStack"))
-				return nil
-			}
+			return reconcile.Result{}, err
+		}
+
+		if stack.GetAnnotations()[v1beta1.SkipLabel] == "true" {
+			t.GetConditions().
+				AppendOrReplace(v1beta1.Condition{
+					Type:               "ReconciledWithStack",
+					Status:             metav1.ConditionTrue,
+					ObservedGeneration: stack.GetGeneration(),
+					LastTransitionTime: metav1.Now(),
+					Message:            "Reconciled with stack specification",
+					Reason:             "Skipped",
+				}, v1beta1.ConditionTypeMatch("ReconciledWithStack"))
+			return reconcile.Result{}, nil
 		}
 
 		if !allowDeleted {
 			if !stack.GetDeletionTimestamp().IsZero() {
-				return NewStackNotFoundError()
+				return reconcile.Result{}, NewStackNotFoundError()
 			}
 		}
 
-		return ctrl(ctx, stack, t)
-	}
+		return reconcile.Result{}, ctrl(ctx, stack, t)
+	})
 }
 
-type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, req T, version string) error
+type ModuleController[T v1beta1.Module] func(ctx context.Context, stack *v1beta1.Stack, req T, version string) error
 
 func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) StackDependentObjectController[T] {
-	return func(ctx Context, stack *v1beta1.Stack, t T) error {
+	return func(ctx context.Context, stack *v1beta1.Stack, t T) error {
 
 		moduleVersion, err := GetModuleVersion(ctx, stack, t)
 		if err != nil {

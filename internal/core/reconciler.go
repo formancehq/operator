@@ -186,7 +186,7 @@ func WithWatch[T client.Object, WATCHED client.Object](fn func(ctx Context, obje
 	}
 }
 
-func withReconciler[T client.Object](controller ObjectController[T], opts ...ReconcilerOption[T]) Initializer {
+func withReconciler[T client.Object](controller reconcile.ObjectReconciler[T], opts ...ReconcilerOption[T]) Initializer {
 	return func(mgr Manager) error {
 
 		options := ReconcilerOptions[T]{
@@ -245,7 +245,7 @@ func withReconciler[T client.Object](controller ObjectController[T], opts ...Rec
 	}
 }
 
-func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T], reconcilerOptions ReconcilerOptions[T]) func(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+func reconcileObject[T client.Object](mgr Manager, controller reconcile.ObjectReconciler[T], reconcilerOptions ReconcilerOptions[T]) func(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	// Build native finalizers once from config
 	f := finalizer.NewFinalizers()
 	for _, fc := range reconcilerOptions.Finalizers {
@@ -307,8 +307,11 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 		cp := object.DeepCopyObject().(T)
 		patch := client.MergeFrom(cp)
 
-		var reconcilerError error
-		err := controller(reconcileContext, object)
+		var (
+			reconcilerError error
+			result          reconcile.Result
+		)
+		result, err := controller.Reconcile(reconcileContext, object)
 		if err != nil {
 			log.FromContext(ctx).Info(fmt.Sprintf("Terminated with error: %s", err))
 			if !IsApplicationError(err) {
@@ -330,36 +333,42 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 			}, nil
 		}
 
-		return ctrl.Result{}, reconcilerError
+		if reconcilerError != nil {
+			return ctrl.Result{}, reconcilerError
+		}
+
+		return result, nil
 	}
 }
 
-func withStdReconciler[T v1beta1.Object](ctrl ObjectController[T], opts ...ReconcilerOption[T]) Initializer {
+func withStdReconciler[T v1beta1.Object](ctrl reconcile.ObjectReconciler[T], opts ...ReconcilerOption[T]) Initializer {
 	return withReconciler(ForObjectController(ctrl), opts...)
 }
 
-func WithStdReconciler[T v1beta1.Object](ctrl func(ctx Context, req T) error, opts ...ReconcilerOption[T]) Initializer {
-	return withStdReconciler(ObjectController[T](ctrl), opts...)
+func WithStdReconciler[T v1beta1.Object](ctrl func(ctx context.Context, req T) error, opts ...ReconcilerOption[T]) Initializer {
+	return withStdReconciler(ObjectReconcilerFunc[T](func(ctx context.Context, obj T) (reconcile.Result, error) {
+		return reconcile.Result{}, ctrl(ctx, obj)
+	}), opts...)
 }
 
-func withStackDependencyReconciler[T v1beta1.Dependent](fn ObjectController[T], opts ...ReconcilerOption[T]) Initializer {
+func withStackDependencyReconciler[T v1beta1.Dependent](fn reconcile.ObjectReconciler[T], opts ...ReconcilerOption[T]) Initializer {
 	opts = append(opts, WithWatchStack[T]())
 	return withStdReconciler(fn, opts...)
 }
 
-func WithStackDependencyReconciler[T v1beta1.Dependent](fn func(ctx Context, stack *v1beta1.Stack, req T) error, opts ...ReconcilerOption[T]) Initializer {
+func WithStackDependencyReconciler[T v1beta1.Dependent](fn func(ctx context.Context, stack *v1beta1.Stack, req T) error, opts ...ReconcilerOption[T]) Initializer {
 	return withStackDependencyReconciler(
 		ForStackDependency(StackDependentObjectController[T](fn), false),
 		opts...)
 }
 
-func WithResourceReconciler[T v1beta1.Dependent](fn func(ctx Context, stack *v1beta1.Stack, req T) error, opts ...ReconcilerOption[T]) Initializer {
+func WithResourceReconciler[T v1beta1.Dependent](fn func(ctx context.Context, stack *v1beta1.Stack, req T) error, opts ...ReconcilerOption[T]) Initializer {
 	return withStackDependencyReconciler(
 		ForStackDependency(StackDependentObjectController[T](fn), true),
 		opts...)
 }
 
-func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, opts ...ReconcilerOption[T]) Initializer {
+func WithModuleReconciler[T v1beta1.Module](fn func(ctx context.Context, stack *v1beta1.Stack, req T, version string) error, opts ...ReconcilerOption[T]) Initializer {
 	opts = append(opts, WithWatchVersions[T])
 	return withStackDependencyReconciler(
 		ForStackDependency(
