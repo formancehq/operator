@@ -11,7 +11,7 @@ import (
 
 func ListEventPublishers(ctx Context, stackName string) ([]unstructured.Unstructured, error) {
 	ret := make([]unstructured.Unstructured, 0)
-	for gvk, rtype := range ctx.GetScheme().AllKnownTypes() {
+	for gvk, rtype := range GetScheme(ctx).AllKnownTypes() {
 		object, ok := reflect.New(rtype).Interface().(client.Object)
 		if !ok {
 			continue
@@ -21,7 +21,7 @@ func ListEventPublishers(ctx Context, stackName string) ([]unstructured.Unstruct
 			us := &unstructured.UnstructuredList{}
 			us.SetGroupVersionKind(gvk)
 
-			if err := ctx.GetClient().List(ctx, us, client.MatchingFields{
+			if err := GetClient(ctx).List(ctx, us, client.MatchingFields{
 				"stack": stackName,
 			}); err != nil {
 				return nil, err

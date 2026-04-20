@@ -16,7 +16,7 @@ import (
 
 func Clean(ctx core.Context, t *v1beta1.Payments) error {
 	stack := &v1beta1.Stack{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: t.GetStack(),
 	}, stack); err != nil {
 		return err

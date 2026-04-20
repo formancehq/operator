@@ -147,7 +147,7 @@ func createDeployment(
 	}
 
 	broker := &v1beta1.Broker{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: stack.Name,
 	}, broker); err != nil {
 		return err

@@ -19,7 +19,7 @@ func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
 		"Services": collectionutils.Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) v1beta1.GatewayHTTPAPISpec {
 			return from.Spec
 		}),
-		"Platform": ctx.GetPlatform(),
+		"Platform": core.GetPlatform(ctx),
 		"Debug":    stack.Spec.Debug,
 		"Port":     8080,
 		"Gateway": map[string]any{

@@ -17,7 +17,7 @@ import (
 var ErrNoVersionFound = errors.New("no version found")
 
 func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) (string, error) {
-	kinds, _, err := ctx.GetScheme().ObjectKinds(module)
+	kinds, _, err := GetScheme(ctx).ObjectKinds(module)
 	if err != nil {
 		return "", fmt.Errorf("resolving module kind: %w", err)
 	}
@@ -31,7 +31,7 @@ func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) 
 	}
 	if stack.Spec.VersionsFromFile != "" {
 		versions := &v1beta1.Versions{}
-		err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		err := GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: stack.Spec.VersionsFromFile,
 		}, versions)
 		if client.IgnoreNotFound(err) != nil {

@@ -51,7 +51,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerC
 
 	for _, service := range consumer.Spec.Services {
 		topic := &v1beta1.BrokerTopic{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: core.GetObjectName(consumer.Spec.Stack, service),
 		}, topic); err != nil {
 			if !errors.IsNotFound(err) {
@@ -68,23 +68,23 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerC
 					Service: service,
 				},
 			}
-			if err := controllerutil.SetOwnerReference(consumer, topic, ctx.GetScheme()); err != nil {
+			if err := controllerutil.SetOwnerReference(consumer, topic, core.GetScheme(ctx)); err != nil {
 				return err
 			}
 
-			if err := controllerutil.SetOwnerReference(stack, topic, ctx.GetScheme()); err != nil {
+			if err := controllerutil.SetOwnerReference(stack, topic, core.GetScheme(ctx)); err != nil {
 				return err
 			}
-			if err := ctx.GetClient().Create(ctx, topic); err != nil {
+			if err := core.GetClient(ctx).Create(ctx, topic); err != nil {
 				return err
 			}
 			return nil
 		} else {
 			patch := client.MergeFromWithOptions(topic.DeepCopy(), client.MergeFromWithOptimisticLock{})
-			if err := controllerutil.SetOwnerReference(consumer, topic, ctx.GetScheme()); err != nil {
+			if err := controllerutil.SetOwnerReference(consumer, topic, core.GetScheme(ctx)); err != nil {
 				return err
 			}
-			if err := ctx.GetClient().Patch(ctx, topic, patch); err != nil {
+			if err := core.GetClient(ctx).Patch(ctx, topic, patch); err != nil {
 				return err
 			}
 		}
@@ -117,7 +117,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerC
 	}, v1beta1.ConditionTypeMatch(ConditionTypeBrokerTopicCreated))
 
 	broker := &v1beta1.Broker{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: stack.Name,
 	}, broker); err != nil {
 		return err

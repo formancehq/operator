@@ -129,7 +129,7 @@ func CreateOrUpdate[T client.Object](ctx Context,
 	ret = reflect.New(reflect.TypeOf(ret).Elem()).Interface().(T)
 	ret.SetNamespace(key.Namespace)
 	ret.SetName(key.Name)
-	operationResult, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), ret, func() error {
+	operationResult, err := controllerutil.CreateOrUpdate(ctx, GetClient(ctx), ret, func() error {
 		for _, mutate := range mutators {
 			if err := mutate(ret); err != nil {
 				return err
@@ -143,19 +143,19 @@ func CreateOrUpdate[T client.Object](ctx Context,
 func DeleteIfExists[T client.Object](ctx Context, name types.NamespacedName) error {
 	var t T
 	t = reflect.New(reflect.TypeOf(t).Elem()).Interface().(T)
-	if err := ctx.GetClient().Get(ctx, name, t); err != nil {
+	if err := GetClient(ctx).Get(ctx, name, t); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
 		}
 		return err
 	}
 	LogDeletion(ctx, t, "DeleteIfExists")
-	return ctx.GetClient().Delete(ctx, t)
+	return GetClient(ctx).Delete(ctx, t)
 }
 
 func LogDeletion(ctx Context, obj client.Object, caller string) {
 	logger := log.FromContext(ctx)
-	gvk, _ := apiutil.GVKForObject(obj, ctx.GetScheme())
+	gvk, _ := apiutil.GVKForObject(obj, GetScheme(ctx))
 	// Capture caller stack for debugging unexpected deletions
 	stack := make([]byte, 4096)
 	stack = stack[:runtime.Stack(stack, false)]
@@ -188,7 +188,7 @@ func formatCallerFrames(stack []byte) string {
 }
 
 func hasOwnerReference(ctx Context, owner client.Object, object client.Object, controller, blockOwnerDeletion bool) (bool, error) {
-	kinds, _, err := ctx.GetScheme().ObjectKinds(owner)
+	kinds, _, err := GetScheme(ctx).ObjectKinds(owner)
 	if err != nil {
 		return false, nil
 	}

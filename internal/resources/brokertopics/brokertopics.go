@@ -9,7 +9,7 @@ import (
 
 func Find(ctx core.Context, stack *v1beta1.Stack, name string) (*v1beta1.BrokerTopic, error) {
 	topicList := &v1beta1.BrokerTopicList{}
-	if err := ctx.GetClient().List(ctx, topicList, client.MatchingFields{
+	if err := core.GetClient(ctx).List(ctx, topicList, client.MatchingFields{
 		".spec.service": name,
 		"stack":         stack.Name,
 	}); err != nil {
