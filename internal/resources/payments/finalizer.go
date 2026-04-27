@@ -23,12 +23,12 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 		return err
 	}
 
-	cleanupTemporal, err := settings.GetBoolOrTrue(ctx, stack.Name, "payments", "cleanup-temporal")
+	clearTemporal, err := settings.GetBoolOrTrue(ctx, stack.Name, "payments", "clear-temporal")
 	if err != nil {
 		return err
 	}
-	if !cleanupTemporal {
-		log.FromContext(ctx).Info("payments.cleanup-temporal is false, skipping temporal cleanup")
+	if !clearTemporal {
+		log.FromContext(ctx).Info("payments.clear-temporal is false, skipping temporal cleanup")
 		return nil
 	}
 
