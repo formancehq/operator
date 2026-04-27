@@ -12,6 +12,7 @@ import (
 	"github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/jobs"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 func Clean(ctx core.Context, t *v1beta1.Payments) error {
@@ -20,6 +21,15 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 		Name: t.GetStack(),
 	}, stack); err != nil {
 		return err
+	}
+
+	cleanupTemporal, err := settings.GetBoolOrTrue(ctx, stack.Name, "payments", "cleanup-temporal")
+	if err != nil {
+		return err
+	}
+	if !cleanupTemporal {
+		log.FromContext(ctx).Info("payments.cleanup-temporal is false, skipping temporal cleanup")
+		return nil
 	}
 
 	version, err := core.GetModuleVersion(ctx, stack, t)
