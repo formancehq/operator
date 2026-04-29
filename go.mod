@@ -5,7 +5,7 @@ go 1.25
 toolchain go1.25.5
 
 require (
-	github.com/formancehq/go-libs/v2 v2.2.3
+	github.com/formancehq/go-libs/v2 v2.2.5-0.20260429152130-9d6efc1eb666
 	github.com/go-logr/logr v1.4.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
