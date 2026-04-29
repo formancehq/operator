@@ -9,6 +9,9 @@ runs:
   steps:
     - name: Install Nix
       uses: cachix/install-nix-action@v31
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ inputs.token }}
     ## Disabling cache for now, as it's slowing down the build. Downloading nix
     ## dependencies from cache.nixos.org is faster than restoring from the cache.
     #- name: Cache dependencies
