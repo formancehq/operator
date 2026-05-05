@@ -14,7 +14,7 @@ import (
 
 func Create(ctx core.Context, owner v1beta1.Dependent, name, resourceName string, object client.Object) (*v1beta1.ResourceReference, error) {
 
-	gvk, err := apiutil.GVKForObject(object, ctx.GetScheme())
+	gvk, err := apiutil.GVKForObject(object, core.GetScheme(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func Create(ctx core.Context, owner v1beta1.Dependent, name, resourceName string
 		}
 
 		return nil
-	}, core.WithController[*v1beta1.ResourceReference](ctx.GetScheme(), owner))
+	}, core.WithController[*v1beta1.ResourceReference](core.GetScheme(ctx), owner))
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func Delete(ctx core.Context, owner v1beta1.Dependent, name string) error {
 	reference := &v1beta1.ResourceReference{}
 	reference.SetNamespace(owner.GetStack())
 	reference.SetName(resourceReferenceName)
-	if err := ctx.GetClient().Delete(ctx, reference); client.IgnoreNotFound(err) != nil {
+	if err := core.GetClient(ctx).Delete(ctx, reference); client.IgnoreNotFound(err) != nil {
 		return err
 	}
 	return nil

@@ -78,7 +78,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Databas
 		object := &batchv1.Job{}
 		object.SetName(fmt.Sprintf("%s-create-database", database.Spec.Service))
 		object.SetNamespace(database.Spec.Stack)
-		if err := ctx.GetClient().Delete(ctx, object, &client.DeleteOptions{
+		if err := core.GetClient(ctx).Delete(ctx, object, &client.DeleteOptions{
 			GracePeriodSeconds: pointer.For(int64(0)),
 		}); client.IgnoreNotFound(err) != nil {
 			return err
@@ -122,7 +122,7 @@ func Delete(ctx core.Context, database *v1beta1.Database) error {
 	logger.Info("Deleting database")
 
 	stack := &v1beta1.Stack{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: database.Spec.Stack,
 	}, stack); err != nil {
 		return err
@@ -140,14 +140,14 @@ func Delete(ctx core.Context, database *v1beta1.Database) error {
 
 func handleDatabaseJob(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, name string, args ...string) error {
 
-	operatorUtilsImage, err := registries.GetFormanceImage(ctx, stack, "operator-utils", ctx.GetPlatform().UtilsVersion)
+	operatorUtilsImage, err := registries.GetFormanceImage(ctx, stack, "operator-utils", core.GetPlatform(ctx).UtilsVersion)
 	if err != nil {
 		return err
 	}
 
 	annotations := make(map[string]string)
 	secretReference := &v1beta1.ResourceReference{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: fmt.Sprintf("%s-postgres", database.Name),
 	}, secretReference); client.IgnoreNotFound(err) != nil {
 		return err

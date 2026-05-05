@@ -30,7 +30,7 @@ func Create(ctx core.Context, stack *v1beta1.Stack, owner client.Object, objectN
 
 			return nil
 		},
-		core.WithController[*v1beta1.AuthClient](ctx.GetScheme(), owner),
+		core.WithController[*v1beta1.AuthClient](core.GetScheme(ctx), owner),
 	)
 	if err != nil {
 		return nil, err

@@ -28,3 +28,17 @@ Dockerfile.cross
 charts
 
 *.tgz
+/dist/operator-utils_linux_amd64_v1/operator-utils
+/dist/operator-utils_linux_arm64_v8.0/operator-utils
+/dist/operator_linux_amd64_v1/operator
+/dist/operator_linux_arm64_v8.0/operator
+/dist/artifacts.json
+/dist/CHANGELOG.md
+/dist/config.yaml
+/dist/digests.txt
+/dist/metadata.json
+/dist/operator-utils_linux-amd64.tar.gz
+/dist/operator-utils_linux-arm64.tar.gz
+/dist/operator_checksums.txt
+/dist/operator_linux-amd64.tar.gz
+/dist/operator_linux-arm64.tar.gz

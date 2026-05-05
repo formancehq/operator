@@ -7,40 +7,44 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type Context interface {
-	context.Context
-	GetClient() client.Client
-	GetScheme() *runtime.Scheme
-	GetAPIReader() client.Reader
-	GetPlatform() Platform
+// Context is now a standard context.Context alias.
+// Core values (Client, Scheme, APIReader, Platform) are stored via context.WithValue.
+type Context = context.Context
+
+type contextValuesKey struct{}
+
+type contextValues struct {
+	client   client.Client
+	scheme   *runtime.Scheme
+	reader   client.Reader
+	platform Platform
 }
 
-type defaultContext struct {
-	context.Context
-	mgr Manager
+func NewContext(mgr Manager, ctx context.Context) context.Context {
+	return context.WithValue(ctx, contextValuesKey{}, &contextValues{
+		client:   mgr.GetClient(),
+		scheme:   mgr.GetScheme(),
+		reader:   mgr.GetAPIReader(),
+		platform: mgr.GetPlatform(),
+	})
 }
 
-func (d defaultContext) GetAPIReader() client.Reader {
-	return d.mgr.GetAPIReader()
+func getContextValues(ctx context.Context) *contextValues {
+	return ctx.Value(contextValuesKey{}).(*contextValues)
 }
 
-func (d defaultContext) GetPlatform() Platform {
-	return d.mgr.GetPlatform()
+func GetClient(ctx context.Context) client.Client {
+	return getContextValues(ctx).client
 }
 
-func (d defaultContext) GetClient() client.Client {
-	return d.mgr.GetClient()
+func GetScheme(ctx context.Context) *runtime.Scheme {
+	return getContextValues(ctx).scheme
 }
 
-func (d defaultContext) GetScheme() *runtime.Scheme {
-	return d.mgr.GetScheme()
+func GetAPIReader(ctx context.Context) client.Reader {
+	return getContextValues(ctx).reader
 }
 
-var _ Context = &defaultContext{}
-
-func NewContext(mgr Manager, ctx context.Context) *defaultContext {
-	return &defaultContext{
-		Context: ctx,
-		mgr:     mgr,
-	}
+func GetPlatform(ctx context.Context) Platform {
+	return getContextValues(ctx).platform
 }

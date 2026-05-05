@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	"github.com/formancehq/operator/v3/internal/core"
 )
@@ -49,6 +51,10 @@ func (m *mockManager) GetConfig() *rest.Config {
 }
 
 func (m *mockManager) GetEventRecorderFor(string) record.EventRecorder {
+	return nil
+}
+
+func (m *mockManager) GetEventRecorder(string) events.EventRecorder {
 	return nil
 }
 
@@ -115,30 +121,10 @@ func (m *mockManager) AddReadyzCheck(string, healthz.Checker) error {
 	return nil
 }
 
-func (m *mockManager) Start(context.Context) error {
+func (m *mockManager) GetConverterRegistry() conversion.Registry {
 	return nil
 }
 
-// mockContext is a mock implementation of core.Context
-type mockContext struct {
-	context.Context
-	client   client.Client
-	scheme   *runtime.Scheme
-	platform core.Platform
-}
-
-func (m *mockContext) GetClient() client.Client {
-	return m.client
-}
-
-func (m *mockContext) GetScheme() *runtime.Scheme {
-	return m.scheme
-}
-
-func (m *mockContext) GetAPIReader() client.Reader {
-	return m.client
-}
-
-func (m *mockContext) GetPlatform() core.Platform {
-	return m.platform
+func (m *mockManager) Start(context.Context) error {
+	return nil
 }

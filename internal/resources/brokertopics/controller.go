@@ -10,7 +10,7 @@ import (
 func Reconcile(ctx core.Context, stack *v1beta1.Stack, topic *v1beta1.BrokerTopic) error {
 
 	if len(topic.GetOwnerReferences()) == 1 { // Remains only the stack
-		return ctx.GetClient().Delete(ctx, topic)
+		return core.GetClient(ctx).Delete(ctx, topic)
 	}
 
 	broker, _, err := core.CreateOrUpdate[*v1beta1.Broker](ctx, types.NamespacedName{
@@ -18,7 +18,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, topic *v1beta1.BrokerTopi
 	}, func(t *v1beta1.Broker) error {
 		t.Spec.Stack = stack.Name
 		return nil
-	}, core.WithController[*v1beta1.Broker](ctx.GetScheme(), stack))
+	}, core.WithController[*v1beta1.Broker](core.GetScheme(ctx), stack))
 	if err != nil {
 		return err
 	}

@@ -39,7 +39,7 @@ func createReindexCronJob(ctx core.Context, ledger *v1beta1.Ledger) (*batchv1.Cr
 		}
 
 		return nil
-	}, core.WithController[*batchv1.CronJob](ctx.GetScheme(), ledger))
+	}, core.WithController[*batchv1.CronJob](core.GetScheme(ctx), ledger))
 	return cronJob, err
 }
 
@@ -47,5 +47,5 @@ func deleteReindexCronJob(ctx core.Context, ledger *v1beta1.Ledger) error {
 	cronJob := &batchv1.CronJob{}
 	cronJob.SetNamespace(ledger.Spec.Stack)
 	cronJob.SetName("reindex-ledger")
-	return client.IgnoreNotFound(ctx.GetClient().Delete(ctx, cronJob))
+	return client.IgnoreNotFound(core.GetClient(ctx).Delete(ctx, cronJob))
 }

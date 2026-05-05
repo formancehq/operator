@@ -618,12 +618,11 @@ func TestContainersMutatorEnvVarsFromSettings(t *testing.T) {
 			}
 			fakeClient := builder.Build()
 
-			mockCtx := &mockContext{
-				Context:  context.Background(),
-				client:   fakeClient,
-				scheme:   scheme,
-				platform: core.Platform{Region: "testing", Environment: "testing"},
+			mockMgr := &mockManager{
+				client: fakeClient,
+				scheme: scheme,
 			}
+			mockCtx := core.NewContext(mockMgr, context.Background())
 
 			owner := &v1beta1.Ledger{
 				ObjectMeta: metav1.ObjectMeta{Name: "test-ledger"},
@@ -859,13 +858,12 @@ func TestWithSemconvMetricsNames(t *testing.T) {
 				}).
 				Build()
 
-			// Create mock context
-			mockCtx := &mockContext{
-				Context:  context.Background(),
-				client:   fakeClient,
-				scheme:   scheme,
-				platform: core.Platform{Region: "testing", Environment: "testing"},
+			// Create mock context using core.NewContext
+			mockMgr := &mockManager{
+				client: fakeClient,
+				scheme: scheme,
 			}
+			mockCtx := core.NewContext(mockMgr, context.Background())
 
 			owner := &v1beta1.Ledger{
 				ObjectMeta: metav1.ObjectMeta{

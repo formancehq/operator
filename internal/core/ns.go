@@ -17,7 +17,7 @@ func WithTemporaryNamespace(ctx Context, name string, callback func() error) err
 		return err
 	}
 
-	if err := ctx.GetClient().Delete(ctx, ns); err != nil {
+	if err := GetClient(ctx).Delete(ctx, ns); err != nil {
 		return err
 	}
 

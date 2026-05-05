@@ -49,7 +49,7 @@ func createConfiguration(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, 
 		}
 
 		return nil
-	}, WithController[*corev1.ConfigMap](ctx.GetScheme(), auth))
+	}, WithController[*corev1.ConfigMap](GetScheme(ctx), auth))
 	if err != nil {
 		return nil, err
 	}

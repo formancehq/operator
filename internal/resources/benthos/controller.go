@@ -87,7 +87,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	awsIAMEnabled := serviceAccountName != ""
 
 	broker := &v1beta1.Broker{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: stack.Name,
 	}, broker); err != nil {
 		return err
@@ -142,7 +142,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	cmd = append(cmd, "--log.level", "trace", "streams", "/streams/*.yaml")
 
 	// Drop config map if exists (pre v3.0.0)
-	kinds, _, err := ctx.GetScheme().ObjectKinds(&corev1.ConfigMap{})
+	kinds, _, err := GetScheme(ctx).ObjectKinds(&corev1.ConfigMap{})
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	object.SetGroupVersionKind(kinds[0])
 	object.SetNamespace(stack.Name)
 	object.SetName("benthos-audit")
-	if err := client.IgnoreNotFound(ctx.GetClient().Delete(ctx, object)); err != nil {
+	if err := client.IgnoreNotFound(GetClient(ctx).Delete(ctx, object)); err != nil {
 		return errors.Wrap(err, "deleting audit config map")
 	}
 
@@ -207,7 +207,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 
 				return nil
 			},
-			WithController[*corev1.ConfigMap](ctx.GetScheme(), b),
+			WithController[*corev1.ConfigMap](GetScheme(ctx), b),
 		)
 		if err != nil {
 			return err
@@ -234,7 +234,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	}
 
 	streamList := &v1beta1.BenthosStreamList{}
-	if err := ctx.GetClient().List(ctx, streamList, client.MatchingFields{
+	if err := GetClient(ctx).List(ctx, streamList, client.MatchingFields{
 		"stack": b.Spec.Stack,
 	}); err != nil {
 		return err

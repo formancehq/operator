@@ -187,7 +187,7 @@ func deleteDeployment(ctx core.Context, stack *v1beta1.Stack, name string) error
 	deploymentName := core.GetNamespacedResourceName(stack.Name, name)
 	deployment := &appsv1.Deployment{}
 
-	if err := ctx.GetClient().Get(ctx, deploymentName, deployment); err != nil {
+	if err := core.GetClient(ctx).Get(ctx, deploymentName, deployment); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// Deployment doesn't exist, successfully deleted
 			return nil
@@ -203,7 +203,7 @@ func deleteDeployment(ctx core.Context, stack *v1beta1.Stack, name string) error
 
 	// Deployment exists and is not being deleted, delete it now
 	core.LogDeletion(ctx, deployment, "payments.deleteDeployment")
-	if err := ctx.GetClient().Delete(ctx, deployment); err != nil {
+	if err := core.GetClient(ctx).Delete(ctx, deployment); err != nil {
 		return err
 	}
 
@@ -367,7 +367,7 @@ func v3EnvVars(
 		return
 	} else if topic != nil && topic.Status.Ready {
 		broker = &v1beta1.Broker{}
-		if err = ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err = core.GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: stack.Name,
 		}, broker); err != nil {
 			return
@@ -464,7 +464,7 @@ func createV2ConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, paymen
 		return err
 	} else if t != nil && t.Status.Ready {
 		broker = &v1beta1.Broker{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: stack.Name,
 		}, broker); err != nil {
 			return err
@@ -532,7 +532,7 @@ func createGateway(ctx core.Context, stack *v1beta1.Stack, p *v1beta1.Payments) 
 
 	caddyfileConfigMap, err := caddy.CreateCaddyfileConfigMap(ctx, stack, "payments", Caddyfile, map[string]any{
 		"Debug": stack.Spec.Debug || p.Spec.Debug,
-	}, core.WithController[*corev1.ConfigMap](ctx.GetScheme(), p))
+	}, core.WithController[*corev1.ConfigMap](core.GetScheme(ctx), p))
 	if err != nil {
 		return err
 	}

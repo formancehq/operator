@@ -82,7 +82,7 @@ func hasAllVersionsGreaterThan(ctx core.Context, stack *v1beta1.Stack, ref strin
 		return semver.Compare(stack.Spec.Version, ref) >= 0, nil
 	case stack.Spec.VersionsFromFile != "":
 		versions := &v1beta1.Versions{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: stack.Spec.VersionsFromFile,
 		}, versions); err != nil {
 			return false, err
@@ -188,7 +188,7 @@ func deleteBroker(ctx core.Context, broker *v1beta1.Broker) error {
 	}
 
 	stack := &v1beta1.Stack{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Name: broker.Spec.Stack,
 	}, stack); err != nil {
 		return err
@@ -257,7 +257,7 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 
 func createOneStreamByTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, brokerURI *v1beta1.URI) error {
 	l := &v1beta1.BrokerTopicList{}
-	if err := ctx.GetClient().List(ctx, l, client.MatchingFields{
+	if err := core.GetClient(ctx).List(ctx, l, client.MatchingFields{
 		"stack": stack.Name,
 	}); err != nil {
 		return err

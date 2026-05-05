@@ -61,7 +61,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		return err
 	} else if t != nil && t.Status.Ready {
 		broker = &v1beta1.Broker{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err := GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: stack.Name,
 		}, broker); err != nil {
 			return err
@@ -122,13 +122,13 @@ func init() {
 				logger := log.FromContext(ctx)
 
 				crds := apiextensionsv1.CustomResourceDefinitionList{}
-				err := ctx.GetAPIReader().List(ctx, &crds)
+				err := GetAPIReader(ctx).List(ctx, &crds)
 				if err != nil {
 					return err
 				}
 
 				v := &externaldnsv1alpha1.DNSEndpoint{}
-				kinds, _, err := ctx.GetScheme().ObjectKinds(v)
+				kinds, _, err := GetScheme(ctx).ObjectKinds(v)
 				if err != nil {
 					return err
 				}

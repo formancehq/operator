@@ -93,7 +93,7 @@ func Create(ctx core.Context, owner v1beta1.Dependent, serviceName string, mutat
 	mutators = append(mutators,
 		withAnnotations(additionalAnnotations),
 		withTrafficDistribution(trafficDistribution),
-		core.WithController[*corev1.Service](ctx.GetScheme(), owner),
+		core.WithController[*corev1.Service](core.GetScheme(ctx), owner),
 	)
 
 	service, _, err := core.CreateOrUpdate(ctx, types.NamespacedName{

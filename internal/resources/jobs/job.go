@@ -182,7 +182,7 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 
 	jobName = fmt.Sprintf("%s-%s", owner.GetUID(), jobName)
 	job := &batchv1.Job{}
-	err := ctx.GetClient().Get(ctx, types.NamespacedName{
+	err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 		Namespace: owner.GetStack(),
 		Name:      jobName,
 	}, job)
@@ -197,7 +197,7 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 	if err == nil { // Job found
 		if !equality.Semantic.DeepDerivative(container, job.Spec.Template.Spec.Containers[0]) {
 			core.LogDeletion(ctx, job, "jobs.Handle(container changed)")
-			if err := ctx.GetClient().Delete(ctx, job, &client.DeleteOptions{
+			if err := core.GetClient(ctx).Delete(ctx, job, &client.DeleteOptions{
 				GracePeriodSeconds: pointer.For(int64(0)),
 				PropagationPolicy:  pointer.For(metav1.DeletePropagationForeground),
 			}); err != nil {
@@ -242,10 +242,10 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 		job.Spec.Template.Spec.RestartPolicy = v1.RestartPolicyNever
 	}
 
-	if err := controllerutil.SetControllerReference(owner, job, ctx.GetScheme()); err != nil {
+	if err := controllerutil.SetControllerReference(owner, job, core.GetScheme(ctx)); err != nil {
 		return err
 	}
-	if err := ctx.GetClient().Create(ctx, job); err != nil {
+	if err := core.GetClient(ctx).Create(ctx, job); err != nil {
 		return err
 	}
 

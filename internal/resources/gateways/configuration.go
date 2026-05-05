@@ -54,7 +54,7 @@ func createConfigMap(ctx core.Context, stack *v1beta1.Stack,
 
 			return nil
 		},
-		core.WithController[*v1.ConfigMap](ctx.GetScheme(), gateway),
+		core.WithController[*v1.ConfigMap](core.GetScheme(ctx), gateway),
 	)
 
 	return caddyfileConfigMap, err

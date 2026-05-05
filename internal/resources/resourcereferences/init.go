@@ -45,7 +45,7 @@ func watchResource[T client.Object](ctx core.Context, object T) []reconcile.Requ
 	// Watch resources created by the ResourceReference
 	var resourceReference string
 	for _, reference := range object.GetOwnerReferences() {
-		gvk, err := apiutil.GVKForObject(&v1beta1.ResourceReference{}, ctx.GetScheme())
+		gvk, err := apiutil.GVKForObject(&v1beta1.ResourceReference{}, core.GetScheme(ctx))
 		if err != nil {
 			panic(err)
 		}
@@ -69,8 +69,8 @@ func watchResource[T client.Object](ctx core.Context, object T) []reconcile.Requ
 		for _, stack := range strings.Split(object.GetLabels()[v1beta1.StackLabel], ",") {
 			ret = append(ret, core.BuildReconcileRequests(
 				ctx,
-				ctx.GetClient(),
-				ctx.GetScheme(),
+				core.GetClient(ctx),
+				core.GetScheme(ctx),
 				&v1beta1.ResourceReference{},
 				client.MatchingFields{
 					"stack": stack,
@@ -80,8 +80,8 @@ func watchResource[T client.Object](ctx core.Context, object T) []reconcile.Requ
 	} else {
 		ret = append(ret, core.BuildReconcileRequests(
 			ctx,
-			ctx.GetClient(),
-			ctx.GetScheme(),
+			core.GetClient(ctx),
+			core.GetScheme(ctx),
 			&v1beta1.ResourceReference{},
 		)...)
 	}
@@ -110,7 +110,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 	if req.Status.SyncedResource != "" && req.Spec.Name != req.Status.SyncedResource {
 		oldResource := &unstructured.Unstructured{}
 		oldResource.SetGroupVersionKind(gvk)
-		err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 			Namespace: stack.Name,
 			Name:      req.Status.SyncedResource,
 		}, oldResource)
@@ -120,13 +120,13 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 
 		if err == nil { // Can be not found, if the resource has been manually deleted
 			patch := client.MergeFrom(oldResource.DeepCopy())
-			if err := controllerutil.RemoveOwnerReference(req, oldResource, ctx.GetScheme()); err == nil {
-				if err := ctx.GetClient().Patch(ctx, oldResource, patch); err != nil {
+			if err := controllerutil.RemoveOwnerReference(req, oldResource, core.GetScheme(ctx)); err == nil {
+				if err := core.GetClient(ctx).Patch(ctx, oldResource, patch); err != nil {
 					return err
 				}
 			}
 			if len(oldResource.GetOwnerReferences()) == 0 {
-				if err := ctx.GetClient().Delete(ctx, oldResource); err != nil {
+				if err := core.GetClient(ctx).Delete(ctx, oldResource); err != nil {
 					return err
 				}
 			}
@@ -151,7 +151,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 	newResource.SetNamespace(stack.Name)
 	newResource.SetName(req.Spec.Name)
 
-	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), newResource, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, core.GetClient(ctx), newResource, func() error {
 		content := newResource.UnstructuredContent()
 		if err := mergo.MergeWithOverwrite(&content, resource.UnstructuredContent()); err != nil {
 			return err
@@ -166,7 +166,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 			return err
 		}
 		if !hasOwnerReference {
-			if err := controllerutil.SetOwnerReference(req, newResource, ctx.GetScheme()); err != nil {
+			if err := controllerutil.SetOwnerReference(req, newResource, core.GetScheme(ctx)); err != nil {
 				return err
 			}
 		}
@@ -195,7 +195,7 @@ func findMatchingResource(ctx core.Context, stack string, gvk metav1.GroupVersio
 		Version: gvk.Version,
 		Kind:    gvk.Kind,
 	})
-	if err := ctx.GetAPIReader().List(ctx, list, &client.ListOptions{
+	if err := core.GetAPIReader(ctx).List(ctx, list, &client.ListOptions{
 		LabelSelector: labels.NewSelector().Add(*requirement),
 	}); err != nil {
 		return nil, errors.Wrap(err, "listing resources")

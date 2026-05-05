@@ -124,7 +124,7 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		return err
 	} else if t != nil && t.Status.Ready {
 		broker = &v1beta1.Broker{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: stack.Name,
 		}, broker); err != nil {
 			return err
@@ -456,7 +456,7 @@ func createLedgerContainerFull(ctx core.Context, stack *v1beta1.Stack) (*corev1.
 		return nil, err
 	} else if t != nil && t.Status.Ready {
 		broker = &v1beta1.Broker{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		if err := core.GetClient(ctx).Get(ctx, types.NamespacedName{
 			Name: stack.Name,
 		}, broker); err != nil {
 			return nil, err

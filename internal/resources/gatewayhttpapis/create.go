@@ -31,7 +31,7 @@ func Create(ctx core.Context, owner v1beta1.Module, options ...option) error {
 
 			return nil
 		},
-		core.WithController[*v1beta1.GatewayHTTPAPI](ctx.GetScheme(), owner),
+		core.WithController[*v1beta1.GatewayHTTPAPI](core.GetScheme(ctx), owner),
 	)
 	return err
 }
