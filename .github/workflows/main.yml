@@ -105,7 +105,7 @@ jobs:
           args: ${{ vars.TS_ARGS }}
           retry: ${{ vars.TS_RETRY }}
           timeout: ${{ vars.TS_TIMEOUT }}
-      - uses: 'namespacelabs/nscloud-checkout-action@v7'
+      - uses: 'actions/checkout@v6'
         with:
           fetch-depth: 0
       - name: Install Nix
