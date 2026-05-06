@@ -10,4 +10,6 @@ type Platform struct {
 	LicenceSecret string
 	// The operator utils image version
 	UtilsVersion string
+	// The OTel Collector image used by OtelExporterEndpoint resources
+	CollectorImage string
 }

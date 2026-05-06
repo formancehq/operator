@@ -25,6 +25,7 @@ resources:
 - bases/formance.com_brokerconsumers.yaml
 - bases/formance.com_brokers.yaml
 - bases/formance.com_transactionplanes.yaml
+- bases/formance.com_otelexporterendpoints.yaml
 
 #+kubebuilder:scaffold:crdkustomizeresource
 
