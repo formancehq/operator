@@ -54,8 +54,10 @@ spec:
             {{- end }}
             {{- if and .Values.global.licence.createSecret (eq (len .Values.global.licence.existingSecret) 0) }}
             - --licence-secret={{ include "operator.fullname" . }}-licence
-            {{- else }}
+            - --licence-namespace={{ .Release.Namespace }}
+            {{- else if .Values.global.licence.existingSecret }}
             - --licence-secret={{ .Values.global.licence.existingSecret }}
+            - --licence-namespace={{ .Release.Namespace }}
             {{- end }}
             {{- if .Values.operator.disableWebhooks }}
             - --disable-webhooks
@@ -65,11 +67,6 @@ spec:
             - --zap-devel
             - Development
             {{- end }}
-          env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
           ports:
           - containerPort: 9443
             name: webhook-server

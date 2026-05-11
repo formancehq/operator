@@ -178,8 +178,8 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 					"module", t.GetName())
 			default:
 				// Expired or Invalid: skip EE reconciliation, set condition
-				reason := licenceState.String()
-				message := "Licence is " + reason
+				state := licenceState.String()
+				message := "Licence is " + state
 				if licenceMessage != "" {
 					message = licenceMessage
 				}
@@ -189,10 +189,10 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 					ObservedGeneration: t.GetGeneration(),
 					LastTransitionTime: metav1.Now(),
 					Message:            message,
-					Reason:             reason,
+					Reason:             state,
 				}, v1beta1.ConditionTypeMatch("LicenceValid"))
 				log.FromContext(ctx).Info("EE module reconciliation skipped: licence not valid",
-					"module", t.GetName(), "licenceState", reason)
+					"module", t.GetName(), "licenceState", state)
 			}
 		} else {
 			err = underlyingController(ctx, stack, reconcilerOptions, t, moduleVersion)

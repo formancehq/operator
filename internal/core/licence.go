@@ -135,10 +135,10 @@ func isTokenExpired(err error) bool {
 	return errors.Is(err, jwt.ErrTokenExpired)
 }
 
-// ResolveLicenceState reads the licence Secret by name from the operator's namespace,
+// ResolveLicenceState reads the licence Secret by name from the configured licence namespace,
 // extracts the JWT token, and validates it. This is called during each EE reconciliation
 // to ensure the licence state is always fresh (not stale from startup).
-func ResolveLicenceState(reader client.Reader, secretName string, operatorNamespace string) (LicenceState, string) {
+func ResolveLicenceState(reader client.Reader, secretName string, licenceNamespace string) (LicenceState, string) {
 	if secretName == "" {
 		return LicenceStateAbsent, ""
 	}
@@ -146,11 +146,11 @@ func ResolveLicenceState(reader client.Reader, secretName string, operatorNamesp
 	secret := &corev1.Secret{}
 	err := reader.Get(context.Background(), types.NamespacedName{
 		Name:      secretName,
-		Namespace: operatorNamespace,
+		Namespace: licenceNamespace,
 	}, secret)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return LicenceStateInvalid, fmt.Sprintf("licence secret %q not found in namespace %q", secretName, operatorNamespace)
+			return LicenceStateInvalid, fmt.Sprintf("licence secret %q not found in namespace %q", secretName, licenceNamespace)
 		}
 		return LicenceStateInvalid, fmt.Sprintf("failed to read licence secret %q: %s", secretName, err)
 	}
