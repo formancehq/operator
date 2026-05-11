@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	apiv1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,6 +16,8 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	restfake "k8s.io/client-go/rest/fake"
+
+	apiv1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
 func TestClientAccessorsShareRESTClient(t *testing.T) {

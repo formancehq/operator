@@ -120,19 +120,6 @@ func must(err error) {
 	}
 }
 
-type stackGetter interface {
-	GetStack() string
-}
-
-func withStackIndex(builder *fake.ClientBuilder, object client.Object) {
-	builder.WithIndex(object, "stack", func(obj client.Object) []string {
-		if dep, ok := obj.(stackGetter); ok && dep.GetStack() != "" {
-			return []string{dep.GetStack()}
-		}
-		return nil
-	})
-}
-
 func withUnstructuredStackIndex(builder *fake.ClientBuilder, kind string) {
 	object := &unstructured.Unstructured{}
 	object.SetAPIVersion("formance.com/v1beta1")
