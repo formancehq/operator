@@ -21,6 +21,7 @@
 .idea/
 *.tmproj
 .vscode/
+./*.tgz
 
 # ignore kustomization.yaml files
 templates/rbac/kustomization.yaml

@@ -28,3 +28,6 @@ Dockerfile.cross
 charts
 
 *.tgz
+*.tar.gz
+
+dist
