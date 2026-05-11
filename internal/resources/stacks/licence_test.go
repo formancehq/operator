@@ -73,6 +73,7 @@ func generateValidToken(t *testing.T) string {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"exp": time.Now().Add(time.Hour).Unix(),
+		"iss": "https://license.formance.cloud/keys",
 	})
 	s, err := token.SignedString(privateKey)
 	require.NoError(t, err)
@@ -92,6 +93,7 @@ func generateExpiredToken(t *testing.T) string {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"exp": time.Now().Add(-time.Hour).Unix(),
+		"iss": "https://license.formance.cloud/keys",
 	})
 	s, err := token.SignedString(privateKey)
 	require.NoError(t, err)

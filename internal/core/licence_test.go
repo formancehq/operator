@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testLicenceIssuer = "https://license.formance.cloud/keys"
+
 func generateTestRSAKeyPair(t *testing.T) (*rsa.PrivateKey, string) {
 	t.Helper()
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -42,7 +44,7 @@ func createToken(t *testing.T, claims jwt.MapClaims, key *rsa.PrivateKey) string
 }
 
 func TestValidateLicenceToken_EmptyToken(t *testing.T) {
-	state, msg := ValidateLicenceToken("")
+	state, msg := ValidateLicenceToken("", testLicenceIssuer)
 	require.Equal(t, LicenceStateAbsent, state)
 	require.Empty(t, msg)
 }
@@ -53,11 +55,39 @@ func TestValidateLicenceToken_ValidToken(t *testing.T) {
 
 	token := createToken(t, jwt.MapClaims{
 		"exp": time.Now().Add(time.Hour).Unix(),
+		"iss": testLicenceIssuer,
 	}, privateKey)
 
-	state, msg := ValidateLicenceToken(token)
+	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
 	require.Equal(t, LicenceStateValid, state)
 	require.Empty(t, msg)
+}
+
+func TestValidateLicenceToken_IssuerMismatch(t *testing.T) {
+	privateKey, pubPEM := generateTestRSAKeyPair(t)
+	setTestKey(t, pubPEM)
+
+	token := createToken(t, jwt.MapClaims{
+		"exp": time.Now().Add(time.Hour).Unix(),
+		"iss": "https://wrong.example.com/keys",
+	}, privateKey)
+
+	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
+	require.Equal(t, LicenceStateInvalid, state)
+	require.Contains(t, msg, "validation failed")
+}
+
+func TestValidateLicenceToken_MissingIssuerClaim(t *testing.T) {
+	privateKey, pubPEM := generateTestRSAKeyPair(t)
+	setTestKey(t, pubPEM)
+
+	token := createToken(t, jwt.MapClaims{
+		"exp": time.Now().Add(time.Hour).Unix(),
+	}, privateKey)
+
+	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
+	require.Equal(t, LicenceStateInvalid, state)
+	require.Contains(t, msg, "validation failed")
 }
 
 func TestValidateLicenceToken_ExpiredToken(t *testing.T) {
@@ -66,15 +96,16 @@ func TestValidateLicenceToken_ExpiredToken(t *testing.T) {
 
 	token := createToken(t, jwt.MapClaims{
 		"exp": time.Now().Add(-time.Hour).Unix(),
+		"iss": testLicenceIssuer,
 	}, privateKey)
 
-	state, msg := ValidateLicenceToken(token)
+	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
 	require.Equal(t, LicenceStateExpired, state)
 	require.Contains(t, msg, "expired")
 }
 
 func TestValidateLicenceToken_MalformedToken(t *testing.T) {
-	state, msg := ValidateLicenceToken("not-a-jwt")
+	state, msg := ValidateLicenceToken("not-a-jwt", testLicenceIssuer)
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "validation failed")
 }
@@ -86,9 +117,10 @@ func TestValidateLicenceToken_WrongSigningKey(t *testing.T) {
 	otherKey, _ := generateTestRSAKeyPair(t)
 	token := createToken(t, jwt.MapClaims{
 		"exp": time.Now().Add(time.Hour).Unix(),
+		"iss": testLicenceIssuer,
 	}, otherKey)
 
-	state, msg := ValidateLicenceToken(token)
+	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "validation failed")
 }
@@ -99,7 +131,7 @@ func TestValidateLicenceToken_NoExpiration(t *testing.T) {
 
 	token := createToken(t, jwt.MapClaims{}, privateKey)
 
-	state, msg := ValidateLicenceToken(token)
+	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "validation failed")
 }
@@ -111,9 +143,10 @@ func TestValidateLicenceToken_ProductionKeyParses(t *testing.T) {
 	otherKey, _ := generateTestRSAKeyPair(t)
 	token := createToken(t, jwt.MapClaims{
 		"exp": time.Now().Add(time.Hour).Unix(),
+		"iss": testLicenceIssuer,
 	}, otherKey)
 
-	state, msg := ValidateLicenceToken(token)
+	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "validation failed")
 	require.NotContains(t, msg, "public key")

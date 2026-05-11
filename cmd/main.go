@@ -117,9 +117,6 @@ func main() {
 
 	if licenceNamespace == "" {
 		licenceNamespace = os.Getenv("POD_NAMESPACE")
-		if licenceNamespace == "" {
-			licenceNamespace = "default"
-		}
 	}
 
 	platform := core.Platform{
@@ -131,6 +128,10 @@ func main() {
 	}
 
 	if licenceSecret != "" {
+		if licenceNamespace == "" {
+			setupLog.Error(fmt.Errorf("licence namespace is required when licence secret is configured"), "unable to configure licence validation")
+			os.Exit(1)
+		}
 		setupLog.Info("licence management enabled", "secret", licenceSecret, "namespace", licenceNamespace)
 		// Initial validation at startup (will be re-resolved on each EE reconciliation)
 		licenceState, licenceMessage := core.ResolveLicenceState(mgr.GetAPIReader(), licenceSecret, licenceNamespace)

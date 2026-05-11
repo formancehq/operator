@@ -79,6 +79,7 @@ func generateTestLicence() string {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"exp": time.Now().Add(24 * time.Hour).Unix(),
+		"iss": "https://license.formance.cloud/keys",
 	})
 	signed, err := token.SignedString(privateKey)
 	Expect(err).ToNot(HaveOccurred())

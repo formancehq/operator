@@ -83,10 +83,13 @@ func parseFormancePublicKey() (*rsa.PublicKey, error) {
 
 // ValidateLicenceToken validates a licence JWT token and returns the licence state and a human-readable message.
 // The validation uses the same logic as go-libs/v4/licence/jwt.go:
-// RS256 signature with embedded Formance public key, expiration required.
-func ValidateLicenceToken(token string) (LicenceState, string) {
+// RS256 signature with embedded Formance public key, expiration required, and issuer matching.
+func ValidateLicenceToken(token string, issuer string) (LicenceState, string) {
 	if token == "" {
 		return LicenceStateAbsent, ""
+	}
+	if issuer == "" {
+		return LicenceStateInvalid, "licence issuer is required"
 	}
 
 	rsaPub, err := parseFormancePublicKey()
@@ -97,6 +100,7 @@ func ValidateLicenceToken(token string) (LicenceState, string) {
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{jwt.SigningMethodRS256.Alg()}),
 		jwt.WithExpirationRequired(),
+		jwt.WithIssuer(issuer),
 	)
 
 	parsed, err := parser.Parse(token, func(token *jwt.Token) (interface{}, error) {
@@ -156,5 +160,10 @@ func ResolveLicenceState(reader client.Reader, secretName string, operatorNamesp
 		return LicenceStateInvalid, "licence secret missing non-empty 'token' key"
 	}
 
-	return ValidateLicenceToken(string(token))
+	issuer, ok := secret.Data["issuer"]
+	if !ok || len(issuer) == 0 {
+		return LicenceStateInvalid, "licence secret missing non-empty 'issuer' key"
+	}
+
+	return ValidateLicenceToken(string(token), string(issuer))
 }

@@ -143,6 +143,9 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 			if platform.LicenceSecret != "" {
 				licenceState, licenceMessage = ResolveLicenceState(
 					ctx.GetAPIReader(), platform.LicenceSecret, platform.LicenceNamespace)
+				platform.LicenceState = licenceState
+				platform.LicenceMessage = licenceMessage
+				ctx = WithPlatform(ctx, platform)
 			}
 
 			switch licenceState {
