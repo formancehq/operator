@@ -271,3 +271,38 @@ func TestParseKeyValuePair(t *testing.T) {
 		"h": "i,j",
 	}, ret)
 }
+
+func TestParseKeyValueListErrors(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "quotes in key",
+			input: `"bad"=value`,
+		},
+		{
+			name:  "unterminated quoted value",
+			input: `key="value`,
+		},
+		{
+			name:  "missing comma after quoted value",
+			input: `key="value"next=value`,
+		},
+		{
+			name:  "missing value separator",
+			input: `key`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := parseKeyValueList(tc.input)
+			require.Error(t, err)
+		})
+	}
+}
