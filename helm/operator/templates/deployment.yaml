@@ -57,7 +57,7 @@ spec:
             - --licence-namespace={{ .Release.Namespace }}
             {{- else if .Values.global.licence.existingSecret }}
             - --licence-secret={{ .Values.global.licence.existingSecret }}
-            - --licence-namespace={{ .Release.Namespace }}
+            - --licence-namespace={{ .Values.global.licence.existingSecretNamespace | default .Release.Namespace }}
             {{- end }}
             {{- if .Values.operator.disableWebhooks }}
             - --disable-webhooks
