@@ -170,18 +170,17 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerC
 
 func createServiceNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerConsumer, broker *v1beta1.Broker, service string) error {
 	const script = `
-	exists=$(nats consumer ls $STACK-$SERVICE -n | grep $NAME)
-	[[ -z "$exists" ]] || {
-		nats --server $NATS_URI consumer add $STACK-$SERVICE $NAME \
-			--deliver-group $NAME \
+	if ! nats --server "$NATS_URI" consumer info "$STACK-$SERVICE" "$NAME" --no-select >/dev/null 2>&1; then
+		nats --server "$NATS_URI" consumer add "$STACK-$SERVICE" "$NAME" \
+			--deliver-group "$NAME" \
 			--deliver all \
 			--max-pending 1024 \
 			--ack explicit \
-			--target $STACK-$NAME \
+			--target "$STACK-$NAME" \
 			--replay instant \
-			--filter $STACK-$SERVICE \
+			--filter "$STACK-$SERVICE" \
 			--defaults
-	}`
+	fi`
 
 	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {

@@ -110,9 +110,10 @@ func hasAllVersionsGreaterThan(ctx core.Context, stack *v1beta1.Stack, ref strin
 func detectBrokerModeByCheckingExistentStreams(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, uri *v1beta1.URI) (bool, error) {
 	const script = `
 	# notes(gfyrag): Check if we have any stream named "$STACK-xxx"
-	v=$(nats stream ls -n --server $NATS_URI | grep "$STACK-")
-	# exit with code 12 if we detect any streams
-	[[ -z "$v" ]] || exit 12;
+	if nats --server "$NATS_URI" stream ls -n | grep -q "$STACK-"; then
+		# exit with code 12 if we detect any streams
+		exit 12
+	fi
 `
 
 	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
@@ -219,17 +220,16 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 	}
 
 	const script = `
-	index=$(nats --server $NATS_URI stream ls -n | grep "$STREAM")
-	[[ -z "$index" ]] && {
+	if ! nats --server "$NATS_URI" stream info "$STREAM" --no-select >/dev/null 2>&1; then
 		nats stream add \
-			--server $NATS_URI \
+			--server "$NATS_URI" \
 			--retention interest \
-			--subjects $STREAM.* \
+			--subjects "$STREAM.*" \
 			--defaults \
-			--replicas $REPLICAS \
+			--replicas "$REPLICAS" \
 			--no-allow-direct \
-			$STREAM
-	} || true`
+			"$STREAM"
+	fi`
 
 	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
 	if err != nil {
