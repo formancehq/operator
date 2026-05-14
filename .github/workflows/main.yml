@@ -69,8 +69,22 @@ jobs:
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
   E2E:
+    name: E2E (Kubernetes ${{ matrix.kubernetes.version }})
     runs-on: "namespace-profile-linux-amd64-8vcpu"
-    if: contains(github.event.pull_request.labels.*.name, 'e2e') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes:
+          - version: "1.30"
+            kind_node_image: kindest/node:v1.30.13
+            cluster_name: formance-operator-e2e-130
+          - version: "1.31"
+            kind_node_image: kindest/node:v1.31.9
+            cluster_name: formance-operator-e2e-131
+          - version: "1.32"
+            kind_node_image: kindest/node:v1.32.5
+            cluster_name: formance-operator-e2e-132
     steps:
       - uses: 'namespacelabs/nscloud-checkout-action@v8'
         with:
@@ -82,12 +96,14 @@ jobs:
       - run: >
           nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just e2e
         env:
+          KIND_CLUSTER_NAME: ${{ matrix.kubernetes.cluster_name }}
+          KIND_NODE_IMAGE: ${{ matrix.kubernetes.kind_node_image }}
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
       - name: Upload Chainsaw artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: chainsaw-e2e-artifacts
+          name: chainsaw-e2e-artifacts-k8s-${{ matrix.kubernetes.version }}
           path: tests/e2e/artifacts
           if-no-files-found: ignore
   GoReleaser:
