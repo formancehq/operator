@@ -1,0 +1,77 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  namespace: chainsaw-gateway
+  labels:
+    settings-label: "yes"
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/name: chainsaw-gateway
+  annotations:
+    settings-annotation: "yes"
+    spec-annotation: "yes"
+  ownerReferences:
+    - apiVersion: formance.com/v1beta1
+      kind: Gateway
+      name: gateway
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: gateway.chainsaw.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  name: http
+    - host: api.chainsaw.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  name: http
+    - host: extra.chainsaw.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  name: http
+    - host: updated.chainsaw-gateway.settings.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  name: http
+    - host: api-updated.chainsaw.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  name: http
+  tls:
+    - secretName: gateway-tls
+      hosts:
+        - gateway.chainsaw.local
+        - api.chainsaw.local
+        - extra.chainsaw.local
+        - updated.chainsaw-gateway.settings.local
+        - api-updated.chainsaw.local

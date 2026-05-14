@@ -1,0 +1,53 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: gateway-module
+  labels:
+    suite: modules
+    module: gateway
+spec:
+  concurrent: false
+  steps:
+    - name: ingress-from-spec-and-settings
+      try:
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - assert:
+            file: asserts/ingress.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl get configmap gateway -n chainsaw-gateway -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-gateway-caddyfile
+              grep -F 'trusted_proxies 10.0.0.0/8 192.168.0.0/16' /tmp/chainsaw-gateway-caddyfile
+              grep -F 'trusted_proxies_strict' /tmp/chainsaw-gateway-caddyfile
+              grep -F 'idle 45s' /tmp/chainsaw-gateway-caddyfile
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../../scripts/dump-diagnostics.sh gateway-module-ingress
+    - name: ingress-hosts-mutation
+      try:
+        - apply:
+            file: resources/settings-updated-hosts.yaml
+        - assert:
+            file: asserts/ingress-updated-hosts.yaml
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../../scripts/dump-diagnostics.sh gateway-module-hosts-mutation
+    - name: ingress-removal
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              kubectl patch gateway gateway --type=json -p='[{"op":"remove","path":"/spec/ingress"}]'
+              kubectl wait --for=delete ingress/gateway -n chainsaw-gateway --timeout=2m
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../../scripts/dump-diagnostics.sh gateway-module-ingress-removal

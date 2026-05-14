@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: BrokerTopic
+metadata:
+  name: chainsaw-ledger-ledger
+spec:
+  stack: chainsaw-ledger
+  service: ledger

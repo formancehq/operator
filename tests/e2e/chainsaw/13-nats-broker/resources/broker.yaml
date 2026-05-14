@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Broker
+metadata:
+  name: chainsaw-nats
+spec:
+  stack: chainsaw-nats

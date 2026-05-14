@@ -1,0 +1,43 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: observability
+  labels:
+    suite: infrastructure
+    feature: observability
+spec:
+  concurrent: false
+  steps:
+    - name: gateway-opentelemetry-traces-settings
+      try:
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="OTEL_TRACES")].value}'=true deployment/gateway -n chainsaw-observability --timeout=2m
+              kubectl get deployment gateway -n chainsaw-observability -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES_BATCH=true' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES_EXPORTER=otlp' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES_EXPORTER_OTLP_INSECURE=true' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES_EXPORTER_OTLP_MODE=grpc' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES_ENDPOINT=otel-collector.chainsaw' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES_PORT=4317' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_TRACES_EXPORTER_OTLP_ENDPOINT=$(OTEL_TRACES_ENDPOINT):$(OTEL_TRACES_PORT)' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://$(OTEL_TRACES_EXPORTER_OTLP_ENDPOINT)' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_EXPORTER_OTLP_PROTOCOL=$(OTEL_TRACES_EXPORTER_OTLP_MODE)' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_SERVICE_NAME=gateway' /tmp/chainsaw-observability-env
+              grep -Fx 'OTEL_RESOURCE_ATTRIBUTES=pod-name=$(POD_NAME),service.namespace=formance,stack=chainsaw-observability,team=platform' /tmp/chainsaw-observability-env
+              kubectl get configmap gateway -n chainsaw-observability -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-observability-caddyfile
+              grep -F 'tracing {' /tmp/chainsaw-observability-caddyfile
+              grep -F 'span gateway' /tmp/chainsaw-observability-caddyfile
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh observability-gateway-traces

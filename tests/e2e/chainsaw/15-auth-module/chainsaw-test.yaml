@@ -1,0 +1,88 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: auth-module
+  labels:
+    suite: modules
+    feature: auth-module
+spec:
+  concurrent: false
+  steps:
+    - name: auth-renders-database-clients-config-and-settings
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-auth --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-auth-auth --timeout=5m
+        - apply:
+            file: resources/client-secret.yaml
+        - apply:
+            file: resources/authclients.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-inline-client --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-referenced-client --timeout=2m
+        - apply:
+            file: resources/auth.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-auth -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/auth:v3.0.0 deployment/auth -n chainsaw-auth --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-auth-auth --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/auth -n chainsaw-auth --timeout=2m
+              assert_jsonpath deployment/auth '{.spec.replicas}' '2'
+              assert_jsonpath deployment/auth '{.spec.template.spec.containers[0].securityContext.runAsUser}' '10002'
+              assert_jsonpath pdb/auth '{.spec.minAvailable}' '1'
+              assert_jsonpath service/auth '{.metadata.annotations.chainsaw\.formance\.com/service}' 'auth'
+              kubectl get deployment auth -n chainsaw-auth -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-auth-env
+              grep -Fx 'BASE_URL=http://auth:8080' /tmp/chainsaw-auth-env
+              grep -Fx 'CONFIG=/config/config.yaml' /tmp/chainsaw-auth-env
+              grep -Fx 'AUTH_ISSUERS=https://issuer.chainsaw.local,https://issuer-alt.chainsaw.local' /tmp/chainsaw-auth-env
+              grep -Fx 'DELEGATED_CLIENT_ID=delegated-client' /tmp/chainsaw-auth-env
+              grep -Fx 'DELEGATED_ISSUER=https://delegated.chainsaw.local' /tmp/chainsaw-auth-env
+              grep -Fx 'CAOS_OIDC_DEV=1' /tmp/chainsaw-auth-env
+              grep -Fx 'POSTGRES_HOST=postgres.chainsaw-auth.svc.cluster.local' /tmp/chainsaw-auth-env
+              grep -Fx 'POSTGRES_DATABASE=chainsaw-auth-auth' /tmp/chainsaw-auth-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-auth-env
+              grep -Fx 'OTEL_SERVICE_NAME=auth' /tmp/chainsaw-auth-env
+              kubectl get deployment auth -n chainsaw-auth -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-auth-secret-env
+              grep -Fx 'SIGNING_KEY=chainsaw-auth-signing-key/signing-key' /tmp/chainsaw-auth-secret-env
+              grep -Fx 'DELEGATED_CLIENT_SECRET=chainsaw-auth-signing-key/delegated-secret' /tmp/chainsaw-auth-secret-env
+              grep -Fx 'AUTH_CLIENT_SECRET_CHAINSAW_REFERENCED_CLIENT=chainsaw-auth-client-secret/secret' /tmp/chainsaw-auth-secret-env
+              kubectl get configmap auth-configuration -n chainsaw-auth -o go-template='{{ index .data "config.yaml" }}' > /tmp/chainsaw-auth-config
+              grep -F 'id: inline-client' /tmp/chainsaw-auth-config
+              grep -F 'id: referenced-client' /tmp/chainsaw-auth-config
+              grep -F 'secrets:' /tmp/chainsaw-auth-config
+              grep -F '    - inline-secret' /tmp/chainsaw-auth-config
+              grep -F '    - $AUTH_CLIENT_SECRET_CHAINSAW_REFERENCED_CLIENT' /tmp/chainsaw-auth-config
+              grep -F 'ledger:read' /tmp/chainsaw-auth-config
+              grep -F 'payments:write' /tmp/chainsaw-auth-config
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh auth-module

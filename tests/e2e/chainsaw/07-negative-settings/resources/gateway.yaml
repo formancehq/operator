@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: chainsaw-negative-gateway
+spec:
+  stack: chainsaw-negative-settings
+  dev: true

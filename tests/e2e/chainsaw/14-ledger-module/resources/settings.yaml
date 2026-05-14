@@ -1,0 +1,249 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-postgres-uri
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: postgres.ledger.uri
+  value: postgresql://postgres.chainsaw-ledger.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-broker-dsn
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: broker.dsn
+  value: nats://nats.chainsaw-ledger.svc.cluster.local:4222?replicas=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-experimental-features
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.experimental-features
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-experimental-numscript
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.experimental-numscript
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-experimental-numscript-flags
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.experimental-numscript-flags
+  value: trace,strict
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-default-page-size
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.api.default-page-size
+  value: "50"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-max-page-size
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.api.max-page-size
+  value: "1000"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-bulk-max-size
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.api.bulk-max-size
+  value: "200"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-schema-enforcement
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.schema-enforcement-mode
+  value: permissive
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-exporters
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.experimental-exporters
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-worker-async-block-hasher
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.worker.async-block-hasher
+  value: max-block-size=1000,schedule="*/5 * * * *"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-worker-pipelines
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.worker.pipelines
+  value: pull-interval=1s,push-retry-period=2s,sync-period=3s,logs-page-size=42
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-worker-bucket-cleanup
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: ledger.worker.bucket-cleanup
+  value: retention-period=24h,schedule="0 * * * *"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-database-pool
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: modules.ledger.database.connection-pool
+  value: max-idle=10,max-idle-time=10s,max-open=20,max-lifetime=5m
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-replicas
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: deployments.ledger.replicas
+  value: "2"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-template-annotations
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: deployments.ledger.spec.template.annotations
+  value: chainsaw.formance.com/template=ledger
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-container-requests
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: deployments.ledger.containers.ledger.resource-requirements.requests
+  value: cpu=25m,memory=128Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-container-limits
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: deployments.ledger.containers.ledger.resource-requirements.limits
+  value: memory=256Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-run-as
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: deployments.ledger.containers.ledger.run-as
+  value: user=10001,group=10001
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-pdb
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: deployments.ledger.pod-disruption-budget
+  value: minAvailable=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-grace-period
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: modules.ledger.grace-period
+  value: 30s
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-service-annotations
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: services.ledger.annotations
+  value: chainsaw.formance.com/service=ledger
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-logging-json
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: logging.json
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-otel-traces-dsn
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-ledger-otel-resource-attributes
+spec:
+  stacks:
+    - chainsaw-ledger
+  key: opentelemetry.traces.resource-attributes
+  value: service.namespace=formance,team=platform

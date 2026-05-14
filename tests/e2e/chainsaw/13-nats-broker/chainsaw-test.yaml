@@ -1,0 +1,63 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: nats-broker
+  labels:
+    suite: infrastructure
+    feature: nats-broker
+spec:
+  concurrent: false
+  steps:
+    - name: real-nats-broker-and-consumer
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/nats.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/broker.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/nats -n chainsaw-nats --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-nats --timeout=5m
+              test "$(kubectl get broker chainsaw-nats -o jsonpath='{.status.mode}')" = "OneStreamByStack"
+              test "$(kubectl get broker chainsaw-nats -o jsonpath='{.status.uri}')" = "nats://nats.chainsaw-nats.svc.cluster.local:4222?replicas=1"
+              job="$(kubectl get job -n chainsaw-nats -o jsonpath='{.items[?(@.metadata.ownerReferences[0].name=="chainsaw-nats")].metadata.name}' | tr ' ' '\n' | grep -E 'create-stream|detect-mode' | head -n1)"
+              test -n "$job"
+              test "$(kubectl get job "$job" -n chainsaw-nats -o jsonpath='{.spec.template.spec.containers[0].image}')" = "docker.io/natsio/nats-box:0.19.2"
+              kubectl run nats-check-stream -n chainsaw-nats --image=docker.io/natsio/nats-box:0.19.2 --restart=Never --rm -i --command -- \
+                sh -c "nats --server nats://nats.chainsaw-nats.svc.cluster.local:4222 stream info chainsaw-nats --no-select >/dev/null"
+        - apply:
+            file: resources/consumer.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.status.ready}'=true brokertopic/chainsaw-nats-ledger --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/chainsaw-nats-consumer --timeout=5m
+              test "$(kubectl get brokerconsumer chainsaw-nats-consumer -o jsonpath='{.status.conditions[?(@.type=="BrokerTopicCreated")].status}')" = "True"
+              test "$(kubectl get brokerconsumer chainsaw-nats-consumer -o jsonpath='{.status.conditions[?(@.type=="NatsStackConsumerCreated")].status}')" = "True"
+              kubectl run nats-check-consumer -n chainsaw-nats --image=docker.io/natsio/nats-box:0.19.2 --restart=Never --rm -i --command -- \
+                sh -c "nats --server nats://nats.chainsaw-nats.svc.cluster.local:4222 consumer info chainsaw-nats gateway_audit --no-select >/dev/null"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh nats-broker
+    - name: cleanup-broker-finalizer
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              if kubectl get broker chainsaw-nats >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-nats --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-nats --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh nats-broker-cleanup

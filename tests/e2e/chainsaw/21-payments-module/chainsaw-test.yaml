@@ -1,0 +1,122 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: payments-module
+  labels:
+    suite: modules
+    feature: payments-module
+spec:
+  concurrent: false
+  steps:
+    - name: payments-renders-postgres-broker-temporal-gateway-and-settings
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/nats.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - apply:
+            file: resources/broker.yaml
+        - apply:
+            file: resources/brokertopic.yaml
+        - apply:
+            file: resources/auth.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-payments --timeout=2m
+              kubectl rollout status deployment/nats -n chainsaw-payments --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-payments-payments --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-payments --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true brokertopic/chainsaw-payments-payments --timeout=2m
+        - apply:
+            file: resources/payments.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-payments -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/payments:v3.0.0 deployment/payments -n chainsaw-payments --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/payments:v3.0.0 deployment/payments-worker -n chainsaw-payments --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-payments-payments --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/payments -n chainsaw-payments --timeout=2m
+              assert_jsonpath deployment/payments '{.spec.template.spec.containers[0].args[0]}' 'server'
+              assert_jsonpath deployment/payments-worker '{.spec.template.spec.containers[0].args[0]}' 'worker'
+              assert_jsonpath deployment/payments '{.spec.template.spec.containers[0].resources.requests.cpu}' '20m'
+              assert_jsonpath deployment/payments '{.spec.template.spec.containers[0].resources.limits.memory}' '192Mi'
+              assert_jsonpath deployment/payments-worker '{.spec.template.spec.containers[0].resources.requests.cpu}' '15m'
+              assert_jsonpath deployment/payments-worker '{.spec.template.spec.containers[0].resources.limits.memory}' '160Mi'
+              assert_jsonpath service/payments '{.metadata.annotations.chainsaw\.formance\.com/service}' 'payments'
+              kubectl get deployment payments -n chainsaw-payments -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-payments-api-env
+              grep -Fx 'DEV=true' /tmp/chainsaw-payments-api-env
+              grep -Fx 'STACK=chainsaw-payments' /tmp/chainsaw-payments-api-env
+              grep -Fx 'POSTGRES_HOST=postgres.chainsaw-payments.svc.cluster.local' /tmp/chainsaw-payments-api-env
+              grep -Fx 'POSTGRES_PORT=5432' /tmp/chainsaw-payments-api-env
+              grep -Fx 'POSTGRES_DATABASE=chainsaw-payments-payments' /tmp/chainsaw-payments-api-env
+              grep -Fx 'POSTGRES_DATABASE_NAME=$(POSTGRES_DATABASE)' /tmp/chainsaw-payments-api-env
+              grep -Fx 'CONFIG_ENCRYPTION_KEY=chainsaw-encryption-key' /tmp/chainsaw-payments-api-env
+              grep -Fx 'BROKER=nats' /tmp/chainsaw-payments-api-env
+              grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-payments-api-env
+              grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-payments.svc.cluster.local:4222' /tmp/chainsaw-payments-api-env
+              grep -Fx 'PUBLISHER_NATS_CLIENT_ID=chainsaw-payments-payments' /tmp/chainsaw-payments-api-env
+              grep -Fx 'PUBLISHER_TOPIC_MAPPING=*:chainsaw-payments.payments' /tmp/chainsaw-payments-api-env
+              grep -Fx 'PUBLISHER_NATS_AUTO_PROVISION=false' /tmp/chainsaw-payments-api-env
+              grep -Fx 'AUTH_ENABLED=true' /tmp/chainsaw-payments-api-env
+              grep -Fx 'AUTH_ISSUER=http://auth:8080' /tmp/chainsaw-payments-api-env
+              grep -Fx 'AUTH_ISSUERS=https://issuer.payments.chainsaw.local' /tmp/chainsaw-payments-api-env
+              grep -Fx 'AUTH_CHECK_SCOPES=true' /tmp/chainsaw-payments-api-env
+              grep -Fx 'AUTH_SERVICE=payments' /tmp/chainsaw-payments-api-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-payments-api-env
+              grep -Fx 'OTEL_SERVICE_NAME=payments' /tmp/chainsaw-payments-api-env
+              kubectl get deployment payments-worker -n chainsaw-payments -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_ADDRESS=temporal.chainsaw-payments.svc.cluster.local:7233' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_NAMESPACE=default' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_SSL_CLIENT_CERT=crt-data' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_SSL_CLIENT_KEY=key-data' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_INIT_SEARCH_ATTRIBUTES=true' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLERS=6' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLERS=7' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_MAX_SLOTS_PER_POLLER=8' /tmp/chainsaw-payments-worker-env
+              grep -Fx 'TEMPORAL_MAX_LOCAL_ACTIVITY_SLOTS=9' /tmp/chainsaw-payments-worker-env
+              kubectl get deployment payments -n chainsaw-payments -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-payments-secret-env
+              grep -Fx 'POSTGRES_USERNAME=postgres/username' /tmp/chainsaw-payments-secret-env
+              grep -Fx 'POSTGRES_PASSWORD=postgres/password' /tmp/chainsaw-payments-secret-env
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh payments-module
+    - name: cleanup-finalizers
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl patch stack chainsaw-payments --type=merge -p '{"spec":{"disabled":true}}'
+              if kubectl get database chainsaw-payments-payments >/dev/null 2>&1; then
+                kubectl patch database chainsaw-payments-payments --type=merge -p '{"metadata":{"finalizers":[]}}'
+              fi
+              if kubectl get broker chainsaw-payments >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-payments --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-payments --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh payments-module-cleanup

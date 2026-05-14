@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Stack
+metadata:
+  name: chainsaw-observability
+spec:
+  version: v1.0.0

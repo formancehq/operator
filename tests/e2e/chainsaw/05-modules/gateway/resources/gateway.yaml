@@ -1,0 +1,15 @@
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: gateway
+spec:
+  stack: chainsaw-gateway
+  dev: true
+  ingress:
+    host: gateway.chainsaw.local
+    hosts:
+      - api.chainsaw.local
+      - extra.chainsaw.local
+    scheme: https
+    annotations:
+      spec-annotation: "yes"

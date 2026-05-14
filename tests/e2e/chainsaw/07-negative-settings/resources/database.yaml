@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Database
+metadata:
+  name: chainsaw-negative-settings-ledger
+spec:
+  stack: chainsaw-negative-settings
+  service: ledger

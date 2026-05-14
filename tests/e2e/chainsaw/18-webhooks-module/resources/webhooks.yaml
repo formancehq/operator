@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Webhooks
+metadata:
+  name: webhooks
+spec:
+  stack: chainsaw-webhooks

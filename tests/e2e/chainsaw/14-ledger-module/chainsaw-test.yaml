@@ -1,0 +1,119 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: ledger-module
+  labels:
+    suite: modules
+    feature: ledger-module
+spec:
+  concurrent: false
+  steps:
+    - name: ledger-renders-postgres-broker-and-settings
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/nats.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - apply:
+            file: resources/broker.yaml
+        - apply:
+            file: resources/brokertopic.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-ledger --timeout=2m
+              kubectl rollout status deployment/nats -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-ledger-ledger --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-ledger --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true brokertopic/chainsaw-ledger-ledger --timeout=2m
+        - apply:
+            file: resources/ledger.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/ledger:v3.0.0 deployment/ledger -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/ledger:v3.0.0 deployment/ledger-worker -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/ledger -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8081 service/ledger-worker -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-ledger-ledger --timeout=2m
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-ledger -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl get deployment ledger -n chainsaw-ledger -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-ledger-api-env
+              grep -Fx 'BIND=:8080' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'EXPERIMENTAL_FEATURES=true' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'EXPERIMENTAL_NUMSCRIPT_INTERPRETER=true' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'EXPERIMENTAL_NUMSCRIPT_INTERPRETER_FLAGS=trace strict' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'DEFAULT_PAGE_SIZE=50' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'MAX_PAGE_SIZE=1000' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'BULK_MAX_SIZE=200' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'SCHEMA_ENFORCEMENT_MODE=permissive' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'POSTGRES_HOST=postgres.chainsaw-ledger.svc.cluster.local' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'POSTGRES_PORT=5432' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'POSTGRES_DATABASE=chainsaw-ledger-ledger' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'POSTGRES_URI=$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)?sslmode=disable' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'STORAGE_POSTGRES_CONN_STRING=$(POSTGRES_URI)' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'STORAGE_DRIVER=postgres' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'BROKER=nats' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-ledger.svc.cluster.local:4222' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'PUBLISHER_TOPIC_MAPPING=*:chainsaw-ledger.ledger' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'PUBLISHER_NATS_AUTO_PROVISION=false' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'JSON_FORMATTING_LOGGER=true' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'GRACE_PERIOD=30s' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'OTEL_SERVICE_NAME=ledger' /tmp/chainsaw-ledger-api-env
+              grep -Fx 'OTEL_RESOURCE_ATTRIBUTES=pod-name=$(POD_NAME) service.namespace=formance stack=chainsaw-ledger team=platform' /tmp/chainsaw-ledger-api-env
+              assert_jsonpath deployment/ledger '{.spec.replicas}' '2'
+              assert_jsonpath deployment/ledger '{.spec.template.spec.containers[0].resources.requests.cpu}' '25m'
+              assert_jsonpath deployment/ledger '{.spec.template.spec.containers[0].resources.limits.memory}' '256Mi'
+              assert_jsonpath deployment/ledger '{.spec.template.spec.containers[0].securityContext.runAsUser}' '10001'
+              assert_jsonpath deployment/ledger '{.spec.template.metadata.annotations.chainsaw\.formance\.com/template}' 'ledger'
+              assert_jsonpath pdb/ledger '{.spec.minAvailable}' '1'
+              assert_jsonpath service/ledger '{.metadata.annotations.chainsaw\.formance\.com/service}' 'ledger'
+              kubectl get deployment ledger-worker -n chainsaw-ledger -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_ASYNC_BLOCK_HASHER_MAX_BLOCK_SIZE=1000' /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_ASYNC_BLOCK_HASHER_SCHEDULE=*/5 * * * *' /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_PIPELINES_PULL_INTERVAL=1s' /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_PIPELINES_PUSH_RETRY_PERIOD=2s' /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_PIPELINES_SYNC_PERIOD=3s' /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_PIPELINES_LOGS_PAGE_SIZE=42' /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_BUCKET_CLEANUP_RETENTION_PERIOD=24h' /tmp/chainsaw-ledger-worker-env
+              grep -Fx 'WORKER_BUCKET_CLEANUP_SCHEDULE=0 * * * *' /tmp/chainsaw-ledger-worker-env
+              assert_jsonpath deployment/ledger-worker '{.spec.strategy.type}' 'Recreate'
+              assert_jsonpath deployment/ledger-worker '{.spec.template.spec.containers[0].ports[0].containerPort}' '8081'
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh ledger-module
+    - name: cleanup-broker-finalizer
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              if kubectl get broker chainsaw-ledger >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-ledger --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-ledger --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh ledger-module-cleanup

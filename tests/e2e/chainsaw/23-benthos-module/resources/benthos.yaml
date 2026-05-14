@@ -1,0 +1,15 @@
+apiVersion: formance.com/v1beta1
+kind: Benthos
+metadata:
+  name: chainsaw-benthos
+spec:
+  stack: chainsaw-benthos
+  resources:
+    lookup.yaml: |
+      cache_resources: []
+  templates:
+    custom.yaml: |
+      name: custom_processor
+      type: processor
+      mapping: |
+        root = this

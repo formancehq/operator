@@ -1,0 +1,19 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-benthos-broker-dsn
+spec:
+  stacks:
+    - chainsaw-benthos
+  key: broker.dsn
+  value: nats://nats.chainsaw-benthos.svc.cluster.local:4222?replicas=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-benthos-service-account
+spec:
+  stacks:
+    - chainsaw-benthos
+  key: aws.service-account
+  value: chainsaw-benthos-sa

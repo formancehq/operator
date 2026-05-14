@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Database
+metadata:
+  name: chainsaw-ledger-ledger
+  annotations:
+    formance.com/module-version: v3.0.0
+spec:
+  stack: chainsaw-ledger
+  service: ledger

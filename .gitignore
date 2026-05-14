@@ -28,3 +28,6 @@ Dockerfile.cross
 charts
 
 *.tgz
+
+# E2E test artifacts
+tests/e2e/artifacts/

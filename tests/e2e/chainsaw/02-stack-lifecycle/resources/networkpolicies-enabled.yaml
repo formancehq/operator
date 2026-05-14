@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-networkpolicies-enabled
+spec:
+  stacks:
+    - chainsaw-networkpolicies
+  key: networkpolicies.enabled
+  value: "true"

@@ -1,0 +1,89 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-postgres-uri
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: postgres.webhooks.uri
+  value: postgresql://postgres.chainsaw-webhooks.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-broker-dsn
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: broker.dsn
+  value: nats://nats.chainsaw-webhooks.svc.cluster.local:4222?replicas=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-otel-traces
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-replicas
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: deployments.webhooks.replicas
+  value: "2"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-template-annotations
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: deployments.webhooks.spec.template.annotations
+  value: chainsaw.formance.com/template=webhooks
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-container-requests
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: deployments.webhooks.containers.api.resource-requirements.requests
+  value: cpu=20m,memory=64Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-container-limits
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: deployments.webhooks.containers.api.resource-requirements.limits
+  value: memory=160Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-pdb
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: deployments.webhooks.pod-disruption-budget
+  value: minAvailable=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-webhooks-service-annotations
+spec:
+  stacks:
+    - chainsaw-webhooks
+  key: services.webhooks.annotations
+  value: chainsaw.formance.com/service=webhooks

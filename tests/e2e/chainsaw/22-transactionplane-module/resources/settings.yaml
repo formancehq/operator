@@ -1,0 +1,99 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-postgres-uri
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: postgres.transactionplane.uri
+  value: postgresql://postgres.chainsaw-transactionplane.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-postgres-auth-uri
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: postgres.auth.uri
+  value: postgresql://postgres.chainsaw-transactionplane.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-broker-dsn
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: broker.dsn
+  value: nats://nats.chainsaw-transactionplane.svc.cluster.local:4222?replicas=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-auth-issuers
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: auth.issuers
+  value: https://issuer.transactionplane.chainsaw.local
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-auth-check-scopes
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: auth.transactionplane.check-scopes
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-otel-traces
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-container-requests
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: deployments.transactionplane.containers.transactionplane.resource-requirements.requests
+  value: cpu=25m,memory=80Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-container-limits
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: deployments.transactionplane.containers.transactionplane.resource-requirements.limits
+  value: memory=256Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-pdb
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: deployments.transactionplane.pod-disruption-budget
+  value: minAvailable=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-service-annotations
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: services.transactionplane.annotations
+  value: chainsaw.formance.com/service=transactionplane

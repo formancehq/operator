@@ -1,0 +1,5 @@
+apiVersion: formance.com/v1beta1
+kind: Stack
+metadata:
+  name: chainsaw-version-missing
+spec: {}

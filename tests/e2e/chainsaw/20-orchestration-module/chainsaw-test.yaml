@@ -1,0 +1,118 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: orchestration-module
+  labels:
+    suite: modules
+    feature: orchestration-module
+spec:
+  concurrent: false
+  steps:
+    - name: orchestration-renders-postgres-broker-authclient-temporal-gateway-and-settings
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/nats.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - apply:
+            file: resources/broker.yaml
+        - apply:
+            file: resources/auth.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-orchestration --timeout=2m
+              kubectl rollout status deployment/nats -n chainsaw-orchestration --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-orchestration-orchestration --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-orchestration --timeout=5m
+        - apply:
+            file: resources/orchestration.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-orchestration -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/orchestration-orchestration --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-orchestration-orchestration --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/orchestration:v3.0.0 deployment/orchestration -n chainsaw-orchestration --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-orchestration-orchestration --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/orchestration -n chainsaw-orchestration --timeout=2m
+              assert_jsonpath deployment/orchestration '{.spec.template.spec.containers[0].resources.requests.cpu}' '20m'
+              assert_jsonpath deployment/orchestration '{.spec.template.spec.containers[0].resources.limits.memory}' '192Mi'
+              assert_jsonpath pdb/orchestration '{.spec.minAvailable}' '1'
+              assert_jsonpath service/orchestration '{.metadata.annotations.chainsaw\.formance\.com/service}' 'orchestration'
+              kubectl get deployment orchestration -n chainsaw-orchestration -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-orchestration-env
+              grep -Fx 'DEV=true' /tmp/chainsaw-orchestration-env
+              grep -Fx 'STACK=chainsaw-orchestration' /tmp/chainsaw-orchestration-env
+              grep -Fx 'POSTGRES_HOST=postgres.chainsaw-orchestration.svc.cluster.local' /tmp/chainsaw-orchestration-env
+              grep -Fx 'POSTGRES_PORT=5432' /tmp/chainsaw-orchestration-env
+              grep -Fx 'POSTGRES_DATABASE=chainsaw-orchestration-orchestration' /tmp/chainsaw-orchestration-env
+              grep -Fx 'POSTGRES_DSN=$(POSTGRES_URI)' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TEMPORAL_ADDRESS=temporal.chainsaw-orchestration.svc.cluster.local:7233' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TEMPORAL_NAMESPACE=default' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TEMPORAL_TASK_QUEUE=chainsaw-orchestration' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TEMPORAL_SSL_CLIENT_CERT=crt-data' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TEMPORAL_SSL_CLIENT_KEY=key-data' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TEMPORAL_INIT_SEARCH_ATTRIBUTES=true' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TEMPORAL_MAX_PARALLEL_ACTIVITIES=17' /tmp/chainsaw-orchestration-env
+              grep -Fx 'WORKER=true' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TOPICS=' /tmp/chainsaw-orchestration-env
+              grep -Fx 'BROKER=nats' /tmp/chainsaw-orchestration-env
+              grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-orchestration-env
+              grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-orchestration.svc.cluster.local:4222' /tmp/chainsaw-orchestration-env
+              grep -Fx 'PUBLISHER_NATS_CLIENT_ID=chainsaw-orchestration-orchestration' /tmp/chainsaw-orchestration-env
+              grep -Fx 'PUBLISHER_TOPIC_MAPPING=*:chainsaw-orchestration.orchestration' /tmp/chainsaw-orchestration-env
+              grep -Fx 'PUBLISHER_NATS_AUTO_PROVISION=false' /tmp/chainsaw-orchestration-env
+              grep -Fx 'AUTH_ENABLED=true' /tmp/chainsaw-orchestration-env
+              grep -Fx 'AUTH_ISSUER=http://auth:8080' /tmp/chainsaw-orchestration-env
+              grep -Fx 'AUTH_ISSUERS=https://issuer.orchestration.chainsaw.local' /tmp/chainsaw-orchestration-env
+              grep -Fx 'AUTH_CHECK_SCOPES=true' /tmp/chainsaw-orchestration-env
+              grep -Fx 'AUTH_SERVICE=orchestration' /tmp/chainsaw-orchestration-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-orchestration-env
+              grep -Fx 'OTEL_SERVICE_NAME=orchestration' /tmp/chainsaw-orchestration-env
+              kubectl get deployment orchestration -n chainsaw-orchestration -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-orchestration-secret-env
+              grep -Fx 'POSTGRES_USERNAME=postgres/username' /tmp/chainsaw-orchestration-secret-env
+              grep -Fx 'POSTGRES_PASSWORD=postgres/password' /tmp/chainsaw-orchestration-secret-env
+              grep -Fx 'STACK_CLIENT_ID=auth-client-chainsaw-orchestration-orchestration/id' /tmp/chainsaw-orchestration-secret-env
+              grep -Fx 'STACK_CLIENT_SECRET=auth-client-chainsaw-orchestration-orchestration/secret' /tmp/chainsaw-orchestration-secret-env
+              test "$(kubectl get authclient chainsaw-orchestration-orchestration -o jsonpath='{.spec.scopes[*]}')" = "ledger:read ledger:write payments:read payments:write wallets:read wallets:write"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh orchestration-module
+    - name: cleanup-finalizers
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl patch stack chainsaw-orchestration --type=merge -p '{"spec":{"disabled":true}}'
+              if kubectl get database chainsaw-orchestration-orchestration >/dev/null 2>&1; then
+                kubectl patch database chainsaw-orchestration-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
+              fi
+              if kubectl get broker chainsaw-orchestration >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-orchestration --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh orchestration-module-cleanup

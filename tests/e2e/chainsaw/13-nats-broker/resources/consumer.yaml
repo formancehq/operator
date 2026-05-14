@@ -1,0 +1,10 @@
+apiVersion: formance.com/v1beta1
+kind: BrokerConsumer
+metadata:
+  name: chainsaw-nats-consumer
+spec:
+  stack: chainsaw-nats
+  services:
+    - ledger
+  queriedBy: gateway
+  name: audit

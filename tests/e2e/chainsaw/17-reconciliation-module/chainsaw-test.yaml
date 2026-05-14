@@ -1,0 +1,79 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: reconciliation-module
+  labels:
+    suite: modules
+    feature: reconciliation-module
+spec:
+  concurrent: false
+  steps:
+    - name: reconciliation-renders-postgres-authclient-gateway-and-settings
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-reconciliation --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-reconciliation-reconciliation --timeout=5m
+        - apply:
+            file: resources/reconciliation.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-reconciliation -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-reconciliation-reconciliation --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/reconciliation:v3.0.0 deployment/reconciliation -n chainsaw-reconciliation --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-reconciliation-reconciliation --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/reconciliation -n chainsaw-reconciliation --timeout=2m
+              assert_jsonpath deployment/reconciliation '{.spec.replicas}' '2'
+              assert_jsonpath deployment/reconciliation '{.spec.template.spec.containers[0].resources.requests.cpu}' '15m'
+              assert_jsonpath deployment/reconciliation '{.spec.template.spec.containers[0].resources.limits.memory}' '192Mi'
+              assert_jsonpath deployment/reconciliation '{.spec.template.metadata.annotations.chainsaw\.formance\.com/template}' 'reconciliation'
+              assert_jsonpath pdb/reconciliation '{.spec.minAvailable}' '1'
+              assert_jsonpath service/reconciliation '{.metadata.annotations.chainsaw\.formance\.com/service}' 'reconciliation'
+              kubectl get deployment reconciliation -n chainsaw-reconciliation -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-reconciliation-env
+              grep -Fx 'DEV=true' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'STACK=chainsaw-reconciliation' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_HOST=postgres.chainsaw-reconciliation.svc.cluster.local' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_PORT=5432' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_DATABASE=chainsaw-reconciliation-reconciliation' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_URI=$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)?sslmode=disable' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_DATABASE_NAME=$(POSTGRES_DATABASE)' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_MAX_IDLE_CONNS=3' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_CONN_MAX_IDLE_TIME=7s' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_MAX_OPEN_CONNS=9' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'POSTGRES_CONN_MAX_LIFETIME=2m' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'OTEL_SERVICE_NAME=reconciliation' /tmp/chainsaw-reconciliation-env
+              grep -Fx 'OTEL_RESOURCE_ATTRIBUTES=pod-name=$(POD_NAME) service.namespace=formance stack=chainsaw-reconciliation team=platform' /tmp/chainsaw-reconciliation-env
+              kubectl get deployment reconciliation -n chainsaw-reconciliation -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-reconciliation-secret-env
+              grep -Fx 'POSTGRES_USERNAME=postgres/username' /tmp/chainsaw-reconciliation-secret-env
+              grep -Fx 'POSTGRES_PASSWORD=postgres/password' /tmp/chainsaw-reconciliation-secret-env
+              grep -Fx 'STACK_CLIENT_ID=auth-client-chainsaw-reconciliation-reconciliation/id' /tmp/chainsaw-reconciliation-secret-env
+              grep -Fx 'STACK_CLIENT_SECRET=auth-client-chainsaw-reconciliation-reconciliation/secret' /tmp/chainsaw-reconciliation-secret-env
+              test "$(kubectl get authclient chainsaw-reconciliation-reconciliation -o jsonpath='{.spec.scopes[*]}')" = "ledger:read payments:read"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh reconciliation-module

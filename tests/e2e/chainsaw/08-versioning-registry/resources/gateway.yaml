@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: chainsaw-versioning-gateway
+spec:
+  stack: chainsaw-versioning
+  dev: true

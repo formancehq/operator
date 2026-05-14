@@ -1,0 +1,14 @@
+apiVersion: formance.com/v1beta1
+kind: BenthosStream
+metadata:
+  name: chainsaw-benthos-audit
+spec:
+  stack: chainsaw-benthos
+  name: audit
+  data: |
+    input:
+      generate:
+        interval: 1h
+        mapping: root.message = "chainsaw"
+    output:
+      drop: {}

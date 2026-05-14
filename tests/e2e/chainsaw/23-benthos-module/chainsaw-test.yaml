@@ -1,0 +1,88 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: benthos-module
+  labels:
+    suite: modules
+    feature: benthos-module
+spec:
+  concurrent: false
+  steps:
+    - name: benthos-renders-stream-configmaps-service-deployment-and-broker-env
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/serviceaccount.yaml
+        - apply:
+            file: resources/nats.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/broker.yaml
+        - apply:
+            file: resources/stream.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/nats -n chainsaw-benthos --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-benthos --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true benthosstream/chainsaw-benthos-audit --timeout=2m
+              kubectl get configmap stream-chainsaw-benthos-audit -n chainsaw-benthos -o go-template='{{ index .data "stream.yaml" }}' | grep -F 'input:'
+        - apply:
+            file: resources/benthos.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-benthos -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.status.ready}'=true benthos/chainsaw-benthos --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=public.ecr.aws/formance-internal/jeffail/benthos:v4.23.1-es deployment/benthos -n chainsaw-benthos --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=4195 service/benthos -n chainsaw-benthos --timeout=2m
+              assert_jsonpath deployment/benthos '{.spec.template.spec.serviceAccountName}' 'chainsaw-benthos-sa'
+              assert_jsonpath deployment/benthos '{.spec.template.spec.containers[0].ports[0].containerPort}' '4195'
+              assert_jsonpath service/benthos '{.spec.selector.app\.kubernetes\.io/name}' 'benthos'
+              test -n "$(kubectl get deployment benthos -n chainsaw-benthos -o jsonpath='{.spec.template.metadata.annotations.config-hash}')"
+              kubectl get configmap benthos-resources -n chainsaw-benthos -o go-template='{{ index .data "lookup.yaml" }}' | grep -F 'cache_resources:'
+              kubectl get configmap benthos-templates -n chainsaw-benthos -o go-template='{{ index .data "custom.yaml" }}' | grep -F 'name: custom_processor'
+              kubectl get deployment benthos -n chainsaw-benthos -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-benthos-env
+              grep -Fx 'TOPIC_PREFIX=chainsaw-benthos.' /tmp/chainsaw-benthos-env
+              grep -Fx 'STACK=chainsaw-benthos' /tmp/chainsaw-benthos-env
+              grep -Fx 'BROKER=nats' /tmp/chainsaw-benthos-env
+              grep -Fx 'NATS_URL=nats.chainsaw-benthos.svc.cluster.local:4222' /tmp/chainsaw-benthos-env
+              grep -Fx 'NATS_BIND=true' /tmp/chainsaw-benthos-env
+              grep -Fx 'AWS_IAM_ENABLED=true' /tmp/chainsaw-benthos-env
+              assert_jsonpath deployment/benthos '{.spec.template.spec.containers[0].command[0]}' '/benthos'
+              assert_jsonpath deployment/benthos '{.spec.template.spec.containers[0].command[2]}' '/resources/*.yaml'
+              assert_jsonpath deployment/benthos '{.spec.template.spec.containers[0].command[4]}' '/templates/*.yaml'
+              assert_jsonpath deployment/benthos '{.spec.template.spec.containers[0].command[8]}' '/streams/*.yaml'
+              kubectl get deployment benthos -n chainsaw-benthos -o jsonpath='{range .spec.template.spec.volumes[?(@.name=="streams")].projected.sources[*]}{.configMap.name}:{.configMap.items[0].path}{"\n"}{end}' > /tmp/chainsaw-benthos-stream-volumes
+              grep -Fx 'stream-chainsaw-benthos-audit:audit.yaml' /tmp/chainsaw-benthos-stream-volumes
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh benthos-module
+    - name: cleanup-broker-finalizer
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              if kubectl get broker chainsaw-benthos >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-benthos --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-benthos --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh benthos-module-cleanup

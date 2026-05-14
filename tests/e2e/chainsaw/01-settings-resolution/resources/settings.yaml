@@ -1,0 +1,39 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-wildcard-namespace-labels
+spec:
+  stacks:
+    - "*"
+  key: namespace.labels
+  value: chainsaw-scope=wildcard,chainsaw-shared=wildcard
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-specific-namespace-labels
+spec:
+  stacks:
+    - chainsaw-settings-specific
+  key: namespace.labels
+  value: chainsaw-scope=specific,chainsaw-shared=specific
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-wildcard-namespace-annotations
+spec:
+  stacks:
+    - "*"
+  key: namespace.annotations
+  value: chainsaw-annotation=wildcard
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-specific-namespace-annotations
+spec:
+  stacks:
+    - chainsaw-settings-specific
+  key: namespace.annotations
+  value: chainsaw-annotation=specific

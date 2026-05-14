@@ -27,7 +27,7 @@ jobs:
   Dirty:
     runs-on: "namespace-profile-linux-amd64-4vcpu"
     steps:
-      - uses: 'namespacelabs/nscloud-checkout-action@v8'
+      - uses: "namespacelabs/nscloud-checkout-action@v8"
         with:
           fetch-depth: 0
       - name: Setup Env
@@ -57,7 +57,7 @@ jobs:
   Tests:
     runs-on: "namespace-profile-linux-amd64-8vcpu"
     steps:
-      - uses: 'namespacelabs/nscloud-checkout-action@v8'
+      - uses: "namespacelabs/nscloud-checkout-action@v8"
         with:
           fetch-depth: 0
       - name: Setup Env
@@ -68,11 +68,55 @@ jobs:
           nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just tests
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+  E2E:
+    name: E2E (Kubernetes ${{ matrix.kubernetes.version }})
+    runs-on: "namespace-profile-linux-amd64-8vcpu"
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes:
+          - version: "1.31"
+            kind_node_image: kindest/node:v1.31.9
+            cluster_name: formance-operator-e2e-131
+          - version: "1.32"
+            kind_node_image: kindest/node:v1.32.5
+            cluster_name: formance-operator-e2e-132
+          - version: "1.33"
+            kind_node_image: kindest/node:v1.33.1
+            cluster_name: formance-operator-e2e-133
+          - version: "1.34"
+            kind_node_image: kindest/node:v1.34.3
+            cluster_name: formance-operator-e2e-134
+          - version: "1.35"
+            kind_node_image: kindest/node:v1.35.1
+            cluster_name: formance-operator-e2e-135
+    steps:
+      - uses: "namespacelabs/nscloud-checkout-action@v8"
+        with:
+          fetch-depth: 0
+      - name: Setup Env
+        uses: ./.github/actions/default
+        with:
+          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
+      - run: >
+          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just e2e
+        env:
+          KIND_CLUSTER_NAME: ${{ matrix.kubernetes.cluster_name }}
+          KIND_NODE_IMAGE: ${{ matrix.kubernetes.kind_node_image }}
+          SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+      - name: Upload Chainsaw artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chainsaw-e2e-artifacts-k8s-${{ matrix.kubernetes.version }}
+          path: tests/e2e/artifacts
+          if-no-files-found: ignore
   GoReleaser:
     runs-on: "namespace-profile-linux-amd64-4vcpu"
     if: contains(github.event.pull_request.labels.*.name, 'build-images') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
     steps:
-      - uses: 'namespacelabs/nscloud-checkout-action@v8'
+      - uses: "namespacelabs/nscloud-checkout-action@v8"
         with:
           fetch-depth: 0
       - name: Setup Env
@@ -92,6 +136,7 @@ jobs:
     environment: staging
     needs:
       - Dirty
+      - E2E
       - GoReleaser
       - Tests
     steps:
@@ -105,7 +150,7 @@ jobs:
           args: ${{ vars.TS_ARGS }}
           retry: ${{ vars.TS_RETRY }}
           timeout: ${{ vars.TS_TIMEOUT }}
-      - uses: 'namespacelabs/nscloud-checkout-action@v8'
+      - uses: "namespacelabs/nscloud-checkout-action@v8"
         with:
           fetch-depth: 0
       - name: Install Nix

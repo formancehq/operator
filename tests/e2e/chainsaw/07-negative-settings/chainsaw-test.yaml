@@ -1,0 +1,71 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: negative-settings
+  labels:
+    suite: settings
+    feature: negative-settings
+spec:
+  concurrent: false
+  steps:
+    - name: missing-required-database-setting
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/database.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              while true; do
+                info="$(kubectl get database chainsaw-negative-settings-ledger -o jsonpath='{.status.info}')"
+                case "$info" in
+                  *"settings 'postgres.ledger.uri' not found for stack 'chainsaw-negative-settings'"*) break ;;
+                  *) sleep 1 ;;
+                esac
+              done
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh negative-settings-missing-database-setting
+    - name: invalid-typed-application-setting
+      try:
+        - apply:
+            file: resources/bad-replica-setting.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              while true; do
+                info="$(kubectl get gateway chainsaw-negative-gateway -o jsonpath='{.status.info}')"
+                case "$info" in
+                  *'strconv.ParseInt: parsing "not-a-number": invalid syntax'*) break ;;
+                  *) sleep 1 ;;
+                esac
+              done
+              if kubectl get deployment gateway -n chainsaw-negative-settings >/dev/null 2>&1; then
+                echo "gateway deployment should not exist while replicas setting is invalid"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh negative-settings-invalid-application-setting
+    - name: fixing-typed-setting-reconciles-application
+      try:
+        - apply:
+            file: resources/good-replica-setting.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="ReconciledWithStack")].reason}'=Spec gateway/chainsaw-negative-gateway --timeout=2m
+              kubectl get deployment gateway -n chainsaw-negative-settings
+              test "$(kubectl get deployment gateway -n chainsaw-negative-settings -o jsonpath='{.spec.replicas}')" = "1"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh negative-settings-fixed-application-setting

@@ -1,0 +1,21 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: settings-resolution
+  labels:
+    suite: settings
+spec:
+  concurrent: false
+  steps:
+    - name: wildcard-and-stack-specific-settings
+      try:
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/stacks.yaml
+        - assert:
+            file: asserts/namespaces.yaml
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh settings-resolution

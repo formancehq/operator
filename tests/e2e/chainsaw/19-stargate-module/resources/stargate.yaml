@@ -1,0 +1,15 @@
+apiVersion: formance.com/v1beta1
+kind: Stargate
+metadata:
+  name: stargate
+spec:
+  stack: chainsaw-stargate
+  serverURL: https://stargate.chainsaw.local
+  organizationID: org_chainsaw
+  stackID: stack_chainsaw
+  auth:
+    clientID: chainsaw-client
+    clientSecret: chainsaw-secret
+    issuer: https://issuer.stargate.chainsaw.local
+  tls:
+    disable: true

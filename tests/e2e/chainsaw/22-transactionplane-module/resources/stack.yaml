@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Stack
+metadata:
+  name: chainsaw-transactionplane
+spec:
+  version: v3.0.0
+  dev: true

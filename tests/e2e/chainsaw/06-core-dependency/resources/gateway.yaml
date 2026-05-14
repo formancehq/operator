@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: gateway
+spec:
+  stack: chainsaw-core-dependency
+  dev: true

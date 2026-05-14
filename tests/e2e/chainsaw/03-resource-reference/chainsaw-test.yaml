@@ -1,0 +1,50 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: resource-reference
+  labels:
+    suite: core
+    feature: resource-reference
+spec:
+  concurrent: false
+  steps:
+    - name: create-stack-and-reference
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/resource-reference.yaml
+        - assert:
+            file: asserts/initial-replication.yaml
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh resource-reference-initial
+    - name: update-source-secret
+      try:
+        - apply:
+            file: resources/source-secret-updated.yaml
+        - assert:
+            file: asserts/updated-replication.yaml
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh resource-reference-update
+    - name: retarget-reference
+      try:
+        - apply:
+            file: resources/source-secret-replacement.yaml
+        - apply:
+            file: resources/resource-reference-retargeted.yaml
+        - assert:
+            file: asserts/retargeted-replication.yaml
+        - script:
+            timeout: 2m
+            content: |
+              kubectl wait --for=delete secret/chainsaw-external-secret -n chainsaw-resource-reference --timeout=2m
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh resource-reference-retarget

@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Payments
+metadata:
+  name: payments
+spec:
+  stack: chainsaw-payments

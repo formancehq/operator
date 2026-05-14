@@ -1,0 +1,20 @@
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-registry-endpoint
+spec:
+  stacks:
+    - chainsaw-versioning
+  key: registries."ghcr.io".endpoint
+  value: mirror.chainsaw.local?pullSecret=chainsaw-regcred
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-registry-gateway-rewrite
+spec:
+  stacks:
+    - chainsaw-versioning
+  key: registries."ghcr.io".images."formancehq/gateway".rewrite
+  value: custom/gateway
