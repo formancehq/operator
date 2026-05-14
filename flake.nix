@@ -47,6 +47,7 @@
             gotools
             just
             kind
+            kubectl
             kubernetes-helm
             kustomize_4
             setup-envtest
