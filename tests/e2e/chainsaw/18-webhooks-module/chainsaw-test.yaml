@@ -1,0 +1,98 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: webhooks-module
+  labels:
+    suite: modules
+    feature: webhooks-module
+spec:
+  concurrent: false
+  steps:
+    - name: webhooks-renders-postgres-broker-consumer-gateway-and-settings
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/nats.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - apply:
+            file: resources/broker.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-webhooks --timeout=2m
+              kubectl rollout status deployment/nats -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-webhooks-webhooks --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-webhooks --timeout=5m
+        - apply:
+            file: resources/webhooks.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-webhooks -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/webhooks-webhooks --timeout=5m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v3.0.0 deployment/webhooks -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-webhooks-webhooks --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/webhooks -n chainsaw-webhooks --timeout=2m
+              assert_jsonpath deployment/webhooks '{.spec.replicas}' '2'
+              assert_jsonpath deployment/webhooks '{.spec.template.spec.containers[0].args[0]}' 'serve'
+              assert_jsonpath deployment/webhooks '{.spec.template.spec.containers[0].resources.requests.cpu}' '20m'
+              assert_jsonpath deployment/webhooks '{.spec.template.spec.containers[0].resources.limits.memory}' '160Mi'
+              assert_jsonpath deployment/webhooks '{.spec.template.metadata.annotations.chainsaw\.formance\.com/template}' 'webhooks'
+              assert_jsonpath pdb/webhooks '{.spec.minAvailable}' '1'
+              assert_jsonpath service/webhooks '{.metadata.annotations.chainsaw\.formance\.com/service}' 'webhooks'
+              kubectl get deployment webhooks -n chainsaw-webhooks -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-webhooks-env
+              grep -Fx 'DEV=true' /tmp/chainsaw-webhooks-env
+              grep -Fx 'STACK=chainsaw-webhooks' /tmp/chainsaw-webhooks-env
+              grep -Fx 'POSTGRES_HOST=postgres.chainsaw-webhooks.svc.cluster.local' /tmp/chainsaw-webhooks-env
+              grep -Fx 'POSTGRES_PORT=5432' /tmp/chainsaw-webhooks-env
+              grep -Fx 'POSTGRES_DATABASE=chainsaw-webhooks-webhooks' /tmp/chainsaw-webhooks-env
+              grep -Fx 'POSTGRES_URI=$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)?sslmode=disable' /tmp/chainsaw-webhooks-env
+              grep -Fx 'STORAGE_POSTGRES_CONN_STRING=$(POSTGRES_URI)' /tmp/chainsaw-webhooks-env
+              grep -Fx 'BROKER=nats' /tmp/chainsaw-webhooks-env
+              grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-webhooks-env
+              grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-webhooks.svc.cluster.local:4222' /tmp/chainsaw-webhooks-env
+              grep -Fx 'PUBLISHER_NATS_CLIENT_ID=chainsaw-webhooks-webhooks' /tmp/chainsaw-webhooks-env
+              grep -Fx 'PUBLISHER_NATS_AUTO_PROVISION=false' /tmp/chainsaw-webhooks-env
+              grep -Fx 'WORKER=true' /tmp/chainsaw-webhooks-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-webhooks-env
+              grep -Fx 'OTEL_SERVICE_NAME=webhooks' /tmp/chainsaw-webhooks-env
+              kubectl get deployment webhooks -n chainsaw-webhooks -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-webhooks-secret-env
+              grep -Fx 'POSTGRES_USERNAME=postgres/username' /tmp/chainsaw-webhooks-secret-env
+              grep -Fx 'POSTGRES_PASSWORD=postgres/password' /tmp/chainsaw-webhooks-secret-env
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh webhooks-module
+    - name: cleanup-broker-finalizer
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              if kubectl get broker chainsaw-webhooks >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-webhooks --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-webhooks --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh webhooks-module-cleanup

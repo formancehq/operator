@@ -68,6 +68,28 @@ jobs:
           nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just tests
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+  E2E:
+    runs-on: "namespace-profile-linux-amd64-8vcpu"
+    if: contains(github.event.pull_request.labels.*.name, 'e2e') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
+    steps:
+      - uses: 'namespacelabs/nscloud-checkout-action@v8'
+        with:
+          fetch-depth: 0
+      - name: Setup Env
+        uses: ./.github/actions/default
+        with:
+          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
+      - run: >
+          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just e2e
+        env:
+          SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+      - name: Upload Chainsaw artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chainsaw-e2e-artifacts
+          path: tests/e2e/artifacts
+          if-no-files-found: ignore
   GoReleaser:
     runs-on: "namespace-profile-linux-amd64-4vcpu"
     if: contains(github.event.pull_request.labels.*.name, 'build-images') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
@@ -92,6 +114,7 @@ jobs:
     environment: staging
     needs:
       - Dirty
+      - E2E
       - GoReleaser
       - Tests
     steps:

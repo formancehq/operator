@@ -1,0 +1,85 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: gateway-httpapi-sync
+  labels:
+    suite: modules
+    feature: gateway-httpapi-sync
+spec:
+  concurrent: false
+  steps:
+    - name: gateway-renders-httpapi-routes
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - apply:
+            file: resources/httpapis.yaml
+        - script:
+            timeout: 2m
+            content: |
+              kubectl apply -f resources/httpapi-payments.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-httpapi-ledger --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-httpapi-payments --timeout=2m
+              kubectl wait --for=jsonpath='{.status.syncHTTPAPIs[0]}'=ledger gateway/chainsaw-httpapi-gateway --timeout=2m
+              test "$(kubectl get gateway chainsaw-httpapi-gateway -o jsonpath='{.status.syncHTTPAPIs[*]}')" = "ledger payments"
+              test "$(kubectl get service ledger -n chainsaw-httpapi-sync -o jsonpath='{.spec.ports[0].port}')" = "8080"
+              test "$(kubectl get service payments -n chainsaw-httpapi-sync -o jsonpath='{.spec.selector.app\.kubernetes\.io/name}')" = "payments"
+              kubectl get configmap gateway -n chainsaw-httpapi-sync -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'handle /api/ledger/transactions* {' /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'method GET POST' /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'reverse_proxy ledger:8080' /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'handle /api/payments/connectors* {' /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'method GET' /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'reverse_proxy payments:8080' /tmp/chainsaw-httpapi-caddyfile
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh gateway-httpapi-routes
+    - name: httpapi-mutation-reconfigures-gateway
+      try:
+        - apply:
+            file: resources/httpapis-updated.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              until kubectl get configmap gateway -n chainsaw-httpapi-sync -o jsonpath='{.data.Caddyfile}' | grep -F 'handle /api/ledger/v2/transactions* {'; do
+                sleep 1
+              done
+              kubectl get configmap gateway -n chainsaw-httpapi-sync -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'method PATCH' /tmp/chainsaw-httpapi-caddyfile
+              grep -F 'http://ledger:8080/_info http://ledger:8080/_live' /tmp/chainsaw-httpapi-caddyfile
+              if grep -F 'handle /api/ledger/transactions* {' /tmp/chainsaw-httpapi-caddyfile; then
+                echo "old ledger route should not remain after GatewayHTTPAPI mutation"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh gateway-httpapi-mutation
+    - name: httpapi-deletion-reconfigures-gateway
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl delete gatewayhttpapi chainsaw-httpapi-payments
+              kubectl wait --for=delete service/payments -n chainsaw-httpapi-sync --timeout=2m
+              until test "$(kubectl get gateway chainsaw-httpapi-gateway -o jsonpath='{.status.syncHTTPAPIs[*]}')" = "ledger"; do
+                sleep 1
+              done
+              kubectl get configmap gateway -n chainsaw-httpapi-sync -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-httpapi-caddyfile
+              if grep -F 'payments' /tmp/chainsaw-httpapi-caddyfile; then
+                echo "deleted GatewayHTTPAPI should not remain in gateway Caddyfile"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh gateway-httpapi-deletion

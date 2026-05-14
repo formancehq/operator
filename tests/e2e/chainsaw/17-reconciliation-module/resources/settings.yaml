@@ -1,0 +1,99 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-postgres-uri
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: postgres.reconciliation.uri
+  value: postgresql://postgres.chainsaw-reconciliation.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-otel-traces
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-otel-resource-attributes
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: opentelemetry.traces.resource-attributes
+  value: service.namespace=formance,team=platform
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-database-pool
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: modules.reconciliation.database.connection-pool
+  value: max-idle=3,max-idle-time=7s,max-open=9,max-lifetime=2m
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-replicas
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: deployments.reconciliation.replicas
+  value: "2"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-template-annotations
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: deployments.reconciliation.spec.template.annotations
+  value: chainsaw.formance.com/template=reconciliation
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-container-requests
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: deployments.reconciliation.containers.reconciliation.resource-requirements.requests
+  value: cpu=15m,memory=64Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-container-limits
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: deployments.reconciliation.containers.reconciliation.resource-requirements.limits
+  value: memory=192Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-pdb
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: deployments.reconciliation.pod-disruption-budget
+  value: minAvailable=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-reconciliation-service-annotations
+spec:
+  stacks:
+    - chainsaw-reconciliation
+  key: services.reconciliation.annotations
+  value: chainsaw.formance.com/service=reconciliation

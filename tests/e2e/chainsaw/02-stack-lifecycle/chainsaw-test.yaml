@@ -1,0 +1,36 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: stack-lifecycle
+  labels:
+    suite: stack
+spec:
+  concurrent: false
+  steps:
+    - name: networkpolicies-enabled
+      try:
+        - apply:
+            file: resources/networkpolicies-enabled.yaml
+        - apply:
+            file: resources/stack.yaml
+        - assert:
+            file: asserts/networkpolicies.yaml
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh stack-networkpolicies-enabled
+    - name: networkpolicies-disabled
+      try:
+        - apply:
+            file: resources/networkpolicies-disabled.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=delete networkpolicy/default-deny-ingress -n chainsaw-networkpolicies --timeout=2m
+              kubectl wait --for=delete networkpolicy/allow-gateway-ingress -n chainsaw-networkpolicies --timeout=2m
+              kubectl wait --for=delete networkpolicy/allow-from-gateway -n chainsaw-networkpolicies --timeout=2m
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh stack-networkpolicies-disabled

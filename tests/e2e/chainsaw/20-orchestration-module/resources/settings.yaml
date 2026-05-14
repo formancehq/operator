@@ -1,0 +1,129 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-postgres-uri
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: postgres.orchestration.uri
+  value: postgresql://postgres.chainsaw-orchestration.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-broker-dsn
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: broker.dsn
+  value: nats://nats.chainsaw-orchestration.svc.cluster.local:4222?replicas=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-temporal-dsn
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: temporal.dsn
+  value: temporal://temporal.chainsaw-orchestration.svc.cluster.local:7233/default?initSearchAttributes=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-temporal-tls-crt
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: temporal.tls.crt
+  value: crt-data
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-temporal-tls-key
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: temporal.tls.key
+  value: key-data
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-max-parallel-activities
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: orchestration.max-parallel-activities
+  value: "17"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-auth-issuers
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: auth.issuers
+  value: https://issuer.orchestration.chainsaw.local
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-auth-check-scopes
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: auth.orchestration.check-scopes
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-otel-traces
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-container-requests
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: deployments.orchestration.containers.api.resource-requirements.requests
+  value: cpu=20m,memory=64Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-container-limits
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: deployments.orchestration.containers.api.resource-requirements.limits
+  value: memory=192Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-pdb
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: deployments.orchestration.pod-disruption-budget
+  value: minAvailable=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-orchestration-service-annotations
+spec:
+  stacks:
+    - chainsaw-orchestration
+  key: services.orchestration.annotations
+  value: chainsaw.formance.com/service=orchestration

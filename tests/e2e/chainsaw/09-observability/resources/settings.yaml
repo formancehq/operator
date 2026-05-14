@@ -1,0 +1,20 @@
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-otel-traces-dsn
+spec:
+  stacks:
+    - chainsaw-observability
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-otel-traces-resource-attributes
+spec:
+  stacks:
+    - chainsaw-observability
+  key: opentelemetry.traces.resource-attributes
+  value: team=platform,service.namespace=formance

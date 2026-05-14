@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: BrokerConsumer
+metadata:
+  name: chainsaw-broker-consumer
+spec:
+  stack: chainsaw-broker-dependencies
+  services:
+    - ledger
+  queriedBy: orchestration

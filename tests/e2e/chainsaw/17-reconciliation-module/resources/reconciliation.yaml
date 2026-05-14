@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Reconciliation
+metadata:
+  name: reconciliation
+spec:
+  stack: chainsaw-reconciliation

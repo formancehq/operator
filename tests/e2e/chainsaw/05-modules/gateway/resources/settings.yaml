@@ -1,0 +1,79 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-ingress-hosts
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.ingress.hosts
+  value: "{stack}.settings.local, api.chainsaw.local"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-ingress-annotations
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.ingress.annotations
+  value: settings-annotation=yes
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-ingress-labels
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.ingress.labels
+  value: settings-label=yes
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-ingress-class
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.ingress.class
+  value: nginx
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-ingress-tls
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.ingress.tls.enabled
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-trusted-proxies
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.caddyfile.trusted-proxies
+  value: 10.0.0.0/8,192.168.0.0/16
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-trusted-proxies-strict
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.caddyfile.trusted-proxies-strict
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-idle-timeout
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.config.idle-timeout
+  value: 45s

@@ -1,0 +1,58 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: postgres-database
+  labels:
+    suite: infrastructure
+    feature: postgres-database
+spec:
+  concurrent: false
+  steps:
+    - name: real-postgres-database-create
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-postgres --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true resourcereference/chainsaw-postgres-ledger-postgres --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-postgres-ledger --timeout=5m
+              test "$(kubectl get database chainsaw-postgres-ledger -o jsonpath='{.status.database}')" = "chainsaw-postgres-ledger"
+              test "$(kubectl get secret postgres -n chainsaw-postgres -o jsonpath='{.data.username}')" = "Zm9ybWFuY2U="
+              job="$(kubectl get job -n chainsaw-postgres -o jsonpath='{.items[?(@.metadata.ownerReferences[0].name=="chainsaw-postgres-ledger")].metadata.name}')"
+              test -n "$job"
+              test "$(kubectl get job "$job" -n chainsaw-postgres -o jsonpath='{.status.succeeded}')" = "1"
+              test "$(kubectl get job "$job" -n chainsaw-postgres -o jsonpath='{.spec.template.spec.containers[0].image}')" = "ghcr.io/formancehq/operator-utils:e2e"
+              kubectl exec -n chainsaw-postgres deploy/postgres -- \
+                psql -U formance -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'chainsaw-postgres-ledger'" \
+                | grep -Fx "1"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh postgres-database-create
+    - name: postgres-host-mutation-marks-out-of-sync
+      try:
+        - apply:
+            file: resources/settings-updated-host.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.status.outOfSync}'=true database/chainsaw-postgres-ledger --timeout=2m
+              kubectl exec -n chainsaw-postgres deploy/postgres -- \
+                psql -U formance -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'chainsaw-postgres-ledger'" \
+                | grep -Fx "1"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh postgres-database-out-of-sync

@@ -1,0 +1,16 @@
+apiVersion: formance.com/v1beta1
+kind: AuthClient
+metadata:
+  name: chainsaw-inline-client
+spec:
+  stack: chainsaw-authclient
+  id: inline-client-id
+  secret: inline-client-secret
+  description: Inline client exercised by Chainsaw
+  redirectUris:
+    - https://example.com/callback
+  postLogoutRedirectUris:
+    - https://example.com/logout
+  scopes:
+    - ledger:read
+    - payments:read

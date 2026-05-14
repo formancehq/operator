@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Stack
+metadata:
+  name: chainsaw-nats
+spec:
+  version: v3.0.0

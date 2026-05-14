@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Versions
+metadata:
+  name: chainsaw-versions
+spec:
+  gateway: v2.3.4

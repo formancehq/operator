@@ -1,0 +1,139 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-replicas
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.replicas
+  value: "2"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-template-annotations
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.spec.template.annotations
+  value: chainsaw-template=yes,rollout-scope=application-settings
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-container-requests
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.containers.gateway.resource-requirements.requests
+  value: cpu=50m,memory=64Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-container-limits
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.containers.gateway.resource-requirements.limits
+  value: cpu=100m,memory=128Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-run-as
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.containers.gateway.run-as
+  value: user=1001,group=1001
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-env
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.containers.gateway.env-vars
+  value: CHAINSAW_SETTING=applied,EXISTING=overridden
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-topology
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.topology-spread-constraints
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-semconv
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.semconv-metrics-names
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-termination-grace
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.spec.template.spec.termination-grace-period-seconds
+  value: "17"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-pdb
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: deployments.gateway.pod-disruption-budget
+  value: minAvailable=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-gateway-module-grace-period
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: modules.gateway.grace-period
+  value: 30s
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-logging-json
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: logging.json
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-service-annotations
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: services.gateway.annotations
+  value: chainsaw-service=yes
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-app-service-traffic-distribution
+spec:
+  stacks:
+    - chainsaw-application-settings
+  key: services.gateway.traffic-distribution
+  value: PreferClose

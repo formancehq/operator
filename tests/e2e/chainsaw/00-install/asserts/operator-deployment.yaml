@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: formance-operator
+  namespace: formance-system
+status:
+  (conditions[?type == 'Available']):
+    - status: "True"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: formance-controller-manager
+  namespace: formance-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: formance-manager-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: formance-manager-rolebinding

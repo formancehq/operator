@@ -1,0 +1,55 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: stargate-module
+  labels:
+    suite: modules
+    feature: stargate-module
+spec:
+  concurrent: false
+  steps:
+    - name: stargate-renders-deployment-service-and-settings
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/stargate.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-stargate -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/stargate:v3.0.0 deployment/stargate -n chainsaw-stargate --timeout=2m
+              assert_jsonpath deployment/stargate '{.spec.replicas}' '2'
+              assert_jsonpath deployment/stargate '{.spec.template.spec.containers[0].resources.requests.cpu}' '10m'
+              assert_jsonpath deployment/stargate '{.spec.template.spec.containers[0].resources.limits.memory}' '128Mi'
+              assert_jsonpath deployment/stargate '{.spec.template.metadata.annotations.chainsaw\.formance\.com/template}' 'stargate'
+              assert_jsonpath pdb/stargate '{.spec.minAvailable}' '1'
+              kubectl get deployment stargate -n chainsaw-stargate -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-stargate-env
+              grep -Fx 'DEV=true' /tmp/chainsaw-stargate-env
+              grep -Fx 'STACK=chainsaw-stargate' /tmp/chainsaw-stargate-env
+              grep -Fx 'ORGANIZATION_ID=org_chainsaw' /tmp/chainsaw-stargate-env
+              grep -Fx 'STACK_ID=stack_chainsaw' /tmp/chainsaw-stargate-env
+              grep -Fx 'STARGATE_SERVER_URL=https://stargate.chainsaw.local' /tmp/chainsaw-stargate-env
+              grep -Fx 'GATEWAY_URL=http://gateway:8080' /tmp/chainsaw-stargate-env
+              grep -Fx 'STARGATE_AUTH_CLIENT_ID=chainsaw-client' /tmp/chainsaw-stargate-env
+              grep -Fx 'STARGATE_AUTH_CLIENT_SECRET=chainsaw-secret' /tmp/chainsaw-stargate-env
+              grep -Fx 'STARGATE_AUTH_ISSUER_URL=https://issuer.stargate.chainsaw.local' /tmp/chainsaw-stargate-env
+              grep -Fx 'TLS_ENABLED=false' /tmp/chainsaw-stargate-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-stargate-env
+              grep -Fx 'OTEL_SERVICE_NAME=stargate' /tmp/chainsaw-stargate-env
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh stargate-module

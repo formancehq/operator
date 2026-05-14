@@ -1,0 +1,73 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: core-dependency
+  labels:
+    suite: core
+    feature: stack-dependency
+spec:
+  concurrent: false
+  steps:
+    - name: missing-stack-reports-application-error
+      try:
+        - apply:
+            file: resources/gateway-missing-stack.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              until test "$(kubectl get gateway chainsaw-missing-stack -o jsonpath='{.status.info}')" = "stack not found"; do
+                sleep 1
+              done
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh core-dependency-missing-stack
+    - name: skipped-stack-does-not-install-module
+      try:
+        - apply:
+            file: resources/stack-skipped.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="ReconciledWithStack")].reason}'=Skipped gateway/gateway --timeout=2m
+              if kubectl get deployment gateway -n chainsaw-core-dependency >/dev/null 2>&1; then
+                echo "gateway deployment should not exist while stack is skipped"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh core-dependency-skipped-stack
+    - name: unlocking-stack-installs-module
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl annotate stack chainsaw-core-dependency formance.com/skip- --overwrite
+              kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="ReconciledWithStack")].reason}'=Spec gateway/gateway --timeout=2m
+              kubectl get configmap gateway -n chainsaw-core-dependency
+              kubectl get deployment gateway -n chainsaw-core-dependency
+              kubectl get service gateway -n chainsaw-core-dependency
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh core-dependency-unlocked-stack
+    - name: disabled-stack-removes-module-owned-objects
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl patch stack chainsaw-core-dependency --type=merge -p '{"spec":{"disabled":true}}'
+              kubectl wait --for=delete configmap/gateway -n chainsaw-core-dependency --timeout=2m
+              kubectl wait --for=delete deployment/gateway -n chainsaw-core-dependency --timeout=2m
+              kubectl wait --for=delete service/gateway -n chainsaw-core-dependency --timeout=2m
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh core-dependency-disabled-stack

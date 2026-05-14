@@ -1,0 +1,58 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: wallets-module
+  labels:
+    suite: modules
+    feature: wallets-module
+spec:
+  concurrent: false
+  steps:
+    - name: wallets-renders-authclient-gateway-and-settings
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/auth.yaml
+        - apply:
+            file: resources/wallets.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-wallets -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-wallets-wallets --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/wallets:v3.0.0 deployment/wallets -n chainsaw-wallets --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-wallets-wallets --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/wallets -n chainsaw-wallets --timeout=2m
+              assert_jsonpath deployment/wallets '{.spec.template.spec.containers[0].resources.requests.cpu}' '20m'
+              assert_jsonpath deployment/wallets '{.spec.template.spec.containers[0].resources.limits.memory}' '128Mi'
+              assert_jsonpath pdb/wallets '{.spec.minAvailable}' '1'
+              assert_jsonpath service/wallets '{.metadata.annotations.chainsaw\.formance\.com/service}' 'wallets'
+              kubectl get deployment wallets -n chainsaw-wallets -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-wallets-env
+              grep -Fx 'AUTH_ENABLED=true' /tmp/chainsaw-wallets-env
+              grep -Fx 'AUTH_ISSUER=http://auth:8080' /tmp/chainsaw-wallets-env
+              grep -Fx 'AUTH_ISSUERS=https://issuer.wallets.chainsaw.local' /tmp/chainsaw-wallets-env
+              grep -Fx 'AUTH_CHECK_SCOPES=true' /tmp/chainsaw-wallets-env
+              grep -Fx 'AUTH_SERVICE=wallets' /tmp/chainsaw-wallets-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-wallets-env
+              grep -Fx 'OTEL_SERVICE_NAME=wallets' /tmp/chainsaw-wallets-env
+              kubectl get deployment wallets -n chainsaw-wallets -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-wallets-secret-env
+              grep -Fx 'STACK_CLIENT_ID=auth-client-chainsaw-wallets-wallets/id' /tmp/chainsaw-wallets-secret-env
+              grep -Fx 'STACK_CLIENT_SECRET=auth-client-chainsaw-wallets-wallets/secret' /tmp/chainsaw-wallets-secret-env
+              test "$(kubectl get authclient chainsaw-wallets-wallets -o jsonpath='{.spec.scopes[*]}')" = "ledger:read ledger:write"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh wallets-module

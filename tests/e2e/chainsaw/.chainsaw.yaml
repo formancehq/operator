@@ -1,0 +1,21 @@
+apiVersion: chainsaw.kyverno.io/v1alpha2
+kind: Configuration
+metadata:
+  name: formance-operator-e2e
+spec:
+  timeouts:
+    apply: 2m
+    assert: 5m
+    cleanup: 5m
+    delete: 2m
+    error: 2m
+    exec: 5m
+  cleanup:
+    skipDelete: false
+  execution:
+    failFast: true
+    parallel: 1
+  report:
+    format: JUNIT-TEST
+    name: chainsaw-report
+    path: tests/e2e/artifacts

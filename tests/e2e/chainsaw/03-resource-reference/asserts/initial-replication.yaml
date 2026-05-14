@@ -1,0 +1,23 @@
+apiVersion: formance.com/v1beta1
+kind: ResourceReference
+metadata:
+  name: chainsaw-secret-reference
+status:
+  ready: true
+  syncedResource: chainsaw-external-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: chainsaw-external-secret
+  namespace: chainsaw-resource-reference
+  annotations:
+    chainsaw.formance.com/source: initial
+  ownerReferences:
+    - apiVersion: formance.com/v1beta1
+      kind: ResourceReference
+      name: chainsaw-secret-reference
+type: Opaque
+data:
+  username: Y2hhaW5zYXc=
+  password: aW5pdGlhbA==

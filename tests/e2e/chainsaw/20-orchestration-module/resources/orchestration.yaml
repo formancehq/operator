@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Orchestration
+metadata:
+  name: orchestration
+spec:
+  stack: chainsaw-orchestration

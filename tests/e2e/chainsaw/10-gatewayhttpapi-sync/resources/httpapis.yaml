@@ -1,0 +1,16 @@
+apiVersion: formance.com/v1beta1
+kind: GatewayHTTPAPI
+metadata:
+  name: chainsaw-httpapi-ledger
+spec:
+  stack: chainsaw-httpapi-sync
+  name: ledger
+  healthCheckEndpoint: _healthcheck
+  rules:
+    - path: /transactions
+      methods:
+        - GET
+        - POST
+    - path: /accounts
+      methods:
+        - GET

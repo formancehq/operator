@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-nats-broker-dsn
+spec:
+  stacks:
+    - chainsaw-nats
+  key: broker.dsn
+  value: nats://nats.chainsaw-nats.svc.cluster.local:4222?replicas=1

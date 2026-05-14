@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: chainsaw-httpapi-gateway
+spec:
+  stack: chainsaw-httpapi-sync
+  dev: true

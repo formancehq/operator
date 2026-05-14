@@ -1,0 +1,12 @@
+apiVersion: formance.com/v1beta1
+kind: GatewayHTTPAPI
+metadata:
+  name: chainsaw-httpapi-payments
+spec:
+  stack: chainsaw-httpapi-sync
+  name: payments
+  healthCheckEndpoint: _healthcheck
+  rules:
+    - path: /connectors
+      methods:
+        - GET

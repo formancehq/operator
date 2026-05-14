@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-negative-gateway-replicas
+spec:
+  stacks:
+    - chainsaw-negative-settings
+  key: deployments.gateway.replicas
+  value: not-a-number

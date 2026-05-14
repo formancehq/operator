@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Database
+metadata:
+  name: chainsaw-postgres-ledger
+spec:
+  stack: chainsaw-postgres
+  service: ledger

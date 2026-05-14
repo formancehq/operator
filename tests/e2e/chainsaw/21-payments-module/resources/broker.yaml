@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Broker
+metadata:
+  name: chainsaw-payments
+spec:
+  stack: chainsaw-payments

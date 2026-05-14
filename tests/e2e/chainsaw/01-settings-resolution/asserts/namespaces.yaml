@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chainsaw-settings-wildcard
+  labels:
+    chainsaw-scope: wildcard
+    chainsaw-shared: wildcard
+  annotations:
+    chainsaw-annotation: wildcard
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chainsaw-settings-specific
+  labels:
+    chainsaw-scope: specific
+    chainsaw-shared: specific
+  annotations:
+    chainsaw-annotation: specific

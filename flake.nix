@@ -46,6 +46,7 @@
             go_1_26
             gotools
             just
+            kind
             kubernetes-helm
             kustomize_4
             setup-envtest

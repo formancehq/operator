@@ -1,0 +1,189 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-postgres-uri
+spec:
+  stacks:
+    - chainsaw-payments
+  key: postgres.payments.uri
+  value: postgresql://postgres.chainsaw-payments.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-broker-dsn
+spec:
+  stacks:
+    - chainsaw-payments
+  key: broker.dsn
+  value: nats://nats.chainsaw-payments.svc.cluster.local:4222?replicas=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-temporal-dsn
+spec:
+  stacks:
+    - chainsaw-payments
+  key: temporal.dsn
+  value: temporal://temporal.chainsaw-payments.svc.cluster.local:7233/default?initSearchAttributes=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-temporal-tls-crt
+spec:
+  stacks:
+    - chainsaw-payments
+  key: temporal.tls.crt
+  value: crt-data
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-temporal-tls-key
+spec:
+  stacks:
+    - chainsaw-payments
+  key: temporal.tls.key
+  value: key-data
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-encryption-key
+spec:
+  stacks:
+    - chainsaw-payments
+  key: payments.encryption-key
+  value: chainsaw-encryption-key
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-clear-temporal
+spec:
+  stacks:
+    - chainsaw-payments
+  key: payments.clear-temporal
+  value: "false"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-auth-issuers
+spec:
+  stacks:
+    - chainsaw-payments
+  key: auth.issuers
+  value: https://issuer.payments.chainsaw.local
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-auth-check-scopes
+spec:
+  stacks:
+    - chainsaw-payments
+  key: auth.payments.check-scopes
+  value: "true"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-otel-traces
+spec:
+  stacks:
+    - chainsaw-payments
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-worker-pollers
+spec:
+  stacks:
+    - chainsaw-payments
+  key: payments.worker.temporal-max-concurrent-workflow-task-pollers
+  value: "6"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-worker-activity-pollers
+spec:
+  stacks:
+    - chainsaw-payments
+  key: payments.worker.temporal-max-concurrent-activity-task-pollers
+  value: "7"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-worker-slots
+spec:
+  stacks:
+    - chainsaw-payments
+  key: payments.worker.temporal-max-slots-per-poller
+  value: "8"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-worker-local-slots
+spec:
+  stacks:
+    - chainsaw-payments
+  key: payments.worker.temporal-max-local-activity-slots
+  value: "9"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-api-requests
+spec:
+  stacks:
+    - chainsaw-payments
+  key: deployments.payments.containers.payments-api.resource-requirements.requests
+  value: cpu=20m,memory=64Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-api-limits
+spec:
+  stacks:
+    - chainsaw-payments
+  key: deployments.payments.containers.payments-api.resource-requirements.limits
+  value: memory=192Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-worker-requests
+spec:
+  stacks:
+    - chainsaw-payments
+  key: deployments.payments-worker.containers.payments-worker.resource-requirements.requests
+  value: cpu=15m,memory=64Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-worker-limits
+spec:
+  stacks:
+    - chainsaw-payments
+  key: deployments.payments-worker.containers.payments-worker.resource-requirements.limits
+  value: memory=160Mi
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-payments-service-annotations
+spec:
+  stacks:
+    - chainsaw-payments
+  key: services.payments.annotations
+  value: chainsaw.formance.com/service=payments

@@ -1,0 +1,28 @@
+apiVersion: formance.com/v1beta1
+kind: AuthClient
+metadata:
+  name: chainsaw-inline-client
+spec:
+  stack: chainsaw-auth
+  id: inline-client
+  secret: inline-secret
+  redirectUris:
+    - https://app.chainsaw.local/callback
+  postLogoutRedirectUris:
+    - https://app.chainsaw.local/logout
+  scopes:
+    - ledger:read
+    - payments:write
+---
+apiVersion: formance.com/v1beta1
+kind: AuthClient
+metadata:
+  name: chainsaw-referenced-client
+spec:
+  stack: chainsaw-auth
+  id: referenced-client
+  secretFromSecret:
+    name: chainsaw-auth-client-secret
+    key: secret
+  scopes:
+    - ledger:write

@@ -1,0 +1,29 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: install-smoke
+  labels:
+    suite: smoke
+spec:
+  concurrent: false
+  steps:
+    - name: operator-installed
+      try:
+        - assert:
+            file: asserts/operator-deployment.yaml
+        - assert:
+            file: asserts/core-crds.yaml
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh install-smoke-operator-installed
+    - name: stack-namespace
+      try:
+        - apply:
+            file: resources/smoke-stack.yaml
+        - assert:
+            file: asserts/smoke-namespace.yaml
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh install-smoke-stack-namespace

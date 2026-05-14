@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: chainsaw-version-missing-gateway
+spec:
+  stack: chainsaw-version-missing
+  dev: true

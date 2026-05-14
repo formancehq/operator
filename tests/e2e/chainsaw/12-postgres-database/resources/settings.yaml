@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-postgres-ledger-uri
+spec:
+  stacks:
+    - chainsaw-postgres
+  key: postgres.ledger.uri
+  value: postgresql://postgres.chainsaw-postgres.svc.cluster.local:5432?secret=postgres&disableSSLMode=true

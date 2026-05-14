@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: chainsaw-application-settings
+  ownerReferences:
+    - apiVersion: formance.com/v1beta1
+      kind: Gateway
+      name: gateway
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        chainsaw-template: "yes"
+        rollout-scope: application-settings
+    spec:
+      terminationGracePeriodSeconds: 17
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+      containers:
+        - name: gateway
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+          env:
+            - name: CHAINSAW_SETTING
+              value: applied
+            - name: DEBUG
+              value: "false"
+            - name: DEV
+              value: "true"
+            - name: EXISTING
+              value: overridden
+            - name: GRACE_PERIOD
+              value: 30s
+            - name: STACK
+              value: chainsaw-application-settings
+            - name: STACK_URL
+              value: http://gateway:8080
+            - name: JSON_FORMATTING_LOGGER
+              value: "true"
+            - name: SEMCONV_METRICS_NAME
+              value: "true"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP

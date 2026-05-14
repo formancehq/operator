@@ -1,0 +1,79 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: versioning-registry
+  labels:
+    suite: stack
+    feature: versioning-registry
+spec:
+  concurrent: false
+  steps:
+    - name: versions-from-file-and-registry-settings
+      try:
+        - apply:
+            file: resources/versions.yaml
+        - apply:
+            file: resources/registry-settings.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=mirror.chainsaw.local/custom/gateway:v2.3.4 deployment/gateway -n chainsaw-versioning --timeout=2m
+              test "$(kubectl get deployment gateway -n chainsaw-versioning -o jsonpath='{.spec.template.spec.imagePullSecrets[0].name}')" = "chainsaw-regcred"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh versioning-registry-from-file
+    - name: stack-version-overrides-versions-file
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl patch stack chainsaw-versioning --type=merge -p '{"spec":{"version":"v3.0.0"}}'
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=mirror.chainsaw.local/custom/gateway:v3.0.0 deployment/gateway -n chainsaw-versioning --timeout=2m
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh versioning-registry-stack-priority
+    - name: module-version-overrides-stack-version
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl patch gateway chainsaw-versioning-gateway --type=merge -p '{"spec":{"version":"v4.0.0"}}'
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=mirror.chainsaw.local/custom/gateway:v4.0.0 deployment/gateway -n chainsaw-versioning --timeout=2m
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh versioning-registry-module-priority
+    - name: missing-version-reports-explicit-error
+      try:
+        - apply:
+            file: resources/stack-without-version.yaml
+        - apply:
+            file: resources/gateway-without-version.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              while true; do
+                info="$(kubectl get gateway chainsaw-version-missing-gateway -o jsonpath='{.status.info}')"
+                case "$info" in
+                  *"no version found for module gateway on stack chainsaw-version-missing"*) break ;;
+                  *) sleep 1 ;;
+                esac
+              done
+              if kubectl get deployment gateway -n chainsaw-version-missing >/dev/null 2>&1; then
+                echo "gateway deployment should not exist without any resolvable version"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh versioning-registry-missing-version

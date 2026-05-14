@@ -1,0 +1,8 @@
+apiVersion: formance.com/v1beta1
+kind: Stack
+metadata:
+  name: chainsaw-core-dependency
+  annotations:
+    formance.com/skip: "true"
+spec:
+  version: v1.0.0

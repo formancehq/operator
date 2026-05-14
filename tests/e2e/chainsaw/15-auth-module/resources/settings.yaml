@@ -1,0 +1,69 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-auth-postgres-uri
+spec:
+  stacks:
+    - chainsaw-auth
+  key: postgres.auth.uri
+  value: postgresql://postgres.chainsaw-auth.svc.cluster.local:5432?secret=postgres&disableSSLMode=true
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-auth-issuers
+spec:
+  stacks:
+    - chainsaw-auth
+  key: auth.issuers
+  value: https://issuer.chainsaw.local,https://issuer-alt.chainsaw.local
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-auth-pdb
+spec:
+  stacks:
+    - chainsaw-auth
+  key: deployments.auth.pod-disruption-budget
+  value: minAvailable=1
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-auth-replicas
+spec:
+  stacks:
+    - chainsaw-auth
+  key: deployments.auth.replicas
+  value: "2"
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-auth-run-as
+spec:
+  stacks:
+    - chainsaw-auth
+  key: deployments.auth.containers.auth.run-as
+  value: user=10002,group=10002
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-auth-service-annotations
+spec:
+  stacks:
+    - chainsaw-auth
+  key: services.auth.annotations
+  value: chainsaw.formance.com/service=auth
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-auth-otel-traces
+spec:
+  stacks:
+    - chainsaw-auth
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true

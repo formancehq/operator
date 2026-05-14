@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-gateway-ingress-hosts
+spec:
+  stacks:
+    - chainsaw-gateway
+  key: gateway.ingress.hosts
+  value: "updated.{stack}.settings.local, api-updated.chainsaw.local"

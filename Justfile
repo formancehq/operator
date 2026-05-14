@@ -20,6 +20,31 @@ tidy:
 tests args='':
   KUBEBUILDER_ASSETS=$(setup-envtest use 1.32.0 -p path) ginkgo -p ./...
 
+e2e-cluster-up:
+  ./tests/e2e/scripts/cluster-up.sh
+
+e2e-cluster-down:
+  ./tests/e2e/scripts/cluster-down.sh
+
+e2e-build-image:
+  ./tests/e2e/scripts/build-load-image.sh
+
+e2e-install:
+  ./tests/e2e/scripts/install-operator.sh
+
+e2e-install-chainsaw:
+  mkdir -p ./bin
+  GOBIN=$(pwd)/bin go install github.com/kyverno/chainsaw@v0.2.15
+
+e2e-chainsaw args='': e2e-install-chainsaw
+  mkdir -p tests/e2e/artifacts
+  ./bin/chainsaw test tests/e2e/chainsaw --config tests/e2e/chainsaw/.chainsaw.yaml --report-path tests/e2e/artifacts {{args}}
+
+e2e-diagnostics name='manual':
+  ./tests/e2e/scripts/dump-diagnostics.sh {{name}}
+
+e2e: e2e-cluster-up e2e-build-image e2e-install e2e-chainsaw
+
 release-local:
   goreleaser release --nightly --skip=publish --clean
 

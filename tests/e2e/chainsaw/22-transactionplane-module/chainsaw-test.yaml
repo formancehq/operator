@@ -1,0 +1,132 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: transactionplane-module
+  labels:
+    suite: modules
+    feature: transactionplane-module
+spec:
+  concurrent: false
+  steps:
+    - name: transactionplane-renders-database-broker-authclient-gateway-and-worker-modes
+      try:
+        - apply:
+            file: resources/source-secret.yaml
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/serviceaccount.yaml
+        - apply:
+            file: resources/postgres.yaml
+        - apply:
+            file: resources/nats.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/database.yaml
+        - apply:
+            file: resources/auth-database.yaml
+        - apply:
+            file: resources/broker.yaml
+        - apply:
+            file: resources/auth.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl rollout status deployment/postgres -n chainsaw-transactionplane --timeout=2m
+              kubectl rollout status deployment/nats -n chainsaw-transactionplane --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-transactionplane-transactionplane --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-transactionplane-auth --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-transactionplane --timeout=5m
+        - apply:
+            file: resources/aws-serviceaccount-setting.yaml
+        - apply:
+            file: resources/transactionplane.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-transactionplane -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+              kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/transactionplane-transactionplane --timeout=5m
+              kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-transactionplane-transactionplane --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/transaction-plane:v3.0.0 deployment/transactionplane -n chainsaw-transactionplane --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/transaction-plane:v3.0.0 deployment/transactionplane-worker -n chainsaw-transactionplane --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-transactionplane-transactionplane --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/transactionplane -n chainsaw-transactionplane --timeout=2m
+              assert_jsonpath deployment/transactionplane '{.spec.template.spec.containers[0].args[0]}' 'serve'
+              assert_jsonpath deployment/transactionplane-worker '{.spec.template.spec.containers[0].args[0]}' 'worker'
+              assert_jsonpath deployment/transactionplane '{.spec.template.spec.containers[0].resources.requests.cpu}' '25m'
+              assert_jsonpath deployment/transactionplane '{.spec.template.spec.containers[0].resources.limits.memory}' '256Mi'
+              assert_jsonpath deployment/transactionplane '{.spec.template.spec.serviceAccountName}' 'chainsaw-transactionplane-sa'
+              assert_jsonpath pdb/transactionplane '{.spec.minAvailable}' '1'
+              assert_jsonpath service/transactionplane '{.metadata.annotations.chainsaw\.formance\.com/service}' 'transactionplane'
+              test "$(kubectl get brokerconsumer transactionplane-transactionplane -o jsonpath='{.spec.services[*]}')" = "transactionplane"
+              kubectl get deployment transactionplane -n chainsaw-transactionplane -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-transactionplane-env
+              grep -Fx 'DEV=true' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'STACK=chainsaw-transactionplane' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'POSTGRES_HOST=postgres.chainsaw-transactionplane.svc.cluster.local' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'POSTGRES_PORT=5432' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'POSTGRES_DATABASE=chainsaw-transactionplane-transactionplane' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'POSTGRES_URI=$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)?sslmode=disable' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'TOPICS=chainsaw-transactionplane.transactionplane' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'BROKER=nats' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-transactionplane.svc.cluster.local:4222' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'PUBLISHER_NATS_CLIENT_ID=chainsaw-transactionplane-transactionplane' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'PUBLISHER_TOPIC_MAPPING=*:chainsaw-transactionplane.transactionplane' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'PUBLISHER_NATS_AUTO_PROVISION=false' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'AUTH_ENABLED=true' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'AUTH_ISSUER=http://auth:8080' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'AUTH_ISSUERS=https://issuer.transactionplane.chainsaw.local' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'AUTH_CHECK_SCOPES=true' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'AUTH_SERVICE=transactionplane' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'OTEL_SERVICE_NAME=transactionPlane' /tmp/chainsaw-transactionplane-env
+              kubectl get deployment transactionplane -n chainsaw-transactionplane -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-transactionplane-secret-env
+              grep -Fx 'POSTGRES_USERNAME=postgres/username' /tmp/chainsaw-transactionplane-secret-env
+              grep -Fx 'POSTGRES_PASSWORD=postgres/password' /tmp/chainsaw-transactionplane-secret-env
+              grep -Fx 'STACK_CLIENT_ID=auth-client-chainsaw-transactionplane-transactionplane/id' /tmp/chainsaw-transactionplane-secret-env
+              grep -Fx 'STACK_CLIENT_SECRET=auth-client-chainsaw-transactionplane-transactionplane/secret' /tmp/chainsaw-transactionplane-secret-env
+              test "$(kubectl get authclient chainsaw-transactionplane-transactionplane -o jsonpath='{.spec.scopes[*]}')" = "ledger:read ledger:write payments:read payments:write"
+        - apply:
+            file: resources/worker-enabled.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              kubectl wait --for=delete deployment/transactionplane-worker -n chainsaw-transactionplane --timeout=2m
+              until kubectl get deployment transactionplane -n chainsaw-transactionplane -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' | grep -Fx 'WORKER_ENABLED=true'; do
+                sleep 1
+              done
+              test "$(kubectl get deployment transactionplane -n chainsaw-transactionplane -o jsonpath='{.spec.template.spec.containers[0].args[0]}')" = "serve"
+              kubectl delete settings chainsaw-transactionplane-service-account --wait=true --timeout=2m
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh transactionplane-module
+    - name: cleanup-broker-finalizer
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl patch stack chainsaw-transactionplane --type=merge -p '{"spec":{"disabled":true}}'
+              kubectl delete settings chainsaw-transactionplane-broker-dsn --ignore-not-found=true --wait=true --timeout=2m
+              if kubectl get broker chainsaw-transactionplane >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-transactionplane --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-transactionplane --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh transactionplane-module-cleanup

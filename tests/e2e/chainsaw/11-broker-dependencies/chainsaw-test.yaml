@@ -1,0 +1,72 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: broker-dependencies
+  labels:
+    suite: infrastructure
+    feature: broker-dependencies
+spec:
+  concurrent: false
+  steps:
+    - name: broker-reports-missing-dsn
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - script:
+            timeout: 2m
+            content: |
+              kubectl apply -f resources/broker.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              expected="settings 'broker.dsn' not found for stack 'chainsaw-broker-dependencies'"
+              until test "$(kubectl get broker chainsaw-broker-dependencies -o jsonpath='{.status.info}')" = "$expected"; do
+                sleep 1
+              done
+              if test "$(kubectl get broker chainsaw-broker-dependencies -o jsonpath='{.status.ready}')" = "true"; then
+                echo "broker should not be ready without broker.dsn"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh broker-missing-dsn
+    - name: consumer-creates-topic-but-waits-on-broker
+      try:
+        - apply:
+            file: resources/consumer.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              until test "$(kubectl get brokertopic chainsaw-broker-dependencies-ledger -o jsonpath='{.status.info}')" = "broker not ready"; do
+                sleep 1
+              done
+              until test "$(kubectl get brokerconsumer chainsaw-broker-consumer -o jsonpath='{.status.conditions[?(@.type=="BrokerTopicCreated")].status}')" = "False"; do
+                sleep 1
+              done
+              test "$(kubectl get brokertopic chainsaw-broker-dependencies-ledger -o jsonpath='{.spec.service}')" = "ledger"
+              test "$(kubectl get brokertopic chainsaw-broker-dependencies-ledger -o jsonpath='{.spec.stack}')" = "chainsaw-broker-dependencies"
+              if test "$(kubectl get brokerconsumer chainsaw-broker-consumer -o jsonpath='{.status.ready}')" = "true"; then
+                echo "broker consumer should not be ready while its broker topic waits on broker"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh broker-consumer-topic-wait
+    - name: cleanup-broker-finalizer
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              if kubectl get broker chainsaw-broker-dependencies >/dev/null 2>&1; then
+                kubectl patch broker chainsaw-broker-dependencies --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete broker chainsaw-broker-dependencies --wait=true --timeout=2m
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh broker-cleanup

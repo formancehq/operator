@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-transactionplane-worker-enabled
+spec:
+  stacks:
+    - chainsaw-transactionplane
+  key: transactionplane.worker-enabled
+  value: "true"

@@ -1,0 +1,11 @@
+apiVersion: formance.com/v1beta1
+kind: ResourceReference
+metadata:
+  name: chainsaw-secret-reference
+spec:
+  stack: chainsaw-resource-reference
+  name: chainsaw-external-secret
+  gvk:
+    group: ""
+    version: v1
+    kind: Secret
