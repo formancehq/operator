@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
-	. "github.com/formancehq/go-libs/v2/collectionutils"
+	. "github.com/formancehq/go-libs/v5/pkg/types/collections"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
@@ -54,6 +54,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 
 	sort.Slice(httpAPIs, func(i, j int) bool {
 		return httpAPIs[i].Spec.Name < httpAPIs[j].Spec.Name
+	})
+
+	gateway.Status.SyncHTTPAPIs = Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) string {
+		return from.Spec.Name
 	})
 
 	var broker *v1beta1.Broker
@@ -99,10 +103,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 			return err
 		}
 	}
-
-	gateway.Status.SyncHTTPAPIs = Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) string {
-		return from.Spec.Name
-	})
 
 	return nil
 }
