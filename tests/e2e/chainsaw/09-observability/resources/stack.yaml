@@ -3,4 +3,4 @@ kind: Stack
 metadata:
   name: chainsaw-observability
 spec:
-  version: v1.0.0
+  version: v2.2.0

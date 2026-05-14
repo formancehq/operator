@@ -93,10 +93,11 @@ var _ = Describe("GatewayController", func() {
 					return gateway.Status.SyncHTTPAPIs
 				}).Should(ContainElements(httpAPI.Spec.Name))
 
-				cm := &corev1.ConfigMap{}
-				Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
-				Expect(cm.Data["Caddyfile"]).To(
-					MatchGoldenFile("gateway-controller", "configmap-with-ledger-only.yaml"))
+				Eventually(func(g Gomega) string {
+					cm := &corev1.ConfigMap{}
+					g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
+					return cm.Data["Caddyfile"]
+				}).Should(MatchGoldenFile("gateway-controller", "configmap-with-ledger-only.yaml"))
 			})
 		})
 		Context("with a host defined", func() {
@@ -259,10 +260,11 @@ var _ = Describe("GatewayController", func() {
 					return gateway.Status.SyncHTTPAPIs
 				}).Should(ContainElements(httpAPI.Spec.Name, anotherHttpService.Spec.Name))
 
-				cm := &corev1.ConfigMap{}
-				Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
-				Expect(cm.Data["Caddyfile"]).To(
-					MatchGoldenFile("gateway-controller", "configmap-with-ledger-and-another-service.yaml"))
+				Eventually(func(g Gomega) string {
+					cm := &corev1.ConfigMap{}
+					g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
+					return cm.Data["Caddyfile"]
+				}).Should(MatchGoldenFile("gateway-controller", "configmap-with-ledger-and-another-service.yaml"))
 			})
 		})
 		Context("With a consumer on gateway", func() {
