@@ -76,15 +76,15 @@ jobs:
       fail-fast: false
       matrix:
         kubernetes:
-          - version: "1.30"
-            kind_node_image: kindest/node:v1.30.13
-            cluster_name: formance-operator-e2e-130
           - version: "1.31"
             kind_node_image: kindest/node:v1.31.9
             cluster_name: formance-operator-e2e-131
           - version: "1.32"
             kind_node_image: kindest/node:v1.32.5
             cluster_name: formance-operator-e2e-132
+          - version: "1.33"
+            kind_node_image: kindest/node:v1.33.1
+            cluster_name: formance-operator-e2e-133
     steps:
       - uses: 'namespacelabs/nscloud-checkout-action@v8'
         with:

@@ -59,6 +59,12 @@ spec:
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/transactionplane-transactionplane --timeout=5m
               kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-transactionplane-transactionplane --timeout=2m
+              until kubectl get deployment/transactionplane -n chainsaw-transactionplane >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get deployment/transactionplane-worker -n chainsaw-transactionplane >/dev/null 2>&1; do
+                sleep 1
+              done
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/transaction-plane:v3.0.0 deployment/transactionplane -n chainsaw-transactionplane --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/transaction-plane:v3.0.0 deployment/transactionplane-worker -n chainsaw-transactionplane --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-transactionplane-transactionplane --timeout=2m
@@ -125,7 +131,6 @@ spec:
               for database in chainsaw-transactionplane-transactionplane chainsaw-transactionplane-auth; do
                 if kubectl get database "$database" >/dev/null 2>&1; then
                   kubectl patch database "$database" --type=merge -p '{"metadata":{"finalizers":[]}}'
-                  kubectl delete database "$database" --ignore-not-found=true --wait=false
                 fi
               done
               if kubectl get broker chainsaw-transactionplane >/dev/null 2>&1; then

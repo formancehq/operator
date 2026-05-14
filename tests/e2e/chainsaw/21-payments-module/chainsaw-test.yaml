@@ -111,7 +111,6 @@ spec:
               kubectl patch stack chainsaw-payments --type=merge -p '{"spec":{"disabled":true}}'
               if kubectl get database chainsaw-payments-payments >/dev/null 2>&1; then
                 kubectl patch database chainsaw-payments-payments --type=merge -p '{"metadata":{"finalizers":[]}}'
-                kubectl delete database chainsaw-payments-payments --ignore-not-found=true --wait=false
               fi
               if kubectl get broker chainsaw-payments >/dev/null 2>&1; then
                 kubectl patch broker chainsaw-payments --type=merge -p '{"metadata":{"finalizers":[]}}'
