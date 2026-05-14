@@ -56,6 +56,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		return httpAPIs[i].Spec.Name < httpAPIs[j].Spec.Name
 	})
 
+	gateway.Status.SyncHTTPAPIs = Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) string {
+		return from.Spec.Name
+	})
+
 	var broker *v1beta1.Broker
 	if t, err := brokertopics.Find(ctx, stack, "gateway"); err != nil {
 		return err
@@ -99,10 +103,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 			return err
 		}
 	}
-
-	gateway.Status.SyncHTTPAPIs = Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) string {
-		return from.Spec.Name
-	})
 
 	return nil
 }
