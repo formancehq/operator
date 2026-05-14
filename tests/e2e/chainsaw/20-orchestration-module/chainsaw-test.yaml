@@ -7,6 +7,7 @@ metadata:
     feature: orchestration-module
 spec:
   concurrent: false
+  skipDelete: true
   timeouts:
     cleanup: 10m
   steps:
@@ -108,15 +109,43 @@ spec:
             timeout: 2m
             content: |
               set -eu
-              kubectl patch stack chainsaw-orchestration --type=merge -p '{"spec":{"disabled":true}}'
-              if kubectl get database chainsaw-orchestration-orchestration >/dev/null 2>&1; then
-                kubectl patch database chainsaw-orchestration-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
-                kubectl delete database chainsaw-orchestration-orchestration --wait=false --ignore-not-found=true
+              if kubectl get stack chainsaw-orchestration >/dev/null 2>&1; then
+                kubectl patch stack chainsaw-orchestration --type=merge -p '{"spec":{"disabled":true}}'
               fi
-              if kubectl get broker chainsaw-orchestration >/dev/null 2>&1; then
-                kubectl patch broker chainsaw-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
-                kubectl delete broker chainsaw-orchestration --wait=true --timeout=2m
-              fi
+
+              for resource in \
+                orchestration/orchestration \
+                auth/auth \
+                broker/chainsaw-orchestration \
+                database/chainsaw-orchestration-orchestration \
+                stack/chainsaw-orchestration; do
+                if kubectl get "$resource" >/dev/null 2>&1; then
+                  kubectl patch "$resource" --type=merge -p '{"metadata":{"finalizers":[]}}'
+                  kubectl delete "$resource" --wait=false --ignore-not-found=true
+                fi
+              done
+
+              for setting in \
+                chainsaw-orchestration-postgres-uri \
+                chainsaw-orchestration-broker-dsn \
+                chainsaw-orchestration-temporal-dsn \
+                chainsaw-orchestration-temporal-tls-crt \
+                chainsaw-orchestration-temporal-tls-key \
+                chainsaw-orchestration-max-parallel-activities \
+                chainsaw-orchestration-auth-issuers \
+                chainsaw-orchestration-auth-check-scopes \
+                chainsaw-orchestration-otel-traces \
+                chainsaw-orchestration-container-requests \
+                chainsaw-orchestration-container-limits \
+                chainsaw-orchestration-pdb \
+                chainsaw-orchestration-service-annotations; do
+                kubectl delete settings "$setting" --wait=false --ignore-not-found=true
+              done
+
+              kubectl delete secret chainsaw-orchestration-postgres-credentials -n default --wait=false --ignore-not-found=true
+              kubectl delete deployment postgres nats -n chainsaw-orchestration --wait=false --ignore-not-found=true
+              kubectl delete service postgres nats -n chainsaw-orchestration --wait=false --ignore-not-found=true
+              kubectl delete namespace chainsaw-orchestration --wait=false --ignore-not-found=true
       catch:
         - script:
             timeout: 2m
