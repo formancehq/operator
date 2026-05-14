@@ -115,7 +115,6 @@ spec:
                 sleep 1
               done
               test "$(kubectl get deployment transactionplane -n chainsaw-transactionplane -o jsonpath='{.spec.template.spec.containers[0].args[0]}')" = "serve"
-              kubectl delete settings chainsaw-transactionplane-service-account --wait=true --timeout=2m
       catch:
         - script:
             timeout: 2m
@@ -127,7 +126,6 @@ spec:
             content: |
               set -eu
               kubectl patch stack chainsaw-transactionplane --type=merge -p '{"spec":{"disabled":true}}'
-              kubectl delete settings chainsaw-transactionplane-broker-dsn --ignore-not-found=true --wait=true --timeout=2m
               for database in chainsaw-transactionplane-transactionplane chainsaw-transactionplane-auth; do
                 if kubectl get database "$database" >/dev/null 2>&1; then
                   kubectl patch database "$database" --type=merge -p '{"metadata":{"finalizers":[]}}'
@@ -135,7 +133,6 @@ spec:
               done
               if kubectl get broker chainsaw-transactionplane >/dev/null 2>&1; then
                 kubectl patch broker chainsaw-transactionplane --type=merge -p '{"metadata":{"finalizers":[]}}'
-                kubectl delete broker chainsaw-transactionplane --wait=true --timeout=2m
               fi
       catch:
         - script:
