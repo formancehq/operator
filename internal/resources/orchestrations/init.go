@@ -52,12 +52,21 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, vers
 		return err
 	}
 
+	topic, err := brokertopics.Create(ctx, stack, o, "orchestration")
+	if err != nil {
+		return err
+	}
+
 	if err := gatewayhttpapis.Create(ctx, o, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
 		return err
 	}
 
 	if !database.Status.Ready {
 		return NewPendingError().WithMessage("database not ready")
+	}
+
+	if !topic.Status.Ready {
+		return NewPendingError().WithMessage("broker topic not ready")
 	}
 
 	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "orchestration", version)

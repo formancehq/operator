@@ -128,6 +128,13 @@ var _ = Describe("OrchestrationController", func() {
 					return LoadResource("", orchestration.Name+"-orchestration", consumer)
 				}).Should(Succeed())
 			})
+			By("Should create a BrokerTopic for orchestration events", func() {
+				topic := &v1beta1.BrokerTopic{}
+				Eventually(func(g Gomega) *v1beta1.BrokerTopic {
+					g.Expect(LoadResource("", core.GetObjectName(stack.Name, "orchestration"), topic)).To(Succeed())
+					return topic
+				}).Should(BeOwnedBy(orchestration))
+			})
 		})
 	})
 })
