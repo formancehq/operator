@@ -114,7 +114,7 @@ spec:
         - script:
             timeout: 2m
             content: ../../scripts/dump-diagnostics.sh transactionplane-module
-    - name: cleanup-broker-finalizer
+    - name: cleanup-finalizers
       try:
         - script:
             timeout: 2m
@@ -122,6 +122,12 @@ spec:
               set -eu
               kubectl patch stack chainsaw-transactionplane --type=merge -p '{"spec":{"disabled":true}}'
               kubectl delete settings chainsaw-transactionplane-broker-dsn --ignore-not-found=true --wait=true --timeout=2m
+              for database in chainsaw-transactionplane-transactionplane chainsaw-transactionplane-auth; do
+                if kubectl get database "$database" >/dev/null 2>&1; then
+                  kubectl patch database "$database" --type=merge -p '{"metadata":{"finalizers":[]}}'
+                  kubectl delete database "$database" --ignore-not-found=true --wait=false
+                fi
+              done
               if kubectl get broker chainsaw-transactionplane >/dev/null 2>&1; then
                 kubectl patch broker chainsaw-transactionplane --type=merge -p '{"metadata":{"finalizers":[]}}'
                 kubectl delete broker chainsaw-transactionplane --wait=true --timeout=2m

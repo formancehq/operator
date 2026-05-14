@@ -98,12 +98,17 @@ spec:
         - script:
             timeout: 2m
             content: ../../scripts/dump-diagnostics.sh orchestration-module
-    - name: cleanup-broker-finalizer
+    - name: cleanup-finalizers
       try:
         - script:
             timeout: 2m
             content: |
               set -eu
+              kubectl patch stack chainsaw-orchestration --type=merge -p '{"spec":{"disabled":true}}'
+              if kubectl get database chainsaw-orchestration-orchestration >/dev/null 2>&1; then
+                kubectl patch database chainsaw-orchestration-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete database chainsaw-orchestration-orchestration --ignore-not-found=true --wait=false
+              fi
               if kubectl get broker chainsaw-orchestration >/dev/null 2>&1; then
                 kubectl patch broker chainsaw-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
                 kubectl delete broker chainsaw-orchestration --wait=true --timeout=2m
