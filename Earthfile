@@ -29,11 +29,20 @@ generate:
     SAVE ARTIFACT api AS LOCAL api
 
 compile:
+    ARG LICENCE_PUBLIC_KEY_B64=""
     FROM core+builder-image
     COPY (+sources/*) /src
     COPY --pass-args (+generate/*) /src/components/operator
     WORKDIR /src/components/operator/cmd
-	DO --pass-args core+GO_COMPILE
+    IF [ "$LICENCE_PUBLIC_KEY_B64" = "" ]
+        DO --pass-args core+GO_COMPILE
+    ELSE
+        RUN --mount=type=cache,id=gomod,target=${GOPATH}/pkg/mod \
+            --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
+            LICENCE_PUBLIC_KEY="$(printf '%s' "$LICENCE_PUBLIC_KEY_B64" | base64 -d)" && \
+            go build -ldflags "-X 'github.com/formancehq/go-libs/v5/pkg/authn/licence.formancePublicKey=${LICENCE_PUBLIC_KEY}'" -o main .
+    END
+    SAVE ARTIFACT main
 
 build-image:
     FROM core+final-image

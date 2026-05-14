@@ -12,6 +12,7 @@ POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:15-alpine}"
 NATS_IMAGE="${NATS_IMAGE:-nats:2.10-alpine}"
 NATS_BOX_IMAGE="${NATS_BOX_IMAGE:-natsio/nats-box:0.19.2}"
 EARTHLY_REPOSITORY="${EARTHLY_REPOSITORY:-ghcr.io}"
+E2E_LICENCE_ENABLED="${E2E_LICENCE_ENABLED:-true}"
 
 if ! command -v earthly >/dev/null 2>&1; then
   echo "earthly is required to build the operator image used by E2E tests" >&2
@@ -30,6 +31,12 @@ fi
 
 cd "${ROOT_DIR}"
 
+if [[ "${E2E_LICENCE_ENABLED}" == "true" ]]; then
+  # shellcheck source=tests/e2e/scripts/licence.sh
+  source "${ROOT_DIR}/tests/e2e/scripts/licence.sh"
+  LICENCE_PUBLIC_KEY_B64="$(e2e_licence_public_key_b64)"
+fi
+
 load_image_for_node_platform() {
   local image="$1"
   local os
@@ -46,7 +53,14 @@ load_image_for_node_platform() {
   done
 }
 
-earthly +build-image --REPOSITORY="${EARTHLY_REPOSITORY}" --tag="${IMAGE_TAG}"
+if [[ "${E2E_LICENCE_ENABLED}" == "true" ]]; then
+  earthly +build-image \
+    --REPOSITORY="${EARTHLY_REPOSITORY}" \
+    --tag="${IMAGE_TAG}" \
+    --LICENCE_PUBLIC_KEY_B64="${LICENCE_PUBLIC_KEY_B64}"
+else
+  earthly +build-image --REPOSITORY="${EARTHLY_REPOSITORY}" --tag="${IMAGE_TAG}"
+fi
 earthly ./tools/utils+build-image --REPOSITORY="${EARTHLY_REPOSITORY}" --tag="${IMAGE_TAG}"
 docker image inspect "${POSTGRES_IMAGE}" >/dev/null 2>&1 || docker pull "${POSTGRES_IMAGE}"
 docker image inspect "${NATS_IMAGE}" >/dev/null 2>&1 || docker pull "${NATS_IMAGE}"

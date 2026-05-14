@@ -4,4 +4,5 @@ metadata:
   name: gateway
 spec:
   stack: chainsaw-application-settings
+  version: v2.2.0
   dev: true
