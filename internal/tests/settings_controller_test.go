@@ -11,6 +11,15 @@ import (
 )
 
 var _ = Describe("SettingsController", func() {
+	expectSettingValue := func(stackName string, setting *v1beta1.Settings) {
+		Eventually(func(g Gomega) {
+			str, err := helperSettings.Get(TestContext(), stackName, helperSettings.SplitKeywordWithDot(setting.Spec.Key)...)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(str).ToNot(BeNil())
+			g.Expect(*str).To(Equal(setting.Spec.Value))
+		}).Should(Succeed())
+	}
+
 	When("Creating a settings on specific stack", func() {
 		var (
 			setting *v1beta1.Settings
@@ -44,10 +53,7 @@ var _ = Describe("SettingsController", func() {
 				Expect(LoadResource("", setting.Name, &v1beta1.Settings{})).To(Succeed())
 			})
 			By("Sould be able to retrieve the settings", func() {
-				str, err := helperSettings.Get(TestContext(), stack.Name, helperSettings.SplitKeywordWithDot(setting.Spec.Key)...)
-				Expect(err).To(BeNil())
-				Expect(str).ToNot(BeNil())
-				Expect(*str).To(Equal(setting.Spec.Value))
+				expectSettingValue(stack.Name, setting)
 			})
 		})
 	})
@@ -85,10 +91,7 @@ var _ = Describe("SettingsController", func() {
 				Expect(LoadResource("", setting.Name, &v1beta1.Settings{})).To(Succeed())
 			})
 			By("Sould be able to retrieve the settings", func() {
-				str, err := helperSettings.Get(TestContext(), stack.Name, helperSettings.SplitKeywordWithDot(setting.Spec.Key)...)
-				Expect(err).To(BeNil())
-				Expect(str).ToNot(BeNil())
-				Expect(*str).To(Equal(setting.Spec.Value))
+				expectSettingValue(stack.Name, setting)
 			})
 		})
 	})
@@ -124,10 +127,7 @@ var _ = Describe("SettingsController", func() {
 				Expect(LoadResource("", setting.Name, &v1beta1.Settings{})).To(Succeed())
 			})
 			By("Sould be able to retrieve the settings", func() {
-				str, err := helperSettings.Get(TestContext(), stack.Name, helperSettings.SplitKeywordWithDot(setting.Spec.Key)...)
-				Expect(err).To(BeNil())
-				Expect(str).ToNot(BeNil())
-				Expect(*str).To(Equal(setting.Spec.Value))
+				expectSettingValue(stack.Name, setting)
 			})
 		})
 	})
