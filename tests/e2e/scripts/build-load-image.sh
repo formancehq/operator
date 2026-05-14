@@ -23,6 +23,11 @@ if ! command -v kind >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required to inspect, pull, and import images used by E2E tests" >&2
+  exit 1
+fi
+
 cd "${ROOT_DIR}"
 
 load_image_for_node_platform() {
