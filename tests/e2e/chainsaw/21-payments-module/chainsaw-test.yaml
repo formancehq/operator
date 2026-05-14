@@ -21,8 +21,6 @@ spec:
         - apply:
             file: resources/settings.yaml
         - apply:
-            file: resources/database.yaml
-        - apply:
             file: resources/broker.yaml
         - apply:
             file: resources/brokertopic.yaml
@@ -32,6 +30,7 @@ spec:
             timeout: 5m
             content: |
               set -eu
+              kubectl apply -f resources/database.yaml
               kubectl rollout status deployment/postgres -n chainsaw-payments --timeout=2m
               kubectl rollout status deployment/nats -n chainsaw-payments --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-payments-payments --timeout=5m
