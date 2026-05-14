@@ -141,6 +141,7 @@ spec:
               for database in chainsaw-transactionplane-transactionplane chainsaw-transactionplane-auth; do
                 if kubectl get database "$database" >/dev/null 2>&1; then
                   kubectl patch database "$database" --type=merge -p '{"metadata":{"finalizers":[]}}'
+                  kubectl delete database "$database" --wait=false --ignore-not-found=true
                 fi
               done
               if kubectl get broker chainsaw-transactionplane >/dev/null 2>&1; then

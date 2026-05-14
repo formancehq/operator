@@ -110,6 +110,7 @@ spec:
               kubectl patch stack chainsaw-orchestration --type=merge -p '{"spec":{"disabled":true}}'
               if kubectl get database chainsaw-orchestration-orchestration >/dev/null 2>&1; then
                 kubectl patch database chainsaw-orchestration-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete database chainsaw-orchestration-orchestration --wait=false --ignore-not-found=true
               fi
               if kubectl get broker chainsaw-orchestration >/dev/null 2>&1; then
                 kubectl patch broker chainsaw-orchestration --type=merge -p '{"metadata":{"finalizers":[]}}'
