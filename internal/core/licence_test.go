@@ -1,155 +1,146 @@
 package core
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
+	"errors"
 	"testing"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const testLicenceIssuer = "https://license.formance.cloud/keys"
 
-func generateTestRSAKeyPair(t *testing.T) (*rsa.PrivateKey, string) {
+func newLicenceTestClient(t *testing.T, objects ...client.Object) client.Client {
 	t.Helper()
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
 
-	pubBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	require.NoError(t, err)
-
-	pubPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: pubBytes,
-	})
-
-	return privateKey, string(pubPEM)
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objects...).
+		Build()
 }
 
-func setTestKey(t *testing.T, key string) {
-	t.Helper()
-	SetFormancePublicKeyForTest(t, key)
+func newLicenceTestSecret(name string, namespace string, data map[string][]byte) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: data,
+	}
 }
 
-func createToken(t *testing.T, claims jwt.MapClaims, key *rsa.PrivateKey) string {
-	t.Helper()
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	s, err := token.SignedString(key)
-	require.NoError(t, err)
-	return s
+func newClusterNamespace(uid string) *corev1.Namespace {
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: licenceClusterNamespace,
+			UID:  types.UID(uid),
+		},
+	}
 }
 
 func TestValidateLicenceToken_EmptyToken(t *testing.T) {
-	state, msg := ValidateLicenceToken("", testLicenceIssuer)
+	state, msg := ValidateLicenceToken("", testLicenceIssuer, "cluster-id")
 	require.Equal(t, LicenceStateAbsent, state)
 	require.Empty(t, msg)
 }
 
-func TestValidateLicenceToken_ValidToken(t *testing.T) {
-	privateKey, pubPEM := generateTestRSAKeyPair(t)
-	setTestKey(t, pubPEM)
-
-	token := createToken(t, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
-		"iss": testLicenceIssuer,
-	}, privateKey)
-
-	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
-	require.Equal(t, LicenceStateValid, state)
-	require.Empty(t, msg)
+func TestValidateLicenceToken_MissingIssuer(t *testing.T) {
+	state, msg := ValidateLicenceToken("token", "", "cluster-id")
+	require.Equal(t, LicenceStateInvalid, state)
+	require.Contains(t, msg, "issuer")
 }
 
-func TestValidateLicenceToken_IssuerMismatch(t *testing.T) {
-	privateKey, pubPEM := generateTestRSAKeyPair(t)
-	setTestKey(t, pubPEM)
+func TestValidateLicenceToken_MissingClusterID(t *testing.T) {
+	state, msg := ValidateLicenceToken("token", testLicenceIssuer, "")
+	require.Equal(t, LicenceStateInvalid, state)
+	require.Contains(t, msg, "cluster ID")
+}
 
-	token := createToken(t, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
-		"iss": "https://wrong.example.com/keys",
-	}, privateKey)
-
-	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
+func TestValidateLicenceToken_UsesGoLibsValidator(t *testing.T) {
+	state, msg := ValidateLicenceToken("not-a-jwt", testLicenceIssuer, "cluster-id")
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "validation failed")
+	require.Contains(t, msg, "token is malformed")
 }
 
-func TestValidateLicenceToken_MissingIssuerClaim(t *testing.T) {
-	privateKey, pubPEM := generateTestRSAKeyPair(t)
-	setTestKey(t, pubPEM)
-
-	token := createToken(t, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
-	}, privateKey)
-
-	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
-	require.Equal(t, LicenceStateInvalid, state)
-	require.Contains(t, msg, "validation failed")
-}
-
-func TestValidateLicenceToken_ExpiredToken(t *testing.T) {
-	privateKey, pubPEM := generateTestRSAKeyPair(t)
-	setTestKey(t, pubPEM)
-
-	token := createToken(t, jwt.MapClaims{
-		"exp": time.Now().Add(-time.Hour).Unix(),
-		"iss": testLicenceIssuer,
-	}, privateKey)
-
-	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
+func TestLicenceStateFromError_Expired(t *testing.T) {
+	state, msg := licenceStateFromError(errors.New("token has invalid claims: token is expired"))
 	require.Equal(t, LicenceStateExpired, state)
 	require.Contains(t, msg, "expired")
 }
 
-func TestValidateLicenceToken_MalformedToken(t *testing.T) {
-	state, msg := ValidateLicenceToken("not-a-jwt", testLicenceIssuer)
-	require.Equal(t, LicenceStateInvalid, state)
-	require.Contains(t, msg, "validation failed")
+func TestResolveLicenceState_ValidSecret(t *testing.T) {
+	reader := newLicenceTestClient(t,
+		newClusterNamespace("cluster-id"),
+		newLicenceTestSecret("licence", "operator", map[string][]byte{
+			"token":  []byte("token"),
+			"issuer": []byte(testLicenceIssuer),
+		}),
+	)
+
+	SetLicenceValidatorForTest(t, func(token string, issuer string, clusterID string) (LicenceState, string) {
+		require.Equal(t, "token", token)
+		require.Equal(t, testLicenceIssuer, issuer)
+		require.Equal(t, "cluster-id", clusterID)
+		return LicenceStateValid, ""
+	})
+
+	state, msg := ResolveLicenceState(reader, "licence", "operator")
+	require.Equal(t, LicenceStateValid, state)
+	require.Empty(t, msg)
 }
 
-func TestValidateLicenceToken_WrongSigningKey(t *testing.T) {
-	_, pubPEM := generateTestRSAKeyPair(t)
-	setTestKey(t, pubPEM)
+func TestResolveLicenceState_SecretNotFound(t *testing.T) {
+	reader := newLicenceTestClient(t)
 
-	otherKey, _ := generateTestRSAKeyPair(t)
-	token := createToken(t, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
-		"iss": testLicenceIssuer,
-	}, otherKey)
-
-	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
+	state, msg := ResolveLicenceState(reader, "missing", "operator")
 	require.Equal(t, LicenceStateInvalid, state)
-	require.Contains(t, msg, "validation failed")
+	require.Contains(t, msg, "not found")
 }
 
-func TestValidateLicenceToken_NoExpiration(t *testing.T) {
-	privateKey, pubPEM := generateTestRSAKeyPair(t)
-	setTestKey(t, pubPEM)
+func TestResolveLicenceState_MissingToken(t *testing.T) {
+	reader := newLicenceTestClient(t,
+		newLicenceTestSecret("licence", "operator", map[string][]byte{
+			"issuer": []byte(testLicenceIssuer),
+		}),
+	)
 
-	token := createToken(t, jwt.MapClaims{}, privateKey)
-
-	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
+	state, msg := ResolveLicenceState(reader, "licence", "operator")
 	require.Equal(t, LicenceStateInvalid, state)
-	require.Contains(t, msg, "validation failed")
+	require.Contains(t, msg, "token")
 }
 
-func TestValidateLicenceToken_ProductionKeyParses(t *testing.T) {
-	// Verify the embedded production key can be parsed without error.
-	// Token is signed with a random key, so validation must fail with
-	// a signature error, not a key parsing error.
-	otherKey, _ := generateTestRSAKeyPair(t)
-	token := createToken(t, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
-		"iss": testLicenceIssuer,
-	}, otherKey)
+func TestResolveLicenceState_MissingIssuer(t *testing.T) {
+	reader := newLicenceTestClient(t,
+		newLicenceTestSecret("licence", "operator", map[string][]byte{
+			"token": []byte("token"),
+		}),
+	)
 
-	state, msg := ValidateLicenceToken(token, testLicenceIssuer)
+	state, msg := ResolveLicenceState(reader, "licence", "operator")
 	require.Equal(t, LicenceStateInvalid, state)
-	require.Contains(t, msg, "validation failed")
-	require.NotContains(t, msg, "public key")
+	require.Contains(t, msg, "issuer")
+}
+
+func TestResolveLicenceState_MissingClusterNamespace(t *testing.T) {
+	reader := newLicenceTestClient(t,
+		newLicenceTestSecret("licence", "operator", map[string][]byte{
+			"token":  []byte("token"),
+			"issuer": []byte(testLicenceIssuer),
+		}),
+	)
+
+	state, msg := ResolveLicenceState(reader, "licence", "operator")
+	require.Equal(t, LicenceStateInvalid, state)
+	require.Contains(t, msg, "cluster ID")
+	require.Contains(t, msg, licenceClusterNamespace)
 }
 
 func TestLicenceState_String(t *testing.T) {

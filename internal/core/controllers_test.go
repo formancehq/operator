@@ -3,9 +3,7 @@ package core
 import (
 	"context"
 	"testing"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,14 +29,6 @@ func (t testContext) GetAPIReader() client.Reader { return t.apiReader }
 func (t testContext) GetPlatform() Platform       { return t.platform }
 
 func TestForModulePassesRefreshedLicenceState(t *testing.T) {
-	privateKey, pubPEM := generateTestRSAKeyPair(t)
-	setTestKey(t, pubPEM)
-
-	token := createToken(t, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
-		"iss": testLicenceIssuer,
-	}, privateKey)
-
 	scheme := runtime.NewScheme()
 	require.NoError(t, corev1.AddToScheme(scheme))
 	require.NoError(t, v1beta1.AddToScheme(scheme))
@@ -72,15 +62,23 @@ func TestForModulePassesRefreshedLicenceState(t *testing.T) {
 			Namespace: "operator",
 		},
 		Data: map[string][]byte{
-			"token":  []byte(token),
+			"token":  []byte("token"),
 			"issuer": []byte(testLicenceIssuer),
 		},
 	}
+	clusterNamespace := newClusterNamespace("cluster-id")
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(stack, search, secret).
+		WithObjects(stack, search, secret, clusterNamespace).
 		Build()
+
+	SetLicenceValidatorForTest(t, func(token string, issuer string, clusterID string) (LicenceState, string) {
+		require.Equal(t, "token", token)
+		require.Equal(t, testLicenceIssuer, issuer)
+		require.Equal(t, "cluster-id", clusterID)
+		return LicenceStateValid, ""
+	})
 
 	ctx := testContext{
 		Context:   context.Background(),

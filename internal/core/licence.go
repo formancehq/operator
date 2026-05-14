@@ -2,17 +2,22 @@ package core
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
-	"errors"
 	"fmt"
+	"strings"
+	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	golibslicence "github.com/formancehq/go-libs/v5/pkg/authn/licence"
+	logging "github.com/formancehq/go-libs/v5/pkg/observe/log"
+)
+
+const (
+	licenceClusterNamespace = "kube-system"
+	licenceServiceName      = "operator"
 )
 
 // LicenceState represents the current state of the licence in the operator.
@@ -40,99 +45,77 @@ func (s LicenceState) String() string {
 	}
 }
 
-// formancePublicKey is the PEM-encoded RSA public key used to verify licence JWTs (RS256).
-// This is the same key embedded in go-libs/v4/licence/public_key.go.
-// It can be overridden at build time via ldflags:
-//
-//	go build -ldflags "-X github.com/formancehq/operator/v3/internal/core.formancePublicKey=$(cat key.pem)"
-//
-//nolint:lll
-var formancePublicKey = `-----BEGIN PUBLIC KEY-----
-MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA46LVe+BCO/go0MoKM4r7
-exTGeFSz10ra/hpFK0XJGVm6W42GTjFzNlNTCKQZBkF63STYK+o+FEFmSgMVxTjf
-qA4GZGxYddukT4pNR+WaRLQSPxPkMsGrzoORtq8n2v4Y+m5jvYDXhLLmYsDNxVuv
-SrAOtgJ0Ac8jJWXEu8Eqs0ferl9ftLRqrN+RfpXATT4fAgHBxVl5u1mFsQX6lo1B
-N5m099Ni50Cmlauun883bS8xzLt/XLlk6vBaJKhfyDbkjcA4qN+33f5mih4v6EBP
-txyeCg9yhHOfga61owAI+FOGEVW1OMTQ3PP/d2buiw9YrRAtBEXsJdhovc84jwmJ
-sjA829+2nFR1Bq3jQ8nG4iTnF9yIwJr+l9reoV8Butskwld9mhry+dIimGpVUmy3
-psYmj910D1eH+tyuCGN7YAjD5+bXVUBPGfD1kJExtzjjyYruXD6trt7nchWrJIOu
-D1I0OT3j+PWASm0c/AdN8BcV96HZhJBbCDK5GaQ9HSw+GVEpaqP9TY4uEz2werNq
-cvjYlBS4FocA0ClsaDs9llIZVrI7kPYIeoO2KNWn7kp1q+awrNt677MLFmj7eqZ/
-jl/Sx2brq8e91kTG57Z2qRTkSGkCK20NFOI8E+m9bhhVRFw4RhY6g3lH1B5hd+dd
-6TCk5eN7hTkosG21POe9goUCAwEAAQ==
------END PUBLIC KEY-----`
+type licenceValidator func(token string, issuer string, clusterID string) (LicenceState, string)
 
-func parseFormancePublicKey() (*rsa.PublicKey, error) {
-	block, _ := pem.Decode([]byte(formancePublicKey))
-	if block == nil {
-		return nil, fmt.Errorf("failed to decode embedded Formance public key")
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse embedded Formance public key: %w", err)
-	}
-
-	rsaPub, ok := pub.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("embedded Formance public key is not RSA")
-	}
-
-	return rsaPub, nil
-}
+var validateLicenceToken = validateLicenceTokenWithGoLibs
 
 // ValidateLicenceToken validates a licence JWT token and returns the licence state and a human-readable message.
-// The validation uses the same logic as go-libs/v4/licence/jwt.go:
-// RS256 signature with embedded Formance public key, expiration required, and issuer matching.
-func ValidateLicenceToken(token string, issuer string) (LicenceState, string) {
+func ValidateLicenceToken(token string, issuer string, clusterID string) (LicenceState, string) {
+	return validateLicenceToken(token, issuer, clusterID)
+}
+
+func validateLicenceTokenWithGoLibs(token string, issuer string, clusterID string) (LicenceState, string) {
 	if token == "" {
 		return LicenceStateAbsent, ""
 	}
 	if issuer == "" {
 		return LicenceStateInvalid, "licence issuer is required"
 	}
-
-	rsaPub, err := parseFormancePublicKey()
-	if err != nil {
-		return LicenceStateInvalid, fmt.Sprintf("public key error: %s", err)
+	if clusterID == "" {
+		return LicenceStateInvalid, "licence cluster ID is required"
 	}
 
-	parser := jwt.NewParser(
-		jwt.WithValidMethods([]string{jwt.SigningMethodRS256.Alg()}),
-		jwt.WithExpirationRequired(),
-		jwt.WithIssuer(issuer),
+	licence := golibslicence.NewLicence(
+		logging.Testing(),
+		token,
+		time.Hour,
+		licenceServiceName,
+		clusterID,
+		issuer,
 	)
 
-	parsed, err := parser.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		return rsaPub, nil
-	})
-	if err != nil {
-		if isTokenExpired(err) {
-			return LicenceStateExpired, "licence token is expired"
-		}
-		return LicenceStateInvalid, fmt.Sprintf("licence token validation failed: %s", err)
+	licenceErrors := make(chan error, 1)
+	if err := licence.Start(licenceErrors); err != nil {
+		return licenceStateFromError(err)
 	}
-
-	if !parsed.Valid {
-		return LicenceStateInvalid, "licence token is not valid"
-	}
+	licence.Stop()
 
 	return LicenceStateValid, ""
 }
 
-// SetFormancePublicKeyForTest overrides the embedded public key for testing and restores it on cleanup.
-func SetFormancePublicKeyForTest(t interface {
-	Helper()
-	Cleanup(func())
-}, key string) {
-	t.Helper()
-	original := formancePublicKey
-	formancePublicKey = key
-	t.Cleanup(func() { formancePublicKey = original })
+func licenceStateFromError(err error) (LicenceState, string) {
+	if err == nil {
+		return LicenceStateValid, ""
+	}
+
+	message := fmt.Sprintf("licence token validation failed: %s", err)
+	if strings.Contains(strings.ToLower(err.Error()), "expired") {
+		return LicenceStateExpired, "licence token is expired"
+	}
+
+	return LicenceStateInvalid, message
 }
 
-func isTokenExpired(err error) bool {
-	return errors.Is(err, jwt.ErrTokenExpired)
+// SetLicenceValidatorForTest overrides licence validation for tests and restores it on cleanup.
+func SetLicenceValidatorForTest(t interface {
+	Helper()
+	Cleanup(func())
+}, validator licenceValidator) {
+	t.Helper()
+	original := validateLicenceToken
+	validateLicenceToken = validator
+	t.Cleanup(func() { validateLicenceToken = original })
+}
+
+func resolveLicenceClusterID(reader client.Reader) (string, error) {
+	namespace := &corev1.Namespace{}
+	if err := reader.Get(context.Background(), types.NamespacedName{Name: licenceClusterNamespace}, namespace); err != nil {
+		return "", fmt.Errorf("failed to read %q namespace: %w", licenceClusterNamespace, err)
+	}
+	if namespace.UID == "" {
+		return "", fmt.Errorf("%q namespace has no UID", licenceClusterNamespace)
+	}
+	return string(namespace.UID), nil
 }
 
 // ResolveLicenceState reads the licence Secret by name from the configured licence namespace,
@@ -165,5 +148,10 @@ func ResolveLicenceState(reader client.Reader, secretName string, licenceNamespa
 		return LicenceStateInvalid, "licence secret missing non-empty 'issuer' key"
 	}
 
-	return ValidateLicenceToken(string(token), string(issuer))
+	clusterID, err := resolveLicenceClusterID(reader)
+	if err != nil {
+		return LicenceStateInvalid, fmt.Sprintf("failed to resolve licence cluster ID: %s", err)
+	}
+
+	return ValidateLicenceToken(string(token), string(issuer), clusterID)
 }

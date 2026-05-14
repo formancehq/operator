@@ -2,16 +2,11 @@ package internal
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"os"
 	"path/filepath"
 	osRuntime "runtime"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -41,6 +36,7 @@ import (
 const (
 	testLicenceSecretName      = "formance-licence"
 	testLicenceSecretNamespace = "default"
+	testLicenceToken           = "test-licence-token"
 )
 
 var (
@@ -61,30 +57,6 @@ func init() {
 	if err := externaldnsv1alpha1.AddToScheme(sg); err != nil {
 		panic(err)
 	}
-}
-
-// generateTestLicence creates a test RSA key pair, overrides the embedded public key,
-// and returns a signed JWT token valid for 24 hours.
-func generateTestLicence() string {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	Expect(err).ToNot(HaveOccurred())
-
-	pubBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	Expect(err).ToNot(HaveOccurred())
-
-	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
-
-	// Override the embedded Formance public key so the test JWT validates
-	core.SetFormancePublicKeyForTest(GinkgoT(), string(pubPEM))
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"exp": time.Now().Add(24 * time.Hour).Unix(),
-		"iss": "https://license.formance.cloud/keys",
-	})
-	signed, err := token.SignedString(privateKey)
-	Expect(err).ToNot(HaveOccurred())
-
-	return signed
 }
 
 var _ = BeforeSuite(func() {
@@ -124,8 +96,18 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	// Generate a test licence JWT and create the Secret in the cluster
-	licenceToken := generateTestLicence()
+	core.SetLicenceValidatorForTest(GinkgoT(), func(token string, issuer string, clusterID string) (core.LicenceState, string) {
+		Expect(token).To(Equal(testLicenceToken))
+		Expect(issuer).To(Equal("https://license.formance.cloud/keys"))
+		Expect(clusterID).ToNot(BeEmpty())
+		return core.LicenceStateValid, ""
+	})
+
+	_ = k8sClient.Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kube-system",
+		},
+	})
 
 	licenceSecret := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -144,7 +126,7 @@ var _ = BeforeSuite(func() {
 			},
 		},
 		Data: map[string][]byte{
-			"token":  []byte(licenceToken),
+			"token":  []byte(testLicenceToken),
 			"issuer": []byte("https://license.formance.cloud/keys"),
 		},
 	})).To(Succeed())

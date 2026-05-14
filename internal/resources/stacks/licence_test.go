@@ -2,14 +2,8 @@ package stacks
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"testing"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,6 +13,11 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+)
+
+const (
+	validLicenceToken   = "valid-token"
+	expiredLicenceToken = "expired-token"
 )
 
 type mockContext struct {
@@ -59,45 +58,29 @@ func newLicenceSecret(name, namespace, token string) *corev1.Secret {
 	}
 }
 
-func generateValidToken(t *testing.T) string {
-	t.Helper()
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-
-	pubBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	require.NoError(t, err)
-	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
-
-	// Override the embedded key for testing
-	core.SetFormancePublicKeyForTest(t, string(pubPEM))
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"exp": time.Now().Add(time.Hour).Unix(),
-		"iss": "https://license.formance.cloud/keys",
-	})
-	s, err := token.SignedString(privateKey)
-	require.NoError(t, err)
-	return s
+func newClusterNamespace() *corev1.Namespace {
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kube-system",
+			UID:  "cluster-id",
+		},
+	}
 }
 
-func generateExpiredToken(t *testing.T) string {
+func setTestLicenceValidator(t *testing.T) {
 	t.Helper()
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-
-	pubBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
-	require.NoError(t, err)
-	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
-
-	core.SetFormancePublicKeyForTest(t, string(pubPEM))
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"exp": time.Now().Add(-time.Hour).Unix(),
-		"iss": "https://license.formance.cloud/keys",
+	core.SetLicenceValidatorForTest(t, func(token string, issuer string, clusterID string) (core.LicenceState, string) {
+		require.Equal(t, "https://license.formance.cloud/keys", issuer)
+		require.Equal(t, "cluster-id", clusterID)
+		switch token {
+		case validLicenceToken:
+			return core.LicenceStateValid, ""
+		case expiredLicenceToken:
+			return core.LicenceStateExpired, "licence token is expired"
+		default:
+			return core.LicenceStateInvalid, "licence token validation failed"
+		}
 	})
-	s, err := token.SignedString(privateKey)
-	require.NoError(t, err)
-	return s
 }
 
 func newStack(name string) *v1beta1.Stack {
@@ -119,13 +102,13 @@ func TestSetLicenceCondition_NoLicence(t *testing.T) {
 }
 
 func TestSetLicenceCondition_ValidLicence(t *testing.T) {
+	setTestLicenceValidator(t)
 	stack := newStack("test")
-	token := generateValidToken(t)
-	secret := newLicenceSecret("my-secret", "operator", token)
+	secret := newLicenceSecret("my-secret", "operator", validLicenceToken)
 	ctx := newMockContext(core.Platform{
 		LicenceSecret:    "my-secret",
 		LicenceNamespace: "operator",
-	}, secret)
+	}, secret, newClusterNamespace())
 	setLicenceCondition(ctx, stack)
 
 	cond := stack.Status.Conditions.Get("LicenceValid")
@@ -135,13 +118,13 @@ func TestSetLicenceCondition_ValidLicence(t *testing.T) {
 }
 
 func TestSetLicenceCondition_ExpiredLicence(t *testing.T) {
+	setTestLicenceValidator(t)
 	stack := newStack("test")
-	token := generateExpiredToken(t)
-	secret := newLicenceSecret("my-secret", "operator", token)
+	secret := newLicenceSecret("my-secret", "operator", expiredLicenceToken)
 	ctx := newMockContext(core.Platform{
 		LicenceSecret:    "my-secret",
 		LicenceNamespace: "operator",
-	}, secret)
+	}, secret, newClusterNamespace())
 	setLicenceCondition(ctx, stack)
 
 	cond := stack.Status.Conditions.Get("LicenceValid")
@@ -152,12 +135,13 @@ func TestSetLicenceCondition_ExpiredLicence(t *testing.T) {
 }
 
 func TestSetLicenceCondition_InvalidLicence(t *testing.T) {
+	setTestLicenceValidator(t)
 	stack := newStack("test")
 	secret := newLicenceSecret("my-secret", "operator", "not-a-jwt")
 	ctx := newMockContext(core.Platform{
 		LicenceSecret:    "my-secret",
 		LicenceNamespace: "operator",
-	}, secret)
+	}, secret, newClusterNamespace())
 	setLicenceCondition(ctx, stack)
 
 	cond := stack.Status.Conditions.Get("LicenceValid")
@@ -197,27 +181,26 @@ func TestSetLicenceCondition_SecretNotFound(t *testing.T) {
 }
 
 func TestSetLicenceCondition_TransitionFromValidToExpired(t *testing.T) {
+	setTestLicenceValidator(t)
 	stack := newStack("test")
 
 	// First: valid
-	validToken := generateValidToken(t)
-	secret := newLicenceSecret("my-secret", "operator", validToken)
+	secret := newLicenceSecret("my-secret", "operator", validLicenceToken)
 	ctx := newMockContext(core.Platform{
 		LicenceSecret:    "my-secret",
 		LicenceNamespace: "operator",
-	}, secret)
+	}, secret, newClusterNamespace())
 	setLicenceCondition(ctx, stack)
 	cond := stack.Status.Conditions.Get("LicenceValid")
 	require.NotNil(t, cond)
 	require.Equal(t, metav1.ConditionTrue, cond.Status)
 
 	// Then: expired (new context with expired token)
-	expiredToken := generateExpiredToken(t)
-	secret2 := newLicenceSecret("my-secret", "operator", expiredToken)
+	secret2 := newLicenceSecret("my-secret", "operator", expiredLicenceToken)
 	ctx2 := newMockContext(core.Platform{
 		LicenceSecret:    "my-secret",
 		LicenceNamespace: "operator",
-	}, secret2)
+	}, secret2, newClusterNamespace())
 	setLicenceCondition(ctx2, stack)
 	cond = stack.Status.Conditions.Get("LicenceValid")
 	require.NotNil(t, cond)
@@ -226,15 +209,15 @@ func TestSetLicenceCondition_TransitionFromValidToExpired(t *testing.T) {
 }
 
 func TestSetLicenceCondition_RemovedWhenSecretCleared(t *testing.T) {
+	setTestLicenceValidator(t)
 	stack := newStack("test")
 
 	// First: set with valid licence
-	validToken := generateValidToken(t)
-	secret := newLicenceSecret("my-secret", "operator", validToken)
+	secret := newLicenceSecret("my-secret", "operator", validLicenceToken)
 	ctx := newMockContext(core.Platform{
 		LicenceSecret:    "my-secret",
 		LicenceNamespace: "operator",
-	}, secret)
+	}, secret, newClusterNamespace())
 	setLicenceCondition(ctx, stack)
 	require.NotNil(t, stack.Status.Conditions.Get("LicenceValid"))
 
