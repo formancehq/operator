@@ -49,6 +49,9 @@ spec:
                 fi
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/webhooks-webhooks --timeout=5m
+              kubectl wait --for=create deployment/webhooks -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=create service/webhooks -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=create pdb/webhooks -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v3.0.0 deployment/webhooks -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-webhooks-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/webhooks -n chainsaw-webhooks --timeout=2m

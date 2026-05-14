@@ -52,6 +52,9 @@ spec:
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/orchestration-orchestration --timeout=5m
               kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-orchestration-orchestration --timeout=2m
+              kubectl wait --for=create deployment/orchestration -n chainsaw-orchestration --timeout=2m
+              kubectl wait --for=create service/orchestration -n chainsaw-orchestration --timeout=2m
+              kubectl wait --for=create pdb/orchestration -n chainsaw-orchestration --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/orchestration:v3.0.0 deployment/orchestration -n chainsaw-orchestration --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-orchestration-orchestration --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/orchestration -n chainsaw-orchestration --timeout=2m
