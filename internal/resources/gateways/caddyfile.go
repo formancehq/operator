@@ -3,7 +3,7 @@ package gateways
 import (
 	"strings"
 
-	"github.com/formancehq/go-libs/v2/collectionutils"
+	collectionutils "github.com/formancehq/go-libs/v5/pkg/types/collections"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"

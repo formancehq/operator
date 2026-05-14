@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/formancehq/go-libs/v2/bun/bunconnect"
+	bunconnect "github.com/formancehq/go-libs/v5/pkg/storage/bun/connect"
 )
 
 func NewDatabaseCommand() *cobra.Command {

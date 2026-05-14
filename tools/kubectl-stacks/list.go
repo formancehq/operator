@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
-	"github.com/formancehq/go-libs/v2/collectionutils"
+	collectionutils "github.com/formancehq/go-libs/v5/pkg/types/collections"
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
