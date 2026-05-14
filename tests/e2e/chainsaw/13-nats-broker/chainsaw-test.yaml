@@ -30,7 +30,7 @@ spec:
               test -n "$job"
               test "$(kubectl get job "$job" -n chainsaw-nats -o jsonpath='{.spec.template.spec.containers[0].image}')" = "docker.io/natsio/nats-box:0.19.2"
               kubectl run nats-check-stream -n chainsaw-nats --image=docker.io/natsio/nats-box:0.19.2 --restart=Never --rm -i --command -- \
-                sh -c "nats --server nats://nats.chainsaw-nats.svc.cluster.local:4222 stream info --no-select chainsaw-nats >/dev/null"
+                sh -c "nats --server nats://nats.chainsaw-nats.svc.cluster.local:4222 stream info chainsaw-nats --no-select >/dev/null"
         - apply:
             file: resources/consumer.yaml
         - script:
@@ -42,7 +42,7 @@ spec:
               test "$(kubectl get brokerconsumer chainsaw-nats-consumer -o jsonpath='{.status.conditions[?(@.type=="BrokerTopicCreated")].status}')" = "True"
               test "$(kubectl get brokerconsumer chainsaw-nats-consumer -o jsonpath='{.status.conditions[?(@.type=="NatsStackConsumerCreated")].status}')" = "True"
               kubectl run nats-check-consumer -n chainsaw-nats --image=docker.io/natsio/nats-box:0.19.2 --restart=Never --rm -i --command -- \
-                sh -c "nats --server nats://nats.chainsaw-nats.svc.cluster.local:4222 consumer info --no-select chainsaw-nats gateway_audit >/dev/null"
+                sh -c "nats --server nats://nats.chainsaw-nats.svc.cluster.local:4222 consumer info chainsaw-nats gateway_audit --no-select >/dev/null"
       catch:
         - script:
             timeout: 2m
