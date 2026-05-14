@@ -1,0 +1,8 @@
+apiVersion: formance.com/v1beta1
+kind: Payments
+metadata:
+  name: chainsaw-payments-legacy
+  finalizers:
+    - clean-payments
+spec:
+  stack: chainsaw-payments-legacy

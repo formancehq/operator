@@ -62,6 +62,18 @@ spec:
               value: chainsaw-application-settings
             - name: STACK_URL
               value: http://gateway:8080
+            - name: LICENCE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: token
+                  name: formance-operator-licence
+            - name: LICENCE_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  key: issuer
+                  name: formance-operator-licence
+            - name: LICENCE_VALIDATE_TICK
+              value: 24h
             - name: JSON_FORMATTING_LOGGER
               value: "true"
             - name: SEMCONV_METRICS_NAME

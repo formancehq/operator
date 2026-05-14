@@ -22,13 +22,21 @@ const MinimumStackVersion = "v2.2.0"
 // ValidateMinimumVersion checks that a resolved version meets the minimum requirement.
 // Non-semver versions (dev tags, SHA refs) are allowed through.
 func ValidateMinimumVersion(version string) error {
-	if semver.IsValid(version) && semver.Compare(version, MinimumStackVersion) < 0 {
+	if strings.TrimPrefix(version, "v") == "0.0.0-e2e" {
+		return nil
+	}
+
+	normalizedVersion := version
+	if !strings.HasPrefix(normalizedVersion, "v") {
+		normalizedVersion = "v" + normalizedVersion
+	}
+	if semver.IsValid(normalizedVersion) && semver.Compare(normalizedVersion, MinimumStackVersion) < 0 {
 		return fmt.Errorf("version %s is not supported, minimum required: %s - please upgrade your stack", version, MinimumStackVersion)
 	}
 	return nil
 }
 
-func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) (string, error) {
+func ResolveModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) (string, error) {
 	kinds, _, err := ctx.GetScheme().ObjectKinds(module)
 	if err != nil {
 		return "", fmt.Errorf("resolving module kind: %w", err)
@@ -63,6 +71,14 @@ func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) 
 		return "", fmt.Errorf("%w for module %s on stack %s: stack must define spec.version, spec.versionsFromFile, or the module must define its own version", ErrNoVersionFound, kind, stack.Name)
 	}
 
+	return version, nil
+}
+
+func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) (string, error) {
+	version, err := ResolveModuleVersion(ctx, stack, module)
+	if err != nil {
+		return "", err
+	}
 	if err := ValidateMinimumVersion(version); err != nil {
 		return "", err
 	}

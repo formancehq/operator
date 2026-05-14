@@ -58,11 +58,23 @@ spec:
                 fi
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/transactionplane-transactionplane --timeout=5m
+              until kubectl get authclient/chainsaw-transactionplane-transactionplane >/dev/null 2>&1; do
+                sleep 1
+              done
               kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-transactionplane-transactionplane --timeout=2m
               until kubectl get deployment/transactionplane -n chainsaw-transactionplane >/dev/null 2>&1; do
                 sleep 1
               done
               until kubectl get deployment/transactionplane-worker -n chainsaw-transactionplane >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get service/transactionplane -n chainsaw-transactionplane >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get pdb/transactionplane -n chainsaw-transactionplane >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get gatewayhttpapi/chainsaw-transactionplane-transactionplane >/dev/null 2>&1; do
                 sleep 1
               done
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/transaction-plane:v3.0.0 deployment/transactionplane -n chainsaw-transactionplane --timeout=2m

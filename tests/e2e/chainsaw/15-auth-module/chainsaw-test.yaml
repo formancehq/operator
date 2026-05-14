@@ -52,6 +52,15 @@ spec:
                   exit 1
                 fi
               }
+              until kubectl get deployment auth -n chainsaw-auth >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get service auth -n chainsaw-auth >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get gatewayhttpapi chainsaw-auth-auth >/dev/null 2>&1; do
+                sleep 1
+              done
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/auth:v3.0.0 deployment/auth -n chainsaw-auth --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-auth-auth --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/auth -n chainsaw-auth --timeout=2m

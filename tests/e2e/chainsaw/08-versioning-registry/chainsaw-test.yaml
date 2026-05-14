@@ -22,6 +22,9 @@ spec:
             timeout: 2m
             content: |
               set -eu
+              until kubectl get deployment/gateway -n chainsaw-versioning >/dev/null 2>&1; do
+                sleep 1
+              done
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=mirror.chainsaw.local/custom/gateway:v2.3.4 deployment/gateway -n chainsaw-versioning --timeout=2m
               test "$(kubectl get deployment gateway -n chainsaw-versioning -o jsonpath='{.spec.template.spec.imagePullSecrets[0].name}')" = "chainsaw-regcred"
       catch:
