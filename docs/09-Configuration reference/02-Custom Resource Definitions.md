@@ -39,6 +39,7 @@ Other resources :
 - [BrokerTopic](#brokertopic)
 - [Database](#database)
 - [GatewayHTTPAPI](#gatewayhttpapi)
+- [OtelExporterEndpoint](#otelexporterendpoint)
 - [ResourceReference](#resourcereference)
 - [Versions](#versions)
 
@@ -2083,6 +2084,95 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `ready` _boolean_ |  |  |  |
+
+
+#### OtelExporterEndpoint
+
+
+
+OtelExporterEndpoint configures an OpenTelemetry collector proxy for exporting traces and metrics.
+Multiple OtelExporterEndpoints can target the same stacks — the collector fans out to all matching destinations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `OtelExporterEndpoint` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[OtelExporterEndpointSpec](#otelexporterendpointspec)_ |  |  |  |
+| `status` _[OtelExporterEndpointStatus](#otelexporterendpointstatus)_ |  |  |  |
+
+
+
+##### OtelExporterEndpointSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stackSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#labelselector-v1-meta)_ |  |  |  |
+| `traces` _[OtelSignalConfig](#otelsignalconfig)_ |  |  |  |
+| `metrics` _[OtelSignalConfig](#otelsignalconfig)_ |  |  |  |
+| `resourceAttributes` _object (keys:string, values:string)_ |  |  |  |
+
+
+
+
+
+##### OtelExporterEndpointStatus
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
+| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `stacks` _string array_ |  |  |  |
 
 
 #### ResourceReference

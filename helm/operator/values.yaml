@@ -52,6 +52,9 @@ operator:
   utils:
     tag: ""
 
+  # Override the OTel Collector image used by OtelExporterEndpoint resources
+  collectorImage: ""
+
 podAnnotations: {}
 
 podSecurityContext: {} # fsGroup: 2000
@@ -85,6 +88,18 @@ affinity: {}
 
 webhooks:
   enabled: false
+
+otelExporterEndpoint:
+  support:
+    # Enable the Formance support OtelExporterEndpoint (targets all stacks)
+    enabled: true
+    # The support collector endpoint
+    endpoint: "https://otel-licence.telemetry-support-c1f3ad1.v2.formance.dev"
+    # Secret name containing the bearer token for auth (key: "token").
+    # Defaults to the licence secret if set.
+    authSecret: ""
+    # Resource attributes added to all signals sent to this endpoint
+    resourceAttributes: {}
 
 operator-crds:
   create: true

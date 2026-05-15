@@ -1,0 +1,39 @@
+{{- if .Values.otelExporterEndpoint.support.enabled }}
+{{- $authSecret := .Values.otelExporterEndpoint.support.authSecret }}
+{{- if not $authSecret }}
+  {{- if .Values.global.licence.existingSecret }}
+    {{- $authSecret = .Values.global.licence.existingSecret }}
+  {{- else if and .Values.global.licence.createSecret .Values.global.licence.token }}
+    {{- $authSecret = (printf "%s-licence" (include "operator.fullname" .)) }}
+  {{- end }}
+{{- end }}
+apiVersion: formance.com/v1beta1
+kind: OtelExporterEndpoint
+metadata:
+  name: formance-support
+  labels:
+    {{- include "operator.labels" . | nindent 4 }}
+spec:
+  stackSelector:
+    matchExpressions:
+      - key: formance.com/stack
+        operator: Exists
+  traces:
+    endpoint: {{ .Values.otelExporterEndpoint.support.endpoint | quote }}
+    {{- if $authSecret }}
+    auth:
+      type: bearer
+      fromSecret: {{ $authSecret | quote }}
+    {{- end }}
+  metrics:
+    endpoint: {{ .Values.otelExporterEndpoint.support.endpoint | quote }}
+    {{- if $authSecret }}
+    auth:
+      type: bearer
+      fromSecret: {{ $authSecret | quote }}
+    {{- end }}
+  {{- with .Values.otelExporterEndpoint.support.resourceAttributes }}
+  resourceAttributes:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

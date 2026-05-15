@@ -93,6 +93,7 @@ rules:
   - gateways
   - ledgers
   - orchestrations
+  - otelexporterendpoints
   - payments
   - reconciliations
   - resourcereferences
@@ -127,6 +128,7 @@ rules:
   - gateways/finalizers
   - ledgers/finalizers
   - orchestrations/finalizers
+  - otelexporterendpoints/finalizers
   - payments/finalizers
   - reconciliations/finalizers
   - resourcereferences/finalizers
@@ -155,6 +157,7 @@ rules:
   - gateways/status
   - ledgers/status
   - orchestrations/status
+  - otelexporterendpoints/status
   - payments/status
   - reconciliations/status
   - resourcereferences/status
