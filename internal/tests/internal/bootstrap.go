@@ -11,6 +11,8 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -29,6 +31,12 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
 	_ "github.com/formancehq/operator/v3/internal/resources"
+)
+
+const (
+	testLicenceSecretName      = "formance-licence"
+	testLicenceSecretNamespace = "default"
+	testLicenceToken           = "test-licence-token"
 )
 
 var (
@@ -88,6 +96,49 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	core.SetLicenceValidatorForTest(GinkgoT(), func(token string, issuer string, clusterID string) (core.LicenceState, string) {
+		Expect(token).To(Equal(testLicenceToken))
+		Expect(issuer).To(Equal("https://license.formance.cloud/keys"))
+		Expect(clusterID).ToNot(BeEmpty())
+		return core.LicenceStateValid, ""
+	})
+
+	_ = k8sClient.Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kube-system",
+		},
+	})
+
+	licenceSecret := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testLicenceSecretNamespace,
+		},
+	}
+	// default namespace should already exist, ignore error
+	_ = k8sClient.Create(context.Background(), licenceSecret)
+
+	Expect(k8sClient.Create(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testLicenceSecretName,
+			Namespace: testLicenceSecretNamespace,
+			Labels: map[string]string{
+				v1beta1.StackLabel: "any",
+			},
+		},
+		Data: map[string][]byte{
+			"token":  []byte(testLicenceToken),
+			"issuer": []byte("https://license.formance.cloud/keys"),
+		},
+	})).To(Succeed())
+
+	testPlatform := core.Platform{
+		Region:           "us-west-1",
+		Environment:      "staging",
+		LicenceSecret:    testLicenceSecretName,
+		LicenceNamespace: testLicenceSecretNamespace,
+		LicenceState:     core.LicenceStateValid,
+	}
+
 	ctx, cancel = context.WithCancel(context.Background())
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme: GetScheme(),
@@ -101,15 +152,9 @@ var _ = BeforeSuite(func() {
 		},
 	})
 	Expect(err).ToNot(HaveOccurred())
-	coreMgr = core.NewDefaultManager(mgr, core.Platform{
-		Region:      "testing",
-		Environment: "testing",
-	})
+	coreMgr = core.NewDefaultManager(mgr, testPlatform)
 
-	Expect(core.Setup(mgr, core.Platform{
-		Region:      "us-west-1",
-		Environment: "staging",
-	})).To(Succeed())
+	Expect(core.Setup(mgr, testPlatform)).To(Succeed())
 
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&appsv1.Deployment{}).

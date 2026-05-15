@@ -21,8 +21,6 @@ spec:
         - apply:
             file: resources/settings.yaml
         - apply:
-            file: resources/database.yaml
-        - apply:
             file: resources/broker.yaml
         - apply:
             file: resources/brokertopic.yaml
@@ -32,6 +30,7 @@ spec:
             timeout: 5m
             content: |
               set -eu
+              kubectl apply -f resources/database.yaml
               kubectl rollout status deployment/postgres -n chainsaw-payments --timeout=2m
               kubectl rollout status deployment/nats -n chainsaw-payments --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-payments-payments --timeout=5m
@@ -123,6 +122,7 @@ spec:
               kubectl patch stack chainsaw-payments --type=merge -p '{"spec":{"disabled":true}}'
               if kubectl get database chainsaw-payments-payments >/dev/null 2>&1; then
                 kubectl patch database chainsaw-payments-payments --type=merge -p '{"metadata":{"finalizers":[]}}'
+                kubectl delete database chainsaw-payments-payments --wait=false --ignore-not-found=true
               fi
               if kubectl get broker chainsaw-payments >/dev/null 2>&1; then
                 kubectl patch broker chainsaw-payments --type=merge -p '{"metadata":{"finalizers":[]}}'

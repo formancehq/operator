@@ -36,6 +36,9 @@ var _ = Describe("AuthClientController", func() {
 		})
 		JustBeforeEach(func() {
 			Expect(Create(stack)).To(Succeed())
+			Eventually(func() error {
+				return LoadResource("", stack.Name, &corev1.Namespace{})
+			}).Should(Succeed())
 			Expect(Create(authClient)).To(Succeed())
 		})
 		AfterEach(func() {

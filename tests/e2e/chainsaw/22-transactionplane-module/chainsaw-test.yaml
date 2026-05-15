@@ -23,10 +23,6 @@ spec:
         - apply:
             file: resources/settings.yaml
         - apply:
-            file: resources/database.yaml
-        - apply:
-            file: resources/auth-database.yaml
-        - apply:
             file: resources/broker.yaml
         - apply:
             file: resources/auth.yaml
@@ -34,6 +30,8 @@ spec:
             timeout: 5m
             content: |
               set -eu
+              kubectl apply -f resources/database.yaml
+              kubectl apply -f resources/auth-database.yaml
               kubectl rollout status deployment/postgres -n chainsaw-transactionplane --timeout=2m
               kubectl rollout status deployment/nats -n chainsaw-transactionplane --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-transactionplane-transactionplane --timeout=5m
@@ -141,6 +139,7 @@ spec:
               for database in chainsaw-transactionplane-transactionplane chainsaw-transactionplane-auth; do
                 if kubectl get database "$database" >/dev/null 2>&1; then
                   kubectl patch database "$database" --type=merge -p '{"metadata":{"finalizers":[]}}'
+                  kubectl delete database "$database" --wait=false --ignore-not-found=true
                 fi
               done
               if kubectl get broker chainsaw-transactionplane >/dev/null 2>&1; then

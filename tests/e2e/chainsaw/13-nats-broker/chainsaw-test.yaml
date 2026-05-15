@@ -53,9 +53,17 @@ spec:
             timeout: 2m
             content: |
               set -eu
-              if kubectl get broker chainsaw-nats >/dev/null 2>&1; then
-                kubectl patch broker chainsaw-nats --type=merge -p '{"metadata":{"finalizers":[]}}'
-                kubectl delete broker chainsaw-nats --wait=true --timeout=2m
+              for resource in \
+                brokerconsumer/chainsaw-nats-consumer \
+                brokertopic/chainsaw-nats-ledger \
+                broker/chainsaw-nats; do
+                if kubectl get "$resource" >/dev/null 2>&1; then
+                  kubectl patch "$resource" --type=merge -p '{"metadata":{"finalizers":[]}}'
+                  kubectl delete "$resource" --ignore-not-found --wait=true --timeout=30s
+                fi
+              done
+              if kubectl get job -n chainsaw-nats >/dev/null 2>&1; then
+                kubectl delete job --all -n chainsaw-nats --ignore-not-found --wait=false
               fi
       catch:
         - script:

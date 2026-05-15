@@ -41,6 +41,11 @@ spec:
             timeout: 5m
             content: |
               set -eu
+              kubectl wait --for=create deployment/ledger -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=create deployment/ledger-worker -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=create service/ledger -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=create service/ledger-worker -n chainsaw-ledger --timeout=2m
+              kubectl wait --for=create pdb/ledger -n chainsaw-ledger --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/ledger:v3.0.0 deployment/ledger -n chainsaw-ledger --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/ledger:v3.0.0 deployment/ledger-worker -n chainsaw-ledger --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/ledger -n chainsaw-ledger --timeout=2m
