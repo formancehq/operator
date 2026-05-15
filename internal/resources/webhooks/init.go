@@ -58,7 +58,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 		return errors.Wrap(err, "resolving image")
 	}
 
-	if IsGreaterOrEqual(version, "v2.0.0-rc.5") && databases.GetSavedModuleVersion(database) != version {
+	if databases.GetSavedModuleVersion(database) != version {
 
 		if err := databases.Migrate(ctx, stack, webhooks, image, database); err != nil {
 			return err

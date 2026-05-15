@@ -53,6 +53,18 @@ spec:
                   exit 1
                 fi
               }
+              until kubectl get deployment/payments -n chainsaw-payments >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get deployment/payments-worker -n chainsaw-payments >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get service/payments -n chainsaw-payments >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get gatewayhttpapi/chainsaw-payments-payments >/dev/null 2>&1; do
+                sleep 1
+              done
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/payments:v3.0.0 deployment/payments -n chainsaw-payments --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/payments:v3.0.0 deployment/payments-worker -n chainsaw-payments --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-payments-payments --timeout=2m

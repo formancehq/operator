@@ -32,7 +32,7 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 		return nil
 	}
 
-	version, err := core.GetModuleVersion(ctx, stack, t)
+	version, err := core.ResolveModuleVersion(ctx, stack, t)
 	if err != nil {
 		if errors.Is(err, core.ErrNoVersionFound) {
 			log.FromContext(ctx).Info("No version configured, skipping version-gated finalizer logic")

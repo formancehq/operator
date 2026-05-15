@@ -18,6 +18,19 @@ spec:
             file: resources/gateway.yaml
         - assert:
             file: asserts/deployment.yaml
+        - script:
+            content: |
+              kubectl get deployment gateway -n chainsaw-application-settings -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-application-settings-env
+              grep -Fx 'CHAINSAW_SETTING=applied' /tmp/chainsaw-application-settings-env
+              grep -Fx 'DEBUG=false' /tmp/chainsaw-application-settings-env
+              grep -Fx 'DEV=true' /tmp/chainsaw-application-settings-env
+              grep -Fx 'EXISTING=overridden' /tmp/chainsaw-application-settings-env
+              grep -Fx 'GRACE_PERIOD=30s' /tmp/chainsaw-application-settings-env
+              grep -Fx 'STACK=chainsaw-application-settings' /tmp/chainsaw-application-settings-env
+              grep -Fx 'STACK_URL=http://gateway:8080' /tmp/chainsaw-application-settings-env
+              grep -Fx 'JSON_FORMATTING_LOGGER=true' /tmp/chainsaw-application-settings-env
+              grep -Fx 'SEMCONV_METRICS_NAME=true' /tmp/chainsaw-application-settings-env
+              test "$(kubectl get deployment gateway -n chainsaw-application-settings -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="NODE_IP")].valueFrom.fieldRef.fieldPath}')" = "status.hostIP"
         - assert:
             file: asserts/service-and-pdb.yaml
       catch:

@@ -30,6 +30,12 @@ spec:
                   exit 1
                 fi
               }
+              until kubectl get deployment/stargate -n chainsaw-stargate >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get pdb/stargate -n chainsaw-stargate >/dev/null 2>&1; do
+                sleep 1
+              done
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/stargate:v3.0.0 deployment/stargate -n chainsaw-stargate --timeout=2m
               assert_jsonpath deployment/stargate '{.spec.replicas}' '2'
               assert_jsonpath deployment/stargate '{.spec.template.spec.containers[0].resources.requests.cpu}' '10m'

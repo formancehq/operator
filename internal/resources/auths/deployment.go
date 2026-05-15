@@ -125,19 +125,17 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 		}
 	}
 
-	if IsGreaterOrEqual(version, "v2.1.0") {
-		hashList := make([]string, 0)
-		hashList = collectionutils.Reduce(clients, func(acc []string, from *v1beta1.AuthClient) []string {
-			if from.Spec.SecretFromSecret != nil {
-				acc = append(acc, from.Status.Hash)
-			}
-			return acc
-		}, hashList)
-		annotations["auth-clients-secrets"] = HashFromHash(hashList...)
-		for _, client := range clients {
-			if client.Spec.SecretFromSecret != nil {
-				env = append(env, AuthClientSecretToEnvVars(client))
-			}
+	hashList := make([]string, 0)
+	hashList = collectionutils.Reduce(clients, func(acc []string, from *v1beta1.AuthClient) []string {
+		if from.Spec.SecretFromSecret != nil {
+			acc = append(acc, from.Status.Hash)
+		}
+		return acc
+	}, hashList)
+	annotations["auth-clients-secrets"] = HashFromHash(hashList...)
+	for _, client := range clients {
+		if client.Spec.SecretFromSecret != nil {
+			env = append(env, AuthClientSecretToEnvVars(client))
 		}
 	}
 

@@ -1,0 +1,29 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: payments-legacy-finalizer
+  labels:
+    suite: modules
+    feature: payments-legacy-finalizer
+spec:
+  concurrent: false
+  steps:
+    - name: legacy-payments-finalizer-does-not-block-deletion
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/payments.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl delete payments chainsaw-payments-legacy --wait=true --timeout=2m
+              if kubectl get payments chainsaw-payments-legacy >/dev/null 2>&1; then
+                echo "legacy payments should be deleted after finalizer runs"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh payments-legacy-finalizer
