@@ -107,7 +107,7 @@ jobs:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
       - name: Upload Chainsaw artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chainsaw-e2e-artifacts-k8s-${{ matrix.kubernetes.version }}
           path: tests/e2e/artifacts
