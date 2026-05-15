@@ -205,6 +205,14 @@ make undeploy
 
 See defined settings in [Settings](docs/09-Configuration%20reference/01-Settings.md)
 
+For a machine-readable catalog that can be used by provisioning tooling, run:
+
+```sh
+just generate-settings-catalog
+```
+
+This scans the operator code for `settings.*` usage and writes `docs/09-Configuration reference/settings.catalog.json`.
+
 ## Contributing
 
 **NOTE:** Run `make --help` for more information on all potential `make` targets
@@ -226,4 +234,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
