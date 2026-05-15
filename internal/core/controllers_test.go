@@ -39,7 +39,7 @@ func TestForModulePassesRefreshedLicenceState(t *testing.T) {
 			UID:  types.UID("stack-uid"),
 		},
 		Spec: v1beta1.StackSpec{
-			Version: "v1.0.0",
+			Version: "v2.2.0",
 		},
 	}
 	search := &v1beta1.Search{
