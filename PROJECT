@@ -109,6 +109,13 @@ resources:
     crdVersion: v1
   controller: true
   group: formance.com
+  kind: MCP
+  path: github.com/formancehq/operator/api/formance.com/v1beta1
+  version: v1beta1
+- api:
+    crdVersion: v1
+  controller: true
+  group: formance.com
   kind: Search
   path: github.com/formancehq/operator/api/v1beta1
   version: v1beta1

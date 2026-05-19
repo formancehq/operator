@@ -92,6 +92,7 @@ rules:
   - gatewayhttpapis
   - gateways
   - ledgers
+  - mcps
   - orchestrations
   - payments
   - reconciliations
@@ -126,6 +127,7 @@ rules:
   - gatewayhttpapis/finalizers
   - gateways/finalizers
   - ledgers/finalizers
+  - mcps/finalizers
   - orchestrations/finalizers
   - payments/finalizers
   - reconciliations/finalizers
@@ -154,6 +156,7 @@ rules:
   - gatewayhttpapis/status
   - gateways/status
   - ledgers/status
+  - mcps/status
   - orchestrations/status
   - payments/status
   - reconciliations/status

@@ -27,6 +27,10 @@ type GatewayHTTPAPIRule struct {
 	//+optional
 	//+kubebuilder:default:=false
 	Secured bool `json:"secured"`
+	// Public exposes the route at the gateway root instead of under /api/<name>.
+	//+optional
+	//+kubebuilder:default:=false
+	Public bool `json:"public,omitempty"`
 }
 
 type GatewayHTTPAPISpec struct {

@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: gateway
+spec:
+  stack: chainsaw-mcp
+  ingress:
+    scheme: https
+    host: mcp.chainsaw.local

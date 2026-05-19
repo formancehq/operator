@@ -1,0 +1,12 @@
+apiVersion: formance.com/v1beta1
+kind: MCP
+metadata:
+  labels:
+    app.kubernetes.io/name: mcp
+    app.kubernetes.io/instance: mcp0
+    app.kubernetes.io/part-of: operatorv2
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: operatorv2
+  name: mcp0
+spec:
+  stack: stack0

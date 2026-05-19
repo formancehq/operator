@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-mcp-otel-traces
+spec:
+  stacks:
+    - chainsaw-mcp
+  key: opentelemetry.traces.dsn
+  value: grpc://otel-collector.chainsaw:4317?insecure=true

@@ -100,6 +100,23 @@
 
 	{{- range $i, $service := .Services }}
 	{{- range $j, $rule := $service.Rules }}
+	{{- if $rule.Public }}
+	handle {{ $rule.Path }}* {
+		{{- if $rule.Methods }}
+		method {{ join $rule.Methods " " }}
+		{{- end }}
+		import cors
+		reverse_proxy {{ $service.Name }}:8080 {
+			header_up Host {upstream_hostport}
+		}
+	}
+	{{- end }}
+	{{- end }}
+	{{- end }}
+
+	{{- range $i, $service := .Services }}
+	{{- range $j, $rule := $service.Rules }}
+	{{- if not $rule.Public }}
 	handle /api/{{ $service.Name }}{{ $rule.Path }}* {
 		{{- if $rule.Methods }}
 		method {{ join $rule.Methods " " }}
@@ -110,6 +127,7 @@
 			header_up Host {upstream_hostport}
 		}
 	}
+	{{- end }}
 	{{- end }}
 	{{- end }}
 

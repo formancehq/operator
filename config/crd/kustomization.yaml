@@ -14,6 +14,7 @@ resources:
 - bases/formance.com_orchestrations.yaml
 - bases/formance.com_webhooks.yaml
 - bases/formance.com_reconciliations.yaml
+- bases/formance.com_mcps.yaml
 - bases/formance.com_payments.yaml
 - bases/formance.com_searches.yaml
 - bases/formance.com_benthosstreams.yaml

@@ -4,14 +4,16 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: gatewayhttpapis.formance.com
+  labels:
+    formance.com/kind: module
+  name: mcps.formance.com
 spec:
   group: formance.com
   names:
-    kind: GatewayHTTPAPI
-    listKind: GatewayHTTPAPIList
-    plural: gatewayhttpapis
-    singular: gatewayhttpapi
+    kind: MCP
+    listKind: MCPList
+    plural: mcps
+    singular: mcp
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -19,14 +21,26 @@ spec:
       jsonPath: .spec.stack
       name: Stack
       type: string
-    - description: Ready
+    - description: Is ready
       jsonPath: .status.ready
       name: Ready
+      type: string
+    - description: Info
+      jsonPath: .status.info
+      name: Info
+      type: string
+    - description: Version
+      jsonPath: .spec.version
+      name: Version
       type: string
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: GatewayHTTPAPI is the Schema for the HTTPAPIs API
+        description: |-
+          MCP is the Formance Model Context Protocol server module.
+
+          It exposes the MCP endpoint for a stack and delegates authorization to the
+          backend services using the caller bearer token.
         properties:
           apiVersion:
             description: |-
@@ -47,40 +61,23 @@ spec:
             type: object
           spec:
             properties:
-              healthCheckEndpoint:
-                description: Health check endpoint
-                type: string
-              name:
-                description: Name indicates prefix api
-                type: string
-              rules:
-                description: Rules
-                items:
-                  properties:
-                    methods:
-                      items:
-                        type: string
-                      type: array
-                    path:
-                      type: string
-                    public:
-                      default: false
-                      description: Public exposes the route at the gateway root instead
-                        of under /api/<name>.
-                      type: boolean
-                    secured:
-                      default: false
-                      type: boolean
-                  required:
-                  - path
-                  type: object
-                type: array
+              debug:
+                default: false
+                description: Allow to enable debug mode on the module
+                type: boolean
+              dev:
+                default: false
+                description: |-
+                  Allow to enable dev mode on the module
+                  Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
+                type: boolean
               stack:
                 description: Stack indicates the stack on which the module is installed
                 type: string
-            required:
-            - name
-            - rules
+              version:
+                description: Version allow to override global version defined at stack
+                  level for a specific module
+                type: string
             type: object
           status:
             properties:

@@ -47,6 +47,12 @@ func (c *Client) Ledgers() LedgerInterface {
 	}
 }
 
+func (c *Client) MCPs() MCPInterface {
+	return &MCPClient{
+		restClient: c.Interface,
+	}
+}
+
 func (c *Client) Orchestrations() OrchestrationInterface {
 	return &OrchestrationClient{
 		restClient: c.Interface,
