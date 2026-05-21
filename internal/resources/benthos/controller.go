@@ -282,6 +282,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 							Name:    "benthos",
 							Image:   benthosImage.GetFullImageName(),
 							Env:     env,
+							EnvFrom: b.Spec.EnvFrom,
 							Command: cmd,
 							Ports: []corev1.ContainerPort{{
 								Name:          "http",
