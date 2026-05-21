@@ -33,6 +33,9 @@ spec:
                 fi
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-wallets-wallets --timeout=2m
+              kubectl wait --for=create deployment/wallets -n chainsaw-wallets --timeout=2m
+              kubectl wait --for=create service/wallets -n chainsaw-wallets --timeout=2m
+              kubectl wait --for=create pdb/wallets -n chainsaw-wallets --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/wallets:v3.0.0 deployment/wallets -n chainsaw-wallets --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-wallets-wallets --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/wallets -n chainsaw-wallets --timeout=2m

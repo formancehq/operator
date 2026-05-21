@@ -244,7 +244,7 @@ var _ = Describe("StackController", func() {
 							err := LoadResource("", stack.Name, stack)
 							Expect(err).ToNot(HaveOccurred())
 							return stack.Status.Modules
-						}).ShouldNot(ContainElement("Ledger"))
+						}, "1m").ShouldNot(ContainElement("Ledger"))
 					})
 					It("(stack) should not contain any Ledger ModuleReconciliation anymore", func() {
 						Eventually(func(g Gomega) *v1beta1.Condition {

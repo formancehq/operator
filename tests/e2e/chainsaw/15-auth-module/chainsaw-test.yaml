@@ -58,6 +58,9 @@ spec:
               until kubectl get service auth -n chainsaw-auth >/dev/null 2>&1; do
                 sleep 1
               done
+              until kubectl get pdb auth -n chainsaw-auth >/dev/null 2>&1; do
+                sleep 1
+              done
               until kubectl get gatewayhttpapi chainsaw-auth-auth >/dev/null 2>&1; do
                 sleep 1
               done

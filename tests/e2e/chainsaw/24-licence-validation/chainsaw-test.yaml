@@ -1,0 +1,72 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: licence-validation
+  labels:
+    suite: licence
+    feature: offline-licence-validation
+spec:
+  concurrent: false
+  steps:
+    - name: ee-module-is-blocked-when-licence-token-is-invalid
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              namespace="${OPERATOR_NAMESPACE:-formance-system}"
+              secret="${OPERATOR_RELEASE:-formance-operator}-licence"
+              original="$(kubectl get secret "${secret}" -n "${namespace}" -o jsonpath='{.data.token}')"
+              kubectl annotate secret "${secret}" -n "${namespace}" \
+                chainsaw.formance.com/original-token="${original}" \
+                --overwrite
+              invalid="$(printf 'invalid-token' | base64 | tr -d '\n')"
+              kubectl patch secret "${secret}" -n "${namespace}" --type=merge \
+                -p "{\"data\":{\"token\":\"${invalid}\"}}"
+        - apply:
+            file: resources/auth.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              restore_licence() {
+                namespace="${OPERATOR_NAMESPACE:-formance-system}"
+                secret="${OPERATOR_RELEASE:-formance-operator}-licence"
+                original="$(kubectl get secret "${secret}" -n "${namespace}" -o jsonpath='{.metadata.annotations.chainsaw\.formance\.com/original-token}')"
+                if test -n "${original}"; then
+                  kubectl patch secret "${secret}" -n "${namespace}" --type=merge \
+                    -p "{\"data\":{\"token\":\"${original}\"}}" >/dev/null
+                  kubectl annotate secret "${secret}" -n "${namespace}" \
+                    chainsaw.formance.com/original-token- >/dev/null
+                fi
+              }
+              trap restore_licence EXIT
+
+              kubectl wait --for=jsonpath='{.status.conditions[?(@.type=="LicenceValid")].reason}'=Invalid auth/auth --timeout=2m
+              test "$(kubectl get auth auth -o jsonpath='{.status.conditions[?(@.type=="LicenceValid")].status}')" = "False"
+              message="$(kubectl get auth auth -o jsonpath='{.status.conditions[?(@.type=="LicenceValid")].message}')"
+              case "${message}" in
+                *"licence token validation failed"*) ;;
+                *) echo "unexpected licence validation message: ${message}" >&2; exit 1 ;;
+              esac
+              if kubectl get deployment auth -n chainsaw-licence-validation >/dev/null 2>&1; then
+                echo "auth deployment should not be created when the licence is invalid" >&2
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              namespace="${OPERATOR_NAMESPACE:-formance-system}"
+              secret="${OPERATOR_RELEASE:-formance-operator}-licence"
+              original="$(kubectl get secret "${secret}" -n "${namespace}" -o jsonpath='{.metadata.annotations.chainsaw\.formance\.com/original-token}' || true)"
+              if test -n "${original}"; then
+                kubectl patch secret "${secret}" -n "${namespace}" --type=merge \
+                  -p "{\"data\":{\"token\":\"${original}\"}}" >/dev/null || true
+                kubectl annotate secret "${secret}" -n "${namespace}" \
+                  chainsaw.formance.com/original-token- >/dev/null || true
+              fi
+              ../../scripts/dump-diagnostics.sh licence-validation

@@ -47,6 +47,8 @@ spec:
                 fi
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true benthos/chainsaw-benthos --timeout=2m
+              kubectl wait --for=create deployment/benthos -n chainsaw-benthos --timeout=2m
+              kubectl wait --for=create service/benthos -n chainsaw-benthos --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=public.ecr.aws/formance-internal/jeffail/benthos:v4.23.1-es deployment/benthos -n chainsaw-benthos --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=4195 service/benthos -n chainsaw-benthos --timeout=2m
               assert_jsonpath deployment/benthos '{.spec.template.spec.serviceAccountName}' 'chainsaw-benthos-sa'

@@ -38,6 +38,22 @@ func (d defaultContext) GetScheme() *runtime.Scheme {
 
 var _ Context = &defaultContext{}
 
+type platformContext struct {
+	Context
+	platform Platform
+}
+
+func (p platformContext) GetPlatform() Platform {
+	return p.platform
+}
+
+func WithPlatform(ctx Context, platform Platform) Context {
+	return platformContext{
+		Context:  ctx,
+		platform: platform,
+	}
+}
+
 func NewContext(mgr Manager, ctx context.Context) *defaultContext {
 	return &defaultContext{
 		Context: ctx,
