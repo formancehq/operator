@@ -31,6 +31,8 @@ type BenthosSpec struct {
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
 	Resources        map[string]string             `json:"resources,omitempty"`
 	Templates        map[string]string             `json:"templates,omitempty"`
+	//+optional
+	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
 }
 
 type BenthosStatus struct {

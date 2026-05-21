@@ -1511,6 +1511,7 @@ Benthos is the Schema for the benthos API
 | `imagePullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#localobjectreference-v1-core) array_ |  |  |  |
 | `resources` _object (keys:string, values:string)_ |  |  |  |
 | `templates` _object (keys:string, values:string)_ |  |  |  |
+| `envFrom` _[EnvFromSource](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#envfromsource-v1-core) array_ |  |  |  |
 
 
 
