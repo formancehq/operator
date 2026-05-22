@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -70,6 +71,66 @@ func createService(ctx Context, b *v1beta1.Benthos) error {
 	return err
 }
 
+// reconcileEnvFromResourceReferences creates a ResourceReference for every
+// secret/configmap referenced from .spec.envFrom so the operator copies them
+// into the stack namespace and rolls the deployment when their content changes.
+// Stale references from previous reconciles are deleted.
+func reconcileEnvFromResourceReferences(ctx Context, b *v1beta1.Benthos) (map[string]string, error) {
+	hashes := map[string]string{}
+	expected := map[string]struct{}{}
+
+	for i, envFrom := range b.Spec.EnvFrom {
+		if envFrom.SecretRef != nil && envFrom.SecretRef.Name != "" {
+			refName := fmt.Sprintf("benthos-envfrom-%d-secret", i)
+			ref, err := resourcereferences.Create(ctx, b, refName, envFrom.SecretRef.Name, &corev1.Secret{})
+			if err != nil {
+				return nil, err
+			}
+			expected[refName] = struct{}{}
+			hashes[refName] = ref.Status.Hash
+		}
+		if envFrom.ConfigMapRef != nil && envFrom.ConfigMapRef.Name != "" {
+			refName := fmt.Sprintf("benthos-envfrom-%d-configmap", i)
+			ref, err := resourcereferences.Create(ctx, b, refName, envFrom.ConfigMapRef.Name, &corev1.ConfigMap{})
+			if err != nil {
+				return nil, err
+			}
+			expected[refName] = struct{}{}
+			hashes[refName] = ref.Status.Hash
+		}
+	}
+
+	list := &v1beta1.ResourceReferenceList{}
+	if err := ctx.GetClient().List(ctx, list); err != nil {
+		return nil, err
+	}
+	prefix := fmt.Sprintf("%s-benthos-envfrom-", b.Name)
+	for _, ref := range list.Items {
+		if !strings.HasPrefix(ref.Name, prefix) {
+			continue
+		}
+		ownedByBenthos := false
+		for _, or := range ref.OwnerReferences {
+			if or.UID == b.UID {
+				ownedByBenthos = true
+				break
+			}
+		}
+		if !ownedByBenthos {
+			continue
+		}
+		shortName := strings.TrimPrefix(ref.Name, b.Name+"-")
+		if _, ok := expected[shortName]; ok {
+			continue
+		}
+		if err := resourcereferences.Delete(ctx, b, shortName); err != nil {
+			return nil, err
+		}
+	}
+
+	return hashes, nil
+}
+
 // We need to this controller and keep it focused on benthos
 func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) error {
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
@@ -80,6 +141,11 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	// Cleanup potential old resource reference (pre v3.0.0)
 	// todo(next-minor): remove
 	err = resourcereferences.Delete(ctx, b, "elasticsearch")
+	if err != nil {
+		return err
+	}
+
+	envFromHashes, err := reconcileEnvFromResourceReferences(ctx, b)
 	if err != nil {
 		return err
 	}
@@ -258,6 +324,15 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	}
 	for _, stream := range streams {
 		digest.Write([]byte(stream.Status.ConfigMapHash))
+	}
+	envFromHashKeys := make([]string, 0, len(envFromHashes))
+	for k := range envFromHashes {
+		envFromHashKeys = append(envFromHashKeys, k)
+	}
+	sort.Strings(envFromHashKeys)
+	for _, k := range envFromHashKeys {
+		digest.Write([]byte(k))
+		digest.Write([]byte(envFromHashes[k]))
 	}
 	configHash := base64.StdEncoding.EncodeToString(digest.Sum(nil))
 
