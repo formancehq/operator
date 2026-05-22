@@ -66,11 +66,6 @@ spec:
                       type: array
                     path:
                       type: string
-                    public:
-                      default: false
-                      description: Public exposes the route at the gateway root instead
-                        of under /api/<name>.
-                      type: boolean
                     secured:
                       default: false
                       type: boolean

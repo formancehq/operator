@@ -32,27 +32,23 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=mcps/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=mcps/finalizers,verbs=update
 
-const serviceName = "formance-mcp"
+const serviceName = "mcp"
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, mcp *v1beta1.MCP, version string) error {
 	if err := gatewayhttpapis.Create(ctx, mcp,
-		gatewayhttpapis.WithName(serviceName),
 		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
 		gatewayhttpapis.WithRules(
 			v1beta1.GatewayHTTPAPIRule{
 				Path:    "/mcp",
 				Methods: []string{http.MethodPost},
-				Public:  true,
 			},
 			v1beta1.GatewayHTTPAPIRule{
 				Path:    "/.well-known/oauth-protected-resource",
 				Methods: []string{http.MethodGet},
-				Public:  true,
 			},
 			v1beta1.GatewayHTTPAPIRule{
 				Path:    "/_healthcheck",
 				Methods: []string{http.MethodGet},
-				Public:  true,
 			},
 		)); err != nil {
 		return err

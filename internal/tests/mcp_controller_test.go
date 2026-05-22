@@ -76,7 +76,7 @@ var _ = Describe("MCPController", func() {
 		It("Should create the deployment with MCP configuration", func() {
 			deployment := &appsv1.Deployment{}
 			Eventually(func(g Gomega) corev1.Container {
-				g.Expect(LoadResource(stack.Name, "formance-mcp", deployment)).To(Succeed())
+				g.Expect(LoadResource(stack.Name, "mcp", deployment)).To(Succeed())
 				g.Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 				return deployment.Spec.Template.Spec.Containers[0]
 			}).Should(SatisfyAll(
@@ -89,7 +89,7 @@ var _ = Describe("MCPController", func() {
 					core.Env("AUTH_ENABLED", "true"),
 					core.Env("AUTH_ISSUER", "https://example.net/api/auth"),
 					core.Env("AUTH_CHECK_SCOPES", "false"),
-					core.Env("OTEL_SERVICE_NAME", "formance-mcp"),
+					core.Env("OTEL_SERVICE_NAME", "mcp"),
 				)),
 				WithTransform(func(c corev1.Container) corev1.ResourceList { return c.Resources.Requests }, Equal(corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -104,41 +104,38 @@ var _ = Describe("MCPController", func() {
 			Expect(deployment).To(BeControlledBy(mcp))
 		})
 
-		It("Should create a GatewayHTTPAPI exposing the public MCP routes", func() {
+		It("Should create a GatewayHTTPAPI exposing MCP routes", func() {
 			httpAPI := &v1beta1.GatewayHTTPAPI{}
 			Eventually(func(g Gomega) []v1beta1.GatewayHTTPAPIRule {
 				g.Expect(LoadResource("", core.GetObjectName(stack.Name, "mcp"), httpAPI)).To(Succeed())
-				g.Expect(httpAPI.Spec.Name).To(Equal("formance-mcp"))
+				g.Expect(httpAPI.Spec.Name).To(Equal("mcp"))
 				return httpAPI.Spec.Rules
 			}).Should(ConsistOf(
 				v1beta1.GatewayHTTPAPIRule{
 					Path:    "/mcp",
 					Methods: []string{"POST"},
-					Public:  true,
 				},
 				v1beta1.GatewayHTTPAPIRule{
 					Path:    "/.well-known/oauth-protected-resource",
 					Methods: []string{"GET"},
-					Public:  true,
 				},
 				v1beta1.GatewayHTTPAPIRule{
 					Path:    "/_healthcheck",
 					Methods: []string{"GET"},
-					Public:  true,
 				},
 			))
 		})
 
-		It("Should render public Gateway routes at the root", func() {
+		It("Should render Gateway routes under the API prefix", func() {
 			cm := &corev1.ConfigMap{}
 			Eventually(func(g Gomega) string {
 				g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
 				return cm.Data["Caddyfile"]
 			}).Should(SatisfyAll(
-				ContainSubstring("handle /mcp*"),
-				ContainSubstring("handle /.well-known/oauth-protected-resource*"),
-				ContainSubstring("handle /_healthcheck*"),
-				ContainSubstring("reverse_proxy formance-mcp:8080"),
+				ContainSubstring("handle /api/mcp/mcp*"),
+				ContainSubstring("handle /api/mcp/.well-known/oauth-protected-resource*"),
+				ContainSubstring("handle /api/mcp/_healthcheck*"),
+				ContainSubstring("reverse_proxy mcp:8080"),
 			))
 		})
 	})

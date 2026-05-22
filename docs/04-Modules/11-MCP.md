@@ -1,7 +1,7 @@
 ## Requirements
 
 Formance MCP requires:
-- **Gateway**: used for the internal `STACK_URL` and public MCP routing.
+- **Gateway**: used for the internal `STACK_URL` and MCP routing.
 - **Auth**: bearer tokens are validated through the stack OIDC/JWT issuer.
 - **Ledger**, **Payments**, and optionally **Reconciliation**: MCP tools relay the caller bearer token to these backend APIs through the Gateway.
 
@@ -20,9 +20,9 @@ spec:
   stack: formance-dev
 ```
 
-The Operator deploys `ghcr.io/formancehq/stack-mcp` as the `formance-mcp` service and exposes:
-- `POST /mcp`
-- `GET /.well-known/oauth-protected-resource`
-- `GET /_healthcheck`
+The Operator deploys `ghcr.io/formancehq/stack-mcp` as the `mcp` service and exposes:
+- `POST /api/mcp/mcp`
+- `GET /api/mcp/.well-known/oauth-protected-resource`
+- `GET /api/mcp/_healthcheck`
 
-`AUTH_CHECK_SCOPES` is intentionally set to `false`; the MCP server checks scopes at the tool call level because every MCP request enters through `POST /mcp`.
+`AUTH_CHECK_SCOPES` is intentionally set to `false`; the MCP server checks scopes at the tool call level because every MCP request enters through `POST /api/mcp/mcp`.
