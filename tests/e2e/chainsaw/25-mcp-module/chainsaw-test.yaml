@@ -73,12 +73,13 @@ spec:
               grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-mcp-env
               grep -Fx 'OTEL_SERVICE_NAME=mcp' /tmp/chainsaw-mcp-env
 
-              test "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[?(@.path=="/mcp")].methods[0]}')" = "POST"
+              test "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[0].methods[0]}')" = "POST"
+              test -z "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[0].path}')"
               test "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[?(@.path=="/.well-known/oauth-protected-resource")].methods[0]}')" = "GET"
               test "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[?(@.path=="/_healthcheck")].methods[0]}')" = "GET"
 
               kubectl get configmap gateway -n chainsaw-mcp -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-mcp-caddyfile
-              grep -F 'handle /api/mcp/mcp* {' /tmp/chainsaw-mcp-caddyfile
+              grep -F 'handle /api/mcp* {' /tmp/chainsaw-mcp-caddyfile
               grep -F 'handle /api/mcp/.well-known/oauth-protected-resource* {' /tmp/chainsaw-mcp-caddyfile
               grep -F 'handle /api/mcp/_healthcheck* {' /tmp/chainsaw-mcp-caddyfile
               grep -F 'reverse_proxy mcp:8080' /tmp/chainsaw-mcp-caddyfile
