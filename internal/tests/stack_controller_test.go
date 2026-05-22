@@ -110,6 +110,32 @@ var _ = Describe("StackController", func() {
 				Expect(version).To(Equal("1234"))
 			})
 		})
+		Context("with a semver pod version lower than the minimum Versions resource version", func() {
+			BeforeEach(func() {
+				stack.Spec.Version = "v0.2.0"
+			})
+			It("should resolve a module to the specified pod version", func() {
+				version, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{})
+				Expect(err).To(Succeed())
+				Expect(version).To(Equal("v0.2.0"))
+			})
+		})
+		Context("with a module pod version lower than the minimum Versions resource version", func() {
+			BeforeEach(func() {
+				stack.Spec.Version = "v2.2.0"
+			})
+			It("should resolve a module to its explicit pod version", func() {
+				version, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{
+					Spec: v1beta1.LedgerSpec{
+						ModuleProperties: v1beta1.ModuleProperties{
+							Version: "v0.2.0",
+						},
+					},
+				})
+				Expect(err).To(Succeed())
+				Expect(version).To(Equal("v0.2.0"))
+			})
+		})
 		Context("with version file specified", func() {
 			var versions *v1beta1.Versions
 			BeforeEach(func() {
@@ -144,6 +170,33 @@ var _ = Describe("StackController", func() {
 						g.Expect(err).To(Succeed())
 						return version
 					}).Should(Equal("5678"))
+				})
+			})
+			Context("with a supported Versions resource name and lower module pod version", func() {
+				BeforeEach(func() {
+					versions.Name = "v2.2.0"
+					versions.Spec["ledger"] = "v0.2.0"
+					stack.Spec.VersionsFromFile = versions.Name
+				})
+				It("should resolve to the pod version from the Versions resource", func() {
+					Eventually(func(g Gomega) string {
+						version, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{})
+						g.Expect(err).To(Succeed())
+						return version
+					}).Should(Equal("v0.2.0"))
+				})
+			})
+			Context("with an unsupported Versions resource name", func() {
+				BeforeEach(func() {
+					versions.Name = "v2.1.0"
+					versions.Spec["ledger"] = "v9.9.9"
+					stack.Spec.VersionsFromFile = versions.Name
+				})
+				It("should reject the Versions resource", func() {
+					_, err := core.GetModuleVersion(TestContext(), stack, &v1beta1.Ledger{})
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("not supported"))
+					Expect(err.Error()).To(ContainSubstring(core.MinimumStackVersion))
 				})
 			})
 		})
