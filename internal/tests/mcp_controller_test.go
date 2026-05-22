@@ -112,7 +112,6 @@ var _ = Describe("MCPController", func() {
 				return httpAPI.Spec.Rules
 			}).Should(ConsistOf(
 				v1beta1.GatewayHTTPAPIRule{
-					Path:    "/mcp",
 					Methods: []string{"POST"},
 				},
 				v1beta1.GatewayHTTPAPIRule{
@@ -132,7 +131,7 @@ var _ = Describe("MCPController", func() {
 				g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
 				return cm.Data["Caddyfile"]
 			}).Should(SatisfyAll(
-				ContainSubstring("handle /api/mcp/mcp*"),
+				ContainSubstring("handle /api/mcp*"),
 				ContainSubstring("handle /api/mcp/.well-known/oauth-protected-resource*"),
 				ContainSubstring("handle /api/mcp/_healthcheck*"),
 				ContainSubstring("reverse_proxy mcp:8080"),
