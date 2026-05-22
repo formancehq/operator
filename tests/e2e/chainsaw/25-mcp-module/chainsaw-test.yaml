@@ -1,0 +1,92 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: mcp-module
+  labels:
+    suite: modules
+    feature: mcp-module
+spec:
+  concurrent: false
+  steps:
+    - name: mcp-renders-deployment-service-and-gateway-routes
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/settings.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - apply:
+            file: resources/mcp.yaml
+        - script:
+            timeout: 5m
+            content: |
+              set -eu
+              assert_jsonpath() {
+                resource="$1"
+                path="$2"
+                expected="$3"
+                actual="$(kubectl get "$resource" -n chainsaw-mcp -o "jsonpath=${path}")"
+                if test "$actual" != "$expected"; then
+                  echo "expected ${resource} ${path} to be '${expected}', got '${actual}'" >&2
+                  exit 1
+                fi
+              }
+
+              until kubectl get deployment/mcp -n chainsaw-mcp >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get gatewayhttpapi/chainsaw-mcp-mcp >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get service/mcp -n chainsaw-mcp >/dev/null 2>&1; do
+                sleep 1
+              done
+              until kubectl get configmap/gateway -n chainsaw-mcp >/dev/null 2>&1; do
+                sleep 1
+              done
+
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/stack-mcp:v3.0.0 deployment/mcp -n chainsaw-mcp --timeout=2m
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-mcp-mcp --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/mcp -n chainsaw-mcp --timeout=2m
+
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].args[0]}' 'serve'
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].ports[0].containerPort}' '8080'
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].resources.requests.cpu}' '100m'
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].resources.requests.memory}' '128Mi'
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].resources.limits.cpu}' '1'
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].resources.limits.memory}' '256Mi'
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].livenessProbe.httpGet.path}' '/_healthcheck'
+              assert_jsonpath deployment/mcp '{.spec.template.spec.containers[0].readinessProbe.httpGet.path}' '/readyz'
+              assert_jsonpath service/mcp '{.spec.selector.app\.kubernetes\.io/name}' 'mcp'
+              assert_jsonpath gatewayhttpapi/chainsaw-mcp-mcp '{.spec.name}' 'mcp'
+              assert_jsonpath gatewayhttpapi/chainsaw-mcp-mcp '{.spec.healthCheckEndpoint}' '_healthcheck'
+
+              kubectl get deployment mcp -n chainsaw-mcp -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-mcp-env
+              grep -Fx 'BIND=:8080' /tmp/chainsaw-mcp-env
+              grep -Fx 'STACK=chainsaw-mcp' /tmp/chainsaw-mcp-env
+              grep -Fx 'STACK_URL=http://gateway:8080' /tmp/chainsaw-mcp-env
+              grep -Fx 'STACK_PUBLIC_URL=https://mcp.chainsaw.local' /tmp/chainsaw-mcp-env
+              grep -Fx 'AUTH_ENABLED=true' /tmp/chainsaw-mcp-env
+              grep -Fx 'AUTH_ISSUER=https://mcp.chainsaw.local/api/auth' /tmp/chainsaw-mcp-env
+              grep -Fx 'AUTH_CHECK_SCOPES=false' /tmp/chainsaw-mcp-env
+              grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-mcp-env
+              grep -Fx 'OTEL_SERVICE_NAME=mcp' /tmp/chainsaw-mcp-env
+
+              test "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[?(@.path=="/mcp")].methods[0]}')" = "POST"
+              test "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[?(@.path=="/.well-known/oauth-protected-resource")].methods[0]}')" = "GET"
+              test "$(kubectl get gatewayhttpapi chainsaw-mcp-mcp -o jsonpath='{.spec.rules[?(@.path=="/_healthcheck")].methods[0]}')" = "GET"
+
+              kubectl get configmap gateway -n chainsaw-mcp -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-mcp-caddyfile
+              grep -F 'handle /api/mcp/mcp* {' /tmp/chainsaw-mcp-caddyfile
+              grep -F 'handle /api/mcp/.well-known/oauth-protected-resource* {' /tmp/chainsaw-mcp-caddyfile
+              grep -F 'handle /api/mcp/_healthcheck* {' /tmp/chainsaw-mcp-caddyfile
+              grep -F 'reverse_proxy mcp:8080' /tmp/chainsaw-mcp-caddyfile
+              if grep -F 'handle /mcp* {' /tmp/chainsaw-mcp-caddyfile; then
+                echo "MCP route should stay under /api/mcp"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh mcp-module

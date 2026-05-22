@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: MCP
+metadata:
+  name: mcp
+spec:
+  stack: chainsaw-mcp

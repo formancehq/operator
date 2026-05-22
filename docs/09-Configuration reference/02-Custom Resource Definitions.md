@@ -21,6 +21,7 @@ Modules :
 - [Auth](#auth)
 - [Gateway](#gateway)
 - [Ledger](#ledger)
+- [MCP](#mcp)
 - [Orchestration](#orchestration)
 - [Payments](#payments)
 - [Reconciliation](#reconciliation)
@@ -627,6 +628,96 @@ and maintains an immutable audit trail.
 
 
 ##### LedgerStatus
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
+| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+
+
+#### MCP
+
+
+
+MCP is the Formance Model Context Protocol server module.
+
+It exposes the MCP endpoint for a stack and delegates authorization to the
+backend services using the caller bearer token.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `MCP` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[MCPSpec](#mcpspec)_ |  |  |  |
+| `status` _[MCPStatus](#mcpstatus)_ |  |  |  |
+
+
+
+##### MCPSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
+| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
+| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+
+
+
+
+
+##### MCPStatus
 
 
 
