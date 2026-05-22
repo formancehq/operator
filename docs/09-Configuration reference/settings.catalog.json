@@ -27,7 +27,7 @@
       "key": "broker.dsn",
       "valueType": "uri",
       "sources": [
-        "internal/resources/brokers/reconcile.go:25",
+        "internal/resources/brokers/reconcile.go:24",
         "internal/resources/webhooks/deployment.go:22"
       ]
     },
@@ -352,65 +352,58 @@
       "key": "ledger.api.bulk-max-size",
       "valueType": "int",
       "sources": [
-        "internal/resources/ledgers/deployments.go:148"
+        "internal/resources/ledgers/deployments.go:123"
       ]
     },
     {
       "key": "ledger.api.default-page-size",
       "valueType": "int",
       "sources": [
-        "internal/resources/ledgers/deployments.go:102"
+        "internal/resources/ledgers/deployments.go:77"
       ]
     },
     {
       "key": "ledger.api.max-page-size",
       "valueType": "int",
       "sources": [
-        "internal/resources/ledgers/deployments.go:112"
+        "internal/resources/ledgers/deployments.go:87"
       ]
     },
     {
       "key": "ledger.experimental-exporters",
       "valueType": "bool",
       "sources": [
-        "internal/resources/ledgers/deployments.go:174",
-        "internal/resources/ledgers/deployments.go:289"
+        "internal/resources/ledgers/deployments.go:149",
+        "internal/resources/ledgers/deployments.go:264"
       ]
     },
     {
       "key": "ledger.experimental-features",
       "valueType": "bool",
       "sources": [
-        "internal/resources/ledgers/deployments.go:74"
+        "internal/resources/ledgers/deployments.go:49"
       ]
     },
     {
       "key": "ledger.experimental-numscript",
       "valueType": "bool",
       "sources": [
-        "internal/resources/ledgers/deployments.go:84"
+        "internal/resources/ledgers/deployments.go:59"
       ]
     },
     {
       "key": "ledger.experimental-numscript-flags",
       "valueType": "string[]",
       "sources": [
-        "internal/resources/ledgers/deployments.go:94"
-      ]
-    },
-    {
-      "key": "ledger.logs.max-batch-size",
-      "valueType": "int",
-      "sources": [
-        "internal/resources/ledgers/deployments.go:480"
+        "internal/resources/ledgers/deployments.go:69"
       ]
     },
     {
       "key": "ledger.schema-enforcement-mode",
       "valueType": "string",
       "sources": [
-        "internal/resources/ledgers/deployments.go:156",
-        "internal/resources/ledgers/deployments.go:264"
+        "internal/resources/ledgers/deployments.go:131",
+        "internal/resources/ledgers/deployments.go:239"
       ]
     },
     {
@@ -428,7 +421,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:234"
+        "internal/resources/ledgers/deployments.go:209"
       ]
     },
     {
@@ -446,7 +439,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:273"
+        "internal/resources/ledgers/deployments.go:248"
       ]
     },
     {
@@ -472,7 +465,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:246"
+        "internal/resources/ledgers/deployments.go:221"
       ]
     },
     {
@@ -556,6 +549,13 @@
       "default": "10",
       "sources": [
         "internal/resources/orchestrations/deployments.go:173"
+      ]
+    },
+    {
+      "key": "payments.clear-temporal",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/payments/finalizer.go:26"
       ]
     },
     {
