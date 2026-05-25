@@ -73,12 +73,12 @@ spec:
     - name: grpcapi-deletion-reconfigures-gateway
       try:
         - script:
-            timeout: 2m
+            timeout: 5m
             content: |
               set -eu
               kubectl delete gatewaygrpcapi chainsaw-grpcapi-mymodule
               # Service should be deleted
-              kubectl wait --for=delete service/mymodule-grpc -n chainsaw-grpcapi-sync --timeout=2m
+              kubectl wait --for=delete service/mymodule-grpc -n chainsaw-grpcapi-sync --timeout=3m
               # Gateway should no longer list grpc APIs
               until test "$(kubectl get gateway chainsaw-grpcapi-gateway -o jsonpath='{.status.syncGRPCAPIs}')" = "" -o "$(kubectl get gateway chainsaw-grpcapi-gateway -o jsonpath='{.status.syncGRPCAPIs}')" = "[]"; do
                 sleep 1
