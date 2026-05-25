@@ -8,7 +8,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -36,35 +35,20 @@ func newLicenceTestSecret(name string, namespace string, data map[string][]byte)
 	}
 }
 
-func newClusterNamespace(uid string) *corev1.Namespace {
-	return &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: licenceClusterNamespace,
-			UID:  types.UID(uid),
-		},
-	}
-}
-
 func TestValidateLicenceToken_EmptyToken(t *testing.T) {
-	state, msg := ValidateLicenceToken("", testLicenceIssuer, "cluster-id")
+	state, msg := ValidateLicenceToken("", testLicenceIssuer)
 	require.Equal(t, LicenceStateAbsent, state)
 	require.Empty(t, msg)
 }
 
 func TestValidateLicenceToken_MissingIssuer(t *testing.T) {
-	state, msg := ValidateLicenceToken("token", "", "cluster-id")
+	state, msg := ValidateLicenceToken("token", "")
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "issuer")
 }
 
-func TestValidateLicenceToken_MissingClusterID(t *testing.T) {
-	state, msg := ValidateLicenceToken("token", testLicenceIssuer, "")
-	require.Equal(t, LicenceStateInvalid, state)
-	require.Contains(t, msg, "cluster ID")
-}
-
-func TestValidateLicenceToken_UsesGoLibsValidator(t *testing.T) {
-	state, msg := ValidateLicenceToken("not-a-jwt", testLicenceIssuer, "cluster-id")
+func TestValidateLicenceToken_MalformedToken(t *testing.T) {
+	state, msg := ValidateLicenceToken("not-a-jwt", testLicenceIssuer)
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "validation failed")
 	require.Contains(t, msg, "token is malformed")
@@ -78,17 +62,15 @@ func TestLicenceStateFromError_Expired(t *testing.T) {
 
 func TestResolveLicenceState_ValidSecret(t *testing.T) {
 	reader := newLicenceTestClient(t,
-		newClusterNamespace("cluster-id"),
 		newLicenceTestSecret("licence", "operator", map[string][]byte{
 			"token":  []byte("token"),
 			"issuer": []byte(testLicenceIssuer),
 		}),
 	)
 
-	SetLicenceValidatorForTest(t, func(token string, issuer string, clusterID string) (LicenceState, string) {
+	SetLicenceValidatorForTest(t, func(token string, issuer string) (LicenceState, string) {
 		require.Equal(t, "token", token)
 		require.Equal(t, testLicenceIssuer, issuer)
-		require.Equal(t, "cluster-id", clusterID)
 		return LicenceStateValid, ""
 	})
 
@@ -127,20 +109,6 @@ func TestResolveLicenceState_MissingIssuer(t *testing.T) {
 	state, msg := ResolveLicenceState(reader, "licence", "operator")
 	require.Equal(t, LicenceStateInvalid, state)
 	require.Contains(t, msg, "issuer")
-}
-
-func TestResolveLicenceState_MissingClusterNamespace(t *testing.T) {
-	reader := newLicenceTestClient(t,
-		newLicenceTestSecret("licence", "operator", map[string][]byte{
-			"token":  []byte("token"),
-			"issuer": []byte(testLicenceIssuer),
-		}),
-	)
-
-	state, msg := ResolveLicenceState(reader, "licence", "operator")
-	require.Equal(t, LicenceStateInvalid, state)
-	require.Contains(t, msg, "cluster ID")
-	require.Contains(t, msg, licenceClusterNamespace)
 }
 
 func TestLicenceState_String(t *testing.T) {

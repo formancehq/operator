@@ -96,10 +96,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	core.SetLicenceValidatorForTest(GinkgoT(), func(token string, issuer string, clusterID string) (core.LicenceState, string) {
+	core.SetLicenceValidatorForTest(GinkgoT(), func(token string, issuer string) (core.LicenceState, string) {
 		Expect(token).To(Equal(testLicenceToken))
 		Expect(issuer).To(Equal("https://license.formance.cloud/keys"))
-		Expect(clusterID).ToNot(BeEmpty())
 		return core.LicenceStateValid, ""
 	})
 

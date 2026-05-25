@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.25.5
 
 require (
-	github.com/formancehq/go-libs/v5 v5.1.0
+	github.com/formancehq/go-libs/v5 v5.2.0
 	github.com/formancehq/operator/v3 v3.0.0-00010101000000-000000000000
 	github.com/pterm/pterm v0.12.81
 	github.com/spf13/cobra v1.10.2
