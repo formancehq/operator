@@ -40,7 +40,7 @@ compile:
         RUN --mount=type=cache,id=gomod,target=${GOPATH}/pkg/mod \
             --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
             LICENCE_PUBLIC_KEY="$(printf '%s' "$LICENCE_PUBLIC_KEY_B64" | base64 -d)" && \
-            go build -ldflags "-X 'github.com/formancehq/go-libs/v5/pkg/authn/licence.formancePublicKey=${LICENCE_PUBLIC_KEY}' -X 'github.com/formancehq/operator/v3/internal/core.licencePublicKey=${LICENCE_PUBLIC_KEY}'" -o main .
+            go build -ldflags "-X 'github.com/formancehq/go-libs/v5/pkg/authn/licence.formancePublicKey=${LICENCE_PUBLIC_KEY}'" -o main .
     END
     SAVE ARTIFACT main
 
