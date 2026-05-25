@@ -10,7 +10,8 @@ import (
 )
 
 func createConfigMap(ctx core.Context, stack *v1beta1.Stack,
-	gateway *v1beta1.Gateway, httpAPIs []*v1beta1.GatewayHTTPAPI, broker *v1beta1.Broker) (*v1.ConfigMap, error) {
+	gateway *v1beta1.Gateway, httpAPIs []*v1beta1.GatewayHTTPAPI,
+	grpcAPIs []*v1beta1.GatewayGRPCAPI, broker *v1beta1.Broker) (*v1.ConfigMap, error) {
 
 	options := []CaddyOptions{}
 
@@ -54,7 +55,7 @@ func createConfigMap(ctx core.Context, stack *v1beta1.Stack,
 		options = append(options, withIdleTimeout(*idleTimeout))
 	}
 
-	caddyfile, err := CreateCaddyfile(ctx, stack, gateway, httpAPIs, broker, options...)
+	caddyfile, err := CreateCaddyfile(ctx, stack, gateway, httpAPIs, grpcAPIs, broker, options...)
 	if err != nil {
 		return nil, err
 	}

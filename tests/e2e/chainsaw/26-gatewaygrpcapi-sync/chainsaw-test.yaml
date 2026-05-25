@@ -1,0 +1,99 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: gateway-grpcapi-sync
+  labels:
+    suite: modules
+    feature: gateway-grpcapi-sync
+spec:
+  concurrent: false
+  steps:
+    - name: gateway-renders-grpcapi-routes
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/gateway.yaml
+        - apply:
+            file: resources/httpapi-ledger.yaml
+        - apply:
+            file: resources/grpcapi.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              # Wait for GatewayGRPCAPI to be ready
+              kubectl wait --for=jsonpath='{.status.ready}'=true gatewaygrpcapi/chainsaw-grpcapi-mymodule --timeout=2m
+
+              # Verify the -grpc service was created
+              test "$(kubectl get service mymodule-grpc -n chainsaw-grpcapi-sync -o jsonpath='{.spec.ports[0].port}')" = "8081"
+              test "$(kubectl get service mymodule-grpc -n chainsaw-grpcapi-sync -o jsonpath='{.spec.ports[0].name}')" = "grpc"
+              test "$(kubectl get service mymodule-grpc -n chainsaw-grpcapi-sync -o jsonpath='{.spec.selector.app\.kubernetes\.io/name}')" = "mymodule"
+
+              # Verify Gateway synced the GRPCAPIs
+              kubectl wait --for=jsonpath='{.status.syncGRPCAPIs[0]}'=mymodule gateway/chainsaw-grpcapi-gateway --timeout=2m
+
+              # Verify Caddyfile has h2c protocols and gRPC routes
+              kubectl get configmap gateway -n chainsaw-grpcapi-sync -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-grpcapi-caddyfile
+              grep -F 'protocols h1 h2c' /tmp/chainsaw-grpcapi-caddyfile
+              grep -F 'handle /formance.mymodule.v1.MyService/*' /tmp/chainsaw-grpcapi-caddyfile
+              grep -F 'handle /formance.mymodule.v1.HealthService/*' /tmp/chainsaw-grpcapi-caddyfile
+              grep -F 'reverse_proxy mymodule-grpc:8081' /tmp/chainsaw-grpcapi-caddyfile
+              grep -F 'versions h2c 2' /tmp/chainsaw-grpcapi-caddyfile
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh gateway-grpcapi-routes
+    - name: grpcapi-mutation-reconfigures-gateway
+      try:
+        - apply:
+            file: resources/grpcapi-updated.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              # Wait until new gRPC service name appears in config
+              until kubectl get configmap gateway -n chainsaw-grpcapi-sync -o jsonpath='{.data.Caddyfile}' | grep -F 'handle /formance.mymodule.v2.MyService/*'; do
+                sleep 1
+              done
+              kubectl get configmap gateway -n chainsaw-grpcapi-sync -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-grpcapi-caddyfile
+              # New port should be reflected
+              grep -F 'reverse_proxy mymodule-grpc:9090' /tmp/chainsaw-grpcapi-caddyfile
+              # Old v1 service should be gone
+              if grep -F 'formance.mymodule.v1.MyService' /tmp/chainsaw-grpcapi-caddyfile; then
+                echo "old gRPC service name should not remain after GatewayGRPCAPI mutation"
+                exit 1
+              fi
+              # Service port should be updated too
+              test "$(kubectl get service mymodule-grpc -n chainsaw-grpcapi-sync -o jsonpath='{.spec.ports[0].port}')" = "9090"
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh gateway-grpcapi-mutation
+    - name: grpcapi-deletion-reconfigures-gateway
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl delete gatewaygrpcapi chainsaw-grpcapi-mymodule
+              # Service should be deleted
+              kubectl wait --for=delete service/mymodule-grpc -n chainsaw-grpcapi-sync --timeout=2m
+              # Gateway should no longer list grpc APIs
+              until test "$(kubectl get gateway chainsaw-grpcapi-gateway -o jsonpath='{.status.syncGRPCAPIs}')" = "" -o "$(kubectl get gateway chainsaw-grpcapi-gateway -o jsonpath='{.status.syncGRPCAPIs}')" = "[]"; do
+                sleep 1
+              done
+              # Caddyfile should not contain gRPC routes or h2c anymore
+              kubectl get configmap gateway -n chainsaw-grpcapi-sync -o jsonpath='{.data.Caddyfile}' > /tmp/chainsaw-grpcapi-caddyfile
+              if grep -F 'mymodule-grpc' /tmp/chainsaw-grpcapi-caddyfile; then
+                echo "deleted GatewayGRPCAPI should not remain in gateway Caddyfile"
+                exit 1
+              fi
+              if grep -F 'protocols h1 h2c' /tmp/chainsaw-grpcapi-caddyfile; then
+                echo "h2c protocols should be removed when no gRPC APIs exist"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh gateway-grpcapi-deletion

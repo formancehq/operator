@@ -195,35 +195,35 @@
       "key": "gateway.caddyfile.grace-period",
       "valueType": "string",
       "sources": [
-        "internal/resources/gateways/configuration.go:41"
+        "internal/resources/gateways/configuration.go:42"
       ]
     },
     {
       "key": "gateway.caddyfile.shutdown-delay",
       "valueType": "string",
       "sources": [
-        "internal/resources/gateways/configuration.go:33"
+        "internal/resources/gateways/configuration.go:34"
       ]
     },
     {
       "key": "gateway.caddyfile.trusted-proxies",
       "valueType": "string[]",
       "sources": [
-        "internal/resources/gateways/configuration.go:17"
+        "internal/resources/gateways/configuration.go:18"
       ]
     },
     {
       "key": "gateway.caddyfile.trusted-proxies-strict",
       "valueType": "bool",
       "sources": [
-        "internal/resources/gateways/configuration.go:25"
+        "internal/resources/gateways/configuration.go:26"
       ]
     },
     {
       "key": "gateway.config.idle-timeout",
       "valueType": "string",
       "sources": [
-        "internal/resources/gateways/configuration.go:49"
+        "internal/resources/gateways/configuration.go:50"
       ]
     },
     {
