@@ -30,11 +30,27 @@ func createConfigMap(ctx core.Context, stack *v1beta1.Stack,
 		options = append(options, withTrustedProxiesStrict())
 	}
 
-	idleTimeout, err := settings.GetString(ctx, stack.Name, "gateway", "config", "idle-timeout")
+	shutdownDelay, err := settings.GetDuration(ctx, stack.Name, "gateway", "caddyfile", "shutdown-delay")
 	if err != nil {
 		return nil, err
 	}
-	if idleTimeout != nil && *idleTimeout != "" {
+	if shutdownDelay != nil {
+		options = append(options, withShutdownDelay(*shutdownDelay))
+	}
+
+	gracePeriod, err := settings.GetDuration(ctx, stack.Name, "gateway", "caddyfile", "grace-period")
+	if err != nil {
+		return nil, err
+	}
+	if gracePeriod != nil {
+		options = append(options, withGracePeriod(*gracePeriod))
+	}
+
+	idleTimeout, err := settings.GetDuration(ctx, stack.Name, "gateway", "config", "idle-timeout")
+	if err != nil {
+		return nil, err
+	}
+	if idleTimeout != nil {
 		options = append(options, withIdleTimeout(*idleTimeout))
 	}
 

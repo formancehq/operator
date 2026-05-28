@@ -320,6 +320,8 @@ func knownFunction(name string) (functionSpec, bool) {
 		"GetBoolOrDefault":      directSpec("bool", 3),
 		"GetBoolOrFalse":        directSpec("bool", 2),
 		"GetBoolOrTrue":         directSpec("bool", 2),
+		"GetDuration":           directSpec("string", 2),
+		"GetDurationOrDefault":  directSpec("string", 3),
 		"GetMap":                directSpec("map[string]string", 2),
 		"GetMapOrEmpty":         directSpec("map[string]string", 2),
 		"GetEnvVars": {

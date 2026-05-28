@@ -50,6 +50,13 @@
 	# Global metrics endpoint (moved from servers block - deprecated location)
 	metrics
 
+	{{- if .ShutdownDelay }}
+	shutdown_delay {{ .ShutdownDelay }}
+	{{- end }}
+	{{- if .GracePeriod }}
+	grace_period {{ .GracePeriod }}
+	{{- end }}
+
 	servers {
 		{{- if and .TrustedProxies (gt (len .TrustedProxies) 0) }}
 		trusted_proxies {{ .TrustedProxies }}
