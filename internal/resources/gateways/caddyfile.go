@@ -2,6 +2,7 @@ package gateways
 
 import (
 	"strings"
+	"time"
 
 	collectionutils "github.com/formancehq/go-libs/v5/pkg/types/collections"
 
@@ -55,9 +56,23 @@ func withTrustedProxiesStrict() func(data map[string]any) error {
 	}
 }
 
-func withIdleTimeout(timeout string) func(data map[string]any) error {
+func withIdleTimeout(timeout time.Duration) func(data map[string]any) error {
 	return func(data map[string]any) error {
-		data["IdleTimeout"] = timeout
+		data["IdleTimeout"] = timeout.String()
+		return nil
+	}
+}
+
+func withShutdownDelay(delay time.Duration) func(data map[string]any) error {
+	return func(data map[string]any) error {
+		data["ShutdownDelay"] = delay.String()
+		return nil
+	}
+}
+
+func withGracePeriod(period time.Duration) func(data map[string]any) error {
+	return func(data map[string]any) error {
+		data["GracePeriod"] = period.String()
 		return nil
 	}
 }

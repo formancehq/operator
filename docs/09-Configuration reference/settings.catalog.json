@@ -192,6 +192,20 @@
       ]
     },
     {
+      "key": "gateway.caddyfile.grace-period",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/gateways/configuration.go:41"
+      ]
+    },
+    {
+      "key": "gateway.caddyfile.shutdown-delay",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/gateways/configuration.go:33"
+      ]
+    },
+    {
       "key": "gateway.caddyfile.trusted-proxies",
       "valueType": "string[]",
       "sources": [
@@ -209,7 +223,7 @@
       "key": "gateway.config.idle-timeout",
       "valueType": "string",
       "sources": [
-        "internal/resources/gateways/configuration.go:33"
+        "internal/resources/gateways/configuration.go:49"
       ]
     },
     {

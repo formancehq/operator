@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -422,6 +423,33 @@ func GetMapOrEmpty(ctx core.Context, stack string, keys ...string) (map[string]s
 	}
 
 	return value, nil
+}
+
+func GetDuration(ctx core.Context, stack string, keys ...string) (*time.Duration, error) {
+	value, err := GetString(ctx, stack, keys...)
+	if err != nil {
+		return nil, err
+	}
+
+	if value == nil {
+		return nil, nil
+	}
+	duration, err := time.ParseDuration(*value)
+	if err != nil {
+		return nil, err
+	}
+	return &duration, nil
+}
+
+func GetDurationOrDefault(ctx core.Context, stack string, defaultValue time.Duration, keys ...string) (time.Duration, error) {
+	duration, err := GetDuration(ctx, stack, keys...)
+	if err != nil {
+		return 0, err
+	}
+	if duration == nil {
+		return defaultValue, nil
+	}
+	return *duration, nil
 }
 
 func findMatchingSettings(settings []v1beta1.Settings, flattenKeys ...string) (*string, error) {
