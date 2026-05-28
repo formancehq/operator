@@ -23,7 +23,7 @@ RUN set -e; \
         LICENCE_PUBLIC_KEY="$(printf '%s' "$LICENCE_PUBLIC_KEY_B64" | base64 -d)"; \
         LDFLAGS="${LDFLAGS} -X 'github.com/formancehq/go-libs/v5/pkg/authn/licence.formancePublicKey=${LICENCE_PUBLIC_KEY}'"; \
     fi; \
-    CGO_ENABLED=0 go build -o /usr/bin/operator -ldflags="${LDFLAGS}" .
+    CGO_ENABLED=0 go build -buildvcs=false -o /usr/bin/operator -ldflags="${LDFLAGS}" .
 
 FROM alpine:3.20
 
