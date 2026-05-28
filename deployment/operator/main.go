@@ -15,12 +15,15 @@ func main() {
 	pulumi.Run(func(ctx *pulumi.Context) error {
 		cfg := config.New(ctx, "")
 
-		k8s, err := newK8sSetup(ctx, cfg)
+		k8sProvider, err := newK8sProvider(ctx, cfg)
 		if err != nil {
 			return err
 		}
-		namespace := k8s.Namespace
-		k8sProvider := k8s.Provider
+
+		namespace := cfg.Get("namespace")
+		if namespace == "" {
+			namespace = "formance-system"
+		}
 
 		dc := newDockerConfig(ctx, cfg)
 
@@ -83,7 +86,8 @@ func main() {
 		operatorRelease, err := helm.NewRelease(ctx, "formance-operator", &helm.ReleaseArgs{
 			Name:      pulumi.String("formance-operator"),
 			Chart:     pulumi.String(operatorChartPath),
-			Namespace: namespace.Metadata.Name(),
+			Namespace:       pulumi.String(namespace),
+			CreateNamespace: pulumi.Bool(true),
 			Values: pulumi.Map{
 				"operator-crds": pulumi.Map{
 					"create": pulumi.Bool(false),
@@ -107,7 +111,7 @@ func main() {
 			},
 			ForceUpdate: pulumi.Bool(true),
 		},
-			pulumi.DependsOn(append([]pulumi.Resource{namespace, operatorImage.Resource()}, crds...)),
+			pulumi.DependsOn(append([]pulumi.Resource{operatorImage.Resource()}, crds...)),
 			pulumi.Provider(k8sProvider),
 		)
 		if err != nil {
@@ -115,7 +119,7 @@ func main() {
 		}
 
 		// Exports
-		ctx.Export("namespace", namespace.Metadata.Name())
+		ctx.Export("namespace", pulumi.String(namespace))
 		ctx.Export("operatorImage", pulumi.Sprintf("%s/formancehq/operator:latest@%s", dc.PullRegistry, operatorImage.Digest))
 		ctx.Export("operatorRelease", operatorRelease.Name)
 

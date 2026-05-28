@@ -10,8 +10,6 @@ import (
 
 	"github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	v1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
-	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 	"gopkg.in/yaml.v3"
@@ -52,18 +50,8 @@ func getConfigBool(cfg *config.Config, key string, fallback bool) bool {
 	return fallback
 }
 
-type k8sSetup struct {
-	Provider  pulumi.ProviderResource
-	Namespace *v1.Namespace
-}
-
-func newK8sSetup(ctx *pulumi.Context, cfg *config.Config) (*k8sSetup, error) {
+func newK8sProvider(ctx *pulumi.Context, cfg *config.Config) (pulumi.ProviderResource, error) {
 	kubeContext := cfg.Require("k8s-context")
-
-	namespaceName := cfg.Get("namespace")
-	if namespaceName == "" {
-		namespaceName = ctx.Stack()
-	}
 
 	k8sProvider, err := kubernetes.NewProvider(ctx, "k8s", &kubernetes.ProviderArgs{
 		Context: pulumi.StringPtr(kubeContext),
@@ -72,19 +60,7 @@ func newK8sSetup(ctx *pulumi.Context, cfg *config.Config) (*k8sSetup, error) {
 		return nil, fmt.Errorf("failed to create k8s provider: %w", err)
 	}
 
-	namespace, err := v1.NewNamespace(ctx, "namespace", &v1.NamespaceArgs{
-		Metadata: &metav1.ObjectMetaArgs{
-			Name: pulumi.String(namespaceName),
-		},
-	}, pulumi.Provider(k8sProvider), pulumi.RetainOnDelete(true))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace: %w", err)
-	}
-
-	return &k8sSetup{
-		Provider:  k8sProvider,
-		Namespace: namespace,
-	}, nil
+	return k8sProvider, nil
 }
 
 type dockerConfig struct {
