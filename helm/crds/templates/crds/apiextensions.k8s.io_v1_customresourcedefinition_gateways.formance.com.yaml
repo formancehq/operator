@@ -64,6 +64,26 @@ spec:
             type: object
           spec:
             properties:
+              caddyfile:
+                description: GatewayCaddyfileConfig holds Caddyfile-level tuning options.
+                properties:
+                  gracePeriod:
+                    type: string
+                  shutdownDelay:
+                    type: string
+                  trustedProxies:
+                    items:
+                      type: string
+                    type: array
+                  trustedProxiesStrict:
+                    type: boolean
+                type: object
+              config:
+                description: GatewayServerConfig holds HTTP server tuning options.
+                properties:
+                  idleTimeout:
+                    type: string
+                type: object
               debug:
                 default: false
                 description: Allow to enable debug mode on the module
@@ -74,6 +94,40 @@ spec:
                   Allow to enable dev mode on the module
                   Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
                 type: boolean
+              dns:
+                items:
+                  description: |-
+                    GatewayDNSEndpoint configures a DNS endpoint managed by the gateway.
+                    Name identifies the entry (e.g. "private", "public") and yields a
+                    DNSEndpoint resource named "<gateway>-<name>".
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    dnsNames:
+                      items:
+                        type: string
+                      type: array
+                    enabled:
+                      type: boolean
+                    name:
+                      type: string
+                    providerSpecific:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    recordType:
+                      default: CNAME
+                      type: string
+                    targets:
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - name
+                  type: object
+                type: array
               ingress:
                 description: Allow to customize the generated ingress
                 properties:
@@ -95,6 +149,11 @@ spec:
                   ingressClassName:
                     description: Ingress class to use
                     type: string
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Custom labels to add on the ingress
+                    type: object
                   scheme:
                     default: https
                     description: |-

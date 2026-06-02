@@ -64,9 +64,20 @@ spec:
                 properties:
                   checkScopes:
                     type: boolean
+                  issuers:
+                    description: Issuers lists the OIDC issuer URLs the module should
+                      trust.
+                    items:
+                      type: string
+                    type: array
                   readKeySetMaxRetries:
                     type: integer
                 type: object
+              clearTemporal:
+                description: |-
+                  ClearTemporal controls whether the Temporal namespace/schedule is
+                  torn down when the resource is deleted. Defaults to true when unset.
+                type: boolean
               debug:
                 default: false
                 description: Allow to enable debug mode on the module
@@ -86,6 +97,19 @@ spec:
                 description: Version allow to override global version defined at stack
                   level for a specific module
                 type: string
+              worker:
+                description: PaymentsWorkerConfig configures the payments worker temporal
+                  client.
+                properties:
+                  temporalMaxConcurrentActivityTaskPollers:
+                    type: integer
+                  temporalMaxConcurrentWorkflowTaskPollers:
+                    type: integer
+                  temporalMaxLocalActivitySlots:
+                    type: integer
+                  temporalMaxSlotsPerPoller:
+                    type: integer
+                type: object
             type: object
           status:
             properties:

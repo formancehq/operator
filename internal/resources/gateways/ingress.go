@@ -13,13 +13,22 @@ import (
 
 func withAnnotations(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
-		annotations, err := settings.PreferSpecMap(ctx, stack.Name, gateway.Spec.Ingress.Annotations,
-			"Gateway.Spec.Ingress.Annotations", "gateway", "ingress", "annotations")
+		annotations, err := settings.GetMap(ctx, stack.Name, "gateway", "ingress", "annotations")
 		if err != nil {
 			return err
 		}
+		if len(annotations) > 0 {
+			settings.LogDeprecation(ctx, stack.Name, "Gateway.Spec.Ingress.Annotations",
+				"gateway", "ingress", "annotations")
+		}
 		if annotations == nil {
 			annotations = map[string]string{}
+		}
+		// Spec annotations win on key collision.
+		if gateway.Spec.Ingress.Annotations != nil {
+			for k, v := range gateway.Spec.Ingress.Annotations {
+				annotations[k] = v
+			}
 		}
 
 		t.SetAnnotations(annotations)
@@ -30,17 +39,22 @@ func withAnnotations(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Ga
 
 func withLabels(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
-		var specLabels map[string]string
-		if gateway.Spec.Ingress != nil {
-			specLabels = gateway.Spec.Ingress.Labels
-		}
-		labels, err := settings.PreferSpecMap(ctx, stack.Name, specLabels,
-			"Gateway.Spec.Ingress.Labels", "gateway", "ingress", "labels")
+		labels, err := settings.GetMap(ctx, stack.Name, "gateway", "ingress", "labels")
 		if err != nil {
 			return err
 		}
+		if len(labels) > 0 {
+			settings.LogDeprecation(ctx, stack.Name, "Gateway.Spec.Ingress.Labels",
+				"gateway", "ingress", "labels")
+		}
 		if labels == nil {
 			labels = map[string]string{}
+		}
+		// Spec labels win on key collision.
+		if gateway.Spec.Ingress != nil {
+			for k, v := range gateway.Spec.Ingress.Labels {
+				labels[k] = v
+			}
 		}
 		labels["app.kubernetes.io/component"] = "gateway"
 		labels["app.kubernetes.io/name"] = stack.Name

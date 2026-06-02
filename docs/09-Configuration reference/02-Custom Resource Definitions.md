@@ -442,6 +442,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `signingKey` _string_ | Allow to override the default signing key used to sign JWT tokens. |  |  |
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
 | `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
+| `issuers` _string array_ | Issuers lists the OIDC issuer URLs the auth server should advertise. |  |  |
 
 
 
@@ -531,6 +532,9 @@ Gateway is the Schema for the gateways API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `ingress` _[GatewayIngress](#gatewayingress)_ | Allow to customize the generated ingress |  |  |
+| `caddyfile` _[GatewayCaddyfileConfig](#gatewaycaddyfileconfig)_ |  |  |  |
+| `config` _[GatewayServerConfig](#gatewayserverconfig)_ |  |  |  |
+| `dns` _[GatewayDNSEndpoint](#gatewaydnsendpoint) array_ |  |  |  |
 
 
 
@@ -622,6 +626,13 @@ and maintains an immutable audit trail.
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `experimentalFeatures` _boolean_ |  |  |  |
+| `experimentalNumscript` _boolean_ |  |  |  |
+| `experimentalNumscriptFlags` _string array_ |  |  |  |
+| `experimentalExporters` _boolean_ |  |  |  |
+| `schemaEnforcementMode` _string_ |  |  |  |
+| `api` _[LedgerAPIConfig](#ledgerapiconfig)_ |  |  |  |
+| `worker` _[LedgerWorkerConfig](#ledgerworkerconfig)_ |  |  |  |
 
 
 
@@ -799,6 +810,7 @@ Orchestration is the Schema for the orchestrations API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `maxParallelActivities` _integer_ |  |  |  |
 
 
 
@@ -888,6 +900,8 @@ Payments is the Schema for the payments API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `encryptionKey` _string_ |  |  |  |
+| `clearTemporal` _boolean_ | ClearTemporal controls whether the Temporal namespace/schedule is<br />torn down when the resource is deleted. Defaults to true when unset. |  |  |
+| `worker` _[PaymentsWorkerConfig](#paymentsworkerconfig)_ |  |  |  |
 
 
 
@@ -1242,6 +1256,7 @@ TransactionPlane is the Schema for the transactionplanes API
 | `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `workerEnabled` _boolean_ |  |  |  |
 
 
 
