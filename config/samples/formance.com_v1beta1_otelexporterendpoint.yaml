@@ -33,14 +33,14 @@ spec:
       - key: formance.com/stack
         operator: Exists
   traces:
-    endpoint: "https://otel-licence.telemetry-support-c1f3ad1.v2.formance.dev"
+    endpoint: "https://otel-support.internal.frmnc.net/v1/traces"
     auth:
       type: bearer
-      fromSecret: "formance-license"
+      fromSecret: "formance-licence"
   metrics:
-    endpoint: "https://otel-licence.telemetry-support-c1f3ad1.v2.formance.dev"
+    endpoint: "https://otel-support.internal.frmnc.net/v1/metrics"
     auth:
       type: bearer
-      fromSecret: "formance-license"
+      fromSecret: "formance-licence"
   resourceAttributes:
     cluster.id: "abc-123"

@@ -8,7 +8,7 @@ global:
       # Enable the Formance support OtelExporterEndpoint
       enabled: false
       # The support collector endpoint
-      endpoint: "https://otel-licence.telemetry-support-c1f3ad1.v2.formance.dev"
+      endpoint: "https://otel-support.internal.frmnc.net"
       # Secret name containing the bearer token for auth (key: "token").
       # Defaults to the licence secret if set.
       authSecret: ""
