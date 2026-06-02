@@ -126,6 +126,12 @@ spec:
                   If not enabled, each service will check the authentication but will not restrict access following scopes.
                   in this case, if authenticated, it is ok.
                 type: boolean
+              issuers:
+                description: Issuers lists the OIDC issuer URLs the auth server should
+                  advertise.
+                items:
+                  type: string
+                type: array
               signingKey:
                 description: Allow to override the default signing key used to sign
                   JWT tokens.

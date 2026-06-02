@@ -46,9 +46,51 @@ type GatewayIngress struct {
 
 	// Custom annotations to add on the ingress
 	Annotations map[string]string `json:"annotations,omitempty"`
+	// Custom labels to add on the ingress
+	//+optional
+	Labels map[string]string `json:"labels,omitempty"`
 	// Allow to customize the tls part of the ingress
 	//+optional
 	TLS *GatewayIngressTLS `json:"tls,omitempty"`
+}
+
+// GatewayCaddyfileConfig holds Caddyfile-level tuning options.
+type GatewayCaddyfileConfig struct {
+	// +optional
+	TrustedProxies []string `json:"trustedProxies,omitempty"`
+	// +optional
+	TrustedProxiesStrict *bool `json:"trustedProxiesStrict,omitempty"`
+	// +optional
+	ShutdownDelay *metav1.Duration `json:"shutdownDelay,omitempty"`
+	// +optional
+	GracePeriod *metav1.Duration `json:"gracePeriod,omitempty"`
+}
+
+// GatewayServerConfig holds HTTP server tuning options.
+type GatewayServerConfig struct {
+	// +optional
+	IdleTimeout *metav1.Duration `json:"idleTimeout,omitempty"`
+}
+
+// GatewayDNSEndpoint configures a DNS endpoint managed by the gateway.
+// Name identifies the entry (e.g. "private", "public") and yields a
+// DNSEndpoint resource named "<gateway>-<name>".
+type GatewayDNSEndpoint struct {
+	// +required
+	Name string `json:"name"`
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+	// +optional
+	DNSNames []string `json:"dnsNames,omitempty"`
+	// +optional
+	Targets []string `json:"targets,omitempty"`
+	// +optional
+	// +kubebuilder:default:="CNAME"
+	RecordType string `json:"recordType,omitempty"`
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+	// +optional
+	ProviderSpecific map[string]string `json:"providerSpecific,omitempty"`
 }
 
 // DedupHosts returns the given hosts deduplicated, preserving order and skipping empty strings.
@@ -79,6 +121,22 @@ type GatewaySpec struct {
 	//+optional
 	// Allow to customize the generated ingress
 	Ingress *GatewayIngress `json:"ingress,omitempty"`
+	//+optional
+	Caddyfile *GatewayCaddyfileConfig `json:"caddyfile,omitempty"`
+	//+optional
+	Config *GatewayServerConfig `json:"config,omitempty"`
+	//+optional
+	DNS []GatewayDNSEndpoint `json:"dns,omitempty"`
+}
+
+// FindDNSEndpoint returns the entry from Spec.DNS matching name, or nil.
+func (in *GatewaySpec) FindDNSEndpoint(name string) *GatewayDNSEndpoint {
+	for i := range in.DNS {
+		if in.DNS[i].Name == name {
+			return &in.DNS[i]
+		}
+	}
+	return nil
 }
 
 type GatewayStatus struct {

@@ -170,7 +170,8 @@ func createDeployment(
 		annotations["database-secret-hash"] = temporalSecretResourceReference.Status.Hash
 	}
 
-	maxParallelActivities, err := settings.GetIntOrDefault(ctx, stack.Name, 10, "orchestration", "max-parallel-activities")
+	maxParallelActivities, err := settings.PreferSpecIntOrDefault(ctx, stack.Name, orchestration.Spec.MaxParallelActivities, 10,
+		"Orchestration.Spec.MaxParallelActivities", "orchestration", "max-parallel-activities")
 	if err != nil {
 		return err
 	}

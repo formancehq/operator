@@ -20,11 +20,73 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// LedgerAPIConfig configures the ledger HTTP API behavior.
+type LedgerAPIConfig struct {
+	// +optional
+	DefaultPageSize *int `json:"defaultPageSize,omitempty"`
+	// +optional
+	MaxPageSize *int `json:"maxPageSize,omitempty"`
+	// +optional
+	BulkMaxSize *int `json:"bulkMaxSize,omitempty"`
+}
+
+// LedgerAsyncBlockHasherConfig configures the worker async block hasher.
+type LedgerAsyncBlockHasherConfig struct {
+	// +optional
+	MaxBlockSize string `json:"maxBlockSize,omitempty"`
+	// +optional
+	Schedule string `json:"schedule,omitempty"`
+}
+
+// LedgerPipelinesConfig configures the worker pipelines.
+type LedgerPipelinesConfig struct {
+	// +optional
+	PullInterval string `json:"pullInterval,omitempty"`
+	// +optional
+	PushRetryPeriod string `json:"pushRetryPeriod,omitempty"`
+	// +optional
+	SyncPeriod string `json:"syncPeriod,omitempty"`
+	// +optional
+	LogsPageSize string `json:"logsPageSize,omitempty"`
+}
+
+// LedgerBucketCleanupConfig configures the worker bucket cleanup.
+type LedgerBucketCleanupConfig struct {
+	// +optional
+	RetentionPeriod string `json:"retentionPeriod,omitempty"`
+	// +optional
+	Schedule string `json:"schedule,omitempty"`
+}
+
+// LedgerWorkerConfig configures the ledger worker.
+type LedgerWorkerConfig struct {
+	// +optional
+	AsyncBlockHasher *LedgerAsyncBlockHasherConfig `json:"asyncBlockHasher,omitempty"`
+	// +optional
+	BucketCleanup *LedgerBucketCleanupConfig `json:"bucketCleanup,omitempty"`
+	// +optional
+	Pipelines *LedgerPipelinesConfig `json:"pipelines,omitempty"`
+}
+
 type LedgerSpec struct {
 	ModuleProperties `json:",inline"`
 	StackDependency  `json:",inline"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
+	// +optional
+	ExperimentalFeatures *bool `json:"experimentalFeatures,omitempty"`
+	// +optional
+	ExperimentalNumscript *bool `json:"experimentalNumscript,omitempty"`
+	// +optional
+	ExperimentalNumscriptFlags []string `json:"experimentalNumscriptFlags,omitempty"`
+	// +optional
+	ExperimentalExporters *bool `json:"experimentalExporters,omitempty"`
+	// +optional
+	SchemaEnforcementMode string `json:"schemaEnforcementMode,omitempty"`
+	// +optional
+	API *LedgerAPIConfig `json:"api,omitempty"`
+	// +optional
+	Worker *LedgerWorkerConfig `json:"worker,omitempty"`
 }
 
 type LedgerStatus struct {

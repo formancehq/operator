@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -66,7 +67,12 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 	}
 	env = append(env, Env("BASE_URL", authUrl))
 
-	issuers, err := settings.GetStringOrEmpty(ctx, stack.Name, "auth", "issuers")
+	var issuersSpec string
+	if len(auth.Spec.Issuers) > 0 {
+		issuersSpec = strings.Join(auth.Spec.Issuers, ",")
+	}
+	issuers, err := settings.PreferSpecString(ctx, stack.Name, issuersSpec,
+		"Auth.Spec.Issuers", "auth", "issuers")
 	if err != nil {
 		return err
 	}

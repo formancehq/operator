@@ -246,6 +246,9 @@ type AuthConfig struct {
 	ReadKeySetMaxRetries int `json:"readKeySetMaxRetries"`
 	// +optional
 	CheckScopes bool `json:"checkScopes"`
+	// Issuers lists the OIDC issuer URLs the module should trust.
+	// +optional
+	Issuers []string `json:"issuers,omitempty"`
 }
 
 // +kubebuilder:object:generate=false

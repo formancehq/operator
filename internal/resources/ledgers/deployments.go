@@ -46,7 +46,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		core.Env("BIND", ":8080"),
 	)
 
-	experimentalFeatures, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-features")
+	experimentalFeatures, err := settings.PreferSpecBool(ctx, stack.Name, ledger.Spec.ExperimentalFeatures,
+		"Ledger.Spec.ExperimentalFeatures", "ledger", "experimental-features")
 	if err != nil {
 		return fmt.Errorf("failed to get experimental features: %w", err)
 	}
@@ -56,7 +57,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		)
 	}
 
-	experimentalNumscript, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-numscript")
+	experimentalNumscript, err := settings.PreferSpecBool(ctx, stack.Name, ledger.Spec.ExperimentalNumscript,
+		"Ledger.Spec.ExperimentalNumscript", "ledger", "experimental-numscript")
 	if err != nil {
 		return fmt.Errorf("failed to get experimental numscript: %w", err)
 	}
@@ -66,7 +68,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		)
 	}
 
-	experimentalNumscriptFlags, err := settings.GetStringSlice(ctx, stack.Name, "ledger", "experimental-numscript-flags")
+	experimentalNumscriptFlags, err := settings.PreferSpecStringSlice(ctx, stack.Name, ledger.Spec.ExperimentalNumscriptFlags,
+		"Ledger.Spec.ExperimentalNumscriptFlags", "ledger", "experimental-numscript-flags")
 	if err != nil {
 		return fmt.Errorf("failed to get experimental numscript: %w", err)
 	}
@@ -74,7 +77,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		container.Env = append(container.Env, core.Env("EXPERIMENTAL_NUMSCRIPT_INTERPRETER_FLAGS", strings.Join(experimentalNumscriptFlags, " ")))
 	}
 
-	defaultPageSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "default-page-size")
+	defaultPageSize, err := settings.PreferSpecInt(ctx, stack.Name, ledgerAPIField(ledger, func(a *v1beta1.LedgerAPIConfig) *int { return a.DefaultPageSize }),
+		"Ledger.Spec.API.DefaultPageSize", "ledger", "api", "default-page-size")
 	if err != nil {
 		return fmt.Errorf("failed to get default page size: %w", err)
 	}
@@ -84,7 +88,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		)
 	}
 
-	maxPageSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "max-page-size")
+	maxPageSize, err := settings.PreferSpecInt(ctx, stack.Name, ledgerAPIField(ledger, func(a *v1beta1.LedgerAPIConfig) *int { return a.MaxPageSize }),
+		"Ledger.Spec.API.MaxPageSize", "ledger", "api", "max-page-size")
 	if err != nil {
 		return fmt.Errorf("failed to get max page size: %w", err)
 	}
@@ -120,7 +125,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger")...)
 	}
 
-	bulkMaxSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "bulk-max-size")
+	bulkMaxSize, err := settings.PreferSpecInt(ctx, stack.Name, ledgerAPIField(ledger, func(a *v1beta1.LedgerAPIConfig) *int { return a.BulkMaxSize }),
+		"Ledger.Spec.API.BulkMaxSize", "ledger", "api", "bulk-max-size")
 	if err != nil {
 		return err
 	}
@@ -128,7 +134,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		container.Env = append(container.Env, core.Env("BULK_MAX_SIZE", fmt.Sprint(*bulkMaxSize)))
 	}
 
-	schemaEnforcementMode, err := settings.GetStringOrEmpty(ctx, stack.Name, "ledger", "schema-enforcement-mode")
+	schemaEnforcementMode, err := settings.PreferSpecString(ctx, stack.Name, ledger.Spec.SchemaEnforcementMode,
+		"Ledger.Spec.SchemaEnforcementMode", "ledger", "schema-enforcement-mode")
 	if err != nil {
 		return err
 	}
@@ -146,7 +153,8 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		return err
 	}
 
-	exportersEnabled, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-exporters")
+	exportersEnabled, err := settings.PreferSpecBool(ctx, stack.Name, ledger.Spec.ExperimentalExporters,
+		"Ledger.Spec.ExperimentalExporters", "ledger", "experimental-exporters")
 	if err != nil {
 		return fmt.Errorf("failed to get experimental exporters setting: %w", err)
 	}
@@ -206,7 +214,7 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 	}
 
 	// Async block hasher settings
-	asyncBlockHasher, err := settings.GetAs[asyncBlockHasherConfiguration](ctx, stack.Name, "ledger", "worker", "async-block-hasher")
+	asyncBlockHasher, err := resolveAsyncBlockHasher(ctx, stack.Name, ledger)
 	if err != nil {
 		return err
 	}
@@ -218,7 +226,7 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 	}
 
 	// Pipelines settings
-	pipelines, err := settings.GetAs[pipelinesConfiguration](ctx, stack.Name, "ledger", "worker", "pipelines")
+	pipelines, err := resolvePipelines(ctx, stack.Name, ledger)
 	if err != nil {
 		return err
 	}
@@ -236,7 +244,8 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 	}
 
 	// Schema enforcement mode
-	schemaEnforcementMode, err := settings.GetStringOrEmpty(ctx, stack.Name, "ledger", "schema-enforcement-mode")
+	schemaEnforcementMode, err := settings.PreferSpecString(ctx, stack.Name, ledger.Spec.SchemaEnforcementMode,
+		"Ledger.Spec.SchemaEnforcementMode", "ledger", "schema-enforcement-mode")
 	if err != nil {
 		return err
 	}
@@ -245,7 +254,7 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 	}
 
 	// Bucket cleanup settings
-	bucketCleanup, err := settings.GetAs[bucketCleanupConfiguration](ctx, stack.Name, "ledger", "worker", "bucket-cleanup")
+	bucketCleanup, err := resolveBucketCleanup(ctx, stack.Name, ledger)
 	if err != nil {
 		return err
 	}
@@ -261,7 +270,8 @@ func installLedgerWorker(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1
 		return err
 	}
 
-	exportersEnabled, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "experimental-exporters")
+	exportersEnabled, err := settings.PreferSpecBool(ctx, stack.Name, ledger.Spec.ExperimentalExporters,
+		"Ledger.Spec.ExperimentalExporters", "ledger", "experimental-exporters")
 	if err != nil {
 		return fmt.Errorf("failed to get experimental exporters setting: %w", err)
 	}
@@ -385,4 +395,74 @@ func setCommonAPIContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, 
 	container.ReadinessProbe = applications.DefaultReadiness("http")
 
 	return nil
+}
+
+// ledgerAPIField safely returns a field of Spec.API, or nil when API is unset.
+func ledgerAPIField(ledger *v1beta1.Ledger, pick func(*v1beta1.LedgerAPIConfig) *int) *int {
+	if ledger.Spec.API == nil {
+		return nil
+	}
+	return pick(ledger.Spec.API)
+}
+
+func resolveAsyncBlockHasher(ctx core.Context, stack string, ledger *v1beta1.Ledger) (asyncBlockHasherConfiguration, error) {
+	if ledger.Spec.Worker != nil && ledger.Spec.Worker.AsyncBlockHasher != nil {
+		return asyncBlockHasherConfiguration{
+			MaxBlockSize: ledger.Spec.Worker.AsyncBlockHasher.MaxBlockSize,
+			Schedule:     ledger.Spec.Worker.AsyncBlockHasher.Schedule,
+		}, nil
+	}
+	value, err := settings.GetAs[asyncBlockHasherConfiguration](ctx, stack, "ledger", "worker", "async-block-hasher")
+	if err != nil {
+		return asyncBlockHasherConfiguration{}, err
+	}
+	if value == nil {
+		return asyncBlockHasherConfiguration{}, nil
+	}
+	if value.MaxBlockSize != "" || value.Schedule != "" {
+		settings.LogDeprecation(ctx, stack, "Ledger.Spec.Worker.AsyncBlockHasher", "ledger", "worker", "async-block-hasher")
+	}
+	return *value, nil
+}
+
+func resolvePipelines(ctx core.Context, stack string, ledger *v1beta1.Ledger) (pipelinesConfiguration, error) {
+	if ledger.Spec.Worker != nil && ledger.Spec.Worker.Pipelines != nil {
+		return pipelinesConfiguration{
+			PullInterval:    ledger.Spec.Worker.Pipelines.PullInterval,
+			PushRetryPeriod: ledger.Spec.Worker.Pipelines.PushRetryPeriod,
+			SyncPeriod:      ledger.Spec.Worker.Pipelines.SyncPeriod,
+			LogsPageSize:    ledger.Spec.Worker.Pipelines.LogsPageSize,
+		}, nil
+	}
+	value, err := settings.GetAs[pipelinesConfiguration](ctx, stack, "ledger", "worker", "pipelines")
+	if err != nil {
+		return pipelinesConfiguration{}, err
+	}
+	if value == nil {
+		return pipelinesConfiguration{}, nil
+	}
+	if value.PullInterval != "" || value.PushRetryPeriod != "" || value.SyncPeriod != "" || value.LogsPageSize != "" {
+		settings.LogDeprecation(ctx, stack, "Ledger.Spec.Worker.Pipelines", "ledger", "worker", "pipelines")
+	}
+	return *value, nil
+}
+
+func resolveBucketCleanup(ctx core.Context, stack string, ledger *v1beta1.Ledger) (bucketCleanupConfiguration, error) {
+	if ledger.Spec.Worker != nil && ledger.Spec.Worker.BucketCleanup != nil {
+		return bucketCleanupConfiguration{
+			RetentionPeriod: ledger.Spec.Worker.BucketCleanup.RetentionPeriod,
+			Schedule:        ledger.Spec.Worker.BucketCleanup.Schedule,
+		}, nil
+	}
+	value, err := settings.GetAs[bucketCleanupConfiguration](ctx, stack, "ledger", "worker", "bucket-cleanup")
+	if err != nil {
+		return bucketCleanupConfiguration{}, err
+	}
+	if value == nil {
+		return bucketCleanupConfiguration{}, nil
+	}
+	if value.RetentionPeriod != "" || value.Schedule != "" {
+		settings.LogDeprecation(ctx, stack, "Ledger.Spec.Worker.BucketCleanup", "ledger", "worker", "bucket-cleanup")
+	}
+	return *value, nil
 }

@@ -122,7 +122,8 @@ func createDeployments(
 		return err
 	}
 
-	workerEnabled, err := settings.GetBoolOrDefault(ctx, stack.Name, false, "transactionplane", "worker-enabled")
+	workerEnabled, err := settings.PreferSpecBoolOrDefault(ctx, stack.Name, t.Spec.WorkerEnabled, false,
+		"TransactionPlane.Spec.WorkerEnabled", "transactionplane", "worker-enabled")
 	if err != nil {
 		return err
 	}

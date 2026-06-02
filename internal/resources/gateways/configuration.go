@@ -1,6 +1,8 @@
 package gateways
 
 import (
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -14,7 +16,14 @@ func createConfigMap(ctx core.Context, stack *v1beta1.Stack,
 
 	options := []CaddyOptions{}
 
-	trustedProxies, err := settings.GetStringSlice(ctx, stack.Name, "gateway", "caddyfile", "trusted-proxies")
+	caddyfileSpec := gateway.Spec.Caddyfile
+
+	var trustedProxiesSpec []string
+	if caddyfileSpec != nil {
+		trustedProxiesSpec = caddyfileSpec.TrustedProxies
+	}
+	trustedProxies, err := settings.PreferSpecStringSlice(ctx, stack.Name, trustedProxiesSpec,
+		"Gateway.Spec.Caddyfile.TrustedProxies", "gateway", "caddyfile", "trusted-proxies")
 	if err != nil {
 		return nil, err
 	}
@@ -22,36 +31,56 @@ func createConfigMap(ctx core.Context, stack *v1beta1.Stack,
 		options = append(options, withTrustedProxies(trustedProxies))
 	}
 
-	trustedProxiesStrict, err := settings.GetBool(ctx, stack.Name, "gateway", "caddyfile", "trusted-proxies-strict")
+	var trustedProxiesStrictSpec *bool
+	if caddyfileSpec != nil {
+		trustedProxiesStrictSpec = caddyfileSpec.TrustedProxiesStrict
+	}
+	trustedProxiesStrict, err := settings.PreferSpecBool(ctx, stack.Name, trustedProxiesStrictSpec,
+		"Gateway.Spec.Caddyfile.TrustedProxiesStrict", "gateway", "caddyfile", "trusted-proxies-strict")
 	if err != nil {
 		return nil, err
 	}
-	if trustedProxiesStrict != nil && *trustedProxiesStrict {
+	if trustedProxiesStrict {
 		options = append(options, withTrustedProxiesStrict())
 	}
 
-	shutdownDelay, err := settings.GetDuration(ctx, stack.Name, "gateway", "caddyfile", "shutdown-delay")
+	var shutdownDelaySpec time.Duration
+	if caddyfileSpec != nil && caddyfileSpec.ShutdownDelay != nil {
+		shutdownDelaySpec = caddyfileSpec.ShutdownDelay.Duration
+	}
+	shutdownDelay, err := settings.PreferSpecDuration(ctx, stack.Name, shutdownDelaySpec, 0,
+		"Gateway.Spec.Caddyfile.ShutdownDelay", "gateway", "caddyfile", "shutdown-delay")
 	if err != nil {
 		return nil, err
 	}
-	if shutdownDelay != nil {
-		options = append(options, withShutdownDelay(*shutdownDelay))
+	if shutdownDelay != 0 {
+		options = append(options, withShutdownDelay(shutdownDelay))
 	}
 
-	gracePeriod, err := settings.GetDuration(ctx, stack.Name, "gateway", "caddyfile", "grace-period")
+	var gracePeriodSpec time.Duration
+	if caddyfileSpec != nil && caddyfileSpec.GracePeriod != nil {
+		gracePeriodSpec = caddyfileSpec.GracePeriod.Duration
+	}
+	gracePeriod, err := settings.PreferSpecDuration(ctx, stack.Name, gracePeriodSpec, 0,
+		"Gateway.Spec.Caddyfile.GracePeriod", "gateway", "caddyfile", "grace-period")
 	if err != nil {
 		return nil, err
 	}
-	if gracePeriod != nil {
-		options = append(options, withGracePeriod(*gracePeriod))
+	if gracePeriod != 0 {
+		options = append(options, withGracePeriod(gracePeriod))
 	}
 
-	idleTimeout, err := settings.GetDuration(ctx, stack.Name, "gateway", "config", "idle-timeout")
+	var idleTimeoutSpec time.Duration
+	if gateway.Spec.Config != nil && gateway.Spec.Config.IdleTimeout != nil {
+		idleTimeoutSpec = gateway.Spec.Config.IdleTimeout.Duration
+	}
+	idleTimeout, err := settings.PreferSpecDuration(ctx, stack.Name, idleTimeoutSpec, 0,
+		"Gateway.Spec.Config.IdleTimeout", "gateway", "config", "idle-timeout")
 	if err != nil {
 		return nil, err
 	}
-	if idleTimeout != nil {
-		options = append(options, withIdleTimeout(*idleTimeout))
+	if idleTimeout != 0 {
+		options = append(options, withIdleTimeout(idleTimeout))
 	}
 
 	caddyfile, err := CreateCaddyfile(ctx, stack, gateway, httpAPIs, broker, options...)

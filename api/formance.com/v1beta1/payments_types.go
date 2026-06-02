@@ -20,6 +20,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// PaymentsWorkerConfig configures the payments worker temporal client.
+type PaymentsWorkerConfig struct {
+	// +optional
+	TemporalMaxConcurrentWorkflowTaskPollers *int `json:"temporalMaxConcurrentWorkflowTaskPollers,omitempty"`
+	// +optional
+	TemporalMaxConcurrentActivityTaskPollers *int `json:"temporalMaxConcurrentActivityTaskPollers,omitempty"`
+	// +optional
+	TemporalMaxSlotsPerPoller *int `json:"temporalMaxSlotsPerPoller,omitempty"`
+	// +optional
+	TemporalMaxLocalActivitySlots *int `json:"temporalMaxLocalActivitySlots,omitempty"`
+}
+
 type PaymentsSpec struct {
 	StackDependency  `json:",inline"`
 	ModuleProperties `json:",inline"`
@@ -27,6 +39,12 @@ type PaymentsSpec struct {
 	EncryptionKey string `json:"encryptionKey"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
+	// ClearTemporal controls whether the Temporal namespace/schedule is
+	// torn down when the resource is deleted. Defaults to true when unset.
+	// +optional
+	ClearTemporal *bool `json:"clearTemporal,omitempty"`
+	// +optional
+	Worker *PaymentsWorkerConfig `json:"worker,omitempty"`
 }
 
 type PaymentsStatus struct {

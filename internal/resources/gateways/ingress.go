@@ -5,7 +5,6 @@ import (
 
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -14,18 +13,13 @@ import (
 
 func withAnnotations(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
-		annotations, err := settings.GetMap(ctx, stack.Name, "gateway", "ingress", "annotations")
+		annotations, err := settings.PreferSpecMap(ctx, stack.Name, gateway.Spec.Ingress.Annotations,
+			"Gateway.Spec.Ingress.Annotations", "gateway", "ingress", "annotations")
 		if err != nil {
 			return err
 		}
 		if annotations == nil {
 			annotations = map[string]string{}
-		}
-
-		if gateway.Spec.Ingress.Annotations != nil {
-			for k, v := range gateway.Spec.Ingress.Annotations {
-				annotations[k] = v
-			}
 		}
 
 		t.SetAnnotations(annotations)
@@ -34,9 +28,14 @@ func withAnnotations(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Ga
 	}
 }
 
-func withLabels(ctx core.Context, stack *v1beta1.Stack, owner client.Object) core.ObjectMutator[*v1.Ingress] {
+func withLabels(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
-		labels, err := settings.GetMap(ctx, stack.Name, "gateway", "ingress", "labels")
+		var specLabels map[string]string
+		if gateway.Spec.Ingress != nil {
+			specLabels = gateway.Spec.Ingress.Labels
+		}
+		labels, err := settings.PreferSpecMap(ctx, stack.Name, specLabels,
+			"Gateway.Spec.Ingress.Labels", "gateway", "ingress", "labels")
 		if err != nil {
 			return err
 		}
@@ -56,6 +55,11 @@ func getAllHosts(ctx core.Context, gateway *v1beta1.Gateway) ([]string, error) {
 		return nil, err
 	}
 
+	if len(settingsHosts) > 0 {
+		settings.LogDeprecation(ctx, gateway.Spec.Stack, "Gateway.Spec.Ingress.Hosts",
+			"gateway", "ingress", "hosts")
+	}
+
 	for i, h := range settingsHosts {
 		settingsHosts[i] = strings.ReplaceAll(h, "{stack}", gateway.Spec.Stack)
 	}
@@ -67,13 +71,15 @@ func withTls(ctx core.Context, gateway *v1beta1.Gateway, hosts []string) core.Ob
 	return func(t *v1.Ingress) error {
 		var secretName string
 		if gateway.Spec.Ingress.TLS == nil {
-			tlsEnabled, err := settings.GetBoolOrFalse(ctx, gateway.Spec.Stack, "gateway", "ingress", "tls", "enabled")
+			tlsEnabled, err := settings.GetBool(ctx, gateway.Spec.Stack, "gateway", "ingress", "tls", "enabled")
 			if err != nil {
 				return err
 			}
-			if !tlsEnabled {
+			if tlsEnabled == nil || !*tlsEnabled {
 				return nil
 			}
+			settings.LogDeprecation(ctx, gateway.Spec.Stack, "Gateway.Spec.Ingress.TLS",
+				"gateway", "ingress", "tls", "enabled")
 			secretName = gateway.Name + "-tls"
 		} else {
 			secretName = gateway.Spec.Ingress.TLS.SecretName
@@ -90,18 +96,18 @@ func withTls(ctx core.Context, gateway *v1beta1.Gateway, hosts []string) core.Ob
 
 func withIngressClassName(ctx core.Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway) core.ObjectMutator[*v1.Ingress] {
 	return func(t *v1.Ingress) error {
-		ingressClassName, err := settings.GetString(ctx, stack.Name, "gateway", "ingress", "class")
+		var specClass string
+		if gateway.Spec.Ingress.IngressClassName != nil {
+			specClass = *gateway.Spec.Ingress.IngressClassName
+		}
+		ingressClassName, err := settings.PreferSpecString(ctx, stack.Name, specClass,
+			"Gateway.Spec.Ingress.IngressClassName", "gateway", "ingress", "class")
 		if err != nil {
 			return err
 		}
 
-		if gateway.Spec.Ingress.IngressClassName != nil {
-			t.Spec.IngressClassName = gateway.Spec.Ingress.IngressClassName
-			return nil
-		}
-
-		if ingressClassName != nil {
-			t.Spec.IngressClassName = ingressClassName
+		if ingressClassName != "" {
+			t.Spec.IngressClassName = &ingressClassName
 		}
 
 		return nil

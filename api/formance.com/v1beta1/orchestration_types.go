@@ -25,6 +25,8 @@ type OrchestrationSpec struct {
 	ModuleProperties `json:",inline"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
+	// +optional
+	MaxParallelActivities *int `json:"maxParallelActivities,omitempty"`
 }
 
 type OrchestrationStatus struct {

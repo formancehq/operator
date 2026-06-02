@@ -52,6 +52,9 @@ type AuthSpec struct {
 	// in this case, if authenticated, it is ok.
 	// +kubebuilder:default:=false
 	EnableScopes bool `json:"enableScopes"`
+	// Issuers lists the OIDC issuer URLs the auth server should advertise.
+	// +optional
+	Issuers []string `json:"issuers,omitempty"`
 }
 
 type AuthStatus struct {

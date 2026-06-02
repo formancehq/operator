@@ -25,6 +25,8 @@ type TransactionPlaneSpec struct {
 	ModuleProperties `json:",inline"`
 	// +optional
 	Auth *AuthConfig `json:"auth,omitempty"`
+	// +optional
+	WorkerEnabled *bool `json:"workerEnabled,omitempty"`
 }
 
 type TransactionPlaneStatus struct {

@@ -26,11 +26,8 @@ import (
 )
 
 func getEncryptionKey(ctx core.Context, payments *v1beta1.Payments) (string, error) {
-	encryptionKey := payments.Spec.EncryptionKey
-	if encryptionKey == "" {
-		return settings.GetStringOrEmpty(ctx, payments.Spec.Stack, "payments", "encryption-key")
-	}
-	return "", nil
+	return settings.PreferSpecString(ctx, payments.Spec.Stack, payments.Spec.EncryptionKey,
+		"Payments.Spec.EncryptionKey", "payments", "encryption-key")
 }
 
 func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments) (hash map[string]string, env []corev1.EnvVar, err error) {
@@ -113,7 +110,9 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 	}
 
 	var value int
-	value, err = settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-workflow-task-pollers")
+	value, err = settings.PreferSpecIntOrDefault(ctx, stack.Name, paymentsWorkerField(payments, func(w *v1beta1.PaymentsWorkerConfig) *int { return w.TemporalMaxConcurrentWorkflowTaskPollers }),
+		4, "Payments.Spec.Worker.TemporalMaxConcurrentWorkflowTaskPollers",
+		"payments", "worker", "temporal-max-concurrent-workflow-task-pollers")
 	if err != nil {
 		return
 	}
@@ -121,7 +120,9 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		core.Env("TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLERS", fmt.Sprintf("%d", value)),
 	)
 
-	value, err = settings.GetIntOrDefault(ctx, stack.Name, 4, "payments", "worker", "temporal-max-concurrent-activity-task-pollers")
+	value, err = settings.PreferSpecIntOrDefault(ctx, stack.Name, paymentsWorkerField(payments, func(w *v1beta1.PaymentsWorkerConfig) *int { return w.TemporalMaxConcurrentActivityTaskPollers }),
+		4, "Payments.Spec.Worker.TemporalMaxConcurrentActivityTaskPollers",
+		"payments", "worker", "temporal-max-concurrent-activity-task-pollers")
 	if err != nil {
 		return
 	}
@@ -129,7 +130,9 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		core.Env("TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLERS", fmt.Sprintf("%d", value)),
 	)
 
-	value, err = settings.GetIntOrDefault(ctx, stack.Name, 10, "payments", "worker", "temporal-max-slots-per-poller")
+	value, err = settings.PreferSpecIntOrDefault(ctx, stack.Name, paymentsWorkerField(payments, func(w *v1beta1.PaymentsWorkerConfig) *int { return w.TemporalMaxSlotsPerPoller }),
+		10, "Payments.Spec.Worker.TemporalMaxSlotsPerPoller",
+		"payments", "worker", "temporal-max-slots-per-poller")
 	if err != nil {
 		return
 	}
@@ -137,7 +140,9 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 		core.Env("TEMPORAL_MAX_SLOTS_PER_POLLER", fmt.Sprintf("%d", value)),
 	)
 
-	value, err = settings.GetIntOrDefault(ctx, stack.Name, 50, "payments", "worker", "temporal-max-local-activity-slots")
+	value, err = settings.PreferSpecIntOrDefault(ctx, stack.Name, paymentsWorkerField(payments, func(w *v1beta1.PaymentsWorkerConfig) *int { return w.TemporalMaxLocalActivitySlots }),
+		50, "Payments.Spec.Worker.TemporalMaxLocalActivitySlots",
+		"payments", "worker", "temporal-max-local-activity-slots")
 	if err != nil {
 		return
 	}
@@ -558,6 +563,14 @@ func createGateway(ctx core.Context, stack *v1beta1.Stack, p *v1beta1.Payments) 
 	return applications.
 		New(p, deploymentTemplate).
 		Install(ctx)
+}
+
+// paymentsWorkerField safely returns a field of Spec.Worker, or nil when Worker is unset.
+func paymentsWorkerField(payments *v1beta1.Payments, pick func(*v1beta1.PaymentsWorkerConfig) *int) *int {
+	if payments.Spec.Worker == nil {
+		return nil
+	}
+	return pick(payments.Spec.Worker)
 }
 
 func validateTemporalURI(temporalURI *v1beta1.URI) error {

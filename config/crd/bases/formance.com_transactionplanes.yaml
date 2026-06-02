@@ -61,6 +61,12 @@ spec:
                 properties:
                   checkScopes:
                     type: boolean
+                  issuers:
+                    description: Issuers lists the OIDC issuer URLs the module should
+                      trust.
+                    items:
+                      type: string
+                    type: array
                   readKeySetMaxRetries:
                     type: integer
                 type: object
@@ -81,6 +87,8 @@ spec:
                 description: Version allow to override global version defined at stack
                   level for a specific module
                 type: string
+              workerEnabled:
+                type: boolean
             type: object
           status:
             properties:

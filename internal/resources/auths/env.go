@@ -2,6 +2,7 @@ package auths
 
 import (
 	"strconv"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -31,7 +32,7 @@ func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth
 		Env("AUTH_ISSUER", url),
 	)
 
-	issuers, err := settings.GetStringOrEmpty(ctx, stack.Name, "auth", "issuers")
+	issuers, err := resolveIssuers(ctx, stack.Name, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +84,18 @@ func shouldCheckScopes(ctx Context, stackName, moduleName string, auth *v1beta1.
 
 	// If Settings exists, use it
 	if checkScopesFromSettings != nil {
+		settings.LogDeprecation(ctx, stackName, "<module>.Spec.Auth.CheckScopes", "auth", moduleName, "check-scopes")
 		return *checkScopesFromSettings, nil
 	}
 
 	return false, nil
+}
+
+// resolveIssuers returns the comma-separated list of trusted issuers,
+// preferring Spec.Auth.Issuers over the stack-level auth.issuers setting.
+func resolveIssuers(ctx Context, stackName string, auth *v1beta1.AuthConfig) (string, error) {
+	if auth != nil && len(auth.Issuers) > 0 {
+		return strings.Join(auth.Issuers, ","), nil
+	}
+	return settings.PreferSpecString(ctx, stackName, "", "<module>.Spec.Auth.Issuers", "auth", "issuers")
 }

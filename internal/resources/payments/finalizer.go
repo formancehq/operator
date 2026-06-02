@@ -23,7 +23,8 @@ func Clean(ctx core.Context, t *v1beta1.Payments) error {
 		return err
 	}
 
-	clearTemporal, err := settings.GetBoolOrTrue(ctx, stack.Name, "payments", "clear-temporal")
+	clearTemporal, err := settings.PreferSpecBoolOrDefault(ctx, stack.Name, t.Spec.ClearTemporal, true,
+		"Payments.Spec.ClearTemporal", "payments", "clear-temporal")
 	if err != nil {
 		return err
 	}

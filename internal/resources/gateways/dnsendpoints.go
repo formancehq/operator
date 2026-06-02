@@ -24,7 +24,33 @@ type DNSConfig struct {
 	RecordType   string
 }
 
-func getDNSConfig(ctx core.Context, stack string, dnsType string) (*DNSConfig, error) {
+func getDNSConfig(ctx core.Context, gateway *v1beta1.Gateway, dnsType string) (*DNSConfig, error) {
+	stack := gateway.Spec.Stack
+
+	if spec := gateway.Spec.FindDNSEndpoint(dnsType); spec != nil {
+		if spec.Enabled == nil || !*spec.Enabled {
+			return nil, nil
+		}
+		if len(spec.DNSNames) == 0 {
+			return nil, fmt.Errorf("Gateway.Spec.DNS[%q].dnsNames is required when enabled is true", dnsType)
+		}
+		if len(spec.Targets) == 0 {
+			return nil, fmt.Errorf("Gateway.Spec.DNS[%q].targets is required when enabled is true", dnsType)
+		}
+		recordType := spec.RecordType
+		if recordType == "" {
+			recordType = "CNAME"
+		}
+		return &DNSConfig{
+			Enabled:      true,
+			DNSPatterns:  spec.DNSNames,
+			Targets:      spec.Targets,
+			ProviderSpec: spec.ProviderSpecific,
+			Annotations:  spec.Annotations,
+			RecordType:   recordType,
+		}, nil
+	}
+
 	enabled, err := settings.GetBoolOrDefault(ctx, stack, false, "gateway", "dns", dnsType, "enabled")
 	if err != nil {
 		return nil, err
@@ -33,6 +59,8 @@ func getDNSConfig(ctx core.Context, stack string, dnsType string) (*DNSConfig, e
 	if !enabled {
 		return nil, nil
 	}
+
+	settings.LogDeprecation(ctx, stack, "Gateway.Spec.DNS", "gateway", "dns", dnsType, "*")
 
 	dnsNames, err := settings.GetTrimmedStringSlice(ctx, stack, "gateway", "dns", dnsType, "dns-names")
 	if err != nil {
@@ -133,12 +161,12 @@ func createDNSEndpoint(ctx core.Context, gateway v1beta1.Dependent, dnsType stri
 	return err
 }
 
-func reconcileDNSEndpoints(ctx core.Context, gateway v1beta1.Dependent) error {
+func reconcileDNSEndpoints(ctx core.Context, gateway *v1beta1.Gateway) error {
 	stackName := gateway.GetStack()
 	gatewayName := gateway.GetName()
 
 	// Handle private DNS endpoint
-	privateConfig, err := getDNSConfig(ctx, stackName, "private")
+	privateConfig, err := getDNSConfig(ctx, gateway, "private")
 	if err != nil {
 		return err
 	}
@@ -154,7 +182,7 @@ func reconcileDNSEndpoints(ctx core.Context, gateway v1beta1.Dependent) error {
 	}
 
 	// Handle public DNS endpoint
-	publicConfig, err := getDNSConfig(ctx, stackName, "public")
+	publicConfig, err := getDNSConfig(ctx, gateway, "public")
 	if err != nil {
 		return err
 	}

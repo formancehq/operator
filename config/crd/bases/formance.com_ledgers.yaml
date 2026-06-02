@@ -61,10 +61,26 @@ spec:
             type: object
           spec:
             properties:
+              api:
+                description: LedgerAPIConfig configures the ledger HTTP API behavior.
+                properties:
+                  bulkMaxSize:
+                    type: integer
+                  defaultPageSize:
+                    type: integer
+                  maxPageSize:
+                    type: integer
+                type: object
               auth:
                 properties:
                   checkScopes:
                     type: boolean
+                  issuers:
+                    description: Issuers lists the OIDC issuer URLs the module should
+                      trust.
+                    items:
+                      type: string
+                    type: array
                   readKeySetMaxRetries:
                     type: integer
                 type: object
@@ -78,6 +94,18 @@ spec:
                   Allow to enable dev mode on the module
                   Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
                 type: boolean
+              experimentalExporters:
+                type: boolean
+              experimentalFeatures:
+                type: boolean
+              experimentalNumscript:
+                type: boolean
+              experimentalNumscriptFlags:
+                items:
+                  type: string
+                type: array
+              schemaEnforcementMode:
+                type: string
               stack:
                 description: Stack indicates the stack on which the module is installed
                 type: string
@@ -85,6 +113,40 @@ spec:
                 description: Version allow to override global version defined at stack
                   level for a specific module
                 type: string
+              worker:
+                description: LedgerWorkerConfig configures the ledger worker.
+                properties:
+                  asyncBlockHasher:
+                    description: LedgerAsyncBlockHasherConfig configures the worker
+                      async block hasher.
+                    properties:
+                      maxBlockSize:
+                        type: string
+                      schedule:
+                        type: string
+                    type: object
+                  bucketCleanup:
+                    description: LedgerBucketCleanupConfig configures the worker bucket
+                      cleanup.
+                    properties:
+                      retentionPeriod:
+                        type: string
+                      schedule:
+                        type: string
+                    type: object
+                  pipelines:
+                    description: LedgerPipelinesConfig configures the worker pipelines.
+                    properties:
+                      logsPageSize:
+                        type: string
+                      pullInterval:
+                        type: string
+                      pushRetryPeriod:
+                        type: string
+                      syncPeriod:
+                        type: string
+                    type: object
+                type: object
             type: object
           status:
             properties:
