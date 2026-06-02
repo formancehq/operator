@@ -540,21 +540,36 @@
       "key": "opentelemetry.\u003cmonitoring-type\u003e.dsn",
       "valueType": "uri",
       "sources": [
-        "internal/resources/settings/opentelemetry.go:52"
+        "internal/resources/settings/opentelemetry.go:135"
       ]
     },
     {
       "key": "opentelemetry.\u003cmonitoring-type\u003e.resource-attributes",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/settings/opentelemetry.go:96"
+        "internal/resources/settings/opentelemetry.go:179"
+      ]
+    },
+    {
+      "key": "opentelemetry.\u003csignal\u003e.resource-attributes",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/settings/opentelemetry.go:68"
+      ]
+    },
+    {
+      "key": "opentelemetry.metrics.dsn",
+      "valueType": "uri",
+      "sources": [
+        "internal/resources/otelexporterendpoints/init.go:373"
       ]
     },
     {
       "key": "opentelemetry.traces.dsn",
       "valueType": "uri",
       "sources": [
-        "internal/resources/settings/opentelemetry.go:38"
+        "internal/resources/otelexporterendpoints/init.go:369",
+        "internal/resources/settings/opentelemetry.go:121"
       ]
     },
     {

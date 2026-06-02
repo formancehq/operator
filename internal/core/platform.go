@@ -16,4 +16,6 @@ type Platform struct {
 	LicenceState LicenceState
 	// Human-readable message about the licence state
 	LicenceMessage string
+	// The OTel Collector image used by OtelExporterEndpoint resources
+	CollectorImage string
 }

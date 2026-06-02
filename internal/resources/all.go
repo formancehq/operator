@@ -13,6 +13,7 @@ import (
 	_ "github.com/formancehq/operator/v3/internal/resources/ledgers"
 	_ "github.com/formancehq/operator/v3/internal/resources/mcps"
 	_ "github.com/formancehq/operator/v3/internal/resources/orchestrations"
+	_ "github.com/formancehq/operator/v3/internal/resources/otelexporterendpoints"
 	_ "github.com/formancehq/operator/v3/internal/resources/payments"
 	_ "github.com/formancehq/operator/v3/internal/resources/reconciliations"
 	_ "github.com/formancehq/operator/v3/internal/resources/resourcereferences"
