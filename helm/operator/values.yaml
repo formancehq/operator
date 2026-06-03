@@ -12,6 +12,8 @@ global:
       # Secret name containing the bearer token for auth (key: "token").
       # Defaults to the licence secret if set.
       authSecret: ""
+      # Key within the auth secret that contains the token. Defaults to "token" in the CRD.
+      authSecretKey: ""
       # Resource attributes added to all signals sent to this endpoint
       resourceAttributes: {}
       # Stack selector for the support OtelExporterEndpoint

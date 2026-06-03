@@ -23,12 +23,12 @@ const (
 )
 
 func GetOTELEnvVars(ctx core.Context, stack, serviceName string, sliceStringSeparator string) ([]corev1.EnvVar, error) {
-	collectorEndpoint, err := getCollectorEndpoint(ctx, stack)
+	info, err := getCollectorInfo(ctx, stack)
 	if err != nil {
 		return nil, err
 	}
-	if collectorEndpoint != "" {
-		return collectorEnvVars(ctx, collectorEndpoint, stack, serviceName, sliceStringSeparator)
+	if info != nil {
+		return collectorEnvVars(ctx, info, stack, serviceName, sliceStringSeparator)
 	}
 
 	traces, err := otelEnvVars(ctx, stack, MonitoringTypeTraces, serviceName, sliceStringSeparator)
@@ -47,7 +47,13 @@ func GetOTELEnvVars(ctx core.Context, stack, serviceName string, sliceStringSepa
 	return append(traces, metrics...), nil
 }
 
-func getCollectorEndpoint(ctx core.Context, stack string) (string, error) {
+type collectorInfo struct {
+	endpoint   string
+	hasTraces  bool
+	hasMetrics bool
+}
+
+func getCollectorInfo(ctx core.Context, stack string) (*collectorInfo, error) {
 	svc := &corev1.Service{}
 	err := ctx.GetClient().Get(ctx, types.NamespacedName{
 		Namespace: stack,
@@ -55,14 +61,21 @@ func getCollectorEndpoint(ctx core.Context, stack string) (string, error) {
 	}, svc)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", nil
+			return nil, nil
 		}
-		return "", err
+		return nil, err
 	}
-	return fmt.Sprintf("%s.%s:%d", collectorServiceName, stack, collectorServicePort), nil
+	if svc.Labels[core.CollectorManagedByLabel] != core.CollectorManagedByValue {
+		return nil, nil
+	}
+	return &collectorInfo{
+		endpoint:   fmt.Sprintf("%s.%s:%d", collectorServiceName, stack, collectorServicePort),
+		hasTraces:  svc.Annotations[core.SignalTracesAnnotation] == "true",
+		hasMetrics: svc.Annotations[core.SignalMetricsAnnotation] == "true",
+	}, nil
 }
 
-func collectorEnvVars(ctx core.Context, collectorEndpoint, stack, serviceName, sliceStringSeparator string) ([]corev1.EnvVar, error) {
+func collectorEnvVars(ctx core.Context, info *collectorInfo, stack, serviceName, sliceStringSeparator string) ([]corev1.EnvVar, error) {
 	resourceAttributes := map[string]string{}
 	for _, signal := range []string{"traces", "metrics"} {
 		attrs, err := GetMap(ctx, stack, "opentelemetry", signal, "resource-attributes")
@@ -82,20 +95,7 @@ func collectorEnvVars(ctx core.Context, collectorEndpoint, stack, serviceName, s
 	}
 	slices.Sort(resourceAttributesArray)
 
-	return []corev1.EnvVar{
-		core.Env("OTEL_TRACES", "true"),
-		core.Env("OTEL_TRACES_BATCH", "true"),
-		core.Env("OTEL_TRACES_EXPORTER", "otlp"),
-		core.Env("OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", collectorEndpoint),
-		core.Env("OTEL_TRACES_EXPORTER_OTLP_MODE", "http"),
-		core.EnvFromBool("OTEL_TRACES_EXPORTER_OTLP_INSECURE", true),
-		core.Env("OTEL_METRICS", "true"),
-		core.Env("OTEL_METRICS_BATCH", "true"),
-		core.Env("OTEL_METRICS_EXPORTER", "otlp"),
-		core.Env("OTEL_METRICS_EXPORTER_OTLP_ENDPOINT", collectorEndpoint),
-		core.Env("OTEL_METRICS_EXPORTER_OTLP_MODE", "http"),
-		core.EnvFromBool("OTEL_METRICS_EXPORTER_OTLP_INSECURE", true),
-		core.Env("OTEL_METRICS_RUNTIME", "true"),
+	envVars := []corev1.EnvVar{
 		core.Env("OTEL_SERVICE_NAME", serviceName),
 		{
 			Name: "POD_NAME",
@@ -106,16 +106,41 @@ func collectorEnvVars(ctx core.Context, collectorEndpoint, stack, serviceName, s
 			},
 		},
 		core.Env("OTEL_RESOURCE_ATTRIBUTES", strings.Join(resourceAttributesArray, sliceStringSeparator)),
-	}, nil
+	}
+
+	if info.hasTraces {
+		envVars = append(envVars,
+			core.Env("OTEL_TRACES", "true"),
+			core.Env("OTEL_TRACES_BATCH", "true"),
+			core.Env("OTEL_TRACES_EXPORTER", "otlp"),
+			core.Env("OTEL_TRACES_EXPORTER_OTLP_ENDPOINT", info.endpoint),
+			core.Env("OTEL_TRACES_EXPORTER_OTLP_MODE", "http"),
+			core.EnvFromBool("OTEL_TRACES_EXPORTER_OTLP_INSECURE", true),
+		)
+	}
+
+	if info.hasMetrics {
+		envVars = append(envVars,
+			core.Env("OTEL_METRICS", "true"),
+			core.Env("OTEL_METRICS_BATCH", "true"),
+			core.Env("OTEL_METRICS_EXPORTER", "otlp"),
+			core.Env("OTEL_METRICS_EXPORTER_OTLP_ENDPOINT", info.endpoint),
+			core.Env("OTEL_METRICS_EXPORTER_OTLP_MODE", "http"),
+			core.EnvFromBool("OTEL_METRICS_EXPORTER_OTLP_INSECURE", true),
+			core.Env("OTEL_METRICS_RUNTIME", "true"),
+		)
+	}
+
+	return envVars, nil
 }
 
 func HasOpenTelemetryTracesEnabled(ctx core.Context, stack string) (bool, error) {
-	collectorEndpoint, err := getCollectorEndpoint(ctx, stack)
+	info, err := getCollectorInfo(ctx, stack)
 	if err != nil {
 		return false, err
 	}
-	if collectorEndpoint != "" {
-		return true, nil
+	if info != nil {
+		return info.hasTraces, nil
 	}
 
 	v, err := GetURL(ctx, stack, "opentelemetry", "traces", "dsn")
@@ -123,11 +148,7 @@ func HasOpenTelemetryTracesEnabled(ctx core.Context, stack string) (bool, error)
 		return false, err
 	}
 
-	if v == nil {
-		return false, nil
-	}
-
-	return true, nil
+	return v != nil, nil
 }
 
 func otelEnvVars(ctx core.Context, stack string, monitoringType MonitoringType, serviceName, sliceStringSeparator string) ([]corev1.EnvVar, error) {

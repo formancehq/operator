@@ -444,6 +444,33 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
 | `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
 
+###### DelegatedOIDCServerConfiguration
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `issuer` _string_ | Issuer is the url of the delegated oidc server |  |  |
+| `clientID` _string_ | ClientID is the client id to use for authentication |  |  |
+| `clientSecret` _string_ | ClientSecret is the client secret to use for authentication |  |  |
+| `clientSecretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | ClientSecretFromSecret is the client secret to use for authentication |  |  |
+
 
 
 
@@ -532,6 +559,59 @@ Gateway is the Schema for the gateways API
 | `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `ingress` _[GatewayIngress](#gatewayingress)_ | Allow to customize the generated ingress |  |  |
+
+###### GatewayIngress
+
+
+
+GatewayIngress represents the ingress configuration for the gateway.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example : `formance.example.com` |  |  |
+| `hosts` _string array_ | Additional hosts for the ingress. Combined with Host. |  |  |
+| `scheme` _string_ | Indicate the scheme.<br />Actually, It should be `https` unless you know what you are doing. | https |  |
+| `ingressClassName` _string_ | Ingress class to use |  |  |
+| `annotations` _object (keys:string, values:string)_ | Custom annotations to add on the ingress |  |  |
+| `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Allow to customize the tls part of the ingress |  |  |
+
+###### GatewayIngressTLS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `secretName` _string_ | Specify the secret name used for the tls configuration on the ingress |  |  |
 
 
 
@@ -1156,6 +1236,56 @@ Stargate is the Schema for the stargates API
 | `stackID` _string_ |  |  |  |
 | `auth` _[StargateAuthSpec](#stargateauthspec)_ |  |  |  |
 | `tls` _[StargateTLSConfig](#stargatetlsconfig)_ |  |  |  |
+
+###### StargateAuthSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `clientID` _string_ |  |  |  |
+| `clientSecret` _string_ |  |  |  |
+| `issuer` _string_ |  |  |  |
+
+###### StargateTLSConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `disable` _boolean_ | Disable TLS protocol -- use at your own risks, the transmission will be in clear. |  |  |
 
 
 
@@ -1809,6 +1939,27 @@ Broker is the Schema for the brokers API
 | `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined :<br />* ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />* ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
 | `streams` _string array_ | Streams list streams created when Mode == ModeOneStreamByService |  |  |
 
+###### Mode
+
+_Underlying type:_ _string_
+
+Mode defined how streams are created on the broker (mainly nats)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #### BrokerConsumer
 
@@ -2147,6 +2298,32 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  |  |
 | `healthCheckEndpoint` _string_ | Health check endpoint |  |  |
 
+###### GatewayHTTPAPIRule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `path` _string_ |  |  |  |
+| `methods` _string array_ |  |  |  |
+| `secured` _boolean_ |  | false |  |
+
 
 
 
@@ -2231,10 +2408,65 @@ Multiple OtelExporterEndpoints can target the same stacks — the collector fans
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `stackSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#labelselector-v1-meta)_ |  |  |  |
-| `traces` _[OtelSignalConfig](#otelsignalconfig)_ |  |  |  |
-| `metrics` _[OtelSignalConfig](#otelsignalconfig)_ |  |  |  |
-| `resourceAttributes` _object (keys:string, values:string)_ |  |  |  |
+| `stackSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#labelselector-v1-meta)_ | StackSelector is a standard Kubernetes LabelSelector (matchLabels/matchExpressions).<br />One CRD can target all current and future stacks with a single selector.<br />Matches the pattern established by Settings. |  |  |
+| `traces` _[OtelSignalConfig](#otelsignalconfig)_ | Traces configures the traces signal. At least one of traces or metrics must be set.<br />Logs are intentionally out of scope. |  |  |
+| `metrics` _[OtelSignalConfig](#otelsignalconfig)_ | Metrics configures the metrics signal. At least one of traces or metrics must be set.<br />Logs are intentionally out of scope. |  |  |
+| `resourceAttributes` _object (keys:string, values:string)_ | ResourceAttributes are injected into outgoing telemetry via a collector processor. |  |  |
+
+###### OtelSignalConfig
+
+
+
+OtelSignalConfig configures a single signal type (traces or metrics).
+Each signal type has its own endpoint and authentication block, allowing
+different destinations or credentials per signal.
+Protocol is inferred from the URL scheme: grpc:// for gRPC, http:// or https:// for HTTP/protobuf (default).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `endpoint` _string_ | Endpoint URL for the signal (e.g., "http://my-collector:4318", "grpc://my-collector:4317").<br />Supported schemes: http, https, grpc.<br />Protocol is inferred from the URL scheme. HTTP/protobuf is the default for firewall compatibility. |  | MinLength: 1 <br />Pattern: `^(https?://|grpc://)` <br /> |
+| `auth` _[OtelExporterAuth](#otelexporterauth)_ | Auth is the optional per-signal authentication configuration. |  |  |
+
+###### OtelExporterAuth
+
+
+
+OtelExporterAuth configures per-signal authentication.
+Auth is per-signal so traces and metrics can use different credentials if needed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _string_ | Type is the authentication type. |  | Enum: [bearer] <br /> |
+| `fromSecret` _string_ | FromSecret references a Secret name.<br />The controller creates a ResourceReference to replicate the secret into each target stack namespace.<br />The source secret must have a "formance.com/stack" label set to "any" or a specific stack name. |  | MinLength: 1 <br /> |
+| `fromSecretKey` _string_ | FromSecretKey is the key within the Secret that contains the token. Defaults to "token". | token |  |
 
 
 
@@ -2244,7 +2476,7 @@ Multiple OtelExporterEndpoints can target the same stacks — the collector fans
 
 
 
-
+OtelExporterEndpointStatus represents the observed state of an OtelExporterEndpoint.
 
 
 
@@ -2264,7 +2496,7 @@ Multiple OtelExporterEndpoints can target the same stacks — the collector fans
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
-| `stacks` _string array_ |  |  |  |
+| `stacks` _string array_ | Stacks is a sorted list of stack names currently targeted by this endpoint.<br />Includes stacks with successful reconciliation and stacks with transient errors or pending cleanup.<br />Used by the finalizer to find previously matched stacks during deletion. |  |  |
 
 
 #### ResourceReference

@@ -82,6 +82,70 @@ var _ = Describe("OtelExporterEndpointController", func() {
 		})
 	})
 
+	Context("When deleting an OtelExporterEndpoint", func() {
+		var (
+			stack    *v1beta1.Stack
+			endpoint *v1beta1.OtelExporterEndpoint
+		)
+		BeforeEach(func() {
+			stack = &v1beta1.Stack{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: RandObjectMeta().Name,
+					Labels: map[string]string{
+						"formance.com/stack": "sdymzzszghxw-ryeg",
+					},
+				},
+				Spec: v1beta1.StackSpec{Version: "v99.0.0"},
+			}
+			endpoint = &v1beta1.OtelExporterEndpoint{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.OtelExporterEndpointSpec{
+					StackSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"formance.com/stack": "sdymzzszghxw-ryeg",
+						},
+					},
+					Traces: &v1beta1.OtelSignalConfig{
+						Endpoint: "http://my-collector:4318",
+					},
+				},
+			}
+		})
+		JustBeforeEach(func() {
+			Expect(Create(stack)).To(Succeed())
+			Expect(Create(endpoint)).To(Succeed())
+		})
+		AfterEach(func() {
+			_ = Delete(endpoint)
+			Expect(Delete(stack)).To(Succeed())
+		})
+		It("Should clean up collector resources from the stack namespace", func() {
+			By("Waiting for the collector to be created", func() {
+				Eventually(func() error {
+					return LoadResource(stack.Name, "otel-collector", &appsv1.Deployment{})
+				}).Should(Succeed())
+			})
+			By("Deleting the endpoint", func() {
+				Expect(Delete(endpoint)).To(Succeed())
+			})
+			By("Verifying the Deployment is removed", func() {
+				Eventually(func() error {
+					return LoadResource(stack.Name, "otel-collector", &appsv1.Deployment{})
+				}).ShouldNot(Succeed())
+			})
+			By("Verifying the Service is removed", func() {
+				Eventually(func() error {
+					return LoadResource(stack.Name, "otel-collector", &corev1.Service{})
+				}).ShouldNot(Succeed())
+			})
+			By("Verifying the ConfigMap is removed", func() {
+				Eventually(func() error {
+					return LoadResource(stack.Name, "otel-collector-config", &corev1.ConfigMap{})
+				}).ShouldNot(Succeed())
+			})
+		})
+	})
+
 	Context("When no OtelExporterEndpoints exist and no Settings", func() {
 		var (
 			stack *v1beta1.Stack
@@ -140,7 +204,7 @@ var _ = Describe("OtelExporterEndpointController", func() {
 					},
 					Traces: &v1beta1.OtelSignalConfig{
 						Endpoint: "https://support.frmnc.net",
-						Auth: &v1beta1.OtelAuthConfig{
+						Auth: &v1beta1.OtelExporterAuth{
 							Type:       "bearer",
 							FromSecret: "formance-license",
 						},

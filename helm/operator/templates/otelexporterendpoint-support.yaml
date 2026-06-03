@@ -22,6 +22,9 @@ spec:
     auth:
       type: bearer
       fromSecret: {{ $authSecret | quote }}
+      {{- with .Values.global.monitoring.support.authSecretKey }}
+      fromSecretKey: {{ . | quote }}
+      {{- end }}
     {{- end }}
   metrics:
     endpoint: {{ .Values.global.monitoring.support.endpoint | quote }}
@@ -29,6 +32,9 @@ spec:
     auth:
       type: bearer
       fromSecret: {{ $authSecret | quote }}
+      {{- with .Values.global.monitoring.support.authSecretKey }}
+      fromSecretKey: {{ . | quote }}
+      {{- end }}
     {{- end }}
   {{- with .Values.global.monitoring.support.resourceAttributes }}
   resourceAttributes:

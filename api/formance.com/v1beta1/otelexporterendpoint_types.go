@@ -20,35 +20,68 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type OtelAuthConfig struct {
+// OtelExporterAuth configures per-signal authentication.
+// Auth is per-signal so traces and metrics can use different credentials if needed.
+type OtelExporterAuth struct {
+	// Type is the authentication type.
 	// +kubebuilder:validation:Enum=bearer
-	Type       string `json:"type"`
+	Type string `json:"type"`
+	// FromSecret references a Secret name.
+	// The controller creates a ResourceReference to replicate the secret into each target stack namespace.
+	// The source secret must have a "formance.com/stack" label set to "any" or a specific stack name.
+	// +kubebuilder:validation:MinLength=1
 	FromSecret string `json:"fromSecret"`
+	// FromSecretKey is the key within the Secret that contains the token. Defaults to "token".
+	// +optional
+	// +kubebuilder:default="token"
+	FromSecretKey string `json:"fromSecretKey,omitempty"`
 }
 
+// OtelSignalConfig configures a single signal type (traces or metrics).
+// Each signal type has its own endpoint and authentication block, allowing
+// different destinations or credentials per signal.
+// Protocol is inferred from the URL scheme: grpc:// for gRPC, http:// or https:// for HTTP/protobuf (default).
 type OtelSignalConfig struct {
+	// Endpoint URL for the signal (e.g., "http://my-collector:4318", "grpc://my-collector:4317").
+	// Supported schemes: http, https, grpc.
+	// Protocol is inferred from the URL scheme. HTTP/protobuf is the default for firewall compatibility.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^(https?://|grpc://)`
 	Endpoint string `json:"endpoint"`
 
+	// Auth is the optional per-signal authentication configuration.
 	// +optional
-	Auth *OtelAuthConfig `json:"auth,omitempty"`
+	Auth *OtelExporterAuth `json:"auth,omitempty"`
 }
 
+// +kubebuilder:validation:XValidation:rule="has(self.traces) || has(self.metrics)",message="at least one signal (traces or metrics) must be configured"
 type OtelExporterEndpointSpec struct {
-	// +optional
-	StackSelector *metav1.LabelSelector `json:"stackSelector,omitempty"`
+	// StackSelector is a standard Kubernetes LabelSelector (matchLabels/matchExpressions).
+	// One CRD can target all current and future stacks with a single selector.
+	// Matches the pattern established by Settings.
+	StackSelector *metav1.LabelSelector `json:"stackSelector"`
 
+	// Traces configures the traces signal. At least one of traces or metrics must be set.
+	// Logs are intentionally out of scope.
 	// +optional
 	Traces *OtelSignalConfig `json:"traces,omitempty"`
 
+	// Metrics configures the metrics signal. At least one of traces or metrics must be set.
+	// Logs are intentionally out of scope.
 	// +optional
 	Metrics *OtelSignalConfig `json:"metrics,omitempty"`
 
+	// ResourceAttributes are injected into outgoing telemetry via a collector processor.
 	// +optional
 	ResourceAttributes map[string]string `json:"resourceAttributes,omitempty"`
 }
 
+// OtelExporterEndpointStatus represents the observed state of an OtelExporterEndpoint.
 type OtelExporterEndpointStatus struct {
 	Status `json:",inline"`
+	// Stacks is a sorted list of stack names currently targeted by this endpoint.
+	// Includes stacks with successful reconciliation and stacks with transient errors or pending cleanup.
+	// Used by the finalizer to find previously matched stacks during deletion.
 	// +optional
 	Stacks []string `json:"stacks,omitempty"`
 }

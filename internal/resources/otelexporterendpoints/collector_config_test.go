@@ -44,6 +44,8 @@ func TestGenerateMergedCollectorConfig(t *testing.T) {
 				"otlphttp/monitoring-traces",
 				"http://my-collector:4318",
 				"nop",
+				"health_check",
+				"13133",
 			},
 		},
 		{
@@ -70,7 +72,7 @@ func TestGenerateMergedCollectorConfig(t *testing.T) {
 					Endpoint: endpoint("support", v1beta1.OtelExporterEndpointSpec{
 						Traces: &v1beta1.OtelSignalConfig{
 							Endpoint: "https://support.frmnc.net",
-							Auth: &v1beta1.OtelAuthConfig{
+							Auth: &v1beta1.OtelExporterAuth{
 								Type:       "bearer",
 								FromSecret: "formance-license",
 							},
@@ -99,7 +101,7 @@ func TestGenerateMergedCollectorConfig(t *testing.T) {
 					Endpoint: endpoint("support", v1beta1.OtelExporterEndpointSpec{
 						Traces: &v1beta1.OtelSignalConfig{
 							Endpoint: "https://support.frmnc.net",
-							Auth: &v1beta1.OtelAuthConfig{
+							Auth: &v1beta1.OtelExporterAuth{
 								Type:       "bearer",
 								FromSecret: "formance-license",
 							},
@@ -114,6 +116,54 @@ func TestGenerateMergedCollectorConfig(t *testing.T) {
 				"otlphttp/support-traces",
 				"https://support.frmnc.net",
 				"authorization: Bearer ${env:AUTH_SUPPORT_TRACES}",
+			},
+		},
+		{
+			name: "grpc endpoint with insecure query param",
+			inputs: []collectorInput{
+				{
+					Endpoint: endpoint("monitoring", v1beta1.OtelExporterEndpointSpec{
+						Traces: &v1beta1.OtelSignalConfig{
+							Endpoint: "grpc://my-collector:4317?insecure=true",
+						},
+					}),
+				},
+			},
+			expectedContains: []string{
+				"otlp/monitoring-traces",
+				"my-collector:4317",
+				"tls:",
+				"insecure: true",
+			},
+			expectedNotContains: []string{"otlphttp/monitoring-traces"},
+		},
+		{
+			name: "grpc endpoint without insecure has no tls config",
+			inputs: []collectorInput{
+				{
+					Endpoint: endpoint("monitoring", v1beta1.OtelExporterEndpointSpec{
+						Traces: &v1beta1.OtelSignalConfig{
+							Endpoint: "grpc://my-collector:4317",
+						},
+					}),
+				},
+			},
+			expectedContains:    []string{"otlp/monitoring-traces", "my-collector:4317"},
+			expectedNotContains: []string{"tls:"},
+		},
+		{
+			name:   "otel settings grpc with insecure",
+			inputs: []collectorInput{},
+			otelSettings: &otelSettingsInput{
+				TracesEndpoint:  "grpc://settings-collector:4317?insecure=true",
+				MetricsEndpoint: "grpc://settings-collector:4317?insecure=true",
+			},
+			expectedContains: []string{
+				"otlp/settings-traces",
+				"otlp/settings-metrics",
+				"settings-collector:4317",
+				"tls:",
+				"insecure: true",
 			},
 		},
 		{
@@ -243,12 +293,44 @@ func TestInferProtocol(t *testing.T) {
 	require.Equal(t, "http", inferProtocol("my-collector:4318"))
 }
 
+func TestIsInsecure(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, isInsecure("grpc://my-collector:4317?insecure=true"))
+	require.False(t, isInsecure("grpc://my-collector:4317"))
+	require.False(t, isInsecure("grpc://my-collector:4317?insecure=false"))
+	require.False(t, isInsecure("http://my-collector:4318"))
+	require.False(t, isInsecure("https://support.frmnc.net"))
+}
+
 func TestStripScheme(t *testing.T) {
 	t.Parallel()
 
 	require.Equal(t, "my-collector:4317", stripScheme("grpc://my-collector:4317"))
 	require.Equal(t, "http://my-collector:4318", stripScheme("http://my-collector:4318"))
 	require.Equal(t, "https://support.frmnc.net", stripScheme("https://support.frmnc.net"))
+}
+
+func TestStripSignalPaths(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "http://my-collector:4318", stripSignalPaths("http://my-collector:4318/v1/traces"))
+	require.Equal(t, "http://my-collector:4318", stripSignalPaths("http://my-collector:4318/v1/metrics"))
+	require.Equal(t, "http://my-collector:4318", stripSignalPaths("http://my-collector:4318/v1/traces/"))
+	require.Equal(t, "http://my-collector:4318", stripSignalPaths("http://my-collector:4318/v1/metrics/"))
+	require.Equal(t, "https://support.frmnc.net", stripSignalPaths("https://support.frmnc.net"))
+	require.Equal(t, "http://my-collector:4318/other/path", stripSignalPaths("http://my-collector:4318/other/path"))
+	require.Equal(t, "my-collector:4317", stripSignalPaths("my-collector:4317"))
+}
+
+func TestSanitizeName(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "my-endpoint", sanitizeName("my-endpoint"))
+	require.Contains(t, sanitizeName("my.endpoint"), "my-endpoint-")
+	require.NotEqual(t, sanitizeName("my-endpoint"), sanitizeName("my.endpoint"))
+
+	require.NotEqual(t, sanitizeName("a.b-c"), sanitizeName("a-b.c"))
 }
 
 func TestEnvSafe(t *testing.T) {
@@ -268,7 +350,7 @@ func TestBuildCollectorInputs(t *testing.T) {
 			Spec: v1beta1.OtelExporterEndpointSpec{
 				Traces: &v1beta1.OtelSignalConfig{
 					Endpoint: "https://support.frmnc.net",
-					Auth: &v1beta1.OtelAuthConfig{
+					Auth: &v1beta1.OtelExporterAuth{
 						Type:       "bearer",
 						FromSecret: "formance-license",
 					},

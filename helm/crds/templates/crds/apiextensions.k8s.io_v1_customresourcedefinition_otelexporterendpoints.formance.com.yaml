@@ -53,12 +53,27 @@ spec:
           spec:
             properties:
               metrics:
+                description: |-
+                  Metrics configures the metrics signal. At least one of traces or metrics must be set.
+                  Logs are intentionally out of scope.
                 properties:
                   auth:
+                    description: Auth is the optional per-signal authentication configuration.
                     properties:
                       fromSecret:
+                        description: |-
+                          FromSecret references a Secret name.
+                          The controller creates a ResourceReference to replicate the secret into each target stack namespace.
+                          The source secret must have a "formance.com/stack" label set to "any" or a specific stack name.
+                        minLength: 1
+                        type: string
+                      fromSecretKey:
+                        default: token
+                        description: FromSecretKey is the key within the Secret that
+                          contains the token. Defaults to "token".
                         type: string
                       type:
+                        description: Type is the authentication type.
                         enum:
                         - bearer
                         type: string
@@ -67,6 +82,12 @@ spec:
                     - type
                     type: object
                   endpoint:
+                    description: |-
+                      Endpoint URL for the signal (e.g., "http://my-collector:4318", "grpc://my-collector:4317").
+                      Supported schemes: http, https, grpc.
+                      Protocol is inferred from the URL scheme. HTTP/protobuf is the default for firewall compatibility.
+                    minLength: 1
+                    pattern: ^(https?://|grpc://)
                     type: string
                 required:
                 - endpoint
@@ -74,12 +95,14 @@ spec:
               resourceAttributes:
                 additionalProperties:
                   type: string
+                description: ResourceAttributes are injected into outgoing telemetry
+                  via a collector processor.
                 type: object
               stackSelector:
                 description: |-
-                  A label selector is a label query over a set of resources. The result of matchLabels and
-                  matchExpressions are ANDed. An empty label selector matches all objects. A null
-                  label selector matches no objects.
+                  StackSelector is a standard Kubernetes LabelSelector (matchLabels/matchExpressions).
+                  One CRD can target all current and future stacks with a single selector.
+                  Matches the pattern established by Settings.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -125,12 +148,27 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               traces:
+                description: |-
+                  Traces configures the traces signal. At least one of traces or metrics must be set.
+                  Logs are intentionally out of scope.
                 properties:
                   auth:
+                    description: Auth is the optional per-signal authentication configuration.
                     properties:
                       fromSecret:
+                        description: |-
+                          FromSecret references a Secret name.
+                          The controller creates a ResourceReference to replicate the secret into each target stack namespace.
+                          The source secret must have a "formance.com/stack" label set to "any" or a specific stack name.
+                        minLength: 1
+                        type: string
+                      fromSecretKey:
+                        default: token
+                        description: FromSecretKey is the key within the Secret that
+                          contains the token. Defaults to "token".
                         type: string
                       type:
+                        description: Type is the authentication type.
                         enum:
                         - bearer
                         type: string
@@ -139,12 +177,25 @@ spec:
                     - type
                     type: object
                   endpoint:
+                    description: |-
+                      Endpoint URL for the signal (e.g., "http://my-collector:4318", "grpc://my-collector:4317").
+                      Supported schemes: http, https, grpc.
+                      Protocol is inferred from the URL scheme. HTTP/protobuf is the default for firewall compatibility.
+                    minLength: 1
+                    pattern: ^(https?://|grpc://)
                     type: string
                 required:
                 - endpoint
                 type: object
+            required:
+            - stackSelector
             type: object
+            x-kubernetes-validations:
+            - message: at least one signal (traces or metrics) must be configured
+              rule: has(self.traces) || has(self.metrics)
           status:
+            description: OtelExporterEndpointStatus represents the observed state
+              of an OtelExporterEndpoint.
             properties:
               conditions:
                 items:
@@ -208,6 +259,10 @@ spec:
                   reconciled
                 type: boolean
               stacks:
+                description: |-
+                  Stacks is a sorted list of stack names currently targeted by this endpoint.
+                  Includes stacks with successful reconciliation and stacks with transient errors or pending cleanup.
+                  Used by the finalizer to find previously matched stacks during deletion.
                 items:
                   type: string
                 type: array

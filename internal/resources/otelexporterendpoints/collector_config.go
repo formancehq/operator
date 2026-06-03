@@ -1,6 +1,8 @@
 package otelexporterendpoints
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"slices"
@@ -13,10 +15,19 @@ import (
 )
 
 type collectorConfig struct {
-	Receivers  collectorReceivers `yaml:"receivers"`
-	Processors map[string]any     `yaml:"processors,omitempty"`
-	Exporters  map[string]any     `yaml:"exporters"`
-	Service    collectorService   `yaml:"service"`
+	Extensions collectorExtensions `yaml:"extensions"`
+	Receivers  collectorReceivers  `yaml:"receivers"`
+	Processors map[string]any      `yaml:"processors,omitempty"`
+	Exporters  map[string]any      `yaml:"exporters"`
+	Service    collectorService    `yaml:"service"`
+}
+
+type collectorExtensions struct {
+	HealthCheck healthCheckExtension `yaml:"health_check"`
+}
+
+type healthCheckExtension struct {
+	Endpoint string `yaml:"endpoint"`
 }
 
 type collectorReceivers struct {
@@ -36,7 +47,8 @@ type otlpHTTP struct {
 }
 
 type collectorService struct {
-	Pipelines map[string]collectorPipeline `yaml:"pipelines"`
+	Extensions []string                     `yaml:"extensions"`
+	Pipelines  map[string]collectorPipeline `yaml:"pipelines"`
 }
 
 type collectorPipeline struct {
@@ -48,6 +60,11 @@ type collectorPipeline struct {
 type otlpExporter struct {
 	Endpoint string            `yaml:"endpoint"`
 	Headers  map[string]string `yaml:"headers,omitempty"`
+	TLS      *otlpTLSConfig    `yaml:"tls,omitempty"`
+}
+
+type otlpTLSConfig struct {
+	Insecure bool `yaml:"insecure"`
 }
 
 type resourceProcessorAttribute struct {
@@ -85,15 +102,37 @@ func stripScheme(endpoint string) string {
 	return endpoint
 }
 
+func stripSignalPaths(endpoint string) string {
+	for _, suffix := range []string{"/v1/traces/", "/v1/traces", "/v1/metrics/", "/v1/metrics"} {
+		if strings.HasSuffix(endpoint, suffix) {
+			return strings.TrimSuffix(endpoint, suffix)
+		}
+	}
+	return endpoint
+}
+
+func isInsecure(endpoint string) bool {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return false
+	}
+	return u.Query().Get("insecure") == "true"
+}
+
 func buildExporter(input exporterInput) (string, any) {
 	protocol := inferProtocol(input.signal.Endpoint)
-	endpoint := stripScheme(input.signal.Endpoint)
+	endpoint := stripSignalPaths(stripScheme(input.signal.Endpoint))
 
 	var headers map[string]string
 	if input.signal.Auth != nil && input.signal.Auth.Type == "bearer" {
 		headers = map[string]string{
 			"authorization": fmt.Sprintf("Bearer ${env:%s}", input.envAlias),
 		}
+	}
+
+	var tls *otlpTLSConfig
+	if protocol == "grpc" && isInsecure(input.signal.Endpoint) {
+		tls = &otlpTLSConfig{Insecure: true}
 	}
 
 	prefix := "otlphttp/"
@@ -103,6 +142,7 @@ func buildExporter(input exporterInput) (string, any) {
 	return prefix + input.name, otlpExporter{
 		Endpoint: endpoint,
 		Headers:  headers,
+		TLS:      tls,
 	}
 }
 
@@ -199,12 +239,6 @@ func generateMergedCollectorConfig(endpoints []collectorInput, otelSettings *ote
 		}
 	}
 
-	if len(tracesPipelines) == 0 && len(metricsPipelines) == 0 {
-		exporters["nop"] = struct{}{}
-		tracesPipelines = []pipelineContribution{{exporter: "nop"}}
-		metricsPipelines = []pipelineContribution{{exporter: "nop"}}
-	}
-
 	if len(tracesPipelines) == 0 {
 		exporters["nop"] = struct{}{}
 		tracesPipelines = []pipelineContribution{{exporter: "nop"}}
@@ -217,6 +251,11 @@ func generateMergedCollectorConfig(endpoints []collectorInput, otelSettings *ote
 	pipelines := buildPipelines(tracesPipelines, metricsPipelines)
 
 	cfg := collectorConfig{
+		Extensions: collectorExtensions{
+			HealthCheck: healthCheckExtension{
+				Endpoint: fmt.Sprintf("0.0.0.0:%d", healthCheckPort),
+			},
+		},
 		Receivers: collectorReceivers{
 			OTLP: otlpReceiver{
 				Protocols: otlpProtocols{
@@ -229,7 +268,8 @@ func generateMergedCollectorConfig(endpoints []collectorInput, otelSettings *ote
 		Exporters:  exporters,
 		Processors: processors,
 		Service: collectorService{
-			Pipelines: pipelines,
+			Extensions: []string{"health_check"},
+			Pipelines:  pipelines,
 		},
 	}
 
@@ -272,7 +312,14 @@ func addSignalPipelines(pipelines map[string]collectorPipeline, signal string, c
 		}
 		return
 	}
-	for proc, exporterList := range grouped {
+	procs := make([]string, 0, len(grouped))
+	for proc := range grouped {
+		procs = append(procs, proc)
+	}
+	slices.Sort(procs)
+
+	for _, proc := range procs {
+		exporterList := grouped[proc]
 		suffix := "default"
 		if proc != "" {
 			parts := strings.SplitN(proc, "/", 2)
@@ -300,5 +347,10 @@ func groupByProcessor(contributions []pipelineContribution) map[string][]string 
 }
 
 func sanitizeName(name string) string {
-	return strings.ReplaceAll(name, ".", "-")
+	sanitized := strings.ReplaceAll(name, ".", "-")
+	if sanitized != name {
+		h := sha256.Sum256([]byte(name))
+		sanitized = sanitized + "-" + hex.EncodeToString(h[:3])
+	}
+	return sanitized
 }
