@@ -27,7 +27,7 @@ func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth
 	}
 
 	ret = append(ret,
-		Env("AUTH_ENABLED", "true"),
+		Env("AUTH_ENABLED", "false"),
 		Env("AUTH_ISSUER", url),
 	)
 
