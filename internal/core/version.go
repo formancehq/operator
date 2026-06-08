@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -19,18 +20,34 @@ var ErrNoVersionFound = errors.New("no version found")
 // MinimumStackVersion is the minimum Stack version the operator supports deploying.
 const MinimumStackVersion = "v2.2.0"
 
-// ValidateMinimumVersion checks that a Versions resource name meets the minimum requirement.
-// Non-semver names (dev tags, SHA refs) are allowed through.
-func ValidateMinimumVersion(version string) error {
-	if strings.TrimPrefix(version, "v") == "0.0.0-e2e" {
-		return nil
-	}
+// partialSemverRe matches `v<major>` or `v<major>.<minor>` — semver-shaped
+// names that are missing the patch (and optionally the minor) component.
+// These are routinely used as Versions resource names (`v3`, `v3.2`) and
+// would otherwise sail past [semver.IsValid] and silently bypass the
+// minimum-version check.
+var partialSemverRe = regexp.MustCompile(`^v(\d+)(?:\.(\d+))?$`)
 
-	normalizedVersion := version
-	if !strings.HasPrefix(normalizedVersion, "v") {
-		normalizedVersion = "v" + normalizedVersion
+// normalizePartialSemver expands `v3` → `v3.0.0` and `v3.2` → `v3.2.0` so
+// partial-semver Versions resource names are gated by the same min-version
+// check as their canonical form. Non-matching inputs (canonical semver,
+// dev tags, SHA refs, non-`v`-prefixed strings) are returned unchanged.
+func normalizePartialSemver(v string) string {
+	m := partialSemverRe.FindStringSubmatch(v)
+	if m == nil {
+		return v
 	}
-	if semver.IsValid(normalizedVersion) && semver.Compare(normalizedVersion, MinimumStackVersion) < 0 {
+	minor := m[2]
+	if minor == "" {
+		minor = "0"
+	}
+	return fmt.Sprintf("v%s.%s.0", m[1], minor)
+}
+
+// ValidateMinimumVersion checks that a Versions resource name meets the minimum requirement.
+// Non-semver names (dev tags, SHA refs, non-`v`-prefixed strings) are allowed through.
+func ValidateMinimumVersion(version string) error {
+	normalized := normalizePartialSemver(version)
+	if semver.IsValid(normalized) && semver.Compare(normalized, MinimumStackVersion) < 0 {
 		return fmt.Errorf("version %s is not supported, minimum required: %s - please upgrade your stack", version, MinimumStackVersion)
 	}
 	return nil
