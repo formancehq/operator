@@ -132,6 +132,31 @@ func reconcileEnvFromResourceReferences(ctx Context, b *v1beta1.Benthos) (map[st
 }
 
 // We need to this controller and keep it focused on benthos
+// buildTemplates merges the user-provided templates with the builtin ones
+// shipped with the operator.
+func buildTemplates(b *v1beta1.Benthos) (map[string]string, error) {
+	ret := b.Spec.Templates
+	if ret == nil {
+		ret = make(map[string]string)
+	}
+
+	files, err := builtinTemplates.ReadDir("builtin-templates")
+	if err != nil {
+		return nil, errors.Wrap(err, "reading builtin templates directory")
+	}
+
+	for _, file := range files {
+		data, err := builtinTemplates.ReadFile("builtin-templates/" + file.Name())
+		if err != nil {
+			return nil, errors.Wrapf(err, "reading builtin template '%s'", file.Name())
+		}
+
+		ret[file.Name()] = string(data)
+	}
+
+	return ret, nil
+}
+
 func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) error {
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
@@ -225,6 +250,11 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	volumeMounts := make([]corev1.VolumeMount, 0)
 	configMaps := make([]*corev1.ConfigMap, 0)
 
+	templates, err := buildTemplates(b)
+	if err != nil {
+		return err
+	}
+
 	for _, object := range []struct {
 		discr string
 		files map[string]string
@@ -235,28 +265,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 		},
 		{
 			discr: "templates",
-			files: func() map[string]string {
-				ret := b.Spec.Templates
-				if ret == nil {
-					ret = make(map[string]string)
-				}
-
-				files, err := builtinTemplates.ReadDir("builtin-templates")
-				if err != nil {
-					panic(err)
-				}
-
-				for _, file := range files {
-					data, err := builtinTemplates.ReadFile("builtin-templates/" + file.Name())
-					if err != nil {
-						panic(err)
-					}
-
-					ret[file.Name()] = string(data)
-				}
-
-				return ret
-			}(),
+			files: templates,
 		},
 	} {
 
