@@ -6,8 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/fs"
-	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -46,27 +44,6 @@ func HashFromResources(resources ...*unstructured.Unstructured) string {
 	digest.Write(buf.Bytes())
 
 	return base64.StdEncoding.EncodeToString(digest.Sum(nil))
-}
-
-func CopyDir(f fs.FS, root, path string, ret *map[string]string) {
-	dirEntries, err := fs.ReadDir(f, path)
-	if err != nil {
-		panic(err)
-	}
-	for _, dirEntry := range dirEntries {
-		dirEntryPath := filepath.Join(path, dirEntry.Name())
-		if dirEntry.IsDir() {
-			CopyDir(f, root, dirEntryPath, ret)
-		} else {
-			fileContent, err := fs.ReadFile(f, dirEntryPath)
-			if err != nil {
-				panic(err)
-			}
-			sanitizedPath := strings.TrimPrefix(dirEntryPath, root)
-			sanitizedPath = strings.TrimPrefix(sanitizedPath, "/")
-			(*ret)[sanitizedPath] = string(fileContent)
-		}
-	}
 }
 
 type ObjectMutator[T any] func(t T) error
