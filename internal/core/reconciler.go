@@ -450,7 +450,8 @@ func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 
 					kinds, _, err := mgr.GetScheme().ObjectKinds(target)
 					if err != nil {
-						panic(err)
+						log.FromContext(ctx).Error(err, "resolving object kind, dropping event", "target", fmt.Sprintf("%T", target))
+						return
 					}
 					kind := strings.ToLower(kinds[0].Kind)
 					if oldObject.Spec[kind] == newObject.Spec[kind] {
