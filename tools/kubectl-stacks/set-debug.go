@@ -33,7 +33,7 @@ func setDebug(cmd *cobra.Command, client *rest.RESTClient, name string, b bool) 
 		},
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return client.Patch(types.MergePatchType).
