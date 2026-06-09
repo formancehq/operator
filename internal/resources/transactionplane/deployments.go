@@ -102,7 +102,12 @@ func commonEnvVars(
 		return nil, err
 	}
 	env = append(env, brokerEnvVars...)
-	env = append(env, brokers.GetPublisherEnvVars(stack, broker, "transactionplane")...)
+
+	publisherEnvVars, err := brokers.GetPublisherEnvVars(stack, broker, "transactionplane")
+	if err != nil {
+		return nil, err
+	}
+	env = append(env, publisherEnvVars...)
 
 	return env, nil
 }

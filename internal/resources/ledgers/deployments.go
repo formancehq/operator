@@ -117,7 +117,12 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		}
 
 		container.Env = append(container.Env, brokerEnvVar...)
-		container.Env = append(container.Env, brokers.GetPublisherEnvVars(stack, broker, "ledger")...)
+
+		publisherEnvVars, err := brokers.GetPublisherEnvVars(stack, broker, "ledger")
+		if err != nil {
+			return err
+		}
+		container.Env = append(container.Env, publisherEnvVars...)
 	}
 
 	bulkMaxSize, err := settings.GetInt(ctx, stack.Name, "ledger", "api", "bulk-max-size")

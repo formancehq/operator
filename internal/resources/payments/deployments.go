@@ -389,7 +389,12 @@ func v3EnvVars(
 		}
 
 		envVars = append(envVars, additionalEnv...)
-		envVars = append(envVars, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
+
+		additionalEnv, err = brokers.GetPublisherEnvVars(stack, broker, "payments")
+		if err != nil {
+			return
+		}
+		envVars = append(envVars, additionalEnv...)
 	}
 
 	hash, additionalEnv, err = temporalEnvVars(ctx, stack, payments)
@@ -485,7 +490,12 @@ func createV2ConnectorsDeployment(ctx core.Context, stack *v1beta1.Stack, paymen
 		}
 
 		env = append(env, brokerEnvVar...)
-		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "payments")...)
+
+		publisherEnvVars, err := brokers.GetPublisherEnvVars(stack, broker, "payments")
+		if err != nil {
+			return err
+		}
+		env = append(env, publisherEnvVars...)
 	}
 
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)

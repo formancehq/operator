@@ -162,7 +162,12 @@ func createDeployment(
 		return err
 	}
 	env = append(env, brokerEnvVars...)
-	env = append(env, brokers.GetPublisherEnvVars(stack, broker, "orchestration")...)
+
+	publisherEnvVars, err := brokers.GetPublisherEnvVars(stack, broker, "orchestration")
+	if err != nil {
+		return err
+	}
+	env = append(env, publisherEnvVars...)
 
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
