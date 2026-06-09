@@ -158,7 +158,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 		}
 
 		if err := unstructured.SetNestedMap(content, annotations, "metadata", "annotations"); err != nil {
-			panic(err)
+			return errors.Wrap(err, "setting annotations on replicated resource")
 		}
 
 		hasOwnerReference, err := core.HasOwnerReference(ctx, req, newResource)
