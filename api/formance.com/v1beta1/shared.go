@@ -343,7 +343,7 @@ func (u *URI) UnmarshalJSON(data []byte) error {
 
 	v, err := url.Parse(s)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	*u = URI{
