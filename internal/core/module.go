@@ -15,10 +15,10 @@ func LowerCamelCaseKind(ctx Context, ob client.Object) (string, error) {
 	return strcase.ToLowerCamel(kinds[0].Kind), nil
 }
 
-func LowerCaseKind(ctx Context, ob client.Object) string {
+func LowerCaseKind(ctx Context, ob client.Object) (string, error) {
 	kinds, _, err := ctx.GetScheme().ObjectKinds(ob)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return strings.ToLower(kinds[0].Kind)
+	return strings.ToLower(kinds[0].Kind), nil
 }

@@ -14,9 +14,12 @@ var defaultOptions = []option{
 }
 
 func Create(ctx core.Context, owner v1beta1.Module, options ...option) error {
-	objectName := core.LowerCaseKind(ctx, owner)
-	_, _, err := core.CreateOrUpdate[*v1beta1.GatewayHTTPAPI](ctx, types.NamespacedName{
-		Name: core.GetObjectName(owner.GetStack(), core.LowerCaseKind(ctx, owner)),
+	objectName, err := core.LowerCaseKind(ctx, owner)
+	if err != nil {
+		return err
+	}
+	_, _, err = core.CreateOrUpdate[*v1beta1.GatewayHTTPAPI](ctx, types.NamespacedName{
+		Name: core.GetObjectName(owner.GetStack(), objectName),
 	},
 		func(t *v1beta1.GatewayHTTPAPI) error {
 			t.Spec = v1beta1.GatewayHTTPAPISpec{
