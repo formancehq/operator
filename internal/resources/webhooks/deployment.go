@@ -28,7 +28,11 @@ func deploymentEnvVars(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1
 	}
 
 	env := make([]v1.EnvVar, 0)
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, webhooks), " ")
+	serviceName, err := core.LowerCamelCaseKind(ctx, webhooks)
+	if err != nil {
+		return nil, err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, " ")
 	if err != nil {
 		return nil, err
 	}

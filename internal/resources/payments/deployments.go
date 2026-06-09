@@ -151,7 +151,11 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 
 func commonEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.Payments, database *v1beta1.Database) ([]corev1.EnvVar, error) {
 	env := make([]corev1.EnvVar, 0)
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, payments), " ")
+	serviceName, err := core.LowerCamelCaseKind(ctx, payments)
+	if err != nil {
+		return nil, err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, " ")
 	if err != nil {
 		return nil, err
 	}

@@ -57,7 +57,11 @@ func createDeployment(
 ) error {
 
 	env := make([]corev1.EnvVar, 0)
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, orchestration), " ")
+	serviceName, err := LowerCamelCaseKind(ctx, orchestration)
+	if err != nil {
+		return err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, " ")
 	if err != nil {
 		return err
 	}

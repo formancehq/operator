@@ -50,7 +50,11 @@ func commonEnvVars(
 ) ([]corev1.EnvVar, error) {
 	env := make([]corev1.EnvVar, 0)
 
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, LowerCamelCaseKind(ctx, t), " ")
+	serviceName, err := LowerCamelCaseKind(ctx, t)
+	if err != nil {
+		return nil, err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, " ")
 	if err != nil {
 		return nil, err
 	}

@@ -25,7 +25,11 @@ func createDeployment(
 	imageConfiguration *registries.ImageConfiguration,
 ) error {
 	env := make([]v1.EnvVar, 0)
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, reconciliation), " ")
+	serviceName, err := core.LowerCamelCaseKind(ctx, reconciliation)
+	if err != nil {
+		return err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, " ")
 	if err != nil {
 		return err
 	}

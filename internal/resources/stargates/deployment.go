@@ -17,7 +17,11 @@ func createDeployment(ctx core.Context, stack *v1beta1.Stack, stargate *v1beta1.
 
 	env := make([]v1.EnvVar, 0)
 
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, stargate), " ")
+	serviceName, err := core.LowerCamelCaseKind(ctx, stargate)
+	if err != nil {
+		return err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, " ")
 	if err != nil {
 		return err
 	}

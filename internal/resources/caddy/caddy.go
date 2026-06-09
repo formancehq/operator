@@ -29,7 +29,11 @@ func DeploymentTemplate(
 ) (*appsv1.Deployment, error) {
 	t := &appsv1.Deployment{}
 
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, owner), ",")
+	serviceName, err := core.LowerCamelCaseKind(ctx, owner)
+	if err != nil {
+		return nil, err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, ",")
 	if err != nil {
 		return nil, err
 	}

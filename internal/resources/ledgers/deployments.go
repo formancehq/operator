@@ -342,7 +342,11 @@ func uninstallLedgerMonoWriterMultipleReader(ctx core.Context, stack *v1beta1.St
 func setCommonContainerConfiguration(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, imageConfiguration *registries.ImageConfiguration, database *v1beta1.Database, container *corev1.Container) error {
 
 	env := make([]corev1.EnvVar, 0)
-	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, core.LowerCamelCaseKind(ctx, ledger), " ")
+	serviceName, err := core.LowerCamelCaseKind(ctx, ledger)
+	if err != nil {
+		return err
+	}
+	otlpEnv, err := settings.GetOTELEnvVars(ctx, stack.Name, serviceName, " ")
 	if err != nil {
 		return err
 	}
