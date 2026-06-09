@@ -86,7 +86,7 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 			return errors.New("multiple modules found")
 		}
 
-		func() {
+		if err := func() error {
 			condition := v1beta1.NewCondition(ModuleReconciliation, stack.Generation).
 				SetReason(gvk.Kind)
 			defer func() {
@@ -103,29 +103,33 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 
 			module := AnyModule{}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(l.Items[0].UnstructuredContent(), &module); err != nil {
-				panic(err)
+				condition.SetStatus(metav1.ConditionFalse).SetMessage("Unable to read module status")
+				return errors.Wrapf(err, "converting module %s to structured object", gvk.Kind)
 			}
 
 			stackReconcileCondition := module.Status.Conditions.Get("ReconciledWithStack")
 			if stackReconcileCondition == nil {
 				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module not yet reconciled")
-				return
+				return nil
 			}
 			if stackReconcileCondition.Status != metav1.ConditionTrue {
 				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module not declared as reconciled for stack")
-				return
+				return nil
 			}
 			if stackReconcileCondition.Reason == "Spec" && stack.MustSkip() {
 				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module should be skipped but is not")
-				return
+				return nil
 			}
 			if stackReconcileCondition.Reason == "Skipped" && !stack.MustSkip() {
 				condition.SetStatus(metav1.ConditionFalse).SetMessage("Module is skipped but should not")
-				return
+				return nil
 			}
 			condition.SetMessage("All checks passed")
 
-		}()
+			return nil
+		}(); err != nil {
+			return err
+		}
 	}
 
 	modules := make([]string, 0)
