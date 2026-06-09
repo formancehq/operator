@@ -403,11 +403,13 @@ func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.
 func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 
 	reconcileModule := func(ctx context.Context, mgr Manager, target client.Object, versionFileName string, limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+		logger := log.FromContext(ctx)
 		stackList := &v1beta1.StackList{}
 		if err := mgr.GetClient().List(ctx, stackList, client.MatchingFields{
 			".spec.versionsFromFile": versionFileName,
 		}); err != nil {
-			panic(err)
+			logger.Error(err, "listing stacks for versions file, dropping event", "versionsFile", versionFileName)
+			return
 		}
 
 		kinds, _, err := mgr.GetScheme().ObjectKinds(target)
