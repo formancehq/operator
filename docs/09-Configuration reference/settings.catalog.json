@@ -12,7 +12,7 @@
       "key": "auth.issuers",
       "valueType": "string",
       "sources": [
-        "internal/resources/auths/deployment.go:69",
+        "internal/resources/auths/deployment.go:77",
         "internal/resources/auths/env.go:34"
       ]
     },
@@ -366,7 +366,7 @@
       "key": "ledger.api.bulk-max-size",
       "valueType": "int",
       "sources": [
-        "internal/resources/ledgers/deployments.go:123"
+        "internal/resources/ledgers/deployments.go:128"
       ]
     },
     {
@@ -387,8 +387,8 @@
       "key": "ledger.experimental-exporters",
       "valueType": "bool",
       "sources": [
-        "internal/resources/ledgers/deployments.go:149",
-        "internal/resources/ledgers/deployments.go:264"
+        "internal/resources/ledgers/deployments.go:154",
+        "internal/resources/ledgers/deployments.go:269"
       ]
     },
     {
@@ -416,8 +416,8 @@
       "key": "ledger.schema-enforcement-mode",
       "valueType": "string",
       "sources": [
-        "internal/resources/ledgers/deployments.go:131",
-        "internal/resources/ledgers/deployments.go:239"
+        "internal/resources/ledgers/deployments.go:136",
+        "internal/resources/ledgers/deployments.go:244"
       ]
     },
     {
@@ -435,7 +435,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:209"
+        "internal/resources/ledgers/deployments.go:214"
       ]
     },
     {
@@ -453,7 +453,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:248"
+        "internal/resources/ledgers/deployments.go:253"
       ]
     },
     {
@@ -479,7 +479,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:221"
+        "internal/resources/ledgers/deployments.go:226"
       ]
     },
     {
@@ -519,14 +519,14 @@
       "key": "namespace.annotations",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:173"
+        "internal/resources/stacks/init.go:177"
       ]
     },
     {
       "key": "namespace.labels",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:154"
+        "internal/resources/stacks/init.go:158"
       ]
     },
     {
@@ -562,7 +562,7 @@
       "valueType": "int",
       "default": "10",
       "sources": [
-        "internal/resources/orchestrations/deployments.go:173"
+        "internal/resources/orchestrations/deployments.go:182"
       ]
     },
     {
@@ -650,7 +650,7 @@
       "key": "temporal.dsn",
       "valueType": "uri",
       "sources": [
-        "internal/resources/orchestrations/deployments.go:80",
+        "internal/resources/orchestrations/deployments.go:84",
         "internal/resources/payments/deployments.go:43"
       ]
     },
@@ -658,7 +658,7 @@
       "key": "temporal.tls.crt",
       "valueType": "string",
       "sources": [
-        "internal/resources/orchestrations/deployments.go:124",
+        "internal/resources/orchestrations/deployments.go:128",
         "internal/resources/payments/deployments.go:81"
       ]
     },
@@ -666,7 +666,7 @@
       "key": "temporal.tls.key",
       "valueType": "string",
       "sources": [
-        "internal/resources/orchestrations/deployments.go:129",
+        "internal/resources/orchestrations/deployments.go:133",
         "internal/resources/payments/deployments.go:89"
       ]
     },
@@ -675,7 +675,7 @@
       "valueType": "bool",
       "default": "false",
       "sources": [
-        "internal/resources/transactionplane/deployments.go:125"
+        "internal/resources/transactionplane/deployments.go:134"
       ]
     }
   ]
