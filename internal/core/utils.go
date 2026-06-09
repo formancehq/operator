@@ -84,11 +84,7 @@ func WithController[T client.Object](scheme *k8sruntime.Scheme, owner client.Obj
 
 func WithOwner[T client.Object](scheme *k8sruntime.Scheme, owner client.Object) ObjectMutator[T] {
 	return func(t T) error {
-		if err := controllerutil.SetOwnerReference(owner, t, scheme); err != nil {
-			panic(err)
-		}
-
-		return nil
+		return controllerutil.SetOwnerReference(owner, t, scheme)
 	}
 }
 
