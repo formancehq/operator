@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/pterm/pterm"
@@ -34,14 +36,14 @@ func NewUpgradeCommand(configFlags *genericclioptions.ConfigFlags) *cobra.Comman
 	return ret
 }
 
-func upgrade(cmd *cobra.Command, client *rest.RESTClient) error {
+func upgrade(cmd *cobra.Command, client *rest.RESTClient) (returnErr error) {
 	stackList, err := lockAllStacks(cmd, client)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err := unlockAllStacks(cmd, client); err != nil {
-			panic(err)
+			returnErr = errors.Join(returnErr, fmt.Errorf("unlocking stacks: %w", err))
 		}
 	}()
 	for _, stack := range stackList.Items {
