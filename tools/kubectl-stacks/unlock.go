@@ -75,7 +75,7 @@ func unlockStack(cmd *cobra.Command, client *rest.RESTClient, name string) error
 		},
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return client.Patch(types.MergePatchType).
