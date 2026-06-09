@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
@@ -8,9 +9,7 @@ import (
 )
 
 func init() {
-	if err := v1beta1.AddToScheme(scheme.Scheme); err != nil {
-		panic(err)
-	}
+	utilruntime.Must(v1beta1.AddToScheme(scheme.Scheme))
 }
 
 type Client struct {
