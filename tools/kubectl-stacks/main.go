@@ -51,15 +51,14 @@ func main() {
 	flags := pflag.NewFlagSet("kubectl-stacks", pflag.ExitOnError)
 	pflag.CommandLine = flags
 
+	if err := v1beta1.AddToScheme(scheme.Scheme); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	root := NewRootCommand()
 	if err := root.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
-	}
-}
-
-func init() {
-	if err := v1beta1.AddToScheme(scheme.Scheme); err != nil {
-		panic(err)
 	}
 }
