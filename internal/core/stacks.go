@@ -37,7 +37,7 @@ func GetAllStackDependencies(ctx Context, stackName string, to any) error {
 	for _, item := range list.Items {
 		t := reflect.New(objectType.Elem()).Interface().(client.Object)
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.Object, t); err != nil {
-			panic(err)
+			return errors.Wrapf(err, "converting unstructured object '%s' to %s", item.GetName(), objectType)
 		}
 		ret = reflect.Append(ret, reflect.ValueOf(t))
 	}
