@@ -22,14 +22,14 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
-func HashFromHash(o ...string) string {
+func HashFromHash(o ...string) (string, error) {
 	digest := sha256.New()
 	for _, h := range o {
 		if err := json.NewEncoder(digest).Encode(h); err != nil {
-			panic(err)
+			return "", err
 		}
 	}
-	return base64.StdEncoding.EncodeToString(digest.Sum(nil))
+	return base64.StdEncoding.EncodeToString(digest.Sum(nil)), nil
 }
 
 func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, database *v1beta1.Database,
@@ -136,7 +136,11 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 		}
 		return acc
 	}, hashList)
-	annotations["auth-clients-secrets"] = HashFromHash(hashList...)
+	authClientsSecretsHash, err := HashFromHash(hashList...)
+	if err != nil {
+		return err
+	}
+	annotations["auth-clients-secrets"] = authClientsSecretsHash
 	for _, client := range clients {
 		if client.Spec.SecretFromSecret != nil {
 			env = append(env, AuthClientSecretToEnvVars(client))
