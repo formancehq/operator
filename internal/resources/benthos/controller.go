@@ -319,7 +319,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	digest := sha256.New()
 	for _, configMap := range configMaps {
 		if err := json.NewEncoder(digest).Encode(configMap.Data); err != nil {
-			panic(err)
+			return errors.Wrap(err, "hashing config map data")
 		}
 	}
 	for _, stream := range streams {
