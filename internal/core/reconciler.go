@@ -424,7 +424,8 @@ func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 			if err := mgr.GetClient().List(ctx, list, client.MatchingFields{
 				"stack": stack.Name,
 			}); err != nil {
-				panic(err)
+				logger.Error(err, "listing modules for stack, skipping it", "stack", stack.Name)
+				continue
 			}
 
 			for _, item := range list.Items {
