@@ -414,7 +414,8 @@ func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
 
 		kinds, _, err := mgr.GetScheme().ObjectKinds(target)
 		if err != nil {
-			panic(err)
+			logger.Error(err, "resolving object kind, dropping event", "target", fmt.Sprintf("%T", target))
+			return
 		}
 
 		for _, stack := range stackList.Items {
