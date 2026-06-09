@@ -384,7 +384,7 @@ func GetAs[T any](ctx core.Context, stack string, keys ...string) (*T, error) {
 
 	data, err := json.Marshal(m)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := json.Unmarshal(data, &ret); err != nil {
