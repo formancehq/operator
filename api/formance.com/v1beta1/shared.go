@@ -9,6 +9,7 @@ import (
 	"golang.org/x/mod/semver"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/go-libs/v5/pkg/types/pointer"
@@ -372,7 +373,7 @@ func ParseURL(v string) (*URI, error) {
 }
 
 func init() {
-	if err := equality.Semantic.AddFunc(func(a, b *URI) bool {
+	utilruntime.Must(equality.Semantic.AddFunc(func(a, b *URI) bool {
 		if a == nil && b != nil {
 			return false
 		}
@@ -383,9 +384,7 @@ func init() {
 			return true
 		}
 		return a.String() == b.String()
-	}); err != nil {
-		panic(err)
-	}
+	}))
 }
 
 const (
