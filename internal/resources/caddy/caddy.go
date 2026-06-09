@@ -52,8 +52,12 @@ func DeploymentTemplate(
 		env = append(env, core.Env("OTEL_EXPORTER_OTLP_PROTOCOL", "$(OTEL_TRACES_EXPORTER_OTLP_MODE)"))
 	}
 
+	caddyfileHash, err := core.HashFromConfigMaps(caddyfile)
+	if err != nil {
+		return nil, err
+	}
 	t.Spec.Template.Annotations = collectionutils.MergeMaps(t.Spec.Template.Annotations, map[string]string{
-		"caddyfile-hash": core.HashFromConfigMaps(caddyfile),
+		"caddyfile-hash": caddyfileHash,
 	})
 	t.Spec.Template.Spec.Volumes = []v1.Volume{
 		volumeFromConfigMap("caddyfile", caddyfile),

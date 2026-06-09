@@ -34,8 +34,12 @@ func HashFromHash(o ...string) (string, error) {
 
 func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, database *v1beta1.Database,
 	configMap *corev1.ConfigMap, imageConfiguration *registries.ImageConfiguration, version string, clients []*v1beta1.AuthClient) error {
+	configHash, err := HashFromConfigMaps(configMap)
+	if err != nil {
+		return err
+	}
 	annotations := map[string]string{
-		"config-hash": HashFromConfigMaps(configMap),
+		"config-hash": configHash,
 	}
 
 	env := make([]corev1.EnvVar, 0)

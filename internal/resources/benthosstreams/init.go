@@ -57,7 +57,11 @@ func Reconcile(ctx Context, _ *v1beta1.Stack, stream *v1beta1.BenthosStream) err
 		return err
 	}
 
-	stream.Status.ConfigMapHash = HashFromConfigMaps(cm)
+	configMapHash, err := HashFromConfigMaps(cm)
+	if err != nil {
+		return err
+	}
+	stream.Status.ConfigMapHash = configMapHash
 
 	return nil
 }

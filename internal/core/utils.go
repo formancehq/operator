@@ -24,14 +24,14 @@ import (
 	"github.com/formancehq/go-libs/v5/pkg/types/pointer"
 )
 
-func HashFromConfigMaps(configMaps ...*corev1.ConfigMap) string {
+func HashFromConfigMaps(configMaps ...*corev1.ConfigMap) (string, error) {
 	digest := sha256.New()
 	for _, configMap := range configMaps {
 		if err := json.NewEncoder(digest).Encode(configMap.Data); err != nil {
-			panic(err)
+			return "", err
 		}
 	}
-	return base64.StdEncoding.EncodeToString(digest.Sum(nil))
+	return base64.StdEncoding.EncodeToString(digest.Sum(nil)), nil
 }
 
 func HashFromResources(resources ...*unstructured.Unstructured) string {
