@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	collectionutils "github.com/formancehq/go-libs/v5/pkg/types/collections"
@@ -42,14 +43,16 @@ func init() {
 func watchResource[T client.Object](ctx core.Context, object T) []reconcile.Request {
 	ret := make([]reconcile.Request, 0)
 
+	gvk, err := apiutil.GVKForObject(&v1beta1.ResourceReference{}, ctx.GetScheme())
+	if err != nil {
+		log.FromContext(ctx).Error(err, "resolving ResourceReference kind, dropping event")
+		return ret
+	}
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
+
 	// Watch resources created by the ResourceReference
 	var resourceReference string
 	for _, reference := range object.GetOwnerReferences() {
-		gvk, err := apiutil.GVKForObject(&v1beta1.ResourceReference{}, ctx.GetScheme())
-		if err != nil {
-			panic(err)
-		}
-		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		if reference.Kind == kind && reference.APIVersion == apiVersion {
 			resourceReference = reference.Name
 			break
