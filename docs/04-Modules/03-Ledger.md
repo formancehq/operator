@@ -38,6 +38,24 @@ spec:
   value: strict
 ```
 
+### Disable Ledger Scope Optimization
+
+By default, the Ledger skips the `ledger = ?` predicate on read queries when a
+ledger is the only one in its bucket (the "alone-in-bucket" optimization). Set
+this to `true` to always emit the predicate, as a performance/safety escape
+hatch:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-disable-ledger-scope-optimization
+spec:
+  stacks: ["*"]
+  key: ledger.disable-ledger-scope-optimization
+  value: "true"
+```
+
 ## Worker Settings (v2.3+)
 
 Starting with Ledger v2.3, a separate worker process is deployed alongside the main Ledger API. The worker can be configured using the Settings CRD.

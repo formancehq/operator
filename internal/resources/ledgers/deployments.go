@@ -136,6 +136,14 @@ func installLedgerStateless(ctx core.Context, stack *v1beta1.Stack, ledger *v1be
 		container.Env = append(container.Env, core.Env("SCHEMA_ENFORCEMENT_MODE", schemaEnforcementMode))
 	}
 
+	disableLedgerScopeOptimization, err := settings.GetBoolOrFalse(ctx, stack.Name, "ledger", "disable-ledger-scope-optimization")
+	if err != nil {
+		return fmt.Errorf("failed to get disable ledger scope optimization setting: %w", err)
+	}
+	if disableLedgerScopeOptimization {
+		container.Env = append(container.Env, core.Env("DISABLE_LEDGER_SCOPE_OPTIMIZATION", "true"))
+	}
+
 	err = setCommonAPIContainerConfiguration(ctx, stack, ledger, imageConfiguration, database, &container)
 	if err != nil {
 		return err

@@ -384,11 +384,18 @@
       ]
     },
     {
+      "key": "ledger.disable-ledger-scope-optimization",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/ledgers/deployments.go:139"
+      ]
+    },
+    {
       "key": "ledger.experimental-exporters",
       "valueType": "bool",
       "sources": [
-        "internal/resources/ledgers/deployments.go:149",
-        "internal/resources/ledgers/deployments.go:264"
+        "internal/resources/ledgers/deployments.go:157",
+        "internal/resources/ledgers/deployments.go:272"
       ]
     },
     {
@@ -417,7 +424,7 @@
       "valueType": "string",
       "sources": [
         "internal/resources/ledgers/deployments.go:131",
-        "internal/resources/ledgers/deployments.go:239"
+        "internal/resources/ledgers/deployments.go:247"
       ]
     },
     {
@@ -435,7 +442,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:209"
+        "internal/resources/ledgers/deployments.go:217"
       ]
     },
     {
@@ -453,7 +460,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:248"
+        "internal/resources/ledgers/deployments.go:256"
       ]
     },
     {
@@ -479,7 +486,7 @@
         }
       ],
       "sources": [
-        "internal/resources/ledgers/deployments.go:221"
+        "internal/resources/ledgers/deployments.go:229"
       ]
     },
     {
