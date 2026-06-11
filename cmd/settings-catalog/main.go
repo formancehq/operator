@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -160,6 +161,46 @@ func (s *scanner) scan() (catalog, error) {
 }
 
 func (s *scanner) goFiles() ([]string, error) {
+	// Prefer git so the catalog never references git-ignored files (the scan
+	// must be deterministic regardless of untracked artifacts in a working
+	// copy). Fall back to a filesystem walk when git is unavailable, e.g. when
+	// scanning a non-git checkout such as a release tarball.
+	files, err := s.gitGoFiles()
+	if err != nil {
+		files, err = s.walkGoFiles()
+		if err != nil {
+			return nil, err
+		}
+	}
+	slices.Sort(files)
+	return files, nil
+}
+
+// gitGoFiles lists the Go files git tracks or would track (excluding files
+// matched by .gitignore), honouring the repository's ignore rules.
+func (s *scanner) gitGoFiles() ([]string, error) {
+	// s.root is the -root flag of this developer-run codegen CLI, not untrusted
+	// input, and the git invocation itself is a fixed argument list.
+	cmd := exec.Command("git", "-C", s.root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "*.go") //nolint:gosec // G204: root is an operator-supplied flag, args are fixed
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for rel := range strings.SplitSeq(string(out), "\x00") {
+		if rel == "" {
+			continue
+		}
+		path := filepath.Join(s.root, filepath.FromSlash(rel))
+		if !s.includeGoFile(path) {
+			continue
+		}
+		files = append(files, path)
+	}
+	return files, nil
+}
+
+func (s *scanner) walkGoFiles() ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(s.root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -173,10 +214,7 @@ func (s *scanner) goFiles() ([]string, error) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		if strings.Contains(path, string(filepath.Separator)+"cmd"+string(filepath.Separator)+"settings-catalog"+string(filepath.Separator)) {
+		if !s.includeGoFile(path) {
 			return nil
 		}
 		files = append(files, path)
@@ -185,8 +223,17 @@ func (s *scanner) goFiles() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	slices.Sort(files)
 	return files, nil
+}
+
+func (s *scanner) includeGoFile(path string) bool {
+	if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		return false
+	}
+	if strings.Contains(path, string(filepath.Separator)+"cmd"+string(filepath.Separator)+"settings-catalog"+string(filepath.Separator)) {
+		return false
+	}
+	return true
 }
 
 func (s *scanner) collectStructs(path string, file *ast.File) {
@@ -626,7 +673,7 @@ func fieldJSONName(field *ast.Field) string {
 }
 
 func reflectJSONTag(tag string) string {
-	for _, part := range strings.Split(tag, " ") {
+	for part := range strings.SplitSeq(tag, " ") {
 		if !strings.HasPrefix(part, `json:"`) {
 			continue
 		}
