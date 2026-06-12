@@ -63,6 +63,7 @@ func main() {
 		licenceSecret        string
 		licenceNamespace     string
 		utilsVersion         string
+		collectorImage       string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -74,6 +75,7 @@ func main() {
 	flag.StringVar(&licenceSecret, "licence-secret", "", "The licence secret that contains the token and the issuer")
 	flag.StringVar(&licenceNamespace, "licence-namespace", "", "The namespace where the licence secret lives (defaults to operator namespace)")
 	flag.StringVar(&utilsVersion, "utils-version", "latest", "The version of the operator utils image")
+	flag.StringVar(&collectorImage, "collector-image", core.DefaultCollectorImage, "The OTel Collector image for OtelExporterEndpoint resources")
 	opts := zap.Options{
 		Development: false,
 	}
@@ -125,6 +127,7 @@ func main() {
 		LicenceSecret:    licenceSecret,
 		LicenceNamespace: licenceNamespace,
 		UtilsVersion:     utilsVersion,
+		CollectorImage:   collectorImage,
 	}
 
 	if licenceSecret != "" {

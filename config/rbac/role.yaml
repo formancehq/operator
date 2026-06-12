@@ -94,6 +94,7 @@ rules:
   - ledgers
   - mcps
   - orchestrations
+  - otelexporterendpoints
   - payments
   - reconciliations
   - resourcereferences
@@ -129,6 +130,7 @@ rules:
   - ledgers/finalizers
   - mcps/finalizers
   - orchestrations/finalizers
+  - otelexporterendpoints/finalizers
   - payments/finalizers
   - reconciliations/finalizers
   - resourcereferences/finalizers
@@ -158,6 +160,7 @@ rules:
   - ledgers/status
   - mcps/status
   - orchestrations/status
+  - otelexporterendpoints/status
   - payments/status
   - reconciliations/status
   - resourcereferences/status

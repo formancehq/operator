@@ -1,0 +1,46 @@
+apiVersion: formance.com/v1beta1
+kind: OtelExporterEndpoint
+metadata:
+  labels:
+    app.kubernetes.io/name: otelexporterendpoint
+    app.kubernetes.io/instance: otelexporterendpoint0
+    app.kubernetes.io/part-of: operatorv2
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: operatorv2
+  name: otelexporterendpoint0
+spec:
+  stackSelector:
+    matchLabels:
+      formance.com/stack: any
+  traces:
+    endpoint: "http://otel-collector-opentelemetry-collector.formance.svc.cluster.local:4318"
+  metrics:
+    endpoint: "http://otel-collector-opentelemetry-collector.formance.svc.cluster.local:4318"
+---
+apiVersion: formance.com/v1beta1
+kind: OtelExporterEndpoint
+metadata:
+  labels:
+    app.kubernetes.io/name: otelexporterendpoint
+    app.kubernetes.io/instance: formance-support
+    app.kubernetes.io/part-of: operatorv2
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: operatorv2
+  name: formance-support
+spec:
+  stackSelector:
+    matchExpressions:
+      - key: formance.com/stack
+        operator: Exists
+  traces:
+    endpoint: "https://otel-support.internal.frmnc.net/v1/traces"
+    auth:
+      type: bearer
+      fromSecret: "formance-licence"
+  metrics:
+    endpoint: "https://otel-support.internal.frmnc.net/v1/metrics"
+    auth:
+      type: bearer
+      fromSecret: "formance-licence"
+  resourceAttributes:
+    cluster.id: "abc-123"
