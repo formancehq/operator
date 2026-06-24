@@ -2,5 +2,7 @@ apiVersion: formance.com/v1beta1
 kind: Stack
 metadata:
   name: chainsaw-observability
+  labels:
+    formance.com/stack: chainsaw-observability
 spec:
   version: v2.2.0
