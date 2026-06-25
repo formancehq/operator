@@ -3,6 +3,7 @@ package caddy
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"strings"
 	"text/template"
 
@@ -36,16 +37,7 @@ func DeploymentTemplate(
 
 	if len(otlpEnv) > 0 {
 		env = append(env, otlpEnv...)
-		scheme := "https"
-		for _, envVar := range env {
-			if envVar.Name == "OTEL_TRACES_EXPORTER_OTLP_INSECURE" {
-				if envVar.Value == "true" {
-					scheme = "http"
-				}
-			}
-		}
-		env = append(env, core.Env("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", fmt.Sprintf("%s://$(OTEL_TRACES_EXPORTER_OTLP_ENDPOINT)", scheme)))
-		env = append(env, core.Env("OTEL_EXPORTER_OTLP_PROTOCOL", "$(OTEL_TRACES_EXPORTER_OTLP_MODE)"))
+		env = append(env, caddyOTLPEnvVars(otlpEnv)...)
 	}
 
 	t.Spec.Template.Annotations = collectionutils.MergeMaps(t.Spec.Template.Annotations, map[string]string{
@@ -130,6 +122,49 @@ func ComputeCaddyfile(ctx core.Context, stack *v1beta1.Stack, _tpl string, addit
 	}
 
 	return buf.String(), nil
+}
+
+func caddyOTLPEnvVars(otlpEnv []v1.EnvVar) []v1.EnvVar {
+	scheme := "https"
+	mode := ""
+	endpoint := ""
+	for _, envVar := range otlpEnv {
+		if envVar.Name == "OTEL_TRACES_EXPORTER_OTLP_INSECURE" && envVar.Value == "true" {
+			scheme = "http"
+		}
+		if envVar.Name == "OTEL_TRACES_EXPORTER_OTLP_MODE" {
+			mode = envVar.Value
+		}
+		if envVar.Name == "OTEL_TRACES_EXPORTER_OTLP_ENDPOINT" {
+			endpoint = envVar.Value
+		}
+	}
+
+	if mode == "" {
+		return nil
+	}
+
+	protocol := mode
+	if protocol == "http" || protocol == "https" {
+		protocol = "http/protobuf"
+	}
+	tracesEndpoint := fmt.Sprintf("%s://$(OTEL_TRACES_EXPORTER_OTLP_ENDPOINT)", scheme)
+	if strings.Contains(endpoint, "://") {
+		tracesEndpoint = endpoint
+		if protocol == "http/protobuf" {
+			if u, err := url.Parse(endpoint); err == nil && (u.Path == "" || u.Path == "/") {
+				u.Path = "/v1/traces"
+				tracesEndpoint = u.String()
+			}
+		}
+	} else if protocol == "http/protobuf" {
+		tracesEndpoint += "/v1/traces"
+	}
+
+	return []v1.EnvVar{
+		core.Env("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", tracesEndpoint),
+		core.Env("OTEL_EXPORTER_OTLP_PROTOCOL", protocol),
+	}
 }
 
 func CreateCaddyfileConfigMap(ctx core.Context, stack *v1beta1.Stack,
