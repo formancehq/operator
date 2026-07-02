@@ -14,10 +14,14 @@ func WatchDependents(mgr Manager, t client.Object) func(ctx context.Context, obj
 	return func(ctx context.Context, object client.Object) []reconcile.Request {
 
 		slice := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(t)), 0, 0).Interface()
+		stackName := stackNameFromObject(object)
+		if stackName == "" {
+			return nil
+		}
 
 		err := GetAllStackDependencies(
 			NewContext(mgr, ctx),
-			object.(v1beta1.Dependent).GetStack(), &slice)
+			stackName, &slice)
 		if err != nil {
 			return nil
 		}
@@ -29,6 +33,32 @@ func WatchDependents(mgr Manager, t client.Object) func(ctx context.Context, obj
 
 		return MapObjectToReconcileRequests(objects...)
 	}
+}
+
+func stackNameFromObject(object client.Object) string {
+	if dependent, ok := object.(v1beta1.Dependent); ok && dependent.GetStack() != "" {
+		return dependent.GetStack()
+	}
+
+	if labels := object.GetLabels(); labels != nil {
+		if stackName := labels[v1beta1.StackLabel]; stackName != "" && stackName != "any" {
+			return stackName
+		}
+	}
+
+	if annotations := object.GetAnnotations(); annotations != nil {
+		if stackName := annotations[v1beta1.StackLabel]; stackName != "" && stackName != "any" {
+			return stackName
+		}
+	}
+
+	for _, ownerReference := range object.GetOwnerReferences() {
+		if ownerReference.APIVersion == v1beta1.GroupVersion.String() && ownerReference.Kind == "Stack" {
+			return ownerReference.Name
+		}
+	}
+
+	return ""
 }
 
 func Watch(mgr Manager, t client.Object) func(ctx context.Context, object client.Object) []reconcile.Request {

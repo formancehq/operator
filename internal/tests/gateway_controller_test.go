@@ -2,6 +2,7 @@ package tests_test
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -251,7 +252,7 @@ var _ = Describe("GatewayController", func() {
 				Expect(Create(anotherHttpService)).To(Succeed())
 			})
 			AfterEach(func() {
-				Expect(Delete(anotherHttpService)).To(Succeed())
+				Expect(client.IgnoreNotFound(Delete(anotherHttpService))).To(Succeed())
 			})
 			It("Should trigger deployment gateway with the new service", func() {
 				Eventually(func(g Gomega) []string {
@@ -265,6 +266,27 @@ var _ = Describe("GatewayController", func() {
 					g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
 					return cm.Data["Caddyfile"]
 				}).Should(MatchGoldenFile("gateway-controller", "configmap-with-ledger-and-another-service.yaml"))
+			})
+			It("Should remove deleted HTTPService from the gateway", func() {
+				Eventually(func(g Gomega) []string {
+					g.Expect(LoadResource("", gateway.Name, gateway))
+
+					return gateway.Status.SyncHTTPAPIs
+				}).Should(ContainElements(httpAPI.Spec.Name, anotherHttpService.Spec.Name))
+
+				Expect(Delete(anotherHttpService)).To(Succeed())
+
+				Eventually(func(g Gomega) []string {
+					g.Expect(LoadResource("", gateway.Name, gateway))
+
+					return gateway.Status.SyncHTTPAPIs
+				}, time.Minute).Should(ConsistOf(httpAPI.Spec.Name))
+
+				Eventually(func(g Gomega) string {
+					cm := &corev1.ConfigMap{}
+					g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
+					return cm.Data["Caddyfile"]
+				}, time.Minute).ShouldNot(ContainSubstring(anotherHttpService.Spec.Name))
 			})
 		})
 		Context("With a consumer on gateway", func() {

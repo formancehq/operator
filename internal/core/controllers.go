@@ -75,6 +75,10 @@ func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController
 				return err
 			}
 		} else {
+			if err := ensureStackLabel(ctx, t); err != nil {
+				return err
+			}
+
 			if stack.GetAnnotations()[v1beta1.SkipLabel] == "true" {
 				t.GetConditions().
 					AppendOrReplace(v1beta1.Condition{
@@ -97,6 +101,27 @@ func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController
 
 		return ctrl(ctx, stack, reconcilerOptions, t)
 	}
+}
+
+func ensureStackLabel[T v1beta1.Dependent](ctx Context, t T) error {
+	stackName := t.GetStack()
+	if stackName == "" {
+		return nil
+	}
+
+	labels := t.GetLabels()
+	if labels != nil && labels[v1beta1.StackLabel] == stackName {
+		return nil
+	}
+
+	patch := client.MergeFrom(t.DeepCopyObject().(T))
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[v1beta1.StackLabel] = stackName
+	t.SetLabels(labels)
+
+	return ctx.GetClient().Patch(ctx, t, patch)
 }
 
 type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error
