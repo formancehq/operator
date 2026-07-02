@@ -43,6 +43,7 @@ const (
 //+kubebuilder:rbac:groups=formance.com,resources=databases,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=databases/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=formance.com,resources=databases/finalizers,verbs=update
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;create;update;patch;delete
 
 func Reconcile(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database) error {
 
@@ -53,11 +54,20 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Databas
 
 	if secret := databaseURL.Query().Get("secret"); secret != "" {
 		_, err = resourcereferences.Create(ctx, database, "postgres", secret, &v1.Secret{})
+		if err != nil {
+			return err
+		}
+		if err := reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, secret); err != nil {
+			return err
+		}
 	} else {
 		err = resourcereferences.Delete(ctx, database, "postgres")
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+		if err := deleteEncodedPostgresCredentialsSecret(ctx, stack, database); err != nil {
+			return err
+		}
 	}
 
 	awsRole, err := settings.GetAWSServiceAccount(ctx, stack.Name)
@@ -186,6 +196,7 @@ func init() {
 		core.WithResourceReconciler(Reconcile,
 			core.WithOwn[*v1beta1.Database](&batchv1.Job{}),
 			core.WithOwn[*v1beta1.Database](&v1beta1.ResourceReference{}),
+			core.WithOwn[*v1beta1.Database](&v1.Secret{}),
 			core.WithWatchSettings[*v1beta1.Database](),
 			core.WithFinalizer(databaseFinalizer, Delete),
 		),
