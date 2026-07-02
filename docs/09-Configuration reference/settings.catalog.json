@@ -43,7 +43,7 @@
       "key": "clear-database",
       "valueType": "bool",
       "sources": [
-        "internal/resources/databases/init.go:112"
+        "internal/resources/databases/init.go:122"
       ]
     },
     {
@@ -519,7 +519,7 @@
         }
       ],
       "sources": [
-        "internal/resources/databases/env.go:72"
+        "internal/resources/databases/env.go:79"
       ]
     },
     {
@@ -637,7 +637,7 @@
       "key": "postgres.\u003cmodule-name\u003e.uri",
       "valueType": "uri",
       "sources": [
-        "internal/resources/databases/init.go:49"
+        "internal/resources/databases/init.go:50"
       ]
     },
     {
