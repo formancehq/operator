@@ -526,14 +526,14 @@
       "key": "namespace.annotations",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:173"
+        "internal/resources/stacks/init.go:180"
       ]
     },
     {
       "key": "namespace.labels",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:154"
+        "internal/resources/stacks/init.go:161"
       ]
     },
     {

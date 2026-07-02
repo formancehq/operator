@@ -75,7 +75,14 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 			return err
 		}
 
-		switch len(l.Items) {
+		items := l.Items[:0]
+		for _, item := range l.Items {
+			if item.GetDeletionTimestamp().IsZero() {
+				items = append(items, item)
+			}
+		}
+
+		switch len(items) {
 		case 0:
 			stack.GetConditions().Delete(v1beta1.ConditionPredicate(func(condition v1beta1.Condition) bool {
 				return condition.Type == ModuleReconciliation && condition.Reason == gvk.Kind && condition.ObservedGeneration == stack.Generation
@@ -102,7 +109,7 @@ func setModulesCondition(ctx Context, stack *v1beta1.Stack) error {
 			}
 
 			module := AnyModule{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(l.Items[0].UnstructuredContent(), &module); err != nil {
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(items[0].UnstructuredContent(), &module); err != nil {
 				panic(err)
 			}
 
