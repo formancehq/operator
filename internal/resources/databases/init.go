@@ -61,11 +61,15 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Databas
 			return err
 		}
 	} else {
-		err = resourcereferences.Delete(ctx, database, "postgres")
+		previousPostgresCredentialsSecret, err := getPostgresCredentialsSecretReference(ctx, database)
 		if err != nil {
 			return err
 		}
-		if err := deleteEncodedPostgresCredentialsSecret(ctx, stack, database); err != nil {
+		if err := deleteEncodedPostgresCredentialsSecret(ctx, stack, database, previousPostgresCredentialsSecret); err != nil {
+			return err
+		}
+		err = resourcereferences.Delete(ctx, database, "postgres")
+		if err != nil {
 			return err
 		}
 	}
@@ -114,7 +118,20 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Databas
 	return nil
 }
 
+func getPostgresCredentialsSecretReference(ctx core.Context, database *v1beta1.Database) (string, error) {
+	reference := &v1beta1.ResourceReference{}
+	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		Name: fmt.Sprintf("%s-postgres", database.Name),
+	}, reference); err != nil {
+		return "", client.IgnoreNotFound(err)
+	}
+	return reference.Spec.Name, nil
+}
+
 func Delete(ctx core.Context, database *v1beta1.Database) error {
+	if err := remediatePostgresCredentialsSecretBeforeDatabaseDelete(ctx, database); err != nil {
+		return err
+	}
 	if database.Status.URI == nil {
 		return nil
 	}
@@ -137,6 +154,9 @@ func Delete(ctx core.Context, database *v1beta1.Database) error {
 	}, stack); err != nil {
 		return err
 	}
+	if err := reconcileEncodedPostgresCredentialsSecretBeforeDatabaseDelete(ctx, stack, database); err != nil {
+		return err
+	}
 
 	if err := handleDatabaseJob(ctx, stack, database, "drop-database", "db", "drop"); err != nil {
 		return err
@@ -146,6 +166,49 @@ func Delete(ctx core.Context, database *v1beta1.Database) error {
 	logger.Info("Database deleted.")
 
 	return nil
+}
+
+func remediatePostgresCredentialsSecretBeforeDatabaseDelete(ctx core.Context, database *v1beta1.Database) error {
+	if database.Spec.Stack == "" {
+		return nil
+	}
+	sourceSecretName, err := getPostgresCredentialsSecretReference(ctx, database)
+	if err != nil {
+		return err
+	}
+	sourceSecretNames := make([]string, 0, 2)
+	if sourceSecretName != "" {
+		sourceSecretNames = append(sourceSecretNames, sourceSecretName)
+	}
+	if database.Status.URI != nil {
+		sourceSecretNameFromStatus := database.Status.URI.Query().Get("secret")
+		if sourceSecretNameFromStatus != "" {
+			sourceSecretNames = append(sourceSecretNames, sourceSecretNameFromStatus)
+		}
+	}
+	stack := &v1beta1.Stack{}
+	stack.Name = database.Spec.Stack
+	sourceSecretNames = dedupePostgresCredentialsSecretNames(sourceSecretNames)
+	if len(sourceSecretNames) == 0 {
+		return deleteDefaultEncodedPostgresCredentialsSecretWithoutSource(ctx, stack, database, getEncodedPostgresCredentialsSecretName(database))
+	}
+	for _, sourceSecretName := range sourceSecretNames {
+		if err := removeSourceSecretControllerReferenceByName(ctx, stack, database, sourceSecretName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func reconcileEncodedPostgresCredentialsSecretBeforeDatabaseDelete(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database) error {
+	if database.Status.URI == nil {
+		return nil
+	}
+	sourceSecretName := database.Status.URI.Query().Get("secret")
+	if sourceSecretName == "" {
+		return nil
+	}
+	return reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecretName)
 }
 
 func handleDatabaseJob(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, name string, args ...string) error {
