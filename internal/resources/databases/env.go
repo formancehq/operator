@@ -33,11 +33,12 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 			secret := database.Status.URI.Query().Get("secret")
 			postgresURIUsernameEnv = "POSTGRES_URL_ENCODED_USERNAME"
 			postgresURIPasswordEnv = "POSTGRES_URL_ENCODED_PASSWORD"
+			encodedSecretName := getEncodedPostgresCredentialsSecretName(database, secret)
 			ret = append(ret,
 				core.EnvFromSecret("POSTGRES_USERNAME", secret, postgresCredentialsUsernameKey),
 				core.EnvFromSecret("POSTGRES_PASSWORD", secret, postgresCredentialsPasswordKey),
-				core.EnvFromSecret("POSTGRES_URL_ENCODED_USERNAME", getEncodedPostgresCredentialsSecretName(database), postgresCredentialsUsernameKey),
-				core.EnvFromSecret("POSTGRES_URL_ENCODED_PASSWORD", getEncodedPostgresCredentialsSecretName(database), postgresCredentialsPasswordKey),
+				core.EnvFromSecret("POSTGRES_URL_ENCODED_USERNAME", encodedSecretName, postgresCredentialsUsernameKey),
+				core.EnvFromSecret("POSTGRES_URL_ENCODED_PASSWORD", encodedSecretName, postgresCredentialsPasswordKey),
 			)
 		}
 		ret = append(ret,

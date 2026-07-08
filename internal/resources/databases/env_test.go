@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -116,6 +117,10 @@ func (t testContext) GetPlatform() core.Platform {
 }
 
 func newTestContext(t *testing.T, objects ...client.Object) testContext {
+	return newTestContextWithInterceptor(t, interceptor.Funcs{}, objects...)
+}
+
+func newTestContextWithInterceptor(t *testing.T, interceptorFuncs interceptor.Funcs, objects ...client.Object) testContext {
 	t.Helper()
 
 	scheme := runtime.NewScheme()
@@ -134,6 +139,7 @@ func newTestContext(t *testing.T, objects ...client.Object) testContext {
 			keys := strings.Split(settings.Spec.Key, ".")
 			return []string{fmt.Sprint(len(keys))}
 		}).
+		WithInterceptorFuncs(interceptorFuncs).
 		Build()
 
 	return testContext{
@@ -188,6 +194,52 @@ func TestGetPostgresEnvVarsUsesEncodedSecretForURI(t *testing.T) {
 		envByName["POSTGRES_NO_DATABASE_URI"].Value,
 	)
 	require.Equal(t, "$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)", envByName["POSTGRES_URI"].Value)
+}
+
+func TestGetPostgresEnvVarsAvoidsEncodedSecretNameCollision(t *testing.T) {
+	t.Parallel()
+
+	ctx := newTestContext(t)
+	stack := &v1beta1.Stack{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack"},
+	}
+	sourceSecretName := "stack-ledger-postgres-uri-credentials"
+	postgresURI, err := v1beta1.ParseURL("postgresql://postgres:5432?secret=" + sourceSecretName)
+	require.NoError(t, err)
+	database := &v1beta1.Database{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack-ledger"},
+		Spec: v1beta1.DatabaseSpec{
+			Service: "ledger",
+		},
+		Status: v1beta1.DatabaseStatus{
+			URI:      postgresURI,
+			Database: "ledger",
+		},
+	}
+
+	envVars, err := GetPostgresEnvVars(ctx, stack, database)
+	require.NoError(t, err)
+
+	envByName := make(map[string]corev1.EnvVar, len(envVars))
+	for _, envVar := range envVars {
+		envByName[envVar.Name] = envVar
+	}
+
+	require.Equal(t, sourceSecretName, envByName["POSTGRES_USERNAME"].ValueFrom.SecretKeyRef.Name)
+	require.Equal(t, sourceSecretName, envByName["POSTGRES_PASSWORD"].ValueFrom.SecretKeyRef.Name)
+	require.NotEqual(t, sourceSecretName, envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Name)
+	require.NotEqual(t,
+		fmt.Sprintf("%s-%s", database.Name, collisionSafeEncodedPostgresCredentialsSecretSuffix),
+		envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Name,
+	)
+	require.Equal(t,
+		envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Name,
+		envByName["POSTGRES_URL_ENCODED_PASSWORD"].ValueFrom.SecretKeyRef.Name,
+	)
+	require.Equal(t,
+		"postgresql://$(POSTGRES_URL_ENCODED_USERNAME):$(POSTGRES_URL_ENCODED_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)",
+		envByName["POSTGRES_NO_DATABASE_URI"].Value,
+	)
 }
 
 func TestGetPostgresEnvVarsEscapesInlineCredentialsForURIUserinfo(t *testing.T) {

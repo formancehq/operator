@@ -43,7 +43,7 @@
       "key": "clear-database",
       "valueType": "bool",
       "sources": [
-        "internal/resources/databases/init.go:122"
+        "internal/resources/databases/init.go:139"
       ]
     },
     {
@@ -519,7 +519,7 @@
         }
       ],
       "sources": [
-        "internal/resources/databases/env.go:79"
+        "internal/resources/databases/env.go:80"
       ]
     },
     {
