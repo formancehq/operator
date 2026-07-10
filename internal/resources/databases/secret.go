@@ -23,7 +23,13 @@ const (
 	encodedPostgresCredentialsSecretSuffix              = "postgres-uri-credentials"
 	collisionSafeEncodedPostgresCredentialsSecretSuffix = "encoded-postgres-uri-credentials"
 	encodedPostgresCredentialsSecretAnnotation          = "formance.com/encoded-postgres-credentials-secret"
+	postgresCredentialsEncodingQueryParam               = "secretCredentialsEncoding"
+
+	postgresCredentialsEncodingURLEncoded postgresCredentialsEncoding = "urlEncoded"
+	postgresCredentialsEncodingRaw        postgresCredentialsEncoding = "raw"
 )
+
+type postgresCredentialsEncoding string
 
 func getEncodedPostgresCredentialsSecretName(database *v1beta1.Database, sourceSecretName ...string) string {
 	name := fmt.Sprintf("%s-%s", database.Name, encodedPostgresCredentialsSecretSuffix)
@@ -64,7 +70,29 @@ func dedupePostgresCredentialsSecretNames(names []string) []string {
 	return ret
 }
 
-func reconcileEncodedPostgresCredentialsSecret(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, secretName string) error {
+func parsePostgresCredentialsEncoding(value string) (postgresCredentialsEncoding, error) {
+	switch postgresCredentialsEncoding(value) {
+	case "", postgresCredentialsEncodingURLEncoded:
+		return postgresCredentialsEncodingURLEncoded, nil
+	case postgresCredentialsEncodingRaw:
+		return postgresCredentialsEncodingRaw, nil
+	default:
+		return "", fmt.Errorf("invalid %s %q: expected %q or %q",
+			postgresCredentialsEncodingQueryParam,
+			value,
+			postgresCredentialsEncodingURLEncoded,
+			postgresCredentialsEncodingRaw,
+		)
+	}
+}
+
+func reconcileEncodedPostgresCredentialsSecret(
+	ctx core.Context,
+	stack *v1beta1.Stack,
+	database *v1beta1.Database,
+	secretName string,
+	credentialsEncoding postgresCredentialsEncoding,
+) error {
 	sourceSecret := &corev1.Secret{}
 	if err := ctx.GetClient().Get(ctx, types.NamespacedName{
 		Namespace: stack.Name,
@@ -84,6 +112,10 @@ func reconcileEncodedPostgresCredentialsSecret(ctx core.Context, stack *v1beta1.
 	if !ok {
 		return fmt.Errorf("postgres credentials secret %s/%s is missing %q", stack.Name, secretName, postgresCredentialsPasswordKey)
 	}
+	if credentialsEncoding == postgresCredentialsEncodingRaw {
+		username = []byte(escapePostgresCredentialForURI(string(username)))
+		password = []byte(escapePostgresCredentialForURI(string(password)))
+	}
 
 	encodedSecretName := getEncodedPostgresCredentialsSecretName(database, secretName)
 	if err := ensureEncodedPostgresCredentialsSecretCanBeWritten(ctx, stack, database, encodedSecretName); err != nil {
@@ -99,8 +131,8 @@ func reconcileEncodedPostgresCredentialsSecret(ctx core.Context, stack *v1beta1.
 		}
 		secret.Annotations[encodedPostgresCredentialsSecretAnnotation] = "true"
 		secret.Data = map[string][]byte{
-			postgresCredentialsUsernameKey: []byte(escapePostgresCredentialForURI(string(username))),
-			postgresCredentialsPasswordKey: []byte(escapePostgresCredentialForURI(string(password))),
+			postgresCredentialsUsernameKey: username,
+			postgresCredentialsPasswordKey: password,
 		}
 		return nil
 	}, core.WithController[*corev1.Secret](ctx.GetScheme(), database))

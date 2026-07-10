@@ -31,6 +31,10 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 			)
 		} else {
 			secret := database.Status.URI.Query().Get("secret")
+			credentialsEncoding, err := parsePostgresCredentialsEncoding(database.Status.URI.Query().Get(postgresCredentialsEncodingQueryParam))
+			if err != nil {
+				return nil, err
+			}
 			postgresURIUsernameEnv = "POSTGRES_URL_ENCODED_USERNAME"
 			postgresURIPasswordEnv = "POSTGRES_URL_ENCODED_PASSWORD"
 			encodedSecretName := getEncodedPostgresCredentialsSecretName(database, secret)
@@ -39,6 +43,7 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 				core.EnvFromSecret("POSTGRES_PASSWORD", secret, postgresCredentialsPasswordKey),
 				core.EnvFromSecret("POSTGRES_URL_ENCODED_USERNAME", encodedSecretName, postgresCredentialsUsernameKey),
 				core.EnvFromSecret("POSTGRES_URL_ENCODED_PASSWORD", encodedSecretName, postgresCredentialsPasswordKey),
+				core.Env("POSTGRES_CREDENTIALS_ENCODING", string(credentialsEncoding)),
 			)
 		}
 		ret = append(ret,
@@ -130,6 +135,7 @@ func BuildPostgresQueryString(rawQuery url.Values) string {
 	delete(params, "disableSSLMode")
 	delete(params, "secret")
 	delete(params, "awsRole")
+	delete(params, postgresCredentialsEncodingQueryParam)
 	if settings.IsTrue(rawQuery.Get("disableSSLMode")) {
 		params.Set("sslmode", "disable")
 	}

@@ -21,43 +21,126 @@ import (
 func TestReconcileEncodedPostgresCredentialsSecret(t *testing.T) {
 	t.Parallel()
 
-	stack := &v1beta1.Stack{
-		ObjectMeta: metav1.ObjectMeta{Name: "stack"},
+	testCases := []struct {
+		name             string
+		credentials      map[string][]byte
+		encoding         postgresCredentialsEncoding
+		expectedUsername string
+		expectedPassword string
+	}{
+		{
+			name: "encode raw credentials",
+			credentials: map[string][]byte{
+				postgresCredentialsUsernameKey: []byte("user^name"),
+				postgresCredentialsPasswordKey: []byte("p^ss word"),
+			},
+			encoding:         postgresCredentialsEncodingRaw,
+			expectedUsername: "user%5Ename",
+			expectedPassword: "p%5Ess%20word",
+		},
+		{
+			name: "preserve pre-encoded credentials",
+			credentials: map[string][]byte{
+				postgresCredentialsUsernameKey: []byte("user%5Ename"),
+				postgresCredentialsPasswordKey: []byte("p%5Ess%20word"),
+			},
+			encoding:         postgresCredentialsEncodingURLEncoded,
+			expectedUsername: "user%5Ename",
+			expectedPassword: "p%5Ess%20word",
+		},
 	}
-	database := &v1beta1.Database{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1beta1.GroupVersion.String(),
-			Kind:       "Database",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "stack-ledger",
-			UID:  types.UID("database-uid"),
-		},
-	}
-	sourceSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: stack.Name,
-			Name:      "postgres",
-		},
-		Data: map[string][]byte{
-			postgresCredentialsUsernameKey: []byte("user^name"),
-			postgresCredentialsPasswordKey: []byte("p^ss word"),
-		},
-	}
-	ctx := newTestContext(t, sourceSecret)
 
-	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	encodedSecret := &corev1.Secret{}
-	require.NoError(t, ctx.GetClient().Get(ctx, types.NamespacedName{
-		Namespace: stack.Name,
-		Name:      getEncodedPostgresCredentialsSecretName(database),
-	}, encodedSecret))
-	require.Equal(t, []byte("user%5Ename"), encodedSecret.Data[postgresCredentialsUsernameKey])
-	require.Equal(t, []byte("p%5Ess%20word"), encodedSecret.Data[postgresCredentialsPasswordKey])
-	require.Equal(t, "true", encodedSecret.Annotations[encodedPostgresCredentialsSecretAnnotation])
-	require.Len(t, encodedSecret.OwnerReferences, 1)
-	require.Equal(t, database.Name, encodedSecret.OwnerReferences[0].Name)
+			stack := &v1beta1.Stack{
+				ObjectMeta: metav1.ObjectMeta{Name: "stack"},
+			}
+			database := &v1beta1.Database{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: v1beta1.GroupVersion.String(),
+					Kind:       "Database",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "stack-ledger",
+					UID:  types.UID("database-uid"),
+				},
+			}
+			sourceSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: stack.Name,
+					Name:      "postgres",
+				},
+				Data: tc.credentials,
+			}
+			ctx := newTestContext(t, sourceSecret)
+
+			require.NoError(t, reconcileEncodedPostgresCredentialsSecret(
+				ctx,
+				stack,
+				database,
+				sourceSecret.Name,
+				tc.encoding,
+			))
+
+			encodedSecret := &corev1.Secret{}
+			require.NoError(t, ctx.GetClient().Get(ctx, types.NamespacedName{
+				Namespace: stack.Name,
+				Name:      getEncodedPostgresCredentialsSecretName(database),
+			}, encodedSecret))
+			require.Equal(t, tc.expectedUsername, string(encodedSecret.Data[postgresCredentialsUsernameKey]))
+			require.Equal(t, tc.expectedPassword, string(encodedSecret.Data[postgresCredentialsPasswordKey]))
+			require.Equal(t, "true", encodedSecret.Annotations[encodedPostgresCredentialsSecretAnnotation])
+			require.Len(t, encodedSecret.OwnerReferences, 1)
+			require.Equal(t, database.Name, encodedSecret.OwnerReferences[0].Name)
+		})
+	}
+}
+
+func TestParsePostgresCredentialsEncoding(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		value    string
+		expected postgresCredentialsEncoding
+		wantErr  bool
+	}{
+		{
+			name:     "defaults to url encoded",
+			expected: postgresCredentialsEncodingURLEncoded,
+		},
+		{
+			name:     "url encoded",
+			value:    "urlEncoded",
+			expected: postgresCredentialsEncodingURLEncoded,
+		},
+		{
+			name:     "raw",
+			value:    "raw",
+			expected: postgresCredentialsEncodingRaw,
+		},
+		{
+			name:    "invalid",
+			value:   "automatic",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := parsePostgresCredentialsEncoding(tc.value)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
 }
 
 func TestReconcileEncodedPostgresCredentialsSecretAvoidsSourceSecretNameCollision(t *testing.T) {
@@ -88,7 +171,7 @@ func TestReconcileEncodedPostgresCredentialsSecretAvoidsSourceSecretNameCollisio
 	}
 	ctx := newTestContext(t, sourceSecret)
 
-	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name))
+	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name, postgresCredentialsEncodingRaw))
 
 	preservedSourceSecret := &corev1.Secret{}
 	require.NoError(t, ctx.GetClient().Get(ctx, types.NamespacedName{
@@ -107,7 +190,7 @@ func TestReconcileEncodedPostgresCredentialsSecretAvoidsSourceSecretNameCollisio
 	require.Equal(t, []byte("user%5Ename"), encodedSecret.Data[postgresCredentialsUsernameKey])
 	require.Equal(t, []byte("p%5Ess%20word"), encodedSecret.Data[postgresCredentialsPasswordKey])
 
-	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name))
+	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name, postgresCredentialsEncodingRaw))
 
 	require.NoError(t, ctx.GetClient().Get(ctx, types.NamespacedName{
 		Namespace: stack.Name,
@@ -162,7 +245,7 @@ func TestReconcileEncodedPostgresCredentialsSecretKeepsUncontrolledLegacyFallbac
 	}
 	ctx := newTestContext(t, sourceSecret, legacyFallbackSecret)
 
-	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name))
+	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name, postgresCredentialsEncodingRaw))
 
 	preservedLegacySecret := &corev1.Secret{}
 	require.NoError(t, ctx.GetClient().Get(ctx, types.NamespacedName{
@@ -222,7 +305,7 @@ func TestReconcileEncodedPostgresCredentialsSecretRejectsUncontrolledEncodedSecr
 	}
 	ctx := newTestContext(t, sourceSecret, existingTargetSecret)
 
-	err := reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name)
+	err := reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name, postgresCredentialsEncodingRaw)
 	require.ErrorContains(t, err, "already exists and is not controlled")
 
 	preservedTargetSecret := &corev1.Secret{}
@@ -265,7 +348,7 @@ func TestReconcileEncodedPostgresCredentialsSecretRemovesStaleSourceSecretContro
 	require.NoError(t, controllerutil.SetControllerReference(database, sourceSecret, ctx.GetScheme()))
 	require.NoError(t, ctx.GetClient().Create(ctx, sourceSecret))
 
-	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name))
+	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name, postgresCredentialsEncodingRaw))
 
 	preservedSourceSecret := &corev1.Secret{}
 	require.NoError(t, ctx.GetClient().Get(ctx, types.NamespacedName{
@@ -340,7 +423,7 @@ func TestReconcileEncodedPostgresCredentialsSecretDeletesStaleControlledEncodedS
 	require.NoError(t, ctx.GetClient().Create(ctx, staleEncodedSecret))
 	require.NoError(t, ctx.GetClient().Create(ctx, staleHashedEncodedSecret))
 
-	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name))
+	require.NoError(t, reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecret.Name, postgresCredentialsEncodingRaw))
 
 	currentEncodedSecret := &corev1.Secret{}
 	require.NoError(t, ctx.GetClient().Get(ctx, types.NamespacedName{
@@ -701,7 +784,7 @@ func TestReconcileEncodedPostgresCredentialsSecretBeforeDatabaseDeleteCreatesCol
 	stack := &v1beta1.Stack{
 		ObjectMeta: metav1.ObjectMeta{Name: "stack"},
 	}
-	databaseURI, err := v1beta1.ParseURL("postgresql://postgres:5432?secret=stack-ledger-postgres-uri-credentials")
+	databaseURI, err := v1beta1.ParseURL("postgresql://postgres:5432?secret=stack-ledger-postgres-uri-credentials&secretCredentialsEncoding=raw")
 	require.NoError(t, err)
 	database := &v1beta1.Database{
 		TypeMeta: metav1.TypeMeta{
