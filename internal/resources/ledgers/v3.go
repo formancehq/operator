@@ -2,6 +2,8 @@ package ledgers
 
 import (
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -213,7 +215,15 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			"replicas", replicas)
 	}
 
-	extraEnv, err := buildV3ExtraEnv(ctx, stack, ledger)
+	monitoringConfiguration, err := settings.GetOpenTelemetryConfiguration(ctx, stack.Name, fmt.Sprintf("ledger-%s", stack.Name))
+	if err != nil {
+		return nil, err
+	}
+	authConfiguration, err := auths.GetProtectedConfiguration(ctx, stack, "ledger", ledger.Spec.Auth)
+	if err != nil {
+		return nil, err
+	}
+	extraEnv, err := buildV3ExtraEnv(stack, ledger)
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +284,22 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			unstructured.RemoveNestedField(cluster.Object, "spec", "extraEnv")
 		}
 
+		if monitoringConfiguration != nil {
+			if err := unstructured.SetNestedMap(cluster.Object, ledgerV3MonitoringSpec(monitoringConfiguration), "spec", "monitoring"); err != nil {
+				return err
+			}
+		} else {
+			unstructured.RemoveNestedField(cluster.Object, "spec", "monitoring")
+		}
+
+		if authConfiguration != nil {
+			if err := unstructured.SetNestedMap(cluster.Object, ledgerV3AuthSpec(authConfiguration), "spec", "auth"); err != nil {
+				return err
+			}
+		} else {
+			unstructured.RemoveNestedField(cluster.Object, "spec", "auth")
+		}
+
 		if serviceAccountName != "" {
 			if err := unstructured.SetNestedField(cluster.Object, false, "spec", "serviceAccount", "create"); err != nil {
 				return err
@@ -297,17 +323,8 @@ func imageRepository(image *registries.ImageConfiguration) string {
 	return strings.TrimSuffix(image.Registry, "/") + "/" + image.Image
 }
 
-func buildV3ExtraEnv(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger) ([]any, error) {
-	env, err := settings.GetOTELEnvVars(ctx, stack.Name, "ledger", " ")
-	if err != nil {
-		return nil, err
-	}
-	authEnv, err := auths.ProtectedEnvVars(ctx, stack, "ledger", ledger.Spec.Auth)
-	if err != nil {
-		return nil, err
-	}
-	env = append(env, authEnv...)
-	env = append(env, core.GetDevEnvVars(stack, ledger)...)
+func buildV3ExtraEnv(stack *v1beta1.Stack, ledger *v1beta1.Ledger) ([]any, error) {
+	env := core.GetDevEnvVars(stack, ledger)
 
 	ret := make([]any, 0, len(env))
 	for i := range env {
@@ -318,6 +335,67 @@ func buildV3ExtraEnv(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Led
 		ret = append(ret, value)
 	}
 	return ret, nil
+}
+
+func ledgerV3AuthSpec(configuration *auths.ProtectedAuthConfiguration) map[string]any {
+	spec := map[string]any{
+		"enabled": true,
+		"issuer":  configuration.Issuer,
+	}
+	if len(configuration.Issuers) > 0 {
+		issuers := make([]any, 0, len(configuration.Issuers))
+		for _, issuer := range configuration.Issuers {
+			issuers = append(issuers, issuer)
+		}
+		spec["issuers"] = issuers
+	}
+	if configuration.ReadKeySetMaxRetries != 0 {
+		spec["readKeySetMaxRetries"] = int64(configuration.ReadKeySetMaxRetries)
+	}
+	if configuration.CheckScopes {
+		spec["checkScopes"] = true
+		spec["service"] = configuration.Service
+	}
+	return spec
+}
+
+func ledgerV3MonitoringSpec(configuration *settings.OpenTelemetryConfiguration) map[string]any {
+	spec := map[string]any{
+		"serviceName": configuration.ServiceName,
+	}
+	if len(configuration.Attributes) > 0 {
+		attributes := make([]string, 0, len(configuration.Attributes))
+		for key, value := range configuration.Attributes {
+			attributes = append(attributes, fmt.Sprintf("%s=%s", key, value))
+		}
+		slices.Sort(attributes)
+		spec["attributes"] = strings.Join(attributes, ",")
+	}
+	if configuration.Traces != nil {
+		traces := ledgerV3MonitoringSignalSpec(configuration.Traces)
+		traces["batch"] = "true"
+		spec["traces"] = traces
+	}
+	if configuration.Metrics != nil {
+		metrics := ledgerV3MonitoringSignalSpec(configuration.Metrics)
+		metrics["runtime"] = true
+		spec["metrics"] = metrics
+	}
+	if configuration.Logs != nil {
+		spec["logs"] = ledgerV3MonitoringSignalSpec(configuration.Logs)
+	}
+	return spec
+}
+
+func ledgerV3MonitoringSignalSpec(configuration *settings.OpenTelemetrySignalConfiguration) map[string]any {
+	return map[string]any{
+		"enabled":  true,
+		"exporter": "otlp",
+		"endpoint": configuration.Endpoint,
+		"port":     configuration.Port,
+		"insecure": strconv.FormatBool(configuration.Insecure),
+		"mode":     configuration.Mode,
+	}
 }
 
 func isV3ClusterReady(cluster *unstructured.Unstructured) (bool, string, error) {

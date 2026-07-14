@@ -5,7 +5,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -77,6 +79,13 @@ var _ = Describe("Ledger v3 controller", func() {
 		Expect(found).To(BeTrue())
 		Expect(tag).To(Equal("v3.0.0-alpha.1"))
 
+		_, found, err = unstructured.NestedMap(cluster.Object, "spec", "auth")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeFalse())
+		_, found, err = unstructured.NestedMap(cluster.Object, "spec", "monitoring")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeFalse())
+
 		deployment := &appsv1.Deployment{}
 		Consistently(func() bool {
 			err := Get(core.GetNamespacedResourceName(stack.Name, "ledger"), deployment)
@@ -113,6 +122,191 @@ var _ = Describe("Ledger v3 controller", func() {
 			g.Expect(found).To(BeTrue())
 			return replicas
 		}).Should(Equal(int64(5)))
+	})
+
+	It("configures authentication and monitoring from the existing stack settings", func() {
+		auth := &v1beta1.Auth{
+			ObjectMeta: RandObjectMeta(),
+			Spec: v1beta1.AuthSpec{
+				StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+			},
+		}
+		stackSettings := []*v1beta1.Settings{
+			settings.New(uuid.NewString(), "auth.issuers", "https://issuer-one.example, https://issuer-two.example", stack.Name),
+			settings.New(uuid.NewString(), "opentelemetry.traces.dsn", "grpc://otel-traces.monitoring.svc.cluster.local:4317?insecure=true", stack.Name),
+			settings.New(uuid.NewString(), "opentelemetry.metrics.dsn", "http://otel-metrics.monitoring.svc.cluster.local:4318?insecure=false", stack.Name),
+			settings.New(uuid.NewString(), "opentelemetry.logs.dsn", "grpc://otel-logs.monitoring.svc.cluster.local:4317?insecure=true", stack.Name),
+			settings.New(uuid.NewString(), "opentelemetry.traces.resource-attributes", "service.namespace=formance,team=ledger", stack.Name),
+		}
+		Expect(Create(auth)).To(Succeed())
+		for _, setting := range stackSettings {
+			Expect(Create(setting)).To(Succeed())
+		}
+		DeferCleanup(func() {
+			for _, setting := range stackSettings {
+				Expect(client.IgnoreNotFound(Delete(setting))).To(Succeed())
+			}
+			Expect(client.IgnoreNotFound(Delete(auth))).To(Succeed())
+		})
+
+		Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+		patch := client.MergeFrom(ledger.DeepCopy())
+		ledger.Spec.Auth = &v1beta1.AuthConfig{
+			CheckScopes:          true,
+			ReadKeySetMaxRetries: 7,
+		}
+		Expect(Patch(ledger, patch)).To(Succeed())
+
+		cluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) map[string]any {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			authSpec, found, err := unstructured.NestedMap(cluster.Object, "spec", "auth")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return authSpec
+		}).Should(SatisfyAll(
+			HaveKeyWithValue("enabled", true),
+			HaveKeyWithValue("issuer", "http://auth:8080"),
+			HaveKeyWithValue("issuers", []any{"https://issuer-one.example", "https://issuer-two.example"}),
+			HaveKeyWithValue("checkScopes", true),
+			HaveKeyWithValue("service", "ledger"),
+			HaveKeyWithValue("readKeySetMaxRetries", int64(7)),
+		))
+
+		monitoring, found, err := unstructured.NestedMap(cluster.Object, "spec", "monitoring")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(monitoring).To(SatisfyAll(
+			HaveKeyWithValue("serviceName", "ledger-"+stack.Name),
+			HaveKeyWithValue("attributes", "pod-name=$(POD_NAME),service.namespace=formance,stack="+stack.Name+",team=ledger"),
+			HaveKeyWithValue("traces", map[string]any{
+				"enabled":  true,
+				"exporter": "otlp",
+				"endpoint": "otel-traces.monitoring.svc.cluster.local",
+				"port":     "4317",
+				"insecure": "true",
+				"mode":     "grpc",
+				"batch":    "true",
+			}),
+			HaveKeyWithValue("metrics", map[string]any{
+				"enabled":  true,
+				"exporter": "otlp",
+				"endpoint": "otel-metrics.monitoring.svc.cluster.local",
+				"port":     "4318",
+				"insecure": "false",
+				"mode":     "http",
+				"runtime":  true,
+			}),
+			HaveKeyWithValue("logs", map[string]any{
+				"enabled":  true,
+				"exporter": "otlp",
+				"endpoint": "otel-logs.monitoring.svc.cluster.local",
+				"port":     "4317",
+				"insecure": "true",
+				"mode":     "grpc",
+			}),
+			Not(HaveKey("pyroscope")),
+		))
+	})
+
+	It("reacts to the Auth dependency lifecycle", func() {
+		cluster := newLedgerV3Cluster()
+		Eventually(func() error {
+			return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
+		}).Should(Succeed())
+
+		auth := &v1beta1.Auth{
+			ObjectMeta: RandObjectMeta(),
+			Spec: v1beta1.AuthSpec{
+				StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+			},
+		}
+		Expect(Create(auth)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(auth))).To(Succeed())
+		})
+
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			enabled, found, err := unstructured.NestedBool(cluster.Object, "spec", "auth", "enabled")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return enabled
+		}).Should(BeTrue())
+
+		Expect(Delete(auth)).To(Succeed())
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			_, found, err := unstructured.NestedMap(cluster.Object, "spec", "auth")
+			g.Expect(err).NotTo(HaveOccurred())
+			return found
+		}).Should(BeFalse())
+	})
+
+	It("combines a managed collector with logs configured in Settings", func() {
+		cluster := newLedgerV3Cluster()
+		Eventually(func() error {
+			return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
+		}).Should(Succeed())
+
+		collector := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: stack.Name,
+				Name:      "otel-collector",
+				Labels: map[string]string{
+					core.CollectorManagedByLabel: core.CollectorManagedByValue,
+				},
+				Annotations: map[string]string{
+					core.SignalTracesAnnotation:  "true",
+					core.SignalMetricsAnnotation: "true",
+				},
+			},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{Port: 4318}},
+			},
+		}
+		logsSetting := settings.New(uuid.NewString(), "opentelemetry.logs.dsn", "grpc://otel-logs.monitoring.svc.cluster.local:4317?insecure=true", stack.Name)
+		Expect(Create(collector)).To(Succeed())
+		Expect(Create(logsSetting)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(logsSetting))).To(Succeed())
+			Expect(client.IgnoreNotFound(Delete(collector))).To(Succeed())
+		})
+
+		Eventually(func(g Gomega) map[string]any {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			monitoring, found, err := unstructured.NestedMap(cluster.Object, "spec", "monitoring")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return monitoring
+		}).Should(SatisfyAll(
+			HaveKeyWithValue("traces", map[string]any{
+				"enabled":  true,
+				"exporter": "otlp",
+				"endpoint": "otel-collector." + stack.Name,
+				"port":     "4318",
+				"insecure": "true",
+				"mode":     "http",
+				"batch":    "true",
+			}),
+			HaveKeyWithValue("metrics", map[string]any{
+				"enabled":  true,
+				"exporter": "otlp",
+				"endpoint": "otel-collector." + stack.Name,
+				"port":     "4318",
+				"insecure": "true",
+				"mode":     "http",
+				"runtime":  true,
+			}),
+			HaveKeyWithValue("logs", map[string]any{
+				"enabled":  true,
+				"exporter": "otlp",
+				"endpoint": "otel-logs.monitoring.svc.cluster.local",
+				"port":     "4317",
+				"insecure": "true",
+				"mode":     "grpc",
+			}),
+		))
 	})
 
 	It("mirrors Cluster readiness on the Formance Ledger", func() {

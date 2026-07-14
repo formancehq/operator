@@ -140,6 +140,7 @@ func init() {
 			WithOwn[*v1beta1.Ledger](&v1beta1.BenthosStream{}),
 			withLedgerV3ClusterWatch(),
 			WithWatchSettings[*v1beta1.Ledger](),
+			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Search{}),
 			brokertopics.Watch[*v1beta1.Ledger]("ledger"),
 			databases.Watch[*v1beta1.Ledger](),

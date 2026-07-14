@@ -17,10 +17,116 @@ type MonitoringType string
 const (
 	MonitoringTypeTraces  MonitoringType = "TRACES"
 	MonitoringTypeMetrics MonitoringType = "METRICS"
+	MonitoringTypeLogs    MonitoringType = "LOGS"
 
 	collectorServiceName = "otel-collector"
 	collectorServicePort = 4318
 )
+
+type OpenTelemetrySignalConfiguration struct {
+	Endpoint string
+	Port     string
+	Insecure bool
+	Mode     string
+}
+
+type OpenTelemetryConfiguration struct {
+	ServiceName string
+	Attributes  map[string]string
+	Traces      *OpenTelemetrySignalConfiguration
+	Metrics     *OpenTelemetrySignalConfiguration
+	Logs        *OpenTelemetrySignalConfiguration
+}
+
+func GetOpenTelemetryConfiguration(ctx core.Context, stack, serviceName string) (*OpenTelemetryConfiguration, error) {
+	info, err := getCollectorInfo(ctx, stack)
+	if err != nil {
+		return nil, err
+	}
+
+	configuration := &OpenTelemetryConfiguration{
+		ServiceName: serviceName,
+		Attributes: map[string]string{
+			"pod-name": "$(POD_NAME)",
+			"stack":    stack,
+		},
+	}
+	if info != nil {
+		endpoint, port, _ := strings.Cut(info.endpoint, ":")
+		newSignal := func() *OpenTelemetrySignalConfiguration {
+			return &OpenTelemetrySignalConfiguration{
+				Endpoint: endpoint,
+				Port:     port,
+				Insecure: true,
+				Mode:     "http",
+			}
+		}
+		if info.hasTraces {
+			configuration.Traces = newSignal()
+		}
+		if info.hasMetrics {
+			configuration.Metrics = newSignal()
+		}
+		for _, signal := range []string{"traces", "metrics"} {
+			attributes, err := GetMap(ctx, stack, "opentelemetry", signal, "resource-attributes")
+			if err != nil {
+				return nil, err
+			}
+			for key, value := range attributes {
+				configuration.Attributes[key] = value
+			}
+		}
+		configuration.Logs, err = getConfiguredOpenTelemetrySignal(ctx, stack, "logs", configuration.Attributes)
+		if err != nil {
+			return nil, err
+		}
+		if configuration.Traces == nil && configuration.Metrics == nil && configuration.Logs == nil {
+			return nil, nil
+		}
+		return configuration, nil
+	}
+
+	for _, signal := range []struct {
+		name   string
+		target **OpenTelemetrySignalConfiguration
+	}{
+		{name: "traces", target: &configuration.Traces},
+		{name: "metrics", target: &configuration.Metrics},
+		{name: "logs", target: &configuration.Logs},
+	} {
+		*signal.target, err = getConfiguredOpenTelemetrySignal(ctx, stack, signal.name, configuration.Attributes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if configuration.Traces == nil && configuration.Metrics == nil && configuration.Logs == nil {
+		return nil, nil
+	}
+	return configuration, nil
+}
+
+func getConfiguredOpenTelemetrySignal(ctx core.Context, stack, signal string, attributesTarget map[string]string) (*OpenTelemetrySignalConfiguration, error) {
+	dsn, err := GetURL(ctx, stack, "opentelemetry", signal, "dsn")
+	if err != nil || dsn == nil {
+		return nil, err
+	}
+
+	attributes, err := GetMap(ctx, stack, "opentelemetry", signal, "resource-attributes")
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range attributes {
+		attributesTarget[key] = value
+	}
+
+	return &OpenTelemetrySignalConfiguration{
+		Endpoint: dsn.Hostname(),
+		Port:     dsn.Port(),
+		Insecure: IsTrue(dsn.Query().Get("insecure")),
+		Mode:     dsn.Scheme,
+	}, nil
+}
 
 func GetOTELEnvVars(ctx core.Context, stack, serviceName string, sliceStringSeparator string) ([]corev1.EnvVar, error) {
 	info, err := getCollectorInfo(ctx, stack)
