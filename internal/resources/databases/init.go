@@ -57,7 +57,11 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Databas
 		if err != nil {
 			return err
 		}
-		if err := reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, secret); err != nil {
+		credentialsEncoding, err := parsePostgresCredentialsEncoding(databaseURL.Query().Get(postgresCredentialsEncodingQueryParam))
+		if err != nil {
+			return err
+		}
+		if err := reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, secret, credentialsEncoding); err != nil {
 			return err
 		}
 	} else {
@@ -208,7 +212,11 @@ func reconcileEncodedPostgresCredentialsSecretBeforeDatabaseDelete(ctx core.Cont
 	if sourceSecretName == "" {
 		return nil
 	}
-	return reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecretName)
+	credentialsEncoding, err := parsePostgresCredentialsEncoding(database.Status.URI.Query().Get(postgresCredentialsEncodingQueryParam))
+	if err != nil {
+		return err
+	}
+	return reconcileEncodedPostgresCredentialsSecret(ctx, stack, database, sourceSecretName, credentialsEncoding)
 }
 
 func handleDatabaseJob(ctx core.Context, stack *v1beta1.Stack, database *v1beta1.Database, name string, args ...string) error {

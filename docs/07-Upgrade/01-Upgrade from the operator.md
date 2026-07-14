@@ -13,6 +13,20 @@ Once the upgrade is complete, you can verify the operator is running the latest 
 kubectl -n formance-system describe deployments operator
 ```
 
+## PostgreSQL secret credentials in Operator v3.12.0
+
+Operator `v3.12.0`, shipped with the Formance Helm chart `formance-1.15.0`, introduced URL encoding for PostgreSQL credentials read from Kubernetes Secrets. Earlier operator versions injected these values directly into the connection URI, so deployments with special characters commonly stored credentials in URL-encoded form already.
+
+To preserve compatibility with these deployments, credentials referenced by the `secret` PostgreSQL URI parameter are treated as URL-encoded by default. No configuration change is required when the Secret already contains encoded values such as `p%5Ess%20word`.
+
+When the Secret contains raw credentials, opt in to operator-managed encoding with `secretCredentialsEncoding=raw`:
+
+```text
+postgresql://postgres:5432?secret=postgres&secretCredentialsEncoding=raw
+```
+
+The operator consumes both `secret` and `secretCredentialsEncoding`; neither parameter is included in the final PostgreSQL connection URI.
+
 ## Components upgrade
 The upgrade process is managed by the operator, who will upgrade the components one by one, as specified in the `versions` CRD. Any migration that needs to be carried out will also be managed by the operator.
 

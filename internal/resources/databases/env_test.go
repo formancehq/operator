@@ -69,6 +69,11 @@ func TestBuildPostgresQueryString(t *testing.T) {
 			uri:           "postgresql://user:pass@host:5432?awsRole=my-role&sslmode=require",
 			expectedQuery: "sslmode=require",
 		},
+		{
+			name:          "secret credentials encoding is filtered out",
+			uri:           "postgresql://host:5432?secret=creds&secretCredentialsEncoding=raw&sslmode=require",
+			expectedQuery: "sslmode=require",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -194,6 +199,55 @@ func TestGetPostgresEnvVarsUsesEncodedSecretForURI(t *testing.T) {
 		envByName["POSTGRES_NO_DATABASE_URI"].Value,
 	)
 	require.Equal(t, "$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)", envByName["POSTGRES_URI"].Value)
+}
+
+func TestGetPostgresEnvVarsIncludesCredentialsEncodingRolloutSignal(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		uri      string
+		expected string
+	}{
+		{
+			name:     "defaults to url encoded",
+			uri:      "postgresql://postgres:5432?secret=postgres",
+			expected: "urlEncoded",
+		},
+		{
+			name:     "raw",
+			uri:      "postgresql://postgres:5432?secret=postgres&secretCredentialsEncoding=raw",
+			expected: "raw",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			postgresURI, err := v1beta1.ParseURL(tc.uri)
+			require.NoError(t, err)
+			database := &v1beta1.Database{
+				ObjectMeta: metav1.ObjectMeta{Name: "stack-ledger"},
+				Spec: v1beta1.DatabaseSpec{
+					Service: "ledger",
+				},
+				Status: v1beta1.DatabaseStatus{
+					URI:      postgresURI,
+					Database: "ledger",
+				},
+			}
+
+			envVars, err := GetPostgresEnvVars(newTestContext(t), &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack"}}, database)
+			require.NoError(t, err)
+
+			envByName := make(map[string]corev1.EnvVar, len(envVars))
+			for _, envVar := range envVars {
+				envByName[envVar.Name] = envVar
+			}
+			require.Equal(t, tc.expected, envByName["POSTGRES_CREDENTIALS_ENCODING"].Value)
+		})
+	}
 }
 
 func TestGetPostgresEnvVarsAvoidsEncodedSecretNameCollision(t *testing.T) {
