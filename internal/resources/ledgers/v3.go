@@ -96,6 +96,8 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		return core.NewPendingError().WithMessage("Ledger v3 operator unavailable: Cluster CRD is not installed")
 	}
 
+	clearLegacyLedgerConditions(ledger)
+
 	cluster := newV3Cluster()
 	clusterKey := types.NamespacedName{Namespace: stack.Name, Name: stack.Name}
 	err := ctx.GetClient().Get(ctx, clusterKey, cluster)
@@ -139,6 +141,20 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 
 	setLedgerV3Condition(ledger, metav1.ConditionTrue, "Running", message)
 	return nil
+}
+
+func clearLegacyLedgerConditions(ledger *v1beta1.Ledger) {
+	conditions := ledger.GetConditions()
+	for _, conditionType := range []string{
+		"DatabaseReady",
+		"DeploymentReady",
+		"PodDisruptionBudget",
+		"PodDisruptionBudgetConfigured",
+	} {
+		for conditions.Get(conditionType) != nil {
+			conditions.Delete(v1beta1.ConditionTypeMatch(conditionType))
+		}
+	}
 }
 
 func setLedgerV3Condition(ledger *v1beta1.Ledger, status metav1.ConditionStatus, reason, message string) {

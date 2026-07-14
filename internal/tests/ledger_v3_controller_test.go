@@ -331,6 +331,37 @@ var _ = Describe("Ledger v3 controller", func() {
 		}).Should(BeTrue())
 	})
 
+	It("removes stale v2 readiness conditions", func() {
+		legacyTransitionTime := metav1.Now()
+		Eventually(func() error {
+			if err := LoadResource("", ledger.Name, ledger); err != nil {
+				return err
+			}
+			patch := client.MergeFrom(ledger.DeepCopy())
+			ledger.Status.Conditions = v1beta1.Conditions{
+				{Type: "DatabaseReady", Status: metav1.ConditionTrue, LastTransitionTime: legacyTransitionTime},
+				{Type: "DeploymentReady", Status: metav1.ConditionFalse, Reason: "Ledger", LastTransitionTime: legacyTransitionTime},
+				{Type: "DeploymentReady", Status: metav1.ConditionTrue, Reason: "LedgerWorker", LastTransitionTime: legacyTransitionTime},
+				{Type: "PodDisruptionBudget", Status: metav1.ConditionTrue, Reason: "Ledger", LastTransitionTime: legacyTransitionTime},
+			}
+			return TestContext().GetClient().Status().Patch(TestContext(), ledger, patch)
+		}).Should(Succeed())
+
+		Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+		patch := client.MergeFrom(ledger.DeepCopy())
+		ledger.Spec.Debug = true
+		Expect(Patch(ledger, patch)).To(Succeed())
+
+		Eventually(func(g Gomega) []v1beta1.Condition {
+			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+			return ledger.Status.Conditions
+		}).Should(And(
+			Not(ContainElement(HaveField("Type", "DatabaseReady"))),
+			Not(ContainElement(HaveField("Type", "DeploymentReady"))),
+			Not(ContainElement(HaveField("Type", "PodDisruptionBudget"))),
+		))
+	})
+
 	It("removes the Cluster when the stack is disabled", func() {
 		cluster := newLedgerV3Cluster()
 		Eventually(func() error {
