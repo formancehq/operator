@@ -63,3 +63,10 @@ func RuleUnsecured() v1beta1.GatewayHTTPAPIRule {
 		Secured: true,
 	}
 }
+
+func RuleSecuredWithBackend(path string, backendRef v1beta1.GatewayBackendRef) v1beta1.GatewayHTTPAPIRule {
+	return v1beta1.GatewayHTTPAPIRule{
+		Path:       path,
+		BackendRef: &backendRef,
+	}
+}

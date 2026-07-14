@@ -27,7 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	externaldnsv1alpha1 "sigs.k8s.io/external-dns/apis/v1alpha1"
 
 	. "github.com/formancehq/go-libs/v5/pkg/types/collections"
@@ -97,7 +99,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		return err
 	}
 
-	if err := createDeployment(ctx, stack, gateway, configMap, broker, version); err != nil {
+	if err := createDeployment(ctx, stack, gateway, configMap, httpAPIs, grpcAPIs, broker, version); err != nil {
 		return err
 	}
 
@@ -176,6 +178,14 @@ func init() {
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayGRPCAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.Auth{}),
+			WithWatch[*v1beta1.Gateway](func(ctx Context, secret *corev1.Secret) []reconcile.Request {
+				if secret.Labels[v1beta1.GatewayBackendTLSSecretLabel] != "true" {
+					return nil
+				}
+				return BuildReconcileRequests(ctx, ctx.GetClient(), ctx.GetScheme(), &v1beta1.Gateway{}, client.MatchingFields{
+					"stack": secret.Namespace,
+				})
+			}),
 			brokertopics.Watch[*v1beta1.Gateway]("gateway"),
 		),
 	)

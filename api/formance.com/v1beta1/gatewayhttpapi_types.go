@@ -27,6 +27,9 @@ type GatewayHTTPAPIRule struct {
 	//+optional
 	//+kubebuilder:default:=false
 	Secured bool `json:"secured"`
+	// BackendRef overrides the historical module Service for this rule.
+	// +optional
+	BackendRef *GatewayBackendRef `json:"backendRef,omitempty"`
 }
 
 type GatewayHTTPAPISpec struct {

@@ -41,7 +41,7 @@ func newLedgerV3Resource(gvk schema.GroupVersionKind) *unstructured.Unstructured
 	return resource
 }
 
-func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger) (bool, string, error) {
+func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, preview bool) (bool, string, error) {
 	if !ledgerV3CertManagerAvailable {
 		return false, "cert-manager Issuer and Certificate CRDs are not installed", nil
 	}
@@ -50,7 +50,7 @@ func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger
 	issuer.SetNamespace(stack.Name)
 	issuer.SetName(ledgerV3IssuerName(stack.Name))
 	if _, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), issuer, func() error {
-		setLedgerV3TLSResourceMetadata(issuer, stack.Name)
+		setLedgerV3TLSResourceMetadata(issuer, stack.Name, preview)
 		if err := controllerutil.SetControllerReference(ledger, issuer, ctx.GetScheme()); err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger
 	certificate.SetNamespace(stack.Name)
 	certificate.SetName(ledgerV3TLSName(stack.Name))
 	if _, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), certificate, func() error {
-		setLedgerV3TLSResourceMetadata(certificate, stack.Name)
+		setLedgerV3TLSResourceMetadata(certificate, stack.Name, preview)
 		if err := controllerutil.SetControllerReference(ledger, certificate, ctx.GetScheme()); err != nil {
 			return err
 		}
@@ -95,12 +95,17 @@ func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger
 	return true, "Certificate and TLS Secret are ready", nil
 }
 
-func setLedgerV3TLSResourceMetadata(resource *unstructured.Unstructured, stackName string) {
+func setLedgerV3TLSResourceMetadata(resource *unstructured.Unstructured, stackName string, preview bool) {
 	labels := resource.GetLabels()
 	if labels == nil {
 		labels = map[string]string{}
 	}
 	labels[v1beta1.StackLabel] = stackName
+	if preview {
+		labels[ledgerV3PreviewLabel] = "true"
+	} else {
+		delete(labels, ledgerV3PreviewLabel)
+	}
 	resource.SetLabels(labels)
 }
 
@@ -118,6 +123,12 @@ func ledgerV3CertificateSpec(stackName string) map[string]any {
 		"secretName":  ledgerV3TLSName(stackName),
 		"duration":    ledgerV3TLSCertificateDuration,
 		"renewBefore": ledgerV3TLSCertificateRenewBefore,
+		"isCA":        true,
+		"secretTemplate": map[string]any{
+			"labels": map[string]any{
+				v1beta1.GatewayBackendTLSSecretLabel: "true",
+			},
+		},
 		"issuerRef": map[string]any{
 			"name": ledgerV3IssuerName(stackName),
 			"kind": "Issuer",

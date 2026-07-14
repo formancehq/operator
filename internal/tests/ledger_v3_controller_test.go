@@ -123,12 +123,10 @@ var _ = Describe("Ledger v3 controller", func() {
 		}).Should(BeTrue())
 
 		grpcAPI := &v1beta1.GatewayGRPCAPI{}
-		Eventually(func(g Gomega) {
-			g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)).To(Succeed())
-			g.Expect(grpcAPI.Spec.Name).To(Equal("ledger"))
-			g.Expect(grpcAPI.Spec.Port).To(Equal(int32(8888)))
-			g.Expect(grpcAPI.Spec.GRPCServices).To(Equal([]string{"ledger.BucketService"}))
-		}).Should(Succeed())
+		Consistently(func() bool {
+			err := Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
 	})
 
 	It("reuses and normalizes the historical Ledger replica setting", func() {
@@ -191,7 +189,7 @@ var _ = Describe("Ledger v3 controller", func() {
 		}).Should(BeFalse())
 	})
 
-	It("enables TLS only after the managed certificate is ready", func() {
+	It("configures TLS before the managed certificate is ready", func() {
 		issuer := newLedgerV3Issuer()
 		certificate := newLedgerV3Certificate()
 		cluster := newLedgerV3Cluster()
@@ -213,6 +211,14 @@ var _ = Describe("Ledger v3 controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(found).To(BeTrue())
 		Expect(commonName).To(Equal("ledger-" + stack.Name + "." + stack.Name + ".svc.cluster.local"))
+		isCA, found, err := unstructured.NestedBool(certificate.Object, "spec", "isCA")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(isCA).To(BeTrue())
+		secretLabels, found, err := unstructured.NestedStringMap(certificate.Object, "spec", "secretTemplate", "labels")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(secretLabels).To(HaveKeyWithValue(v1beta1.GatewayBackendTLSSecretLabel, "true"))
 
 		dnsNames, found, err := unstructured.NestedStringSlice(certificate.Object, "spec", "dnsNames")
 		Expect(err).NotTo(HaveOccurred())
@@ -236,12 +242,17 @@ var _ = Describe("Ledger v3 controller", func() {
 			"*.ledger-"+stack.Name+"-headless."+stack.Name+".svc.cluster.local",
 		))
 
-		Eventually(func(g Gomega) bool {
+		Eventually(func(g Gomega) map[string]any {
 			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
-			_, found, err := unstructured.NestedMap(cluster.Object, "spec", "tls")
+			tls, found, err := unstructured.NestedMap(cluster.Object, "spec", "tls")
 			g.Expect(err).NotTo(HaveOccurred())
-			return found
-		}).Should(BeFalse())
+			g.Expect(found).To(BeTrue())
+			return tls
+		}).Should(Equal(map[string]any{
+			"enabled":     true,
+			"secretName":  tlsName,
+			"caSecretKey": "ca.crt",
+		}))
 
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Namespace: stack.Name, Name: tlsName},
@@ -276,6 +287,27 @@ var _ = Describe("Ledger v3 controller", func() {
 			"enabled":     true,
 			"secretName":  tlsName,
 			"caSecretKey": "ca.crt",
+		}))
+
+		httpAPI := &v1beta1.GatewayHTTPAPI{}
+		Eventually(func(g Gomega) {
+			g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), httpAPI)).To(Succeed())
+		}).Should(Succeed())
+
+		grpcAPI := &v1beta1.GatewayGRPCAPI{}
+		Eventually(func(g Gomega) *v1beta1.GatewayBackendRef {
+			g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)).To(Succeed())
+			g.Expect(grpcAPI.Spec.Name).To(Equal("ledger"))
+			g.Expect(grpcAPI.Spec.GRPCServices).To(ConsistOf("ledger.BucketService"))
+			return grpcAPI.Spec.BackendRef
+		}).Should(Equal(&v1beta1.GatewayBackendRef{
+			Name: "ledger-" + stack.Name,
+			Port: 8888,
+			TLS: &v1beta1.GatewayBackendTLS{
+				SecretName:  tlsName,
+				CASecretKey: "ca.crt",
+				ServerName:  "ledger-" + stack.Name + "." + stack.Name + ".svc.cluster.local",
+			},
 		}))
 	})
 
@@ -633,6 +665,185 @@ var _ = Describe("Ledger v3 controller", func() {
 				g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
 				return ledger.Status.Info
 			}).Should(ContainSubstring("migration required"))
+		})
+
+		It("rejects a preview version at or below the v3 threshold", func() {
+			previewSettings := settings.New(uuid.NewString(), "ledger.v3.preview-version", "v3.0.0-alpha", stack.Name)
+			Expect(Create(previewSettings)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(client.IgnoreNotFound(Delete(previewSettings))).To(Succeed())
+			})
+
+			cluster := newLedgerV3Cluster()
+			Consistently(func() bool {
+				err := Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
+				return apierrors.IsNotFound(err)
+			}).Should(BeTrue())
+			Eventually(func(g Gomega) string {
+				g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+				return ledger.Status.Info
+			}).Should(ContainSubstring("ledger.v3.preview-version must be greater than v3.0.0-alpha"))
+		})
+
+		Context("with a Ledger v3 preview version", func() {
+			var previewSettings *v1beta1.Settings
+
+			BeforeEach(func() {
+				previewSettings = settings.New(uuid.NewString(), "ledger.v3.preview-version", "v3.0.0-alpha.11", stack.Name)
+				Expect(Create(previewSettings)).To(Succeed())
+			})
+
+			AfterEach(func() {
+				Expect(client.IgnoreNotFound(Delete(previewSettings))).To(Succeed())
+			})
+
+			It("runs v2 and a separately routed v3 Cluster at the same time", func() {
+				EventualDeployment := func() error {
+					return Get(core.GetNamespacedResourceName(stack.Name, "ledger"), &appsv1.Deployment{})
+				}
+				Eventually(EventualDeployment).Should(Succeed())
+
+				cluster := newLedgerV3Cluster()
+				Eventually(func(g Gomega) map[string]any {
+					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+					tag, found, err := unstructured.NestedString(cluster.Object, "spec", "image", "tag")
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(found).To(BeTrue())
+					g.Expect(tag).To(Equal("v3.0.0-alpha.11"))
+					labels, found, err := unstructured.NestedStringMap(cluster.Object, "spec", "additionalLabels")
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(found).To(BeTrue())
+					return map[string]any{"metadata": cluster.GetLabels(), "additional": labels}
+				}).Should(Equal(map[string]any{
+					"metadata": map[string]string{
+						v1beta1.StackLabel:               stack.Name,
+						"formance.com/ledger-v3-preview": "true",
+					},
+					"additional": map[string]string{
+						"app.kubernetes.io/name":         "ledger-v3-preview",
+						"formance.com/ledger-v3-preview": "true",
+					},
+				}))
+
+				Eventually(EventualDeployment).Should(Succeed())
+				Eventually(func() error {
+					return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.Database{})
+				}).Should(Succeed())
+
+				httpAPI := &v1beta1.GatewayHTTPAPI{}
+				Eventually(func(g Gomega) []v1beta1.GatewayHTTPAPIRule {
+					g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), httpAPI)).To(Succeed())
+					return httpAPI.Spec.Rules
+				}).Should(ContainElement(SatisfyAll(
+					HaveField("Path", "/v3"),
+					HaveField("BackendRef.Name", "ledger-"+stack.Name),
+					HaveField("BackendRef.Port", int32(9000)),
+				)))
+
+				certificate := newLedgerV3Certificate()
+				tlsName := stack.Name + "-tls"
+				Eventually(func(g Gomega) error {
+					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: tlsName}, certificate)).To(Succeed())
+					return nil
+				}).Should(Succeed())
+
+				secret := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Namespace: stack.Name, Name: tlsName},
+					Data: map[string][]byte{
+						"tls.crt": []byte("certificate"),
+						"tls.key": []byte("private key"),
+						"ca.crt":  []byte("certificate authority"),
+					},
+				}
+				Expect(Create(secret)).To(Succeed())
+				DeferCleanup(func() {
+					Expect(client.IgnoreNotFound(Delete(secret))).To(Succeed())
+				})
+
+				certificate.Object["status"] = map[string]any{
+					"conditions": []any{
+						map[string]any{"type": "Ready", "status": "True", "reason": "Ready"},
+					},
+				}
+				Expect(TestContext().GetClient().Status().Update(TestContext(), certificate)).To(Succeed())
+
+				grpcAPI := &v1beta1.GatewayGRPCAPI{}
+				Eventually(func(g Gomega) *v1beta1.GatewayBackendRef {
+					g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)).To(Succeed())
+					g.Expect(grpcAPI.Spec.GRPCServices).To(ConsistOf("ledger.BucketService"))
+					return grpcAPI.Spec.BackendRef
+				}).Should(Equal(&v1beta1.GatewayBackendRef{
+					Name: "ledger-" + stack.Name,
+					Port: 8888,
+					TLS: &v1beta1.GatewayBackendTLS{
+						SecretName:  stack.Name + "-tls",
+						CASecretKey: "ca.crt",
+						ServerName:  "ledger-" + stack.Name + "." + stack.Name + ".svc.cluster.local",
+					},
+				}))
+			})
+
+			It("does not allow the preview Cluster to bypass the migration guard", func() {
+				cluster := newLedgerV3Cluster()
+				Eventually(func() error {
+					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
+				}).Should(Succeed())
+
+				Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+				patch := client.MergeFrom(ledger.DeepCopy())
+				ledger.Spec.Version = "v3.0.0-alpha.11"
+				Expect(Patch(ledger, patch)).To(Succeed())
+
+				Consistently(func() error {
+					return Get(core.GetNamespacedResourceName(stack.Name, "ledger"), &appsv1.Deployment{})
+				}).Should(Succeed())
+				Eventually(func(g Gomega) string {
+					g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+					return ledger.Status.Info
+				}).Should(ContainSubstring("migration required"))
+			})
+
+			It("removes only the preview resources when the setting is deleted", func() {
+				cluster := newLedgerV3Cluster()
+				Eventually(func() error {
+					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
+				}).Should(Succeed())
+
+				certificate := newLedgerV3Certificate()
+				issuer := newLedgerV3Issuer()
+				Eventually(func(g Gomega) {
+					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-tls"}, certificate)).To(Succeed())
+					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)).To(Succeed())
+				}).Should(Succeed())
+
+				Expect(Delete(previewSettings)).To(Succeed())
+
+				Eventually(func() error {
+					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
+				}).Should(BeNotFound())
+				Eventually(func() error {
+					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-tls"}, certificate)
+				}).Should(BeNotFound())
+				Eventually(func() error {
+					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)
+				}).Should(BeNotFound())
+
+				Eventually(func() error {
+					return Get(core.GetNamespacedResourceName(stack.Name, "ledger"), &appsv1.Deployment{})
+				}).Should(Succeed())
+				Eventually(func() error {
+					return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.Database{})
+				}).Should(Succeed())
+
+				httpAPI := &v1beta1.GatewayHTTPAPI{}
+				Eventually(func(g Gomega) []v1beta1.GatewayHTTPAPIRule {
+					g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), httpAPI)).To(Succeed())
+					return httpAPI.Spec.Rules
+				}).ShouldNot(ContainElement(HaveField("Path", "/v3")))
+				Eventually(func() error {
+					return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.GatewayGRPCAPI{})
+				}).Should(BeNotFound())
+			})
 		})
 	})
 })

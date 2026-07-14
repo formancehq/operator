@@ -43,25 +43,56 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 	if isLedgerV3(version) {
 		return reconcileV3(ctx, stack, ledger, version)
 	}
+	previewVersion, err := ledgerV3PreviewVersion(ctx, stack)
+	if err != nil {
+		return err
+	}
 
 	if ledgerV3ClusterAvailable {
-		exists, err := v3ClusterExists(ctx, stack)
+		cluster, exists, err := getV3Cluster(ctx, stack)
 		if err != nil {
 			return err
 		}
-		if exists {
+		if exists && !isLedgerV3Preview(cluster) {
 			setLedgerV3Condition(ledger, metav1.ConditionFalse, "MigrationRequired", "A Ledger v3 Cluster exists; an explicit v3 to v2 migration is required")
 			return NewPendingError().WithMessage("migration required before switching Ledger from v3 to v2")
+		}
+		if previewVersion == "" {
+			if err := deleteLedgerV3Preview(ctx, stack); err != nil {
+				return err
+			}
 		}
 	}
 
 	ledger.GetConditions().Delete(v1beta1.ConditionTypeMatch(ledgerV3ClusterReadyCondition))
-	return reconcileLegacy(ctx, stack, ledger, version)
+	ledger.GetConditions().Delete(v1beta1.ConditionTypeMatch(ledgerV3PreviewReadyCondition))
+	if err := reconcileLegacy(ctx, stack, ledger, version, previewVersion); err != nil {
+		return err
+	}
+	if previewVersion != "" {
+		return reconcileV3Preview(ctx, stack, ledger, previewVersion)
+	}
+	return nil
 }
 
-func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
-	if err := DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, GetResourceName(GetObjectName(stack.Name, "ledger"))); err != nil {
-		return err
+func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version, previewVersion string) error {
+	if previewVersion == "" {
+		if err := DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, GetResourceName(GetObjectName(stack.Name, "ledger"))); err != nil {
+			return err
+		}
+	}
+
+	httpRules := []v1beta1.GatewayHTTPAPIRule{gatewayhttpapis.RuleSecured()}
+	if previewVersion != "" {
+		httpRules = append([]v1beta1.GatewayHTTPAPIRule{
+			gatewayhttpapis.RuleSecuredWithBackend("/v3", ledgerV3HTTPBackendRef(stack.Name)),
+		}, httpRules...)
+	}
+
+	if previewVersion != "" && !ledgerV3ClusterAvailable {
+		if err := DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, GetResourceName(GetObjectName(stack.Name, "ledger"))); err != nil {
+			return err
+		}
 	}
 
 	database, err := databases.Create(ctx, stack, ledger)
@@ -74,7 +105,10 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 		return err
 	}
 
-	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
+	if err := gatewayhttpapis.Create(ctx, ledger,
+		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
+		gatewayhttpapis.WithRules(httpRules...),
+	); err != nil {
 		return err
 	}
 

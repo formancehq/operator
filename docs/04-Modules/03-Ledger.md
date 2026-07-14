@@ -44,6 +44,41 @@ Ledger reports that an explicit migration is required and does not create the
 v3 `Cluster`. The reverse transition is guarded in the same way: legacy
 resources are not created while a v3 `Cluster` still exists.
 
+### Ledger v3 preview alongside Ledger v2
+
+For migration preparation, a stack that still runs Ledger v2 can start a
+separate Ledger v3 cluster without changing its module version:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-preview
+spec:
+  stacks: ["formance-dev"]
+  key: ledger.v3.preview-version
+  value: "v3.0.0-alpha.11"
+```
+
+The value must be a Ledger version strictly newer than `v3.0.0-alpha`. In this
+mode, the Operator keeps all v2 Deployments and the v2 Database running, and
+creates an isolated v3 `Cluster`. Gateway exposes the preview through:
+
+- HTTP under `/api/ledger/v3`, while `/api/ledger/v2` and the other historical
+  Ledger routes continue to target v2;
+- gRPC service `ledger.BucketService`, which targets the TLS-enabled v3
+  cluster.
+
+The Operator creates and mounts a cert-manager-managed CA for the Gateway to
+verify the v3 gRPC backend. The gRPC route is published only after both the
+`Certificate` and its TLS `Secret` are ready.
+
+This preview mode does not start or supervise data mirroring. Mirroring and
+client validation remain explicit migration steps. Changing the Ledger module
+version to v3 is still blocked while legacy resources exist, even when the
+preview cluster is already running. Removing the Setting deletes only preview
+resources and routes; Ledger v2 remains active.
+
 The v3 cluster size defaults to three replicas and can be configured per stack:
 
 ```yaml

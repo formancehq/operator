@@ -57,6 +57,48 @@ spec:
                 description: Rules
                 items:
                   properties:
+                    backendRef:
+                      description: BackendRef overrides the historical module Service
+                        for this rule.
+                      properties:
+                        name:
+                          description: Name is the backend Service name in the Stack
+                            namespace.
+                          minLength: 1
+                          type: string
+                        port:
+                          description: Port is the backend Service port.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                        tls:
+                          description: TLS enables a verified TLS connection to the
+                            backend.
+                          properties:
+                            caSecretKey:
+                              default: ca.crt
+                              description: CASecretKey is the key containing the CA
+                                certificate.
+                              type: string
+                            secretName:
+                              description: SecretName contains the CA used to verify
+                                the backend certificate.
+                              minLength: 1
+                              type: string
+                            serverName:
+                              description: ServerName is used for backend certificate
+                                verification.
+                              minLength: 1
+                              type: string
+                          required:
+                          - secretName
+                          - serverName
+                          type: object
+                      required:
+                      - name
+                      - port
+                      type: object
                     methods:
                       items:
                         type: string

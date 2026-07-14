@@ -1,6 +1,7 @@
 package gateways
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -17,12 +18,23 @@ func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
 	gateway *v1beta1.Gateway, httpAPIs []*v1beta1.GatewayHTTPAPI,
 	grpcAPIs []*v1beta1.GatewayGRPCAPI, broker *v1beta1.Broker, options ...CaddyOptions) (string, error) {
 
+	services := collectionutils.Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) v1beta1.GatewayHTTPAPISpec {
+		spec := *from.Spec.DeepCopy()
+		for i := range spec.Rules {
+			normalizeBackendTLS(spec.Rules[i].BackendRef)
+		}
+		sort.SliceStable(spec.Rules, func(i, j int) bool {
+			return len(spec.Rules[i].Path) > len(spec.Rules[j].Path)
+		})
+		return spec
+	})
+
 	data := map[string]any{
-		"Services": collectionutils.Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) v1beta1.GatewayHTTPAPISpec {
-			return from.Spec
-		}),
+		"Services": services,
 		"GRPCServices": collectionutils.Map(grpcAPIs, func(from *v1beta1.GatewayGRPCAPI) v1beta1.GatewayGRPCAPISpec {
-			return from.Spec
+			spec := *from.Spec.DeepCopy()
+			normalizeBackendTLS(spec.BackendRef)
+			return spec
 		}),
 		"Platform": ctx.GetPlatform(),
 		"Debug":    stack.Spec.Debug,
@@ -44,6 +56,12 @@ func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
 	}
 
 	return caddy.ComputeCaddyfile(ctx, stack, Caddyfile, data)
+}
+
+func normalizeBackendTLS(backendRef *v1beta1.GatewayBackendRef) {
+	if backendRef != nil && backendRef.TLS != nil && backendRef.TLS.CASecretKey == "" {
+		backendRef.TLS.CASecretKey = "ca.crt"
+	}
 }
 
 func withTrustedProxies(options []string) func(data map[string]any) error {

@@ -31,6 +31,9 @@ type GatewayGRPCAPISpec struct {
 	//+optional
 	//+kubebuilder:default:=8081
 	Port int32 `json:"port,omitempty"`
+	// BackendRef overrides the historical <name>-grpc Service.
+	// +optional
+	BackendRef *GatewayBackendRef `json:"backendRef,omitempty"`
 }
 
 type GatewayGRPCAPIStatus struct {

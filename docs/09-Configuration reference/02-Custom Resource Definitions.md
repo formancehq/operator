@@ -2300,6 +2300,60 @@ GatewayGRPCAPI is the Schema for the GRPCAPIs API
 | `name` _string_ | Name indicates the module name (e.g. "ledger") |  |  |
 | `grpcServices` _string array_ | GRPCServices is the list of fully-qualified gRPC service names<br />exposed by this module (e.g. "formance.ledger.v1.LedgerService") |  |  |
 | `port` _integer_ | Port is the gRPC port on the backend service | 8081 |  |
+| `backendRef` _[GatewayBackendRef](#gatewaybackendref)_ | BackendRef overrides the historical <name>-grpc Service. |  |  |
+
+###### GatewayBackendRef
+
+
+
+GatewayBackendRef selects the Kubernetes Service used by a Gateway route.
+When omitted, Gateway keeps using the module's historical Service.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the backend Service name in the Stack namespace. |  | MinLength: 1 <br /> |
+| `port` _integer_ | Port is the backend Service port. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `tls` _[GatewayBackendTLS](#gatewaybackendtls)_ | TLS enables a verified TLS connection to the backend. |  |  |
+
+###### GatewayBackendTLS
+
+
+
+GatewayBackendTLS configures TLS when Gateway connects to a backend.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `secretName` _string_ | SecretName contains the CA used to verify the backend certificate. |  | MinLength: 1 <br /> |
+| `caSecretKey` _string_ | CASecretKey is the key containing the CA certificate. | ca.crt |  |
+| `serverName` _string_ | ServerName is used for backend certificate verification. |  | MinLength: 1 <br /> |
 
 
 
@@ -2414,6 +2468,7 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | `path` _string_ |  |  |  |
 | `methods` _string array_ |  |  |  |
 | `secured` _boolean_ |  | false |  |
+| `backendRef` _[GatewayBackendRef](#gatewaybackendref)_ | BackendRef overrides the historical module Service for this rule. |  |  |
 
 
 

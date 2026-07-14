@@ -110,14 +110,27 @@
 
 	{{- range $i, $service := .Services }}
 	{{- range $j, $rule := $service.Rules }}
+	{{- $backendName := $service.Name }}
+	{{- $backendPort := 8080 }}
+	{{- if $rule.BackendRef }}
+		{{- $backendName = $rule.BackendRef.Name }}
+		{{- $backendPort = $rule.BackendRef.Port }}
+	{{- end }}
 	handle /api/{{ $service.Name }}{{ $rule.Path }}* {
 		{{- if $rule.Methods }}
 		method {{ join $rule.Methods " " }}
 		{{- end }}
 		uri strip_prefix /api/{{ $service.Name }}
 		import cors
-		reverse_proxy {{ $service.Name }}:8080 {
+		reverse_proxy {{ if and $rule.BackendRef $rule.BackendRef.TLS }}https://{{ end }}{{ $backendName }}:{{ $backendPort }} {
 			header_up Host {upstream_hostport}
+			{{- if and $rule.BackendRef $rule.BackendRef.TLS }}
+			transport http {
+				tls
+				tls_trust_pool file /etc/gateway/tls/{{ $rule.BackendRef.TLS.SecretName }}/{{ $rule.BackendRef.TLS.CASecretKey }}
+				tls_server_name {{ $rule.BackendRef.TLS.ServerName }}
+			}
+			{{- end }}
 		}
 	}
 	{{- end }}
@@ -148,10 +161,23 @@
 
 	{{- range $i, $service := .GRPCServices }}
 	{{- range $j, $svcName := $service.GRPCServices }}
+	{{- $backendName := printf "%s-grpc" $service.Name }}
+	{{- $backendPort := $service.Port }}
+	{{- if $service.BackendRef }}
+		{{- $backendName = $service.BackendRef.Name }}
+		{{- $backendPort = $service.BackendRef.Port }}
+	{{- end }}
 	handle /{{ $svcName }}/* {
-		reverse_proxy {{ $service.Name }}-grpc:{{ $service.Port }} {
+		reverse_proxy {{ if and $service.BackendRef $service.BackendRef.TLS }}https://{{ end }}{{ $backendName }}:{{ $backendPort }} {
 			transport http {
+				{{- if and $service.BackendRef $service.BackendRef.TLS }}
+				tls
+				tls_trust_pool file /etc/gateway/tls/{{ $service.BackendRef.TLS.SecretName }}/{{ $service.BackendRef.TLS.CASecretKey }}
+				tls_server_name {{ $service.BackendRef.TLS.ServerName }}
+				versions 2
+				{{- else }}
 				versions h2c 2
+				{{- end }}
 			}
 		}
 	}

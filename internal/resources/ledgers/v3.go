@@ -32,7 +32,10 @@ import (
 const (
 	ledgerV3Threshold             = "v3.0.0-alpha"
 	ledgerV3ClusterReadyCondition = "LedgerV3ClusterReady"
+	ledgerV3PreviewReadyCondition = "LedgerV3PreviewReady"
+	ledgerV3PreviewLabel          = "formance.com/ledger-v3-preview"
 	ledgerV3GRPCPort              = int32(8888)
+	ledgerV3HTTPPort              = int32(9000)
 	ledgerV3PublicGRPCService     = "ledger.BucketService"
 )
 
@@ -113,39 +116,22 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 
 	clearLegacyLedgerConditions(ledger)
 
-	cluster := newV3Cluster()
-	clusterKey := types.NamespacedName{Namespace: stack.Name, Name: stack.Name}
-	err := ctx.GetClient().Get(ctx, clusterKey, cluster)
-	if apierrors.IsNotFound(err) {
-		hasLegacyResources, err := legacyLedgerResourcesExist(ctx, stack)
-		if err != nil {
-			return err
-		}
-		if hasLegacyResources {
-			setLedgerV3Condition(ledger, metav1.ConditionFalse, "MigrationRequired", "Legacy Ledger resources exist; an explicit v2 to v3 migration is required")
-			return core.NewPendingError().WithMessage("migration required before switching Ledger from v2 to v3")
-		}
-	} else if err != nil {
+	hasLegacyResources, err := legacyLedgerResourcesExist(ctx, stack)
+	if err != nil {
 		return err
+	}
+	if hasLegacyResources {
+		setLedgerV3Condition(ledger, metav1.ConditionFalse, "MigrationRequired", "Legacy Ledger resources exist; an explicit v2 to v3 migration is required")
+		return core.NewPendingError().WithMessage("migration required before switching Ledger from v2 to v3")
 	}
 
-	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("livez")); err != nil {
-		return err
-	}
-	if err := gatewaygrpcapis.Create(ctx, ledger,
-		gatewaygrpcapis.WithGRPCServices(ledgerV3PublicGRPCService),
-		gatewaygrpcapis.WithPort(ledgerV3GRPCPort),
-	); err != nil {
-		return err
-	}
-
-	tlsReady, tlsMessage, err := createOrUpdateV3TLSResources(ctx, stack, ledger)
+	tlsReady, tlsMessage, err := createOrUpdateV3TLSResources(ctx, stack, ledger, false)
 	if err != nil {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
 		return err
 	}
 
-	cluster, err = createOrUpdateV3Cluster(ctx, stack, ledger, version, tlsReady)
+	cluster, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, false)
 	if err != nil {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
@@ -153,6 +139,16 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 	if !tlsReady {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSCertificatePending", tlsMessage)
 		return core.NewPendingError().WithMessage("Ledger v3 TLS is not ready: %s", tlsMessage)
+	}
+	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("livez")); err != nil {
+		return err
+	}
+	if err := gatewaygrpcapis.Create(ctx, ledger,
+		gatewaygrpcapis.WithGRPCServices(ledgerV3PublicGRPCService),
+		gatewaygrpcapis.WithPort(ledgerV3GRPCPort),
+		gatewaygrpcapis.WithBackendRef(ledgerV3GRPCBackendRef(stack.Name)),
+	); err != nil {
+		return err
 	}
 
 	ready, message, err := isV3ClusterReady(cluster)
@@ -216,13 +212,13 @@ func legacyLedgerResourcesExist(ctx core.Context, stack *v1beta1.Stack) (bool, e
 	return false, nil
 }
 
-func v3ClusterExists(ctx core.Context, stack *v1beta1.Stack) (bool, error) {
+func getV3Cluster(ctx core.Context, stack *v1beta1.Stack) (*unstructured.Unstructured, bool, error) {
 	cluster := newV3Cluster()
 	err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
 	if apierrors.IsNotFound(err) {
-		return false, nil
+		return cluster, false, nil
 	}
-	return err == nil, err
+	return cluster, err == nil, err
 }
 
 func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
@@ -235,7 +231,7 @@ func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
 	return configured, false, nil
 }
 
-func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, tlsReady bool) (*unstructured.Unstructured, error) {
+func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool) (*unstructured.Unstructured, error) {
 	image, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
 		return nil, err
@@ -288,6 +284,11 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			labels = map[string]string{}
 		}
 		labels[v1beta1.StackLabel] = stack.Name
+		if preview {
+			labels[ledgerV3PreviewLabel] = "true"
+		} else {
+			delete(labels, ledgerV3PreviewLabel)
+		}
 		cluster.SetLabels(labels)
 
 		if err := controllerutil.SetControllerReference(ledger, cluster, ctx.GetScheme()); err != nil {
@@ -309,10 +310,21 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		if err := unstructured.SetNestedField(cluster.Object, stack.Spec.Debug || ledger.Spec.Debug, "spec", "debug"); err != nil {
 			return err
 		}
-		if tlsReady {
-			if err := unstructured.SetNestedMap(cluster.Object, ledgerV3TLSSpec(stack.Name), "spec", "tls"); err != nil {
+		// Configure TLS from the first Cluster revision. Pods can wait for the
+		// cert-manager Secret, but must never bootstrap a plaintext Raft cluster
+		// that is switched to TLS by a later StatefulSet revision.
+		if err := unstructured.SetNestedMap(cluster.Object, ledgerV3TLSSpec(stack.Name), "spec", "tls"); err != nil {
+			return err
+		}
+		if preview {
+			if err := unstructured.SetNestedStringMap(cluster.Object, map[string]string{
+				"app.kubernetes.io/name": "ledger-v3-preview",
+				ledgerV3PreviewLabel:     "true",
+			}, "spec", "additionalLabels"); err != nil {
 				return err
 			}
+		} else {
+			unstructured.RemoveNestedField(cluster.Object, "spec", "additionalLabels")
 		}
 
 		if hasResourceRequirements(resourceRequirements) {

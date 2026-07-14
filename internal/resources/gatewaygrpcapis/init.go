@@ -29,6 +29,10 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=gatewaygrpcapis/finalizers,verbs=update
 
 func Reconcile(ctx Context, _ *v1beta1.Stack, grpcAPI *v1beta1.GatewayGRPCAPI) error {
+	if grpcAPI.Spec.BackendRef != nil {
+		return DeleteIfExists[*corev1.Service](ctx, GetNamespacedResourceName(grpcAPI.Spec.Stack, grpcAPI.Spec.Name+"-grpc"))
+	}
+
 	_, err := services.Create(ctx, grpcAPI, grpcAPI.Spec.Name+"-grpc",
 		services.WithConfig(services.PortConfig{
 			ServiceName: grpcAPI.Spec.Name,

@@ -321,6 +321,103 @@ var _ = Describe("GatewayController", func() {
 				}).Should(MatchGoldenFile("gateway-controller", "configmap-with-ledger-and-grpc.yaml"))
 			})
 		})
+		Context("Then adding explicit preview backends", func() {
+			var (
+				grpcAPI   *v1beta1.GatewayGRPCAPI
+				tlsSecret *corev1.Secret
+			)
+			BeforeEach(func() {
+				httpAPI.Spec.Rules = []v1beta1.GatewayHTTPAPIRule{
+					{
+						Path: "/v3",
+						BackendRef: &v1beta1.GatewayBackendRef{
+							Name: "ledger-preview",
+							Port: 9000,
+						},
+					},
+					gatewayhttpapis.RuleSecured(),
+				}
+				grpcAPI = &v1beta1.GatewayGRPCAPI{
+					ObjectMeta: RandObjectMeta(),
+					Spec: v1beta1.GatewayGRPCAPISpec{
+						StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+						Name:            "ledger",
+						GRPCServices:    []string{"ledger.BucketService"},
+						BackendRef: &v1beta1.GatewayBackendRef{
+							Name: "ledger-preview",
+							Port: 8888,
+							TLS: &v1beta1.GatewayBackendTLS{
+								SecretName:  "ledger-preview-tls",
+								CASecretKey: "ca.crt",
+								ServerName:  "ledger-preview.stack.svc.cluster.local",
+							},
+						},
+					},
+				}
+				tlsSecret = &corev1.Secret{
+					ObjectMeta: RandObjectMeta(),
+					Data:       map[string][]byte{"ca.crt": []byte("initial CA")},
+				}
+				tlsSecret.Name = "ledger-preview-tls"
+				tlsSecret.Namespace = stack.Name
+				tlsSecret.Labels = map[string]string{v1beta1.GatewayBackendTLSSecretLabel: "true"}
+			})
+			JustBeforeEach(func() {
+				Expect(Create(tlsSecret)).To(Succeed())
+				Expect(Create(grpcAPI)).To(Succeed())
+			})
+			AfterEach(func() {
+				Expect(client.IgnoreNotFound(Delete(grpcAPI))).To(Succeed())
+				Expect(client.IgnoreNotFound(Delete(tlsSecret))).To(Succeed())
+			})
+			It("Should route HTTP and TLS gRPC to their explicit backends", func() {
+				Eventually(func(g Gomega) string {
+					cm := &corev1.ConfigMap{}
+					g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
+					return cm.Data["Caddyfile"]
+				}).Should(SatisfyAll(
+					ContainSubstring("handle /api/ledger/v3*"),
+					ContainSubstring("reverse_proxy ledger-preview:9000"),
+					ContainSubstring("reverse_proxy https://ledger-preview:8888"),
+					ContainSubstring("tls_trust_pool file /etc/gateway/tls/ledger-preview-tls/ca.crt"),
+					ContainSubstring("tls_server_name ledger-preview.stack.svc.cluster.local"),
+				))
+
+				Eventually(func(g Gomega) *appsv1.Deployment {
+					deployment := &appsv1.Deployment{}
+					g.Expect(LoadResource(stack.Name, "gateway", deployment)).To(Succeed())
+					return deployment
+				}).Should(SatisfyAll(
+					HaveField("Spec.Template.Spec.Volumes", ContainElement(HaveField("VolumeSource.Secret.SecretName", "ledger-preview-tls"))),
+					HaveField("Spec.Template.Spec.Containers", ContainElement(HaveField("VolumeMounts", ContainElement(SatisfyAll(
+						HaveField("MountPath", "/etc/gateway/tls/ledger-preview-tls"),
+						HaveField("ReadOnly", true),
+					))))),
+				))
+
+				Consistently(func() error {
+					return LoadResource(stack.Name, "ledger-grpc", &corev1.Service{})
+				}, time.Second).Should(BeNotFound())
+			})
+			It("Should roll out the Gateway when the backend CA changes", func() {
+				deployment := &appsv1.Deployment{}
+				Eventually(func(g Gomega) string {
+					g.Expect(LoadResource(stack.Name, "gateway", deployment)).To(Succeed())
+					return deployment.Spec.Template.Annotations["formance.com/backend-tls-secrets-hash"]
+				}).ShouldNot(BeEmpty())
+				initialHash := deployment.Spec.Template.Annotations["formance.com/backend-tls-secrets-hash"]
+
+				Expect(LoadResource(stack.Name, tlsSecret.Name, tlsSecret)).To(Succeed())
+				patch := client.MergeFrom(tlsSecret.DeepCopy())
+				tlsSecret.Data["ca.crt"] = []byte("renewed CA")
+				Expect(Patch(tlsSecret, patch)).To(Succeed())
+
+				Eventually(func(g Gomega) string {
+					g.Expect(LoadResource(stack.Name, "gateway", deployment)).To(Succeed())
+					return deployment.Spec.Template.Annotations["formance.com/backend-tls-secrets-hash"]
+				}).ShouldNot(Equal(initialHash))
+			})
+		})
 		Context("With a consumer on gateway", func() {
 			var (
 				brokerNatsDSNSettings *v1beta1.Settings

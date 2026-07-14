@@ -5,15 +5,21 @@
       "key": "auth.\u003cmodule-name\u003e.check-scopes",
       "valueType": "bool",
       "sources": [
-        "internal/resources/auths/env.go:79"
+        "internal/resources/auths/env.go:103"
       ]
     },
     {
       "key": "auth.issuers",
       "valueType": "string",
       "sources": [
-        "internal/resources/auths/deployment.go:69",
-        "internal/resources/auths/env.go:34"
+        "internal/resources/auths/deployment.go:69"
+      ]
+    },
+    {
+      "key": "auth.issuers",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/auths/env.go:36"
       ]
     },
     {
@@ -192,11 +198,32 @@
       ]
     },
     {
+      "key": "deployments.ledger.containers.ledger.resource-requirements.claims",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/ledgers/v3.go:254"
+      ]
+    },
+    {
+      "key": "deployments.ledger.containers.ledger.resource-requirements.limits",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/ledgers/v3.go:254"
+      ]
+    },
+    {
+      "key": "deployments.ledger.containers.ledger.resource-requirements.requests",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/ledgers/v3.go:254"
+      ]
+    },
+    {
       "key": "deployments.ledger.replicas",
       "valueType": "int32",
       "default": "3",
       "sources": [
-        "internal/resources/ledgers/v3.go:201"
+        "internal/resources/ledgers/v3.go:240"
       ]
     },
     {
@@ -436,6 +463,13 @@
       ]
     },
     {
+      "key": "ledger.v3.preview-version",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/ledgers/v3_preview.go:36"
+      ]
+    },
+    {
       "key": "ledger.worker.async-block-hasher",
       "valueType": "object",
       "objectType": "asyncBlockHasherConfiguration",
@@ -555,21 +589,30 @@
       "key": "opentelemetry.\u003cmonitoring-type\u003e.dsn",
       "valueType": "uri",
       "sources": [
-        "internal/resources/settings/opentelemetry.go:156"
+        "internal/resources/settings/opentelemetry.go:262"
       ]
     },
     {
       "key": "opentelemetry.\u003cmonitoring-type\u003e.resource-attributes",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/settings/opentelemetry.go:200"
+        "internal/resources/settings/opentelemetry.go:306"
+      ]
+    },
+    {
+      "key": "opentelemetry.\u003csignal\u003e.dsn",
+      "valueType": "uri",
+      "sources": [
+        "internal/resources/settings/opentelemetry.go:110"
       ]
     },
     {
       "key": "opentelemetry.\u003csignal\u003e.resource-attributes",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/settings/opentelemetry.go:81"
+        "internal/resources/settings/opentelemetry.go:115",
+        "internal/resources/settings/opentelemetry.go:187",
+        "internal/resources/settings/opentelemetry.go:71"
       ]
     },
     {
@@ -584,7 +627,7 @@
       "valueType": "uri",
       "sources": [
         "internal/resources/otelexporterendpoints/init.go:682",
-        "internal/resources/settings/opentelemetry.go:146"
+        "internal/resources/settings/opentelemetry.go:252"
       ]
     },
     {

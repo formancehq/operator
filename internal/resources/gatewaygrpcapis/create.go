@@ -43,3 +43,9 @@ func WithPort(port int32) func(grpcapi *v1beta1.GatewayGRPCAPI) {
 		grpcapi.Spec.Port = port
 	}
 }
+
+func WithBackendRef(backendRef v1beta1.GatewayBackendRef) func(grpcapi *v1beta1.GatewayGRPCAPI) {
+	return func(grpcapi *v1beta1.GatewayGRPCAPI) {
+		grpcapi.Spec.BackendRef = &backendRef
+	}
+}
