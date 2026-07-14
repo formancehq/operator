@@ -89,6 +89,7 @@ rules:
   - brokers
   - brokertopics
   - databases
+  - gatewaygrpcapis
   - gatewayhttpapis
   - gateways
   - ledgers
@@ -125,6 +126,7 @@ rules:
   - brokers/finalizers
   - brokertopics/finalizers
   - databases/finalizers
+  - gatewaygrpcapis/finalizers
   - gatewayhttpapis/finalizers
   - gateways/finalizers
   - ledgers/finalizers
@@ -155,6 +157,7 @@ rules:
   - brokers/status
   - brokertopics/status
   - databases/status
+  - gatewaygrpcapis/status
   - gatewayhttpapis/status
   - gateways/status
   - ledgers/status

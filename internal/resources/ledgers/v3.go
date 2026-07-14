@@ -20,6 +20,7 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/auths"
+	"github.com/formancehq/operator/v3/internal/resources/gatewaygrpcapis"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
@@ -28,6 +29,8 @@ import (
 const (
 	ledgerV3Threshold             = "v3.0.0-alpha"
 	ledgerV3ClusterReadyCondition = "LedgerV3ClusterReady"
+	ledgerV3GRPCPort              = int32(8888)
+	ledgerV3PublicGRPCService     = "ledger.BucketService"
 )
 
 var (
@@ -108,6 +111,12 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 	}
 
 	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("livez")); err != nil {
+		return err
+	}
+	if err := gatewaygrpcapis.Create(ctx, ledger,
+		gatewaygrpcapis.WithGRPCServices(ledgerV3PublicGRPCService),
+		gatewaygrpcapis.WithPort(ledgerV3GRPCPort),
+	); err != nil {
 		return err
 	}
 

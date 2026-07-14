@@ -45,9 +45,13 @@ compile:
     SAVE ARTIFACT main
 
 build-image:
-    FROM core+final-image
-    ENTRYPOINT ["/usr/bin/operator"]
-    COPY --pass-args (+compile/main) /usr/bin/operator
+    ARG LICENCE_PUBLIC_KEY_B64=""
+    ARG EARTHLY_BUILD_SHA
+    FROM DOCKERFILE \
+        --build-arg LICENCE_PUBLIC_KEY_B64=$LICENCE_PUBLIC_KEY_B64 \
+        --build-arg VERSION=$tag \
+        --build-arg COMMIT=$EARTHLY_BUILD_SHA \
+        -f Dockerfile .
     ARG REPOSITORY=ghcr.io
     ARG tag=latest
     DO --pass-args core+SAVE_IMAGE --COMPONENT=operator --TAG=$tag

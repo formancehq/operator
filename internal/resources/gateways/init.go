@@ -60,6 +60,20 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		return from.Spec.Name
 	})
 
+	grpcAPIs := make([]*v1beta1.GatewayGRPCAPI, 0)
+	err = GetAllStackDependencies(ctx, gateway.Spec.Stack, &grpcAPIs)
+	if err != nil {
+		return err
+	}
+
+	sort.Slice(grpcAPIs, func(i, j int) bool {
+		return grpcAPIs[i].Spec.Name < grpcAPIs[j].Spec.Name
+	})
+
+	gateway.Status.SyncGRPCAPIs = Map(grpcAPIs, func(from *v1beta1.GatewayGRPCAPI) string {
+		return from.Spec.Name
+	})
+
 	var broker *v1beta1.Broker
 	if t, err := brokertopics.Find(ctx, stack, "gateway"); err != nil {
 		return err
@@ -78,7 +92,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, gateway *v1beta1.Gateway, vers
 		}
 	}
 
-	configMap, err := createConfigMap(ctx, stack, gateway, httpAPIs, broker)
+	configMap, err := createConfigMap(ctx, stack, gateway, httpAPIs, grpcAPIs, broker)
 	if err != nil {
 		return err
 	}
@@ -160,6 +174,7 @@ func init() {
 			}),
 			WithWatchSettings[*v1beta1.Gateway](),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
+			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayGRPCAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.Auth{}),
 			brokertopics.Watch[*v1beta1.Gateway]("gateway"),
 		),

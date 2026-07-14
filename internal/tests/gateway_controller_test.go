@@ -289,6 +289,38 @@ var _ = Describe("GatewayController", func() {
 				}, time.Minute).ShouldNot(ContainSubstring(anotherHttpService.Spec.Name))
 			})
 		})
+		Context("Then adding a GRPCService", func() {
+			var grpcAPI *v1beta1.GatewayGRPCAPI
+			BeforeEach(func() {
+				grpcAPI = &v1beta1.GatewayGRPCAPI{
+					ObjectMeta: RandObjectMeta(),
+					Spec: v1beta1.GatewayGRPCAPISpec{
+						StackDependency: v1beta1.StackDependency{
+							Stack: stack.Name,
+						},
+						Name:         "mymodule",
+						GRPCServices: []string{"formance.mymodule.v1.MyService"},
+						Port:         8081,
+					},
+				}
+				Expect(Create(grpcAPI)).To(Succeed())
+			})
+			AfterEach(func() {
+				Expect(Delete(grpcAPI)).To(Succeed())
+			})
+			It("Should update the gateway status and Caddyfile with gRPC service", func() {
+				Eventually(func(g Gomega) []string {
+					g.Expect(LoadResource("", gateway.Name, gateway))
+					return gateway.Status.SyncGRPCAPIs
+				}).Should(ContainElements(grpcAPI.Spec.Name))
+
+				Eventually(func(g Gomega) string {
+					cm := &corev1.ConfigMap{}
+					g.Expect(LoadResource(stack.Name, "gateway", cm)).To(Succeed())
+					return cm.Data["Caddyfile"]
+				}).Should(MatchGoldenFile("gateway-controller", "configmap-with-ledger-and-grpc.yaml"))
+			})
+		})
 		Context("With a consumer on gateway", func() {
 			var (
 				brokerNatsDSNSettings *v1beta1.Settings

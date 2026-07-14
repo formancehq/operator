@@ -60,6 +60,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 }
 
 func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
+	if err := DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, GetResourceName(GetObjectName(stack.Name, "ledger"))); err != nil {
+		return err
+	}
+
 	database, err := databases.Create(ctx, stack, ledger)
 	if err != nil {
 		return err
@@ -128,6 +132,7 @@ func init() {
 			WithOwn[*v1beta1.Ledger](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.Job{}),
 			WithOwn[*v1beta1.Ledger](&corev1.Service{}),
+			WithOwn[*v1beta1.Ledger](&v1beta1.GatewayGRPCAPI{}),
 			WithOwn[*v1beta1.Ledger](&v1beta1.GatewayHTTPAPI{}),
 			WithOwn[*v1beta1.Ledger](&v1beta1.Database{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.CronJob{}),

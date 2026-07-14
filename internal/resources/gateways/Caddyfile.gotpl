@@ -58,6 +58,9 @@
 	{{- end }}
 
 	servers {
+		{{- if .GRPCServices }}
+		protocols h1 h2c
+		{{- end }}
 		{{- if and .TrustedProxies (gt (len .TrustedProxies) 0) }}
 		trusted_proxies {{ .TrustedProxies }}
 		{{- end }}
@@ -142,6 +145,18 @@
 			}
 		}
 	}
+
+	{{- range $i, $service := .GRPCServices }}
+	{{- range $j, $svcName := $service.GRPCServices }}
+	handle /{{ $svcName }}/* {
+		reverse_proxy {{ $service.Name }}-grpc:{{ $service.Port }} {
+			transport http {
+				versions h2c 2
+			}
+		}
+	}
+	{{- end }}
+	{{- end }}
 
 	# Respond 404 if service does not exists
 	handle /api/* {

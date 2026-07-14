@@ -88,6 +88,14 @@ var _ = Describe("Ledger v3 controller", func() {
 			err := Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), database)
 			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
+
+		grpcAPI := &v1beta1.GatewayGRPCAPI{}
+		Eventually(func(g Gomega) {
+			g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)).To(Succeed())
+			g.Expect(grpcAPI.Spec.Name).To(Equal("ledger"))
+			g.Expect(grpcAPI.Spec.Port).To(Equal(int32(8888)))
+			g.Expect(grpcAPI.Spec.GRPCServices).To(Equal([]string{"ledger.BucketService"}))
+		}).Should(Succeed())
 	})
 
 	It("reuses and normalizes the historical Ledger replica setting", func() {
@@ -144,6 +152,12 @@ var _ = Describe("Ledger v3 controller", func() {
 			err := Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
 			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
+
+		grpcAPI := &v1beta1.GatewayGRPCAPI{}
+		Eventually(func() bool {
+			err := Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
 	})
 
 	It("requires an explicit migration before switching back to v2", func() {
@@ -171,6 +185,14 @@ var _ = Describe("Ledger v3 controller", func() {
 			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
 			return ledger.Status.Info
 		}).Should(ContainSubstring("migration required"))
+
+		Expect(Delete(cluster)).To(Succeed())
+
+		grpcAPI := &v1beta1.GatewayGRPCAPI{}
+		Eventually(func() bool {
+			err := Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
 	})
 
 	Context("when legacy resources already exist", func() {

@@ -14,10 +14,14 @@ import (
 type CaddyOptions func(data map[string]any) error
 
 func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
-	gateway *v1beta1.Gateway, httpAPIs []*v1beta1.GatewayHTTPAPI, broker *v1beta1.Broker, options ...CaddyOptions) (string, error) {
+	gateway *v1beta1.Gateway, httpAPIs []*v1beta1.GatewayHTTPAPI,
+	grpcAPIs []*v1beta1.GatewayGRPCAPI, broker *v1beta1.Broker, options ...CaddyOptions) (string, error) {
 
 	data := map[string]any{
 		"Services": collectionutils.Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) v1beta1.GatewayHTTPAPISpec {
+			return from.Spec
+		}),
+		"GRPCServices": collectionutils.Map(grpcAPIs, func(from *v1beta1.GatewayGRPCAPI) v1beta1.GatewayGRPCAPISpec {
 			return from.Spec
 		}),
 		"Platform": ctx.GetPlatform(),
