@@ -215,7 +215,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			"replicas", replicas)
 	}
 
-	monitoringConfiguration, err := settings.GetOpenTelemetryConfiguration(ctx, stack.Name, fmt.Sprintf("ledger-%s", stack.Name))
+	monitoringConfiguration, err := settings.GetOpenTelemetryConfiguration(ctx, stack.Name, "ledger")
 	if err != nil {
 		return nil, err
 	}

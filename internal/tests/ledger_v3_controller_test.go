@@ -177,7 +177,7 @@ var _ = Describe("Ledger v3 controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(found).To(BeTrue())
 		Expect(monitoring).To(SatisfyAll(
-			HaveKeyWithValue("serviceName", "ledger-"+stack.Name),
+			HaveKeyWithValue("serviceName", "ledger"),
 			HaveKeyWithValue("attributes", "pod-name=$(POD_NAME),service.namespace=formance,stack="+stack.Name+",team=ledger"),
 			HaveKeyWithValue("traces", map[string]any{
 				"enabled":  true,
