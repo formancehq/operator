@@ -173,18 +173,35 @@ func v3ClusterExists(ctx core.Context, stack *v1beta1.Stack) (bool, error) {
 	return err == nil, err
 }
 
+func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
+	if configured < 1 {
+		return 0, false, fmt.Errorf("deployments.ledger.replicas must be positive, got %d", configured)
+	}
+	if configured%2 == 0 {
+		return configured + 1, true, nil
+	}
+	return configured, false, nil
+}
+
 func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) (*unstructured.Unstructured, error) {
 	image, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
 		return nil, err
 	}
 
-	replicas, err := settings.GetInt32OrDefault(ctx, stack.Name, 3, "module", "ledger", "v3", "replicas")
+	configuredReplicas, err := settings.GetInt32OrDefault(ctx, stack.Name, 3, "deployments", "ledger", "replicas")
 	if err != nil {
 		return nil, err
 	}
-	if replicas < 1 || replicas%2 == 0 {
-		return nil, fmt.Errorf("module.ledger.v3.replicas must be a positive odd number, got %d", replicas)
+	replicas, normalized, err := normalizeLedgerV3Replicas(configuredReplicas)
+	if err != nil {
+		return nil, err
+	}
+	if normalized {
+		log.FromContext(ctx).Info("Normalized Ledger v3 replicas to an odd number",
+			"setting", "deployments.ledger.replicas",
+			"configuredReplicas", configuredReplicas,
+			"replicas", replicas)
 	}
 
 	extraEnv, err := buildV3ExtraEnv(ctx, stack, ledger)

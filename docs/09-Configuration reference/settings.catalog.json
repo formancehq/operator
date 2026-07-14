@@ -192,6 +192,14 @@
       ]
     },
     {
+      "key": "deployments.ledger.replicas",
+      "valueType": "int32",
+      "default": "3",
+      "sources": [
+        "internal/resources/ledgers/v3.go:192"
+      ]
+    },
+    {
       "key": "gateway.caddyfile.grace-period",
       "valueType": "string",
       "sources": [
@@ -494,14 +502,6 @@
       "valueType": "bool",
       "sources": [
         "internal/resources/applications/application.go:392"
-      ]
-    },
-    {
-      "key": "module.ledger.v3.replicas",
-      "valueType": "int32",
-      "default": "3",
-      "sources": [
-        "internal/resources/ledgers/v3.go:182"
       ]
     },
     {

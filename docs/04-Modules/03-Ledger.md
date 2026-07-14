@@ -53,11 +53,14 @@ metadata:
   name: ledger-v3-replicas
 spec:
   stacks: ["formance-dev"]
-  key: module.ledger.v3.replicas
-  value: "3"
+  key: deployments.ledger.replicas
+  value: "2"
 ```
 
-The replica count must be a positive odd number.
+This is the same setting used by legacy Ledger deployments. Ledger v3 requires
+an odd replica count for its quorum: a positive even value is rounded up to the
+next odd value (`2` becomes `3`, `4` becomes `5`). If the setting is absent,
+Ledger v3 defaults to three replicas. Zero and negative values are rejected.
 
 ## Settings (v2.4+)
 

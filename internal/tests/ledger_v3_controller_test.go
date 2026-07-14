@@ -90,6 +90,23 @@ var _ = Describe("Ledger v3 controller", func() {
 		}).Should(BeTrue())
 	})
 
+	It("reuses and normalizes the historical Ledger replica setting", func() {
+		replicaSettings := settings.New(uuid.NewString(), "deployments.ledger.replicas", "4", stack.Name)
+		Expect(Create(replicaSettings)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(replicaSettings))).To(Succeed())
+		})
+
+		cluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) int64 {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			replicas, found, err := unstructured.NestedInt64(cluster.Object, "spec", "replicas")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return replicas
+		}).Should(Equal(int64(5)))
+	})
+
 	It("mirrors Cluster readiness on the Formance Ledger", func() {
 		cluster := newLedgerV3Cluster()
 		Eventually(func() error {
