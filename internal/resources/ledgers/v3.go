@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +42,8 @@ var (
 		Version: "v1alpha1",
 		Kind:    "Cluster",
 	}
-	ledgerV3ClusterAvailable bool
+	ledgerV3ClusterAvailable     bool
+	ledgerV3CertManagerAvailable bool
 )
 
 //+kubebuilder:rbac:groups=ledger.formance.com,resources=clusters,verbs=get;list;watch;create;update;patch;delete
@@ -68,26 +70,39 @@ func withLedgerV3ClusterWatch() core.ReconcilerOption[*v1beta1.Ledger] {
 				return err
 			}
 
-			for _, crd := range crds.Items {
-				if crd.Spec.Group != ledgerV3ClusterGVK.Group || crd.Spec.Names.Kind != ledgerV3ClusterGVK.Kind {
-					continue
-				}
-				for _, version := range crd.Spec.Versions {
-					if version.Name == ledgerV3ClusterGVK.Version && version.Served {
-						ledgerV3ClusterAvailable = true
-						cluster := newV3Cluster()
-						options.Owns[cluster] = nil
-						b.Owns(cluster)
-						log.FromContext(ctx).Info("Ledger v3 Cluster CRD is available", "gvk", ledgerV3ClusterGVK)
-						return nil
-					}
-				}
-			}
-
-			log.FromContext(ctx).Info("Ledger v3 Cluster CRD is not available", "gvk", ledgerV3ClusterGVK)
+			ledgerV3ClusterAvailable = watchLedgerV3Resource(ctx, b, options, crds, ledgerV3ClusterGVK)
+			issuerAvailable := watchLedgerV3Resource(ctx, b, options, crds, ledgerV3IssuerGVK)
+			certificateAvailable := watchLedgerV3Resource(ctx, b, options, crds, ledgerV3CertificateGVK)
+			ledgerV3CertManagerAvailable = issuerAvailable && certificateAvailable
 			return nil
 		})
 	}
+}
+
+func watchLedgerV3Resource(
+	ctx core.Context,
+	b *builder.Builder,
+	options *core.ReconcilerOptions[*v1beta1.Ledger],
+	crds *apiextensionsv1.CustomResourceDefinitionList,
+	gvk schema.GroupVersionKind,
+) bool {
+	for _, crd := range crds.Items {
+		if crd.Spec.Group != gvk.Group || crd.Spec.Names.Kind != gvk.Kind {
+			continue
+		}
+		for _, version := range crd.Spec.Versions {
+			if version.Name == gvk.Version && version.Served {
+				resource := newLedgerV3Resource(gvk)
+				options.Owns[resource] = nil
+				b.Owns(resource)
+				log.FromContext(ctx).Info("Ledger v3 dependency CRD is available", "gvk", gvk)
+				return true
+			}
+		}
+	}
+
+	log.FromContext(ctx).Info("Ledger v3 dependency CRD is not available", "gvk", gvk)
+	return false
 }
 
 func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
@@ -124,10 +139,20 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		return err
 	}
 
-	cluster, err = createOrUpdateV3Cluster(ctx, stack, ledger, version)
+	tlsReady, tlsMessage, err := createOrUpdateV3TLSResources(ctx, stack, ledger)
+	if err != nil {
+		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
+		return err
+	}
+
+	cluster, err = createOrUpdateV3Cluster(ctx, stack, ledger, version, tlsReady)
 	if err != nil {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
+	}
+	if !tlsReady {
+		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSCertificatePending", tlsMessage)
+		return core.NewPendingError().WithMessage("Ledger v3 TLS is not ready: %s", tlsMessage)
 	}
 
 	ready, message, err := isV3ClusterReady(cluster)
@@ -210,7 +235,7 @@ func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
 	return configured, false, nil
 }
 
-func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) (*unstructured.Unstructured, error) {
+func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, tlsReady bool) (*unstructured.Unstructured, error) {
 	image, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
 		return nil, err
@@ -229,6 +254,11 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			"setting", "deployments.ledger.replicas",
 			"configuredReplicas", configuredReplicas,
 			"replicas", replicas)
+	}
+	resourceRequirements, err := settings.GetResourceRequirements(ctx, stack.Name,
+		"deployments", "ledger", "containers", "ledger", "resource-requirements")
+	if err != nil {
+		return nil, err
 	}
 
 	monitoringConfiguration, err := settings.GetOpenTelemetryConfiguration(ctx, stack.Name, "ledger")
@@ -278,6 +308,23 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		}
 		if err := unstructured.SetNestedField(cluster.Object, stack.Spec.Debug || ledger.Spec.Debug, "spec", "debug"); err != nil {
 			return err
+		}
+		if tlsReady {
+			if err := unstructured.SetNestedMap(cluster.Object, ledgerV3TLSSpec(stack.Name), "spec", "tls"); err != nil {
+				return err
+			}
+		}
+
+		if hasResourceRequirements(resourceRequirements) {
+			resources, err := runtime.DefaultUnstructuredConverter.ToUnstructured(resourceRequirements)
+			if err != nil {
+				return err
+			}
+			if err := unstructured.SetNestedMap(cluster.Object, resources, "spec", "resources"); err != nil {
+				return err
+			}
+		} else {
+			unstructured.RemoveNestedField(cluster.Object, "spec", "resources")
 		}
 
 		if len(image.PullSecrets) > 0 {
@@ -330,6 +377,10 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		return nil
 	})
 	return cluster, err
+}
+
+func hasResourceRequirements(resources *corev1.ResourceRequirements) bool {
+	return resources != nil && (len(resources.Limits) > 0 || len(resources.Requests) > 0 || len(resources.Claims) > 0)
 }
 
 func imageRepository(image *registries.ImageConfiguration) string {

@@ -25,10 +25,34 @@ var ledgerV3ClusterGVK = schema.GroupVersionKind{
 	Kind:    "Cluster",
 }
 
+var ledgerV3IssuerGVK = schema.GroupVersionKind{
+	Group:   "cert-manager.io",
+	Version: "v1",
+	Kind:    "Issuer",
+}
+
+var ledgerV3CertificateGVK = schema.GroupVersionKind{
+	Group:   "cert-manager.io",
+	Version: "v1",
+	Kind:    "Certificate",
+}
+
 func newLedgerV3Cluster() *unstructured.Unstructured {
 	cluster := &unstructured.Unstructured{}
 	cluster.SetGroupVersionKind(ledgerV3ClusterGVK)
 	return cluster
+}
+
+func newLedgerV3Issuer() *unstructured.Unstructured {
+	issuer := &unstructured.Unstructured{}
+	issuer.SetGroupVersionKind(ledgerV3IssuerGVK)
+	return issuer
+}
+
+func newLedgerV3Certificate() *unstructured.Unstructured {
+	certificate := &unstructured.Unstructured{}
+	certificate.SetGroupVersionKind(ledgerV3CertificateGVK)
+	return certificate
 }
 
 var _ = Describe("Ledger v3 controller", func() {
@@ -122,6 +146,137 @@ var _ = Describe("Ledger v3 controller", func() {
 			g.Expect(found).To(BeTrue())
 			return replicas
 		}).Should(Equal(int64(5)))
+	})
+
+	It("reuses the historical Ledger container resource settings", func() {
+		resourceSettings := []*v1beta1.Settings{
+			settings.New(uuid.NewString(), "deployments.ledger.containers.ledger.resource-requirements.requests", "cpu=50m,memory=6Gi", stack.Name),
+			settings.New(uuid.NewString(), "deployments.ledger.containers.ledger.resource-requirements.limits", "cpu=2,memory=6Gi", stack.Name),
+		}
+		for _, setting := range resourceSettings {
+			Expect(Create(setting)).To(Succeed())
+		}
+		DeferCleanup(func() {
+			for _, setting := range resourceSettings {
+				Expect(client.IgnoreNotFound(Delete(setting))).To(Succeed())
+			}
+		})
+
+		cluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) map[string]any {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			resources, found, err := unstructured.NestedMap(cluster.Object, "spec", "resources")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return resources
+		}).Should(Equal(map[string]any{
+			"requests": map[string]any{
+				"cpu":    "50m",
+				"memory": "6Gi",
+			},
+			"limits": map[string]any{
+				"cpu":    "2",
+				"memory": "6Gi",
+			},
+		}))
+
+		for _, setting := range resourceSettings {
+			Expect(Delete(setting)).To(Succeed())
+		}
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			_, found, err := unstructured.NestedMap(cluster.Object, "spec", "resources")
+			g.Expect(err).NotTo(HaveOccurred())
+			return found
+		}).Should(BeFalse())
+	})
+
+	It("enables TLS only after the managed certificate is ready", func() {
+		issuer := newLedgerV3Issuer()
+		certificate := newLedgerV3Certificate()
+		cluster := newLedgerV3Cluster()
+		tlsName := stack.Name + "-tls"
+
+		Eventually(func(g Gomega) {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)).To(Succeed())
+			g.Expect(issuer).To(BeControlledBy(ledger))
+			selfSigned, found, err := unstructured.NestedMap(issuer.Object, "spec", "selfSigned")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			g.Expect(selfSigned).To(BeEmpty())
+
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: tlsName}, certificate)).To(Succeed())
+			g.Expect(certificate).To(BeControlledBy(ledger))
+		}).Should(Succeed())
+
+		commonName, found, err := unstructured.NestedString(certificate.Object, "spec", "commonName")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(commonName).To(Equal("ledger-" + stack.Name + "." + stack.Name + ".svc.cluster.local"))
+
+		dnsNames, found, err := unstructured.NestedStringSlice(certificate.Object, "spec", "dnsNames")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(dnsNames).To(ConsistOf(
+			"ledger-"+stack.Name,
+			"ledger-"+stack.Name+"."+stack.Name,
+			"ledger-"+stack.Name+"."+stack.Name+".svc",
+			"ledger-"+stack.Name+"."+stack.Name+".svc.cluster.local",
+			"ledger-"+stack.Name+"-grpc",
+			"ledger-"+stack.Name+"-grpc."+stack.Name,
+			"ledger-"+stack.Name+"-grpc."+stack.Name+".svc",
+			"ledger-"+stack.Name+"-grpc."+stack.Name+".svc.cluster.local",
+			"ledger-"+stack.Name+"-headless",
+			"ledger-"+stack.Name+"-headless."+stack.Name,
+			"ledger-"+stack.Name+"-headless."+stack.Name+".svc",
+			"ledger-"+stack.Name+"-headless."+stack.Name+".svc.cluster.local",
+			"*.ledger-"+stack.Name+"-headless",
+			"*.ledger-"+stack.Name+"-headless."+stack.Name,
+			"*.ledger-"+stack.Name+"-headless."+stack.Name+".svc",
+			"*.ledger-"+stack.Name+"-headless."+stack.Name+".svc.cluster.local",
+		))
+
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			_, found, err := unstructured.NestedMap(cluster.Object, "spec", "tls")
+			g.Expect(err).NotTo(HaveOccurred())
+			return found
+		}).Should(BeFalse())
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Namespace: stack.Name, Name: tlsName},
+			Data: map[string][]byte{
+				"tls.crt": []byte("certificate"),
+				"tls.key": []byte("private key"),
+				"ca.crt":  []byte("certificate authority"),
+			},
+		}
+		Expect(Create(secret)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(secret))).To(Succeed())
+		})
+
+		Eventually(func(g Gomega) error {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: tlsName}, certificate)).To(Succeed())
+			certificate.Object["status"] = map[string]any{
+				"conditions": []any{
+					map[string]any{"type": "Ready", "status": "True", "reason": "Ready"},
+				},
+			}
+			return TestContext().GetClient().Status().Update(TestContext(), certificate)
+		}).Should(Succeed())
+
+		Eventually(func(g Gomega) map[string]any {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			tls, found, err := unstructured.NestedMap(cluster.Object, "spec", "tls")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return tls
+		}).Should(Equal(map[string]any{
+			"enabled":     true,
+			"secretName":  tlsName,
+			"caSecretKey": "ca.crt",
+		}))
 	})
 
 	It("configures authentication and monitoring from the existing stack settings", func() {
@@ -310,6 +465,31 @@ var _ = Describe("Ledger v3 controller", func() {
 	})
 
 	It("mirrors Cluster readiness on the Formance Ledger", func() {
+		certificate := newLedgerV3Certificate()
+		tlsName := stack.Name + "-tls"
+		Eventually(func(g Gomega) error {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: tlsName}, certificate)).To(Succeed())
+			return nil
+		}).Should(Succeed())
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Namespace: stack.Name, Name: tlsName},
+			Data: map[string][]byte{
+				"tls.crt": []byte("certificate"),
+				"tls.key": []byte("private key"),
+				"ca.crt":  []byte("certificate authority"),
+			},
+		}
+		Expect(Create(secret)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(secret))).To(Succeed())
+		})
+		certificate.Object["status"] = map[string]any{
+			"conditions": []any{
+				map[string]any{"type": "Ready", "status": "True", "reason": "Ready"},
+			},
+		}
+		Expect(TestContext().GetClient().Status().Update(TestContext(), certificate)).To(Succeed())
+
 		cluster := newLedgerV3Cluster()
 		Eventually(func() error {
 			return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
