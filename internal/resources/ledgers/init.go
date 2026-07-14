@@ -23,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
@@ -39,6 +40,26 @@ import (
 //+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
+	if isLedgerV3(version) {
+		return reconcileV3(ctx, stack, ledger, version)
+	}
+
+	if ledgerV3ClusterAvailable {
+		exists, err := v3ClusterExists(ctx, stack)
+		if err != nil {
+			return err
+		}
+		if exists {
+			setLedgerV3Condition(ledger, metav1.ConditionFalse, "MigrationRequired", "A Ledger v3 Cluster exists; an explicit v3 to v2 migration is required")
+			return NewPendingError().WithMessage("migration required before switching Ledger from v3 to v2")
+		}
+	}
+
+	ledger.GetConditions().Delete(v1beta1.ConditionTypeMatch(ledgerV3ClusterReadyCondition))
+	return reconcileLegacy(ctx, stack, ledger, version)
+}
+
+func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
 	database, err := databases.Create(ctx, stack, ledger)
 	if err != nil {
 		return err
@@ -112,6 +133,7 @@ func init() {
 			WithOwn[*v1beta1.Ledger](&batchv1.CronJob{}),
 			WithOwn[*v1beta1.Ledger](&corev1.ConfigMap{}),
 			WithOwn[*v1beta1.Ledger](&v1beta1.BenthosStream{}),
+			withLedgerV3ClusterWatch(),
 			WithWatchSettings[*v1beta1.Ledger](),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Search{}),
 			brokertopics.Watch[*v1beta1.Ledger]("ledger"),

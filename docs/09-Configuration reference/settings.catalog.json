@@ -497,6 +497,14 @@
       ]
     },
     {
+      "key": "module.ledger.v3.replicas",
+      "valueType": "int32",
+      "default": "3",
+      "sources": [
+        "internal/resources/ledgers/v3.go:182"
+      ]
+    },
+    {
       "key": "modules.\u003cmodule-name\u003e.database.connection-pool",
       "valueType": "object",
       "objectType": "connectionPoolConfiguration",
