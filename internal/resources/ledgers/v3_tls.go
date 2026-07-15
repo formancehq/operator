@@ -189,11 +189,3 @@ func ledgerV3CertificateReady(certificate *unstructured.Unstructured) (bool, str
 	}
 	return false, fmt.Sprintf("Certificate %s/%s has no Ready condition", certificate.GetNamespace(), certificate.GetName()), nil
 }
-
-func ledgerV3TLSSpec(stackName string) map[string]any {
-	return map[string]any{
-		"enabled":     true,
-		"secretName":  ledgerV3TLSName(stackName),
-		"caSecretKey": ledgerV3TLSCASecretKey,
-	}
-}

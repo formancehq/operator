@@ -173,6 +173,7 @@ func init() {
 			WithOwn[*v1beta1.Ledger](&corev1.ConfigMap{}),
 			WithOwn[*v1beta1.Ledger](&v1beta1.BenthosStream{}),
 			withLedgerV3ClusterWatch(),
+			withLedgerConfigurationWatch(),
 			WithWatchSettings[*v1beta1.Ledger](),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Search{}),

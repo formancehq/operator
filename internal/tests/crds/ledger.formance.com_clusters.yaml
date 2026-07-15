@@ -27,6 +27,13 @@ spec:
             spec:
               type: object
               x-kubernetes-preserve-unknown-fields: true
+              properties:
+                bindAddr:
+                  type: string
+                  default: 0.0.0.0:7777
+                  x-kubernetes-validations:
+                    - rule: oldSelf == '' || self == oldSelf
+                      message: bindAddr is immutable once set
             status:
               type: object
               x-kubernetes-preserve-unknown-fields: true

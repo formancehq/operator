@@ -16,6 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
+
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
@@ -883,5 +885,208 @@ var _ = Describe("Ledger v3 controller", func() {
 				}).Should(BeNotFound())
 			})
 		})
+	})
+})
+
+var _ = Describe("LedgerConfiguration", Serial, func() {
+	It("inherits the Ledger Cluster schema validation", func() {
+		invalidEnum := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "invalid-enum"},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks:  []string{"*"},
+				Cluster: ledgerv1alpha1.ClusterSpec{LogLevel: "verbose"},
+			},
+		}
+		Expect(apierrors.IsInvalid(Create(invalidEnum))).To(BeTrue())
+
+		invalidCEL := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "invalid-cel"},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{"*"},
+				Cluster: ledgerv1alpha1.ClusterSpec{
+					Ingress: &ledgerv1alpha1.IngressSpec{Enabled: true},
+				},
+			},
+		}
+		Expect(apierrors.IsInvalid(Create(invalidCEL))).To(BeTrue())
+	})
+
+	It("uses the default configuration as a live base for Ledger v3 Clusters", func() {
+		configuration := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: v1beta1.DefaultLedgerConfigurationName},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{"*"},
+				Cluster: ledgerv1alpha1.ClusterSpec{
+					LogLevel:      "info",
+					HashAlgorithm: "blake3",
+					NodeSelector:  map[string]string{"disk": "nvme"},
+					PodAnnotations: map[string]string{
+						"configuration": "preserved",
+					},
+					Monitoring: &ledgerv1alpha1.MonitoringConfig{
+						Pyroscope: &ledgerv1alpha1.PyroscopeConfig{
+							Enabled:       true,
+							ServerAddress: "http://pyroscope.monitoring.svc:4040",
+						},
+					},
+				},
+			},
+		}
+		Expect(Create(configuration)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(configuration))).To(Succeed())
+		})
+
+		stack := &v1beta1.Stack{
+			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.StackSpec{Version: "v3.0.0-alpha.1"},
+		}
+		ledger := &v1beta1.Ledger{
+			ObjectMeta: RandObjectMeta(),
+			Spec: v1beta1.LedgerSpec{
+				StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+			},
+		}
+		Expect(Create(stack)).To(Succeed())
+		Expect(Create(ledger)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(ledger))).To(Succeed())
+			Expect(client.IgnoreNotFound(Delete(stack))).To(Succeed())
+		})
+
+		previewStack := &v1beta1.Stack{
+			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.StackSpec{Version: "v2.99.0"},
+		}
+		previewLedger := &v1beta1.Ledger{
+			ObjectMeta: RandObjectMeta(),
+			Spec: v1beta1.LedgerSpec{
+				StackDependency: v1beta1.StackDependency{Stack: previewStack.Name},
+			},
+		}
+		previewVersion := settings.New(uuid.NewString(), "ledger.v3.preview-version", "v3.0.0-alpha.11", previewStack.Name)
+		previewDatabase := settings.New(uuid.NewString(), "postgres.*.uri", "postgresql://localhost", previewStack.Name)
+		Expect(Create(previewStack)).To(Succeed())
+		Expect(Create(previewVersion)).To(Succeed())
+		Expect(Create(previewDatabase)).To(Succeed())
+		Expect(Create(previewLedger)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(previewLedger))).To(Succeed())
+			Expect(client.IgnoreNotFound(Delete(previewVersion))).To(Succeed())
+			Expect(client.IgnoreNotFound(Delete(previewDatabase))).To(Succeed())
+			Expect(client.IgnoreNotFound(Delete(previewStack))).To(Succeed())
+		})
+
+		cluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) map[string]any {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			spec, found, err := unstructured.NestedMap(cluster.Object, "spec")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return spec
+		}).Should(SatisfyAll(
+			HaveKeyWithValue("logLevel", "info"),
+			HaveKeyWithValue("hashAlgorithm", "blake3"),
+			HaveKeyWithValue("nodeSelector", map[string]any{"disk": "nvme"}),
+			HaveKeyWithValue("monitoring", SatisfyAll(
+				HaveKeyWithValue("serviceName", "ledger"),
+				HaveKeyWithValue("pyroscope", SatisfyAll(
+					HaveKeyWithValue("enabled", true),
+					HaveKeyWithValue("serverAddress", "http://pyroscope.monitoring.svc:4040"),
+				)),
+			)),
+		))
+		previewCluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) map[string]any {
+			g.Expect(Get(types.NamespacedName{Namespace: previewStack.Name, Name: previewStack.Name}, previewCluster)).To(Succeed())
+			nodeSelector, found, err := unstructured.NestedMap(previewCluster.Object, "spec", "nodeSelector")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return nodeSelector
+		}).Should(Equal(map[string]any{"disk": "nvme"}))
+
+		configuration.Spec.Cluster.HashAlgorithm = "xxh3"
+		configuration.Spec.Cluster.Monitoring.Pyroscope.ServerAddress = "http://pyroscope-v2.monitoring.svc:4040"
+		Expect(Update(configuration)).To(Succeed())
+		Eventually(func(g Gomega) string {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			hash, found, err := unstructured.NestedString(cluster.Object, "spec", "hashAlgorithm")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return hash
+		}).Should(Equal("xxh3"))
+		Eventually(func(g Gomega) string {
+			g.Expect(Get(types.NamespacedName{Namespace: previewStack.Name, Name: previewStack.Name}, previewCluster)).To(Succeed())
+			hash, found, err := unstructured.NestedString(previewCluster.Object, "spec", "hashAlgorithm")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return hash
+		}).Should(Equal("xxh3"))
+
+		specificConfiguration := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "specific-" + stack.Name},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{stack.Name},
+				Cluster: ledgerv1alpha1.ClusterSpec{
+					HashAlgorithm: "blake3",
+					LogLevel:      "debug",
+				},
+			},
+		}
+		Expect(Create(specificConfiguration)).To(Succeed())
+		Eventually(func(g Gomega) string {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			hash, found, err := unstructured.NestedString(cluster.Object, "spec", "hashAlgorithm")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return hash
+		}).Should(Equal("blake3"))
+		Consistently(func(g Gomega) string {
+			g.Expect(Get(types.NamespacedName{Namespace: previewStack.Name, Name: previewStack.Name}, previewCluster)).To(Succeed())
+			hash, found, err := unstructured.NestedString(previewCluster.Object, "spec", "hashAlgorithm")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return hash
+		}).Should(Equal("xxh3"))
+		Expect(Delete(specificConfiguration)).To(Succeed())
+		Eventually(func(g Gomega) string {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			hash, found, err := unstructured.NestedString(cluster.Object, "spec", "hashAlgorithm")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return hash
+		}).Should(Equal("xxh3"))
+
+		Expect(Delete(configuration)).To(Succeed())
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			_, found, err := unstructured.NestedString(cluster.Object, "spec", "hashAlgorithm")
+			g.Expect(err).NotTo(HaveOccurred())
+			return found
+		}).Should(BeFalse())
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: previewStack.Name, Name: previewStack.Name}, previewCluster)).To(Succeed())
+			_, found, err := unstructured.NestedString(previewCluster.Object, "spec", "hashAlgorithm")
+			g.Expect(err).NotTo(HaveOccurred())
+			return found
+		}).Should(BeFalse())
+
+		configuration = &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: v1beta1.DefaultLedgerConfigurationName},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{"*"},
+				Cluster: ledgerv1alpha1.ClusterSpec{
+					BindAddr: "127.0.0.1:7777",
+				},
+			},
+		}
+		Expect(Create(configuration)).To(Succeed())
+		Eventually(func(g Gomega) string {
+			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+			condition := ledger.GetConditions().Get("LedgerV3ClusterReady")
+			g.Expect(condition).NotTo(BeNil())
+			g.Expect(condition.Reason).To(Equal("ReconcileFailed"))
+			return condition.Message
+		}).Should(ContainSubstring("bindAddr"))
 	})
 })

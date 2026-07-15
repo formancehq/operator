@@ -3,7 +3,6 @@ package ledgers
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -17,8 +16,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -50,6 +53,7 @@ var (
 )
 
 //+kubebuilder:rbac:groups=ledger.formance.com,resources=clusters,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=formance.com,resources=ledgerconfigurations,verbs=get;list;watch
 
 func isLedgerV3(version string) bool {
 	normalizedVersion := version
@@ -80,6 +84,33 @@ func withLedgerV3ClusterWatch() core.ReconcilerOption[*v1beta1.Ledger] {
 			return nil
 		})
 	}
+}
+
+func withLedgerConfigurationWatch() core.ReconcilerOption[*v1beta1.Ledger] {
+	return core.WithWatch[*v1beta1.Ledger, *v1beta1.LedgerConfiguration](
+		func(ctx core.Context, configuration *v1beta1.LedgerConfiguration) []reconcile.Request {
+			if configuration.IsWildcard() {
+				return core.BuildReconcileRequests(
+					ctx,
+					ctx.GetClient(),
+					ctx.GetScheme(),
+					&v1beta1.Ledger{},
+				)
+			}
+
+			requests := make([]reconcile.Request, 0)
+			for _, stack := range configuration.GetStacks() {
+				requests = append(requests, core.BuildReconcileRequests(
+					ctx,
+					ctx.GetClient(),
+					ctx.GetScheme(),
+					&v1beta1.Ledger{},
+					client.MatchingFields{"stack": stack},
+				)...)
+			}
+			return requests
+		},
+	)
 }
 
 func watchLedgerV3Resource(
@@ -232,6 +263,11 @@ func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
 }
 
 func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool, tlsCAHash string) (*unstructured.Unstructured, error) {
+	baseSpec, err := ledgerV3BaseSpec(ctx, stack.Name)
+	if err != nil {
+		return nil, err
+	}
+
 	image, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
 		return nil, err
@@ -265,20 +301,49 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	if err != nil {
 		return nil, err
 	}
-	extraEnv, err := buildV3ExtraEnv(stack, ledger)
-	if err != nil {
-		return nil, err
-	}
-
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
 		return nil, err
+	}
+	desiredSpec := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
+		ImageRepository:    imageRepository(image),
+		ImageTag:           image.Version,
+		ImagePullSecrets:   image.PullSecrets,
+		Replicas:           replicas,
+		ClusterID:          stack.Name,
+		Debug:              stack.Spec.Debug || ledger.Spec.Debug,
+		TLSSecretName:      ledgerV3TLSName(stack.Name),
+		TLSCAHash:          tlsCAHash,
+		Preview:            preview,
+		Resources:          resourceRequirements,
+		ExtraEnv:           core.GetDevEnvVars(stack, ledger),
+		Monitoring:         monitoringConfiguration,
+		Auth:               authConfiguration,
+		ServiceAccountName: serviceAccountName,
+	})
+	desiredSpecMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(desiredSpec)
+	if err != nil {
+		return nil, fmt.Errorf("converting Ledger v3 Cluster spec: %w", err)
+	}
+	// ResourceRequirements is a value struct in the Ledger API. The
+	// unstructured converter therefore emits an empty resources object even
+	// though the JSON field is tagged omitempty. Remove it when neither the
+	// shared configuration nor Settings provided resources, preserving the
+	// historical absence of the field.
+	if !hasResourceRequirements(&baseSpec.Resources) && !hasResourceRequirements(resourceRequirements) {
+		delete(desiredSpecMap, "resources")
 	}
 
 	cluster := newV3Cluster()
 	cluster.SetNamespace(stack.Name)
 	cluster.SetName(stack.Name)
 	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cluster, func() error {
+		// Reset the desired spec to the shared configuration on every
+		// reconciliation. Stack-specific values below deliberately override it.
+		if err := unstructured.SetNestedMap(cluster.Object, desiredSpecMap, "spec"); err != nil {
+			return err
+		}
+
 		labels := cluster.GetLabels()
 		if labels == nil {
 			labels = map[string]string{}
@@ -296,121 +361,38 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			return err
 		}
 
-		if err := unstructured.SetNestedField(cluster.Object, imageRepository(image), "spec", "image", "repository"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(cluster.Object, image.Version, "spec", "image", "tag"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(cluster.Object, int64(replicas), "spec", "replicas"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(cluster.Object, stack.Name, "spec", "clusterID"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(cluster.Object, stack.Spec.Debug || ledger.Spec.Debug, "spec", "debug"); err != nil {
-			return err
-		}
-		// Configure TLS from the first Cluster revision. Pods can wait for the
-		// cert-manager Secret, but must never bootstrap a plaintext Raft cluster
-		// that is switched to TLS by a later StatefulSet revision.
-		if err := unstructured.SetNestedMap(cluster.Object, ledgerV3TLSSpec(stack.Name), "spec", "tls"); err != nil {
-			return err
-		}
-		podAnnotations, _, err := unstructured.NestedStringMap(cluster.Object, "spec", "podAnnotations")
-		if err != nil {
-			return err
-		}
-		if podAnnotations == nil {
-			podAnnotations = map[string]string{}
-		}
-		if tlsCAHash != "" {
-			podAnnotations[ledgerV3TLSCAHashAnnotation] = tlsCAHash
-		} else {
-			delete(podAnnotations, ledgerV3TLSCAHashAnnotation)
-		}
-		if len(podAnnotations) > 0 {
-			if err := unstructured.SetNestedStringMap(cluster.Object, podAnnotations, "spec", "podAnnotations"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "podAnnotations")
-		}
-		additionalLabels := map[string]string{}
-		if preview {
-			additionalLabels["app.kubernetes.io/name"] = "ledger-v3-preview"
-			additionalLabels[ledgerV3PreviewLabel] = "true"
-		}
-		if len(additionalLabels) > 0 {
-			if err := unstructured.SetNestedStringMap(cluster.Object, additionalLabels, "spec", "additionalLabels"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "additionalLabels")
-		}
-
-		if hasResourceRequirements(resourceRequirements) {
-			resources, err := runtime.DefaultUnstructuredConverter.ToUnstructured(resourceRequirements)
-			if err != nil {
-				return err
-			}
-			if err := unstructured.SetNestedMap(cluster.Object, resources, "spec", "resources"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "resources")
-		}
-
-		if len(image.PullSecrets) > 0 {
-			pullSecrets := make([]any, 0, len(image.PullSecrets))
-			for _, pullSecret := range image.PullSecrets {
-				pullSecrets = append(pullSecrets, map[string]any{"name": pullSecret.Name})
-			}
-			if err := unstructured.SetNestedSlice(cluster.Object, pullSecrets, "spec", "imagePullSecrets"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "imagePullSecrets")
-		}
-
-		if len(extraEnv) > 0 {
-			if err := unstructured.SetNestedSlice(cluster.Object, extraEnv, "spec", "extraEnv"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "extraEnv")
-		}
-
-		if monitoringConfiguration != nil {
-			if err := unstructured.SetNestedMap(cluster.Object, ledgerV3MonitoringSpec(monitoringConfiguration), "spec", "monitoring"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "monitoring")
-		}
-
-		if authConfiguration != nil {
-			if err := unstructured.SetNestedMap(cluster.Object, ledgerV3AuthSpec(authConfiguration), "spec", "auth"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "auth")
-		}
-
-		if serviceAccountName != "" {
-			if err := unstructured.SetNestedField(cluster.Object, false, "spec", "serviceAccount", "create"); err != nil {
-				return err
-			}
-			if err := unstructured.SetNestedField(cluster.Object, serviceAccountName, "spec", "serviceAccount", "name"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(cluster.Object, "spec", "serviceAccount")
-		}
-
 		return nil
 	})
 	return cluster, err
+}
+
+func ledgerV3BaseSpec(ctx core.Context, stack string) (*ledgerv1alpha1.ClusterSpec, error) {
+	stackConfigurations := &v1beta1.LedgerConfigurationList{}
+	if err := ctx.GetClient().List(ctx, stackConfigurations, client.MatchingFields{"stack": stack}); err != nil {
+		return nil, fmt.Errorf("listing LedgerConfigurations for stack %q: %w", stack, err)
+	}
+
+	wildcardConfigurations := &v1beta1.LedgerConfigurationList{}
+	if err := ctx.GetClient().List(ctx, wildcardConfigurations, client.MatchingFields{"stack": "*"}); err != nil {
+		return nil, fmt.Errorf("listing wildcard LedgerConfigurations: %w", err)
+	}
+
+	configurations := append(stackConfigurations.Items, wildcardConfigurations.Items...)
+	slices.SortStableFunc(configurations, func(a, b v1beta1.LedgerConfiguration) int {
+		switch {
+		case a.IsWildcard() && !b.IsWildcard():
+			return 1
+		case !a.IsWildcard() && b.IsWildcard():
+			return -1
+		default:
+			return strings.Compare(a.Name, b.Name)
+		}
+	})
+	if len(configurations) == 0 {
+		return &ledgerv1alpha1.ClusterSpec{}, nil
+	}
+
+	return configurations[0].Spec.Cluster.DeepCopy(), nil
 }
 
 func hasResourceRequirements(resources *corev1.ResourceRequirements) bool {
@@ -422,81 +404,6 @@ func imageRepository(image *registries.ImageConfiguration) string {
 		return image.Image
 	}
 	return strings.TrimSuffix(image.Registry, "/") + "/" + image.Image
-}
-
-func buildV3ExtraEnv(stack *v1beta1.Stack, ledger *v1beta1.Ledger) ([]any, error) {
-	env := core.GetDevEnvVars(stack, ledger)
-
-	ret := make([]any, 0, len(env))
-	for i := range env {
-		value, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&env[i])
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, value)
-	}
-	return ret, nil
-}
-
-func ledgerV3AuthSpec(configuration *auths.ProtectedAuthConfiguration) map[string]any {
-	spec := map[string]any{
-		"enabled": true,
-		"issuer":  configuration.Issuer,
-	}
-	if len(configuration.Issuers) > 0 {
-		issuers := make([]any, 0, len(configuration.Issuers))
-		for _, issuer := range configuration.Issuers {
-			issuers = append(issuers, issuer)
-		}
-		spec["issuers"] = issuers
-	}
-	if configuration.ReadKeySetMaxRetries != 0 {
-		spec["readKeySetMaxRetries"] = int64(configuration.ReadKeySetMaxRetries)
-	}
-	if configuration.CheckScopes {
-		spec["checkScopes"] = true
-		spec["service"] = configuration.Service
-	}
-	return spec
-}
-
-func ledgerV3MonitoringSpec(configuration *settings.OpenTelemetryConfiguration) map[string]any {
-	spec := map[string]any{
-		"serviceName": configuration.ServiceName,
-	}
-	if len(configuration.Attributes) > 0 {
-		attributes := make([]string, 0, len(configuration.Attributes))
-		for key, value := range configuration.Attributes {
-			attributes = append(attributes, fmt.Sprintf("%s=%s", key, value))
-		}
-		slices.Sort(attributes)
-		spec["attributes"] = strings.Join(attributes, ",")
-	}
-	if configuration.Traces != nil {
-		traces := ledgerV3MonitoringSignalSpec(configuration.Traces)
-		traces["batch"] = "true"
-		spec["traces"] = traces
-	}
-	if configuration.Metrics != nil {
-		metrics := ledgerV3MonitoringSignalSpec(configuration.Metrics)
-		metrics["runtime"] = true
-		spec["metrics"] = metrics
-	}
-	if configuration.Logs != nil {
-		spec["logs"] = ledgerV3MonitoringSignalSpec(configuration.Logs)
-	}
-	return spec
-}
-
-func ledgerV3MonitoringSignalSpec(configuration *settings.OpenTelemetrySignalConfiguration) map[string]any {
-	return map[string]any{
-		"enabled":  true,
-		"exporter": "otlp",
-		"endpoint": configuration.Endpoint,
-		"port":     configuration.Port,
-		"insecure": strconv.FormatBool(configuration.Insecure),
-		"mode":     configuration.Mode,
-	}
 }
 
 func isV3ClusterReady(cluster *unstructured.Unstructured) (bool, string, error) {

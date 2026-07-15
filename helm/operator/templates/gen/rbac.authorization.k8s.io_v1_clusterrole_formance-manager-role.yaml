@@ -193,6 +193,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - formance.com
+  resources:
+  - ledgerconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - ledger.formance.com
   resources:
   - clusters

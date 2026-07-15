@@ -41,6 +41,7 @@ Other resources :
 - [Database](#database)
 - [GatewayGRPCAPI](#gatewaygrpcapi)
 - [GatewayHTTPAPI](#gatewayhttpapi)
+- [LedgerConfiguration](#ledgerconfiguration)
 - [OtelExporterEndpoint](#otelexporterendpoint)
 - [ResourceReference](#resourcereference)
 - [Versions](#versions)
@@ -2499,6 +2500,65 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `ready` _boolean_ |  |  |  |
+
+
+#### LedgerConfiguration
+
+
+
+LedgerConfiguration defines the base specification applied to every Ledger v3
+Cluster targeted by spec.stacks. A configuration targeting a stack by name
+takes priority over a configuration targeting all stacks with `*`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `LedgerConfiguration` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[LedgerConfigurationSpec](#ledgerconfigurationspec)_ |  |  |  |
+
+
+
+##### LedgerConfigurationSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stacks` _string array_ | Stacks on which the configuration is applied. Can contain `*` to<br />indicate a wildcard, following the same convention as Settings. |  |  |
+| `cluster` _[ClusterSpec](#clusterspec)_ | Cluster is the base Ledger v3 Cluster specification. Stack-specific<br />Settings and values owned by the Operator are applied on top of it. |  |  |
+
+
 
 
 #### OtelExporterEndpoint

@@ -29,6 +29,7 @@ resources:
 - bases/formance.com_transactionplanes.yaml
 - bases/formance.com_otelexporterendpoints.yaml
 
+- bases/formance.com_ledgerconfigurations.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # commonAnnotations:

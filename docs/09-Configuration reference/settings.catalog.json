@@ -201,21 +201,21 @@
       "key": "deployments.ledger.containers.ledger.resource-requirements.claims",
       "valueType": "string[]",
       "sources": [
-        "internal/resources/ledgers/v3.go:254"
+        "internal/resources/ledgers/v3.go:290"
       ]
     },
     {
       "key": "deployments.ledger.containers.ledger.resource-requirements.limits",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/ledgers/v3.go:254"
+        "internal/resources/ledgers/v3.go:290"
       ]
     },
     {
       "key": "deployments.ledger.containers.ledger.resource-requirements.requests",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/ledgers/v3.go:254"
+        "internal/resources/ledgers/v3.go:290"
       ]
     },
     {
@@ -223,7 +223,7 @@
       "valueType": "int32",
       "default": "3",
       "sources": [
-        "internal/resources/ledgers/v3.go:240"
+        "internal/resources/ledgers/v3.go:276"
       ]
     },
     {
