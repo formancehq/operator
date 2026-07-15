@@ -5,10 +5,13 @@ import (
 	"errors"
 	"testing"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
@@ -59,12 +62,37 @@ func (r inaccessibleLedgerV3ResourceReader) List(_ context.Context, object clien
 type ledgerV3DiscoveryContext struct {
 	context.Context
 	reader client.Reader
+	client client.Client
 }
 
-func (c ledgerV3DiscoveryContext) GetClient() client.Client    { return nil }
+func (c ledgerV3DiscoveryContext) GetClient() client.Client    { return c.client }
 func (c ledgerV3DiscoveryContext) GetScheme() *runtime.Scheme  { return nil }
 func (c ledgerV3DiscoveryContext) GetAPIReader() client.Reader { return c.reader }
 func (c ledgerV3DiscoveryContext) GetPlatform() core.Platform  { return core.Platform{} }
+
+type ledgerV3AccessReviewClient struct {
+	client.Client
+	deniedVerb string
+}
+
+type ledgerV3CleanupClient struct {
+	client.Client
+	getCalls int
+}
+
+func (c *ledgerV3CleanupClient) Get(_ context.Context, key client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+	c.getCalls++
+	return apierrors.NewNotFound(schema.GroupResource{Group: ledgerV3ClusterGVK.Group, Resource: "clusters"}, key.Name)
+}
+
+func (c ledgerV3AccessReviewClient) Create(_ context.Context, object client.Object, _ ...client.CreateOption) error {
+	review := object.(*authorizationv1.SelfSubjectAccessReview)
+	review.Status.Allowed = review.Spec.ResourceAttributes.Verb != c.deniedVerb
+	if !review.Status.Allowed {
+		review.Status.Reason = "denied by test"
+	}
+	return nil
+}
 
 func TestLedgerV3DiscoveryFailureDisablesCapabilityWithoutFailing(t *testing.T) {
 	previousClusterAvailable := ledgerV3ClusterAvailable
@@ -114,6 +142,27 @@ func TestLedgerV3PreviewVersionIgnoredWhenClusterUnavailable(t *testing.T) {
 	}
 }
 
+func TestDeleteLedgerV3PreviewSkipsCertManagerResourcesWhenUnavailable(t *testing.T) {
+	previous := ledgerV3CertManagerAvailable
+	ledgerV3CertManagerAvailable = false
+	t.Cleanup(func() {
+		ledgerV3CertManagerAvailable = previous
+	})
+
+	kubernetesClient := &ledgerV3CleanupClient{}
+	ctx := ledgerV3DiscoveryContext{
+		Context: context.Background(),
+		client:  kubernetesClient,
+	}
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	if err := deleteLedgerV3Preview(ctx, stack); err != nil {
+		t.Fatalf("deleteLedgerV3Preview() returned error without cert-manager: %v", err)
+	}
+	if kubernetesClient.getCalls != 1 {
+		t.Fatalf("deleteLedgerV3Preview() performed %d GETs, want only the Cluster lookup", kubernetesClient.getCalls)
+	}
+}
+
 func TestLedgerV3ResourceAccessFailureDisablesCapabilityWithoutFailing(t *testing.T) {
 	previous := ledgerV3ClusterAvailable
 	ledgerV3ClusterAvailable = true
@@ -132,6 +181,28 @@ func TestLedgerV3ResourceAccessFailureDisablesCapabilityWithoutFailing(t *testin
 	}
 	if ledgerV3ClusterAvailable {
 		t.Fatal("Ledger v3 Cluster capability remains enabled when Cluster objects are inaccessible")
+	}
+}
+
+func TestLedgerV3MissingWatchPermissionDisablesCapabilityWithoutFailing(t *testing.T) {
+	previous := ledgerV3ClusterAvailable
+	ledgerV3ClusterAvailable = true
+	t.Cleanup(func() {
+		ledgerV3ClusterAvailable = previous
+	})
+
+	options := core.ReconcilerOptions[*v1beta1.Ledger]{}
+	withLedgerV3ClusterWatch()(&options)
+	ctx := ledgerV3DiscoveryContext{
+		Context: context.Background(),
+		reader:  inaccessibleLedgerV3ResourceReader{},
+		client:  ledgerV3AccessReviewClient{deniedVerb: "watch"},
+	}
+	if err := options.Raws[0](ctx, nil); err != nil {
+		t.Fatalf("Ledger v3 partial RBAC must not fail controller setup: %v", err)
+	}
+	if ledgerV3ClusterAvailable {
+		t.Fatal("Ledger v3 Cluster capability remains enabled without watch permission")
 	}
 }
 

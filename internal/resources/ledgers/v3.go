@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,8 +53,11 @@ var (
 	ledgerV3CertManagerAvailable bool
 )
 
+var ledgerV3RequiredVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
+
 //+kubebuilder:rbac:groups=ledger.formance.com,resources=clusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=formance.com,resources=ledgerconfigurations,verbs=get;list;watch
+//+kubebuilder:rbac:groups=authorization.k8s.io,resources=selfsubjectaccessreviews,verbs=create
 
 func isLedgerV3(version string) bool {
 	normalizedVersion := version
@@ -138,6 +142,9 @@ func watchLedgerV3Resource(
 						"error", err)
 					return false
 				}
+				if !canAccessLedgerV3Resource(ctx, gvk, crd.Spec.Names.Plural) {
+					return false
+				}
 
 				resource := newLedgerV3Resource(gvk)
 				options.Owns[resource] = nil
@@ -150,6 +157,36 @@ func watchLedgerV3Resource(
 
 	log.FromContext(ctx).Info("Ledger v3 dependency CRD is not available", "gvk", gvk)
 	return false
+}
+
+func canAccessLedgerV3Resource(ctx core.Context, gvk schema.GroupVersionKind, resource string) bool {
+	for _, verb := range ledgerV3RequiredVerbs {
+		review := &authorizationv1.SelfSubjectAccessReview{
+			Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Group:    gvk.Group,
+					Version:  gvk.Version,
+					Resource: resource,
+					Verb:     verb,
+				},
+			},
+		}
+		if err := ctx.GetClient().Create(ctx, review); err != nil {
+			log.FromContext(ctx).Info("Ledger v3 dependency access review failed; continuing without it",
+				"gvk", gvk,
+				"verb", verb,
+				"error", err)
+			return false
+		}
+		if !review.Status.Allowed {
+			log.FromContext(ctx).Info("Ledger v3 dependency permission is unavailable; continuing without it",
+				"gvk", gvk,
+				"verb", verb,
+				"reason", review.Status.Reason)
+			return false
+		}
+	}
+	return true
 }
 
 func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
@@ -184,7 +221,10 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSCertificatePending", tlsMessage)
 		return core.NewPendingError().WithMessage("Ledger v3 TLS is not ready: %s", tlsMessage)
 	}
-	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("livez")); err != nil {
+	if err := gatewayhttpapis.Create(ctx, ledger,
+		gatewayhttpapis.WithHealthCheckEndpoint("livez"),
+		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecuredWithBackend("", ledgerV3HTTPBackendRef(stack.Name))),
+	); err != nil {
 		return err
 	}
 	if err := gatewaygrpcapis.Create(ctx, ledger,

@@ -140,6 +140,12 @@ func deleteLedgerV3Preview(ctx core.Context, stack *v1beta1.Stack) error {
 			return err
 		}
 	}
+	// A missing or inaccessible cert-manager dependency must not block the
+	// legacy Ledger reconciliation. The Cluster cleanup above is still safe and
+	// useful because its capability is checked independently.
+	if !ledgerV3CertManagerAvailable {
+		return nil
+	}
 
 	certificate := newLedgerV3Resource(ledgerV3CertificateGVK)
 	err = ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: ledgerV3TLSName(stack.Name)}, certificate)

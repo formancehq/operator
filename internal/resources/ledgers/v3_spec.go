@@ -72,7 +72,17 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 		}
 		spec.AdditionalLabels["app.kubernetes.io/name"] = "ledger-v3-preview"
 		spec.AdditionalLabels[ledgerV3PreviewLabel] = "true"
+	} else {
+		if spec.AdditionalLabels == nil {
+			spec.AdditionalLabels = map[string]string{}
+		}
+		spec.AdditionalLabels["app.kubernetes.io/name"] = "ledger"
+		delete(spec.AdditionalLabels, ledgerV3PreviewLabel)
 	}
+	// The Ledger Operator deliberately allows these labels to override its
+	// selectors. Keep the instance label aligned with the Cluster name because
+	// Formance Services and NetworkPolicies rely on that stable selector.
+	spec.AdditionalLabels["app.kubernetes.io/instance"] = overrides.ClusterID
 
 	if hasResourceRequirements(overrides.Resources) {
 		spec.Resources = *overrides.Resources.DeepCopy()
@@ -135,13 +145,16 @@ func applyLedgerV3Auth(spec *ledgerv1alpha1.ClusterSpec, configuration *auths.Pr
 }
 
 func applyLedgerV3Monitoring(spec *ledgerv1alpha1.ClusterSpec, configuration *settings.OpenTelemetryConfiguration) {
+	if spec.Monitoring != nil {
+		spec.Monitoring.ServiceName = "ledger"
+	}
 	if configuration == nil {
 		return
 	}
 	if spec.Monitoring == nil {
 		spec.Monitoring = &ledgerv1alpha1.MonitoringConfig{}
 	}
-	spec.Monitoring.ServiceName = configuration.ServiceName
+	spec.Monitoring.ServiceName = "ledger"
 	if len(configuration.Attributes) > 0 {
 		attributes := make([]string, 0, len(configuration.Attributes))
 		for key, value := range configuration.Attributes {

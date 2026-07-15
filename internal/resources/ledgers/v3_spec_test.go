@@ -38,9 +38,14 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 			{Name: "BASE_ONLY", Value: "kept"},
 			{Name: "SHARED", Value: "base"},
 		},
-		PodAnnotations:   map[string]string{"base": "kept"},
-		AdditionalLabels: map[string]string{"base": "kept"},
-		NodeSelector:     map[string]string{"disk": "nvme"},
+		PodAnnotations: map[string]string{"base": "kept"},
+		AdditionalLabels: map[string]string{
+			"base":                       "kept",
+			"app.kubernetes.io/name":     "configuration-name",
+			"app.kubernetes.io/instance": "configuration-instance",
+			ledgerV3PreviewLabel:         "false",
+		},
+		NodeSelector: map[string]string{"disk": "nvme"},
 		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{
 			MaxSkew:           2,
 			TopologyKey:       "configuration.example/failure-domain",
@@ -96,6 +101,8 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	require.Equal(t, "ca-hash", actual.PodAnnotations[ledgerV3TLSCAHashAnnotation])
 	require.Equal(t, "kept", actual.PodAnnotations["base"])
 	require.Equal(t, "kept", actual.AdditionalLabels["base"])
+	require.Equal(t, "ledger-v3-preview", actual.AdditionalLabels["app.kubernetes.io/name"])
+	require.Equal(t, "stack0", actual.AdditionalLabels["app.kubernetes.io/instance"])
 	require.Equal(t, "true", actual.AdditionalLabels[ledgerV3PreviewLabel])
 	require.Equal(t, "nvme", actual.NodeSelector["disk"])
 	require.Equal(t, defaultLedgerV3TopologySpreadConstraints(), actual.TopologySpreadConstraints)
@@ -143,6 +150,15 @@ func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 			Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("512Mi")},
 		},
 		Auth: &ledgerv1alpha1.AuthorizationConfig{Enabled: pointerTo(true), Issuer: "https://external.example"},
+		Monitoring: &ledgerv1alpha1.MonitoringConfig{
+			ServiceName: "configuration-service",
+			Pyroscope:   &ledgerv1alpha1.PyroscopeConfig{Enabled: true},
+		},
+		AdditionalLabels: map[string]string{
+			"app.kubernetes.io/name":     "configuration-name",
+			"app.kubernetes.io/instance": "configuration-instance",
+			ledgerV3PreviewLabel:         "true",
+		},
 		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{
 			MaxSkew:           2,
 			TopologyKey:       "configuration.example/failure-domain",
@@ -161,6 +177,11 @@ func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 	require.Equal(t, "512Mi", actual.Resources.Requests.Memory().String())
 	require.Equal(t, "https://external.example", actual.Auth.Issuer)
 	require.Equal(t, base.TopologySpreadConstraints, actual.TopologySpreadConstraints)
+	require.Equal(t, "ledger", actual.Monitoring.ServiceName)
+	require.True(t, actual.Monitoring.Pyroscope.Enabled)
+	require.Equal(t, "ledger", actual.AdditionalLabels["app.kubernetes.io/name"])
+	require.Equal(t, "stack0", actual.AdditionalLabels["app.kubernetes.io/instance"])
+	require.NotContains(t, actual.AdditionalLabels, ledgerV3PreviewLabel)
 }
 
 func TestComposeLedgerV3ClusterSpecDisablesConfiguredTopologySpreadConstraints(t *testing.T) {

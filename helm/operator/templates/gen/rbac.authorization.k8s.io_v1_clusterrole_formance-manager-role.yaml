@@ -42,6 +42,12 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authorization.k8s.io
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
   - batch
   resources:
   - cronjobs

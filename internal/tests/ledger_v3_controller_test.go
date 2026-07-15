@@ -114,8 +114,11 @@ var _ = Describe("Ledger v3 controller", func() {
 
 		additionalLabels, found, err := unstructured.NestedStringMap(cluster.Object, "spec", "additionalLabels")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(found).To(BeFalse())
-		Expect(additionalLabels).To(BeNil())
+		Expect(found).To(BeTrue())
+		Expect(additionalLabels).To(Equal(map[string]string{
+			"app.kubernetes.io/name":     "ledger",
+			"app.kubernetes.io/instance": stack.Name,
+		}))
 		Expect(cluster.GetLabels()).To(HaveKeyWithValue(v1beta1.LedgerV3Label, "true"))
 
 		_, found, err = unstructured.NestedMap(cluster.Object, "spec", "auth")
@@ -329,10 +332,15 @@ var _ = Describe("Ledger v3 controller", func() {
 		}).Should(Equal(sha256Hex(rotatedCA)))
 
 		httpAPI := &v1beta1.GatewayHTTPAPI{}
-		Eventually(func(g Gomega) {
+		Eventually(func(g Gomega) *v1beta1.GatewayBackendRef {
 			g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), httpAPI)).To(Succeed())
-		}).Should(Succeed())
-
+			g.Expect(httpAPI.Spec.Rules).To(HaveLen(1))
+			g.Expect(httpAPI.Spec.Rules[0].Path).To(BeEmpty())
+			return httpAPI.Spec.Rules[0].BackendRef
+		}).Should(Equal(&v1beta1.GatewayBackendRef{
+			Name: "ledger-" + stack.Name,
+			Port: 9000,
+		}))
 		grpcAPI := &v1beta1.GatewayGRPCAPI{}
 		Eventually(func(g Gomega) *v1beta1.GatewayBackendRef {
 			g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)).To(Succeed())
@@ -761,6 +769,7 @@ var _ = Describe("Ledger v3 controller", func() {
 					},
 					"additional": map[string]string{
 						"app.kubernetes.io/name":         "ledger-v3-preview",
+						"app.kubernetes.io/instance":     stack.Name,
 						"formance.com/ledger-v3-preview": "true",
 					},
 				}))

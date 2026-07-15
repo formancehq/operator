@@ -14,20 +14,16 @@ import (
 
 type CaddyOptions func(data map[string]any) error
 
+type caddyHTTPService struct {
+	v1beta1.GatewayHTTPAPISpec
+	HealthCheckBackend v1beta1.GatewayBackendRef
+}
+
 func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
 	gateway *v1beta1.Gateway, httpAPIs []*v1beta1.GatewayHTTPAPI,
 	grpcAPIs []*v1beta1.GatewayGRPCAPI, broker *v1beta1.Broker, options ...CaddyOptions) (string, error) {
 
-	services := collectionutils.Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) v1beta1.GatewayHTTPAPISpec {
-		spec := *from.Spec.DeepCopy()
-		for i := range spec.Rules {
-			normalizeBackendTLS(spec.Rules[i].BackendRef)
-		}
-		sort.SliceStable(spec.Rules, func(i, j int) bool {
-			return len(spec.Rules[i].Path) > len(spec.Rules[j].Path)
-		})
-		return spec
-	})
+	services := caddyHTTPServices(httpAPIs)
 
 	data := map[string]any{
 		"Services": services,
@@ -56,6 +52,26 @@ func CreateCaddyfile(ctx core.Context, stack *v1beta1.Stack,
 	}
 
 	return caddy.ComputeCaddyfile(ctx, stack, Caddyfile, data)
+}
+
+func caddyHTTPServices(httpAPIs []*v1beta1.GatewayHTTPAPI) []caddyHTTPService {
+	return collectionutils.Map(httpAPIs, func(from *v1beta1.GatewayHTTPAPI) caddyHTTPService {
+		spec := *from.Spec.DeepCopy()
+		healthCheckBackend := v1beta1.GatewayBackendRef{Name: spec.Name, Port: 8080}
+		for i := range spec.Rules {
+			normalizeBackendTLS(spec.Rules[i].BackendRef)
+			if spec.Rules[i].Path == "" && spec.Rules[i].BackendRef != nil {
+				healthCheckBackend = *spec.Rules[i].BackendRef.DeepCopy()
+			}
+		}
+		sort.SliceStable(spec.Rules, func(i, j int) bool {
+			return len(spec.Rules[i].Path) > len(spec.Rules[j].Path)
+		})
+		return caddyHTTPService{
+			GatewayHTTPAPISpec: spec,
+			HealthCheckBackend: healthCheckBackend,
+		}
+	})
 }
 
 func normalizeBackendTLS(backendRef *v1beta1.GatewayBackendRef) {
