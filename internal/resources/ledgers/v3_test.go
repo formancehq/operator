@@ -1,6 +1,139 @@
 package ledgers
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+)
+
+type failingLedgerV3DiscoveryReader struct {
+	err error
+}
+
+func (r failingLedgerV3DiscoveryReader) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
+	return r.err
+}
+
+func (r failingLedgerV3DiscoveryReader) List(context.Context, client.ObjectList, ...client.ListOption) error {
+	return r.err
+}
+
+type inaccessibleLedgerV3ResourceReader struct {
+	err error
+}
+
+func (r inaccessibleLedgerV3ResourceReader) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
+	return r.err
+}
+
+func (r inaccessibleLedgerV3ResourceReader) List(_ context.Context, object client.ObjectList, _ ...client.ListOption) error {
+	switch list := object.(type) {
+	case *apiextensionsv1.CustomResourceDefinitionList:
+		list.Items = []apiextensionsv1.CustomResourceDefinition{{
+			ObjectMeta: metav1.ObjectMeta{Name: "clusters.ledger.formance.com"},
+			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Group: "ledger.formance.com",
+				Names: apiextensionsv1.CustomResourceDefinitionNames{Kind: "Cluster", Plural: "clusters"},
+				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+					Name: "v1alpha1", Served: true, Storage: true,
+				}},
+			},
+		}}
+		return nil
+	case *unstructured.UnstructuredList:
+		return r.err
+	default:
+		return nil
+	}
+}
+
+type ledgerV3DiscoveryContext struct {
+	context.Context
+	reader client.Reader
+}
+
+func (c ledgerV3DiscoveryContext) GetClient() client.Client    { return nil }
+func (c ledgerV3DiscoveryContext) GetScheme() *runtime.Scheme  { return nil }
+func (c ledgerV3DiscoveryContext) GetAPIReader() client.Reader { return c.reader }
+func (c ledgerV3DiscoveryContext) GetPlatform() core.Platform  { return core.Platform{} }
+
+func TestLedgerV3DiscoveryFailureDisablesCapabilityWithoutFailing(t *testing.T) {
+	previousClusterAvailable := ledgerV3ClusterAvailable
+	previousCertManagerAvailable := ledgerV3CertManagerAvailable
+	ledgerV3ClusterAvailable = true
+	ledgerV3CertManagerAvailable = true
+	t.Cleanup(func() {
+		ledgerV3ClusterAvailable = previousClusterAvailable
+		ledgerV3CertManagerAvailable = previousCertManagerAvailable
+	})
+
+	options := core.ReconcilerOptions[*v1beta1.Ledger]{}
+	withLedgerV3ClusterWatch()(&options)
+	if len(options.Raws) != 1 {
+		t.Fatalf("withLedgerV3ClusterWatch() registered %d raw builders, want 1", len(options.Raws))
+	}
+
+	discoveryError := errors.New("CRD discovery forbidden")
+	ctx := ledgerV3DiscoveryContext{
+		Context: context.Background(),
+		reader:  failingLedgerV3DiscoveryReader{err: discoveryError},
+	}
+	if err := options.Raws[0](ctx, nil); err != nil {
+		t.Fatalf("Ledger v3 discovery failure must not fail controller setup: %v", err)
+	}
+	if ledgerV3ClusterAvailable {
+		t.Fatal("Ledger v3 Cluster capability remains enabled after discovery failure")
+	}
+	if ledgerV3CertManagerAvailable {
+		t.Fatal("Ledger v3 cert-manager capability remains enabled after discovery failure")
+	}
+}
+
+func TestLedgerV3PreviewVersionIgnoredWhenClusterUnavailable(t *testing.T) {
+	previous := ledgerV3ClusterAvailable
+	ledgerV3ClusterAvailable = false
+	t.Cleanup(func() {
+		ledgerV3ClusterAvailable = previous
+	})
+
+	version, err := ledgerV3PreviewVersion(nil, nil)
+	if err != nil {
+		t.Fatalf("ledgerV3PreviewVersion() returned error: %v", err)
+	}
+	if version != "" {
+		t.Fatalf("ledgerV3PreviewVersion() = %q, want an empty version", version)
+	}
+}
+
+func TestLedgerV3ResourceAccessFailureDisablesCapabilityWithoutFailing(t *testing.T) {
+	previous := ledgerV3ClusterAvailable
+	ledgerV3ClusterAvailable = true
+	t.Cleanup(func() {
+		ledgerV3ClusterAvailable = previous
+	})
+
+	options := core.ReconcilerOptions[*v1beta1.Ledger]{}
+	withLedgerV3ClusterWatch()(&options)
+	ctx := ledgerV3DiscoveryContext{
+		Context: context.Background(),
+		reader:  inaccessibleLedgerV3ResourceReader{err: errors.New("Cluster list forbidden")},
+	}
+	if err := options.Raws[0](ctx, nil); err != nil {
+		t.Fatalf("Ledger v3 resource access failure must not fail controller setup: %v", err)
+	}
+	if ledgerV3ClusterAvailable {
+		t.Fatal("Ledger v3 Cluster capability remains enabled when Cluster objects are inaccessible")
+	}
+}
 
 func TestIsLedgerV3(t *testing.T) {
 	t.Parallel()

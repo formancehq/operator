@@ -74,7 +74,11 @@ func withLedgerV3ClusterWatch() core.ReconcilerOption[*v1beta1.Ledger] {
 		options.Raws = append(options.Raws, func(ctx core.Context, b *builder.Builder) error {
 			crds := &apiextensionsv1.CustomResourceDefinitionList{}
 			if err := ctx.GetAPIReader().List(ctx, crds); err != nil {
-				return err
+				ledgerV3ClusterAvailable = false
+				ledgerV3CertManagerAvailable = false
+				log.FromContext(ctx).Info("Ledger v3 capability is unavailable; continuing without it",
+					"error", err)
+				return nil
 			}
 
 			ledgerV3ClusterAvailable = watchLedgerV3Resource(ctx, b, options, crds, ledgerV3ClusterGVK)
@@ -126,6 +130,15 @@ func watchLedgerV3Resource(
 		}
 		for _, version := range crd.Spec.Versions {
 			if version.Name == gvk.Version && version.Served {
+				resourceList := &unstructured.UnstructuredList{}
+				resourceList.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
+				if err := ctx.GetAPIReader().List(ctx, resourceList, client.Limit(1)); err != nil {
+					log.FromContext(ctx).Info("Ledger v3 dependency is inaccessible; continuing without it",
+						"gvk", gvk,
+						"error", err)
+					return false
+				}
+
 				resource := newLedgerV3Resource(gvk)
 				options.Owns[resource] = nil
 				b.Owns(resource)

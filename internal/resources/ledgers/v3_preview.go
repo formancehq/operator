@@ -33,6 +33,13 @@ import (
 )
 
 func ledgerV3PreviewVersion(ctx core.Context, stack *v1beta1.Stack) (string, error) {
+	// Preview is an optional capability. Ignore its Setting entirely when the
+	// Ledger Operator CRD could not be discovered, so Ledger v2 reconciliation
+	// remains unchanged and does not expose routes to a missing backend.
+	if !ledgerV3ClusterAvailable {
+		return "", nil
+	}
+
 	version, err := settings.GetStringOrEmpty(ctx, stack.Name, "ledger", "v3", "preview-version")
 	if err != nil {
 		return "", err

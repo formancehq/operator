@@ -201,21 +201,21 @@
       "key": "deployments.ledger.containers.ledger.resource-requirements.claims",
       "valueType": "string[]",
       "sources": [
-        "internal/resources/ledgers/v3.go:290"
+        "internal/resources/ledgers/v3.go:303"
       ]
     },
     {
       "key": "deployments.ledger.containers.ledger.resource-requirements.limits",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/ledgers/v3.go:290"
+        "internal/resources/ledgers/v3.go:303"
       ]
     },
     {
       "key": "deployments.ledger.containers.ledger.resource-requirements.requests",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/ledgers/v3.go:290"
+        "internal/resources/ledgers/v3.go:303"
       ]
     },
     {
@@ -223,14 +223,14 @@
       "valueType": "int32",
       "default": "3",
       "sources": [
-        "internal/resources/ledgers/v3.go:276"
+        "internal/resources/ledgers/v3.go:289"
       ]
     },
     {
       "key": "deployments.ledger.topology-spread-constraints",
       "valueType": "bool",
       "sources": [
-        "internal/resources/ledgers/v3.go:308"
+        "internal/resources/ledgers/v3.go:321"
       ]
     },
     {
@@ -473,7 +473,7 @@
       "key": "ledger.v3.preview-version",
       "valueType": "string",
       "sources": [
-        "internal/resources/ledgers/v3_preview.go:36"
+        "internal/resources/ledgers/v3_preview.go:43"
       ]
     },
     {
