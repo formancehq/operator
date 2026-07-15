@@ -305,21 +305,27 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	if err != nil {
 		return nil, err
 	}
+	topologySpreadConstraints, err := settings.GetBool(ctx, stack.Name,
+		"deployments", "ledger", "topology-spread-constraints")
+	if err != nil {
+		return nil, err
+	}
 	desiredSpec := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
-		ImageRepository:    imageRepository(image),
-		ImageTag:           image.Version,
-		ImagePullSecrets:   image.PullSecrets,
-		Replicas:           replicas,
-		ClusterID:          stack.Name,
-		Debug:              stack.Spec.Debug || ledger.Spec.Debug,
-		TLSSecretName:      ledgerV3TLSName(stack.Name),
-		TLSCAHash:          tlsCAHash,
-		Preview:            preview,
-		Resources:          resourceRequirements,
-		ExtraEnv:           core.GetDevEnvVars(stack, ledger),
-		Monitoring:         monitoringConfiguration,
-		Auth:               authConfiguration,
-		ServiceAccountName: serviceAccountName,
+		ImageRepository:           imageRepository(image),
+		ImageTag:                  image.Version,
+		ImagePullSecrets:          image.PullSecrets,
+		Replicas:                  replicas,
+		ClusterID:                 stack.Name,
+		Debug:                     stack.Spec.Debug || ledger.Spec.Debug,
+		TLSSecretName:             ledgerV3TLSName(stack.Name),
+		TLSCAHash:                 tlsCAHash,
+		Preview:                   preview,
+		Resources:                 resourceRequirements,
+		ExtraEnv:                  core.GetDevEnvVars(stack, ledger),
+		Monitoring:                monitoringConfiguration,
+		Auth:                      authConfiguration,
+		ServiceAccountName:        serviceAccountName,
+		TopologySpreadConstraints: topologySpreadConstraints,
 	})
 	desiredSpecMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(desiredSpec)
 	if err != nil {

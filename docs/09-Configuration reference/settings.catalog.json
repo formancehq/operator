@@ -227,6 +227,13 @@
       ]
     },
     {
+      "key": "deployments.ledger.topology-spread-constraints",
+      "valueType": "bool",
+      "sources": [
+        "internal/resources/ledgers/v3.go:308"
+      ]
+    },
+    {
       "key": "gateway.caddyfile.grace-period",
       "valueType": "string",
       "sources": [

@@ -41,6 +41,11 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 		PodAnnotations:   map[string]string{"base": "kept"},
 		AdditionalLabels: map[string]string{"base": "kept"},
 		NodeSelector:     map[string]string{"disk": "nvme"},
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{
+			MaxSkew:           2,
+			TopologyKey:       "configuration.example/failure-domain",
+			WhenUnsatisfiable: corev1.ScheduleAnyway,
+		}},
 		ServiceAccount: ledgerv1alpha1.ServiceAccountSpec{
 			Annotations: map[string]string{"eks.amazonaws.com/role-arn": "role"},
 		},
@@ -77,7 +82,8 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 			CheckScopes:          true,
 			Service:              "ledger",
 		},
-		ServiceAccountName: "ledger-aws",
+		ServiceAccountName:        "ledger-aws",
+		TopologySpreadConstraints: pointerTo(true),
 	})
 
 	require.Equal(t, "registry.example/ledger", actual.Image.Repository)
@@ -92,6 +98,7 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	require.Equal(t, "kept", actual.AdditionalLabels["base"])
 	require.Equal(t, "true", actual.AdditionalLabels[ledgerV3PreviewLabel])
 	require.Equal(t, "nvme", actual.NodeSelector["disk"])
+	require.Equal(t, defaultLedgerV3TopologySpreadConstraints(), actual.TopologySpreadConstraints)
 	require.Equal(t, "2", actual.Resources.Limits.Cpu().String())
 	require.Empty(t, actual.Resources.Requests)
 	require.Equal(t, []corev1.EnvVar{
@@ -136,6 +143,11 @@ func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 			Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("512Mi")},
 		},
 		Auth: &ledgerv1alpha1.AuthorizationConfig{Enabled: pointerTo(true), Issuer: "https://external.example"},
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{
+			MaxSkew:           2,
+			TopologyKey:       "configuration.example/failure-domain",
+			WhenUnsatisfiable: corev1.ScheduleAnyway,
+		}},
 	}
 	actual := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
 		ImageRepository: "ledger",
@@ -148,4 +160,24 @@ func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 	require.Equal(t, "base-registry", actual.ImagePullSecrets[0].Name)
 	require.Equal(t, "512Mi", actual.Resources.Requests.Memory().String())
 	require.Equal(t, "https://external.example", actual.Auth.Issuer)
+	require.Equal(t, base.TopologySpreadConstraints, actual.TopologySpreadConstraints)
+}
+
+func TestComposeLedgerV3ClusterSpecDisablesConfiguredTopologySpreadConstraints(t *testing.T) {
+	t.Parallel()
+
+	base := &ledgerv1alpha1.ClusterSpec{
+		TopologySpreadConstraints: defaultLedgerV3TopologySpreadConstraints(),
+	}
+	actual := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
+		ImageRepository:           "ledger",
+		ImageTag:                  "latest",
+		Replicas:                  3,
+		ClusterID:                 "stack0",
+		TLSSecretName:             "tls",
+		TopologySpreadConstraints: pointerTo(false),
+	})
+
+	require.Nil(t, actual.TopologySpreadConstraints)
+	require.NotEmpty(t, base.TopologySpreadConstraints)
 }

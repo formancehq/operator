@@ -15,20 +15,21 @@ import (
 )
 
 type ledgerV3SpecOverrides struct {
-	ImageRepository    string
-	ImageTag           string
-	ImagePullSecrets   []corev1.LocalObjectReference
-	Replicas           int32
-	ClusterID          string
-	Debug              bool
-	TLSSecretName      string
-	TLSCAHash          string
-	Preview            bool
-	Resources          *corev1.ResourceRequirements
-	ExtraEnv           []corev1.EnvVar
-	Monitoring         *settings.OpenTelemetryConfiguration
-	Auth               *auths.ProtectedAuthConfiguration
-	ServiceAccountName string
+	ImageRepository           string
+	ImageTag                  string
+	ImagePullSecrets          []corev1.LocalObjectReference
+	Replicas                  int32
+	ClusterID                 string
+	Debug                     bool
+	TLSSecretName             string
+	TLSCAHash                 string
+	Preview                   bool
+	Resources                 *corev1.ResourceRequirements
+	ExtraEnv                  []corev1.EnvVar
+	Monitoring                *settings.OpenTelemetryConfiguration
+	Auth                      *auths.ProtectedAuthConfiguration
+	ServiceAccountName        string
+	TopologySpreadConstraints *bool
 }
 
 // composeLedgerV3ClusterSpec applies the values owned by the Formance Operator
@@ -86,8 +87,30 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 		spec.ServiceAccount.Create = pointerTo(false)
 		spec.ServiceAccount.Name = overrides.ServiceAccountName
 	}
+	if overrides.TopologySpreadConstraints != nil {
+		if *overrides.TopologySpreadConstraints {
+			spec.TopologySpreadConstraints = defaultLedgerV3TopologySpreadConstraints()
+		} else {
+			spec.TopologySpreadConstraints = nil
+		}
+	}
 
 	return spec
+}
+
+func defaultLedgerV3TopologySpreadConstraints() []corev1.TopologySpreadConstraint {
+	return []corev1.TopologySpreadConstraint{
+		{
+			MaxSkew:           1,
+			TopologyKey:       corev1.LabelTopologyZone,
+			WhenUnsatisfiable: corev1.ScheduleAnyway,
+		},
+		{
+			MaxSkew:           1,
+			TopologyKey:       corev1.LabelHostname,
+			WhenUnsatisfiable: corev1.DoNotSchedule,
+		},
+	}
 }
 
 func applyLedgerV3Auth(spec *ledgerv1alpha1.ClusterSpec, configuration *auths.ProtectedAuthConfiguration) {
