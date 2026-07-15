@@ -50,7 +50,7 @@ var _ = Describe("NetworkPolicyController", func() {
 				Expect(Delete(enabledSetting)).To(Succeed())
 			})
 
-			It("Should create 3 NetworkPolicies controlled by the stack", func() {
+			It("Should create NetworkPolicies controlled by the stack", func() {
 				// Check default-deny-ingress
 				Eventually(func(g Gomega) {
 					np := &networkingv1.NetworkPolicy{}
@@ -80,6 +80,47 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
 					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "gateway"))
 				}).Should(Succeed())
+
+				// Direct Ledger v3 replicas can communicate over Raft and service gRPC.
+				Eventually(func(g Gomega) {
+					np := &networkingv1.NetworkPolicy{}
+					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-cluster", np)).To(Succeed())
+					g.Expect(np).To(BeControlledBy(stack))
+					g.Expect(np.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{
+						"app.kubernetes.io/instance": stack.Name,
+						"app.kubernetes.io/name":     "ledger",
+					}))
+					g.Expect(np.Spec.Ingress).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
+					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(np.Spec.PodSelector.MatchLabels))
+					g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(2))
+				}).Should(Succeed())
+
+				// Existing preview clusters keep their historical immutable selector.
+				Eventually(func(g Gomega) {
+					np := &networkingv1.NetworkPolicy{}
+					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-preview-cluster", np)).To(Succeed())
+					g.Expect(np).To(BeControlledBy(stack))
+					g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("formance.com/ledger-v3-preview", "true"))
+					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(np.Spec.PodSelector.MatchLabels))
+				}).Should(Succeed())
+
+				// Ledger v3 can reach only the legacy Ledger from the same namespace.
+				Eventually(func(g Gomega) {
+					np := &networkingv1.NetworkPolicy{}
+					g.Expect(LoadResource(stack.Name, "allow-ledger-v2-from-v3", np)).To(Succeed())
+					g.Expect(np).To(BeControlledBy(stack))
+					g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "ledger"))
+					g.Expect(np.Spec.Ingress).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(2))
+					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
+					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/instance", stack.Name))
+					g.Expect(np.Spec.Ingress[0].From[1].PodSelector.MatchLabels).To(HaveKeyWithValue("formance.com/ledger-v3-preview", "true"))
+					g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8080))
+				}).Should(Succeed())
+
 			})
 
 			Context("Then disabling networkpolicies", func() {
@@ -103,6 +144,15 @@ var _ = Describe("NetworkPolicyController", func() {
 					}).Should(BeNotFound())
 					Eventually(func() error {
 						return LoadResource(stack.Name, "allow-from-gateway", &networkingv1.NetworkPolicy{})
+					}).Should(BeNotFound())
+					Eventually(func() error {
+						return LoadResource(stack.Name, "allow-ledger-v3-cluster", &networkingv1.NetworkPolicy{})
+					}).Should(BeNotFound())
+					Eventually(func() error {
+						return LoadResource(stack.Name, "allow-ledger-v3-preview-cluster", &networkingv1.NetworkPolicy{})
+					}).Should(BeNotFound())
+					Eventually(func() error {
+						return LoadResource(stack.Name, "allow-ledger-v2-from-v3", &networkingv1.NetworkPolicy{})
 					}).Should(BeNotFound())
 				})
 			})

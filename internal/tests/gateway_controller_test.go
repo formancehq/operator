@@ -363,6 +363,9 @@ var _ = Describe("GatewayController", func() {
 				tlsSecret.Labels = map[string]string{v1beta1.GatewayBackendTLSSecretLabel: "true"}
 			})
 			JustBeforeEach(func() {
+				Eventually(func() error {
+					return LoadResource("", stack.Name, &corev1.Namespace{})
+				}).Should(Succeed())
 				Expect(Create(tlsSecret)).To(Succeed())
 				Expect(Create(grpcAPI)).To(Succeed())
 			})

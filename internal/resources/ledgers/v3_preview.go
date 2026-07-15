@@ -49,12 +49,12 @@ func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 		return core.NewPendingError().WithMessage("Ledger v3 preview unavailable: Cluster CRD is not installed")
 	}
 
-	tlsReady, tlsMessage, err := createOrUpdateV3TLSResources(ctx, stack, ledger, true)
+	tlsReady, tlsMessage, tlsCAHash, err := createOrUpdateV3TLSResources(ctx, stack, ledger, true)
 	if err != nil {
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
 		return err
 	}
-	cluster, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, true)
+	cluster, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, true, tlsCAHash)
 	if err != nil {
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err

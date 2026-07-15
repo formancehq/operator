@@ -1,6 +1,9 @@
 package tests_test
 
 import (
+	"crypto/sha256"
+	"fmt"
+
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -55,6 +58,10 @@ func newLedgerV3Certificate() *unstructured.Unstructured {
 	return certificate
 }
 
+func sha256Hex(data []byte) string {
+	return fmt.Sprintf("%x", sha256.Sum256(data))
+}
+
 var _ = Describe("Ledger v3 controller", func() {
 	var (
 		stack  *v1beta1.Stack
@@ -102,6 +109,12 @@ var _ = Describe("Ledger v3 controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(found).To(BeTrue())
 		Expect(tag).To(Equal("v3.0.0-alpha.1"))
+
+		additionalLabels, found, err := unstructured.NestedStringMap(cluster.Object, "spec", "additionalLabels")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeFalse())
+		Expect(additionalLabels).To(BeNil())
+		Expect(cluster.GetLabels()).To(HaveKeyWithValue(v1beta1.LedgerV3Label, "true"))
 
 		_, found, err = unstructured.NestedMap(cluster.Object, "spec", "auth")
 		Expect(err).NotTo(HaveOccurred())
@@ -288,6 +301,30 @@ var _ = Describe("Ledger v3 controller", func() {
 			"secretName":  tlsName,
 			"caSecretKey": "ca.crt",
 		}))
+
+		Eventually(func(g Gomega) string {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			annotations, found, err := unstructured.NestedStringMap(cluster.Object, "spec", "podAnnotations")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return annotations["formance.com/ledger-v3-ca-sha256"]
+		}).Should(Equal(sha256Hex(secret.Data["ca.crt"])))
+
+		// A cert-manager CA rotation must change the pod template so that Ledger
+		// reloads the client trust pool used for follower-to-leader forwarding.
+		rotatedCA := []byte("rotated certificate authority")
+		secret.Data["ca.crt"] = rotatedCA
+		Expect(Update(secret)).To(Succeed())
+		certificate.SetAnnotations(map[string]string{"tests.formance.com/rotation": uuid.NewString()})
+		Expect(Update(certificate)).To(Succeed())
+
+		Eventually(func(g Gomega) string {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			annotations, found, err := unstructured.NestedStringMap(cluster.Object, "spec", "podAnnotations")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			return annotations["formance.com/ledger-v3-ca-sha256"]
+		}).Should(Equal(sha256Hex(rotatedCA)))
 
 		httpAPI := &v1beta1.GatewayHTTPAPI{}
 		Eventually(func(g Gomega) {
@@ -717,6 +754,7 @@ var _ = Describe("Ledger v3 controller", func() {
 				}).Should(Equal(map[string]any{
 					"metadata": map[string]string{
 						v1beta1.StackLabel:               stack.Name,
+						v1beta1.LedgerV3Label:            "true",
 						"formance.com/ledger-v3-preview": "true",
 					},
 					"additional": map[string]string{

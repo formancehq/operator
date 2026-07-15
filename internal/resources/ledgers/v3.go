@@ -125,13 +125,13 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		return core.NewPendingError().WithMessage("migration required before switching Ledger from v2 to v3")
 	}
 
-	tlsReady, tlsMessage, err := createOrUpdateV3TLSResources(ctx, stack, ledger, false)
+	tlsReady, tlsMessage, tlsCAHash, err := createOrUpdateV3TLSResources(ctx, stack, ledger, false)
 	if err != nil {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
 		return err
 	}
 
-	cluster, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, false)
+	cluster, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, false, tlsCAHash)
 	if err != nil {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
@@ -231,7 +231,7 @@ func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
 	return configured, false, nil
 }
 
-func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool) (*unstructured.Unstructured, error) {
+func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool, tlsCAHash string) (*unstructured.Unstructured, error) {
 	image, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
 		return nil, err
@@ -284,6 +284,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			labels = map[string]string{}
 		}
 		labels[v1beta1.StackLabel] = stack.Name
+		labels[v1beta1.LedgerV3Label] = "true"
 		if preview {
 			labels[ledgerV3PreviewLabel] = "true"
 		} else {
@@ -316,11 +317,32 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		if err := unstructured.SetNestedMap(cluster.Object, ledgerV3TLSSpec(stack.Name), "spec", "tls"); err != nil {
 			return err
 		}
+		podAnnotations, _, err := unstructured.NestedStringMap(cluster.Object, "spec", "podAnnotations")
+		if err != nil {
+			return err
+		}
+		if podAnnotations == nil {
+			podAnnotations = map[string]string{}
+		}
+		if tlsCAHash != "" {
+			podAnnotations[ledgerV3TLSCAHashAnnotation] = tlsCAHash
+		} else {
+			delete(podAnnotations, ledgerV3TLSCAHashAnnotation)
+		}
+		if len(podAnnotations) > 0 {
+			if err := unstructured.SetNestedStringMap(cluster.Object, podAnnotations, "spec", "podAnnotations"); err != nil {
+				return err
+			}
+		} else {
+			unstructured.RemoveNestedField(cluster.Object, "spec", "podAnnotations")
+		}
+		additionalLabels := map[string]string{}
 		if preview {
-			if err := unstructured.SetNestedStringMap(cluster.Object, map[string]string{
-				"app.kubernetes.io/name": "ledger-v3-preview",
-				ledgerV3PreviewLabel:     "true",
-			}, "spec", "additionalLabels"); err != nil {
+			additionalLabels["app.kubernetes.io/name"] = "ledger-v3-preview"
+			additionalLabels[ledgerV3PreviewLabel] = "true"
+		}
+		if len(additionalLabels) > 0 {
+			if err := unstructured.SetNestedStringMap(cluster.Object, additionalLabels, "spec", "additionalLabels"); err != nil {
 				return err
 			}
 		} else {

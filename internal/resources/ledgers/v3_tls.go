@@ -1,6 +1,8 @@
 package ledgers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -18,6 +20,7 @@ const (
 	ledgerV3TLSCertificateDuration    = "87600h"
 	ledgerV3TLSCertificateRenewBefore = "720h"
 	ledgerV3TLSCASecretKey            = "ca.crt"
+	ledgerV3TLSCAHashAnnotation       = "formance.com/ledger-v3-ca-sha256"
 )
 
 var (
@@ -41,9 +44,9 @@ func newLedgerV3Resource(gvk schema.GroupVersionKind) *unstructured.Unstructured
 	return resource
 }
 
-func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, preview bool) (bool, string, error) {
+func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, preview bool) (bool, string, string, error) {
 	if !ledgerV3CertManagerAvailable {
-		return false, "cert-manager Issuer and Certificate CRDs are not installed", nil
+		return false, "cert-manager Issuer and Certificate CRDs are not installed", "", nil
 	}
 
 	issuer := newLedgerV3Resource(ledgerV3IssuerGVK)
@@ -56,7 +59,7 @@ func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger
 		}
 		return unstructured.SetNestedMap(issuer.Object, map[string]any{}, "spec", "selfSigned")
 	}); err != nil {
-		return false, "", err
+		return false, "", "", err
 	}
 
 	certificate := newLedgerV3Resource(ledgerV3CertificateGVK)
@@ -70,29 +73,34 @@ func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger
 		certificate.Object["spec"] = ledgerV3CertificateSpec(stack.Name)
 		return nil
 	}); err != nil {
-		return false, "", err
+		return false, "", "", err
 	}
 
 	ready, message, err := ledgerV3CertificateReady(certificate)
 	if err != nil || !ready {
-		return ready, message, err
+		return ready, message, "", err
 	}
 
 	secret := &corev1.Secret{}
 	err = ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: ledgerV3TLSName(stack.Name)}, secret)
 	if apierrors.IsNotFound(err) {
-		return false, fmt.Sprintf("TLS Secret %s/%s does not exist", stack.Name, ledgerV3TLSName(stack.Name)), nil
+		return false, fmt.Sprintf("TLS Secret %s/%s does not exist", stack.Name, ledgerV3TLSName(stack.Name)), "", nil
 	}
 	if err != nil {
-		return false, "", err
+		return false, "", "", err
 	}
 	for _, key := range []string{corev1.TLSCertKey, corev1.TLSPrivateKeyKey, ledgerV3TLSCASecretKey} {
 		if len(secret.Data[key]) == 0 {
-			return false, fmt.Sprintf("TLS Secret %s/%s is missing %q", stack.Name, secret.Name, key), nil
+			return false, fmt.Sprintf("TLS Secret %s/%s is missing %q", stack.Name, secret.Name, key), "", nil
 		}
 	}
 
-	return true, "Certificate and TLS Secret are ready", nil
+	return true, "Certificate and TLS Secret are ready", ledgerV3TLSCAHash(secret.Data[ledgerV3TLSCASecretKey]), nil
+}
+
+func ledgerV3TLSCAHash(ca []byte) string {
+	sum := sha256.Sum256(ca)
+	return hex.EncodeToString(sum[:])
 }
 
 func setLedgerV3TLSResourceMetadata(resource *unstructured.Unstructured, stackName string, preview bool) {

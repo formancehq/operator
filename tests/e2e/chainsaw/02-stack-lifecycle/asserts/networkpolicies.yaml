@@ -48,3 +48,73 @@ spec:
               app.kubernetes.io/name: gateway
   policyTypes:
     - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ledger-v3-cluster
+  namespace: chainsaw-networkpolicies
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: chainsaw-networkpolicies
+      app.kubernetes.io/name: ledger
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: chainsaw-networkpolicies
+              app.kubernetes.io/name: ledger
+      ports:
+        - protocol: TCP
+          port: 7777
+        - protocol: TCP
+          port: 8888
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ledger-v3-preview-cluster
+  namespace: chainsaw-networkpolicies
+spec:
+  podSelector:
+    matchLabels:
+      formance.com/ledger-v3-preview: "true"
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              formance.com/ledger-v3-preview: "true"
+      ports:
+        - protocol: TCP
+          port: 7777
+        - protocol: TCP
+          port: 8888
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ledger-v2-from-v3
+  namespace: chainsaw-networkpolicies
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ledger
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: chainsaw-networkpolicies
+              app.kubernetes.io/name: ledger
+        - podSelector:
+            matchLabels:
+              formance.com/ledger-v3-preview: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
+  policyTypes:
+    - Ingress
