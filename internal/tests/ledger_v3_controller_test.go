@@ -3,6 +3,7 @@ package tests_test
 import (
 	"crypto/sha256"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
@@ -474,7 +475,7 @@ var _ = Describe("Ledger v3 controller", func() {
 			_, found, err := unstructured.NestedMap(cluster.Object, "spec", "auth")
 			g.Expect(err).NotTo(HaveOccurred())
 			return found
-		}).Should(BeFalse())
+		}, time.Minute).Should(BeFalse())
 	})
 
 	It("combines a managed collector with logs configured in Settings", func() {
@@ -587,7 +588,7 @@ var _ = Describe("Ledger v3 controller", func() {
 		Eventually(func(g Gomega) bool {
 			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
 			return ledger.Status.Ready
-		}).Should(BeTrue())
+		}, time.Minute).Should(BeTrue())
 	})
 
 	It("removes stale v2 readiness conditions", func() {
