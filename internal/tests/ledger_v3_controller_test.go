@@ -212,7 +212,7 @@ var _ = Describe("Ledger v3 controller", func() {
 		issuer := newLedgerV3Issuer()
 		certificate := newLedgerV3Certificate()
 		cluster := newLedgerV3Cluster()
-		tlsName := stack.Name + "-tls"
+		tlsName := stack.Name + "-ledger-v3-tls"
 
 		Eventually(func(g Gomega) {
 			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)).To(Succeed())
@@ -546,7 +546,7 @@ var _ = Describe("Ledger v3 controller", func() {
 
 	It("mirrors Cluster readiness on the Formance Ledger", func() {
 		certificate := newLedgerV3Certificate()
-		tlsName := stack.Name + "-tls"
+		tlsName := stack.Name + "-ledger-v3-tls"
 		Eventually(func(g Gomega) error {
 			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: tlsName}, certificate)).To(Succeed())
 			return nil
@@ -791,7 +791,7 @@ var _ = Describe("Ledger v3 controller", func() {
 				)))
 
 				certificate := newLedgerV3Certificate()
-				tlsName := stack.Name + "-tls"
+				tlsName := stack.Name + "-ledger-v3-tls"
 				Eventually(func(g Gomega) error {
 					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: tlsName}, certificate)).To(Succeed())
 					return nil
@@ -826,7 +826,7 @@ var _ = Describe("Ledger v3 controller", func() {
 					Name: "ledger-" + stack.Name,
 					Port: 8888,
 					TLS: &v1beta1.GatewayBackendTLS{
-						SecretName:  stack.Name + "-tls",
+						SecretName:  stack.Name + "-ledger-v3-tls",
 						CASecretKey: "ca.crt",
 						ServerName:  "ledger-" + stack.Name + "." + stack.Name + ".svc.cluster.local",
 					},
@@ -862,7 +862,7 @@ var _ = Describe("Ledger v3 controller", func() {
 				certificate := newLedgerV3Certificate()
 				issuer := newLedgerV3Issuer()
 				Eventually(func(g Gomega) {
-					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-tls"}, certificate)).To(Succeed())
+					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-ledger-v3-tls"}, certificate)).To(Succeed())
 					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)).To(Succeed())
 				}).Should(Succeed())
 
@@ -872,7 +872,7 @@ var _ = Describe("Ledger v3 controller", func() {
 					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
 				}).Should(BeNotFound())
 				Eventually(func() error {
-					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-tls"}, certificate)
+					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-ledger-v3-tls"}, certificate)
 				}).Should(BeNotFound())
 				Eventually(func() error {
 					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)

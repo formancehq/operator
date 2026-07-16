@@ -122,7 +122,16 @@ func ledgerV3IssuerName(stackName string) string {
 }
 
 func ledgerV3TLSName(stackName string) string {
-	return stackName + "-tls"
+	// Must be unique to the ledger v3 raft cluster. The bare "<stack>-tls"
+	// name collides with the gateway ingress TLS secret
+	// (internal/resources/gateways/ingress.go names it "<gateway>-tls", and
+	// the gateway is named after the stack). When gateway ingress TLS is
+	// enabled, both this self-signed Certificate and the gateway ingress
+	// (ingress-shim / public issuer) target the same Secret and continuously
+	// reissue it, churning the keypair and breaking raft mTLS. The gateway
+	// consumes this backend cert by the GatewayBackendTLSSecretLabel, not by
+	// name, so a dedicated name is safe.
+	return stackName + "-ledger-v3-tls"
 }
 
 func ledgerV3CertificateSpec(stackName string) map[string]any {
