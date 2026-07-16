@@ -32,6 +32,7 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/ledgers"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
 const connectivityReadyCondition = "ConnectivityClusterReady"
@@ -95,6 +96,17 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return NewPendingError().WithMessage("waiting for the ledger to be ready")
 	}
 
+	// Resolve the connectivity-core image through the operator's registry
+	// translation so it honours the stack's registry settings (e.g. the
+	// ghcr.io -> registry.v2.formance.dev rewrite and pull secrets) instead of
+	// the connectivity operator's built-in ghcr.io/...:latest default, which
+	// would not be pullable on rewritten registries.
+	image, err := registries.GetFormanceImage(ctx, stack, "connectivity-core", version)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "ImageResolveFailed", err.Error())
+		return err
+	}
+
 	// Reuse the single source of truth for the ledger v3 gRPC connection: same
 	// service, port and backend TLS material (self-signed CA secret + SNI) that
 	// the gateway uses to reach the ledger.
@@ -115,7 +127,17 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := unstructured.SetNestedField(object.Object, backend.TLS.SecretName, "spec", "ledgerTLS", "secretName"); err != nil {
 			return err
 		}
-		return unstructured.SetNestedField(object.Object, backend.TLS.ServerName, "spec", "ledgerTLS", "serverName")
+		if err := unstructured.SetNestedField(object.Object, backend.TLS.ServerName, "spec", "ledgerTLS", "serverName"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(object.Object, image.GetFullImageName(), "spec", "image"); err != nil {
+			return err
+		}
+		pullSecrets := make([]any, 0, len(image.PullSecrets))
+		for _, ps := range image.PullSecrets {
+			pullSecrets = append(pullSecrets, map[string]any{"name": ps.Name})
+		}
+		return unstructured.SetNestedSlice(object.Object, pullSecrets, "spec", "imagePullSecrets")
 	}); err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
