@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,11 +32,17 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
-const connectivityReadyCondition = "ConnectivityClusterReady"
+const (
+	connectivityReadyCondition = "ConnectivityClusterReady"
+	// connectivityAPIPort is the port the connectivity-api HTTP server (and its
+	// Service, provisioned by the connectivity operator) listens on.
+	connectivityAPIPort = int32(8080)
+)
 
 var (
 	// connectivityGVK is the delegated resource, owned by the connectivity
@@ -106,6 +113,11 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "ImageResolveFailed", err.Error())
 		return err
 	}
+	apiImage, err := registries.GetFormanceImage(ctx, stack, "connectivity-api", version)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "APIImageResolveFailed", err.Error())
+		return err
+	}
 
 	// Reuse the single source of truth for the ledger v3 gRPC connection: same
 	// service, port and backend TLS material (self-signed CA secret + SNI) that
@@ -133,13 +145,32 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := unstructured.SetNestedField(object.Object, image.GetFullImageName(), "spec", "image"); err != nil {
 			return err
 		}
-		pullSecrets := make([]any, 0, len(image.PullSecrets))
-		for _, ps := range image.PullSecrets {
-			pullSecrets = append(pullSecrets, map[string]any{"name": ps.Name})
+		if err := unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(image.PullSecrets), "spec", "imagePullSecrets"); err != nil {
+			return err
 		}
-		return unstructured.SetNestedSlice(object.Object, pullSecrets, "spec", "imagePullSecrets")
+		// connectivity-api companion is always enabled; its image is resolved
+		// through the same registry translation so it is pullable on rewritten
+		// registries (the connectivity operator would otherwise default to
+		// ghcr.io/formancehq/connectivity-api:latest).
+		if err := unstructured.SetNestedField(object.Object, true, "spec", "api", "enabled"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(object.Object, apiImage.GetFullImageName(), "spec", "api", "image"); err != nil {
+			return err
+		}
+		return unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(apiImage.PullSecrets), "spec", "api", "imagePullSecrets")
 	}); err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
+		return err
+	}
+
+	// Expose the connectivity-api through the stack gateway: routes
+	// /api/connectivity to the connectivity-api Service (named "<stack>-api")
+	// the connectivity operator provisions for the delegated Connectivity.
+	if err := gatewayhttpapis.Create(ctx, connectivity,
+		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecuredWithBackend("", connectivityAPIBackendRef(stack.Name))),
+	); err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
 		return err
 	}
 
@@ -151,6 +182,25 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 
 	setCondition(connectivity, metav1.ConditionTrue, "Ready", "Connectivity is ready")
 	return nil
+}
+
+// connectivityAPIBackendRef points the gateway at the connectivity-api Service
+// the connectivity operator provisions for the delegated Connectivity, which is
+// named "<connectivity-name>-api" (the delegated resource is named after the
+// stack).
+func connectivityAPIBackendRef(stackName string) v1beta1.GatewayBackendRef {
+	return v1beta1.GatewayBackendRef{
+		Name: stackName + "-api",
+		Port: connectivityAPIPort,
+	}
+}
+
+func pullSecretsToUnstructured(secrets []corev1.LocalObjectReference) []any {
+	out := make([]any, 0, len(secrets))
+	for _, ps := range secrets {
+		out = append(out, map[string]any{"name": ps.Name})
+	}
+	return out
 }
 
 func getStackLedger(ctx Context, stackName string) (*v1beta1.Ledger, error) {
@@ -270,6 +320,7 @@ func canAccessConnectivityResource(ctx Context, gvk schema.GroupVersionKind, res
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
 			withConnectivityClusterWatch(),
 			WithWatchSettings[*v1beta1.Connectivity](),
 			WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
