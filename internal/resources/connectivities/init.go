@@ -77,9 +77,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return NewPendingError().WithMessage("connectivity requires a Ledger module on the stack")
 	}
 
-	ledgerVersion := ledger.Spec.Version
-	if ledgerVersion == "" {
-		ledgerVersion = stack.Spec.Version
+	// Resolve the ledger's effective version through the same path the module
+	// reconcilers use (module override, stack version, or the referenced
+	// Versions file), so the v3 gate also works for versionsFromFile stacks.
+	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionUnresolved", err.Error())
+		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", err.Error())
 	}
 	if !ledgers.IsV3(ledgerVersion) {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
