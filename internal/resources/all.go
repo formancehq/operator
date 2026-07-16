@@ -7,6 +7,7 @@ import (
 	_ "github.com/formancehq/operator/v3/internal/resources/benthosstreams"
 	_ "github.com/formancehq/operator/v3/internal/resources/brokers"
 	_ "github.com/formancehq/operator/v3/internal/resources/brokertopics"
+	_ "github.com/formancehq/operator/v3/internal/resources/connectivities"
 	_ "github.com/formancehq/operator/v3/internal/resources/databases"
 	_ "github.com/formancehq/operator/v3/internal/resources/gatewaygrpcapis"
 	_ "github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"

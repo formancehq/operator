@@ -75,6 +75,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - connectivity.formance.com
+  resources:
+  - connectivities
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - externaldns.k8s.io
   resources:
   - dnsendpoints
@@ -95,6 +107,7 @@ rules:
   - brokerconsumers
   - brokers
   - brokertopics
+  - connectivities
   - databases
   - gatewaygrpcapis
   - gatewayhttpapis
@@ -132,6 +145,7 @@ rules:
   - brokerconsumers/finalizers
   - brokers/finalizers
   - brokertopics/finalizers
+  - connectivities/finalizers
   - databases/finalizers
   - gatewaygrpcapis/finalizers
   - gatewayhttpapis/finalizers
@@ -163,6 +177,7 @@ rules:
   - brokerconsumers/status
   - brokers/status
   - brokertopics/status
+  - connectivities/status
   - databases/status
   - gatewaygrpcapis/status
   - gatewayhttpapis/status

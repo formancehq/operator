@@ -1,0 +1,252 @@
+/*
+Copyright 2022.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package connectivities
+
+import (
+	"fmt"
+
+	authorizationv1 "k8s.io/api/authorization/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/ledgers"
+)
+
+const connectivityReadyCondition = "ConnectivityClusterReady"
+
+var (
+	// connectivityGVK is the delegated resource, owned by the connectivity
+	// operator (connectivity.formance.com), that carries the actual workload.
+	// The Connectivity module mirrors the Ledger v3 pattern: it does not run
+	// the workload itself, it provisions this resource bound to the stack's
+	// ledger and reflects its readiness.
+	connectivityGVK = schema.GroupVersionKind{
+		Group:   "connectivity.formance.com",
+		Version: "v1alpha1",
+		Kind:    "Connectivity",
+	}
+	connectivityAvailable bool
+)
+
+var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
+
+//+kubebuilder:rbac:groups=formance.com,resources=connectivities,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=formance.com,resources=connectivities/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=formance.com,resources=connectivities/finalizers,verbs=update
+//+kubebuilder:rbac:groups=connectivity.formance.com,resources=connectivities,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=authorization.k8s.io,resources=selfsubjectaccessreviews,verbs=create
+
+func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity, version string) error {
+	if !connectivityAvailable {
+		setCondition(connectivity, metav1.ConditionFalse, "OperatorUnavailable",
+			"connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
+		return NewPendingError().WithMessage("connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
+	}
+
+	// Connectivity ingests into the stack's Ledger v3 gRPC endpoint, so it can
+	// only be provisioned once that ledger is present, on a v3 version, and
+	// ready.
+	ledger, err := getStackLedger(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+	if ledger == nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotFound", "stack has no Ledger module")
+		return NewPendingError().WithMessage("connectivity requires a Ledger module on the stack")
+	}
+
+	ledgerVersion := ledger.Spec.Version
+	if ledgerVersion == "" {
+		ledgerVersion = stack.Spec.Version
+	}
+	if !ledgers.IsV3(ledgerVersion) {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
+			fmt.Sprintf("connectivity requires a Ledger v3 (found %q)", ledgerVersion))
+		return NewPendingError().WithMessage("connectivity requires a Ledger v3")
+	}
+	if !ledger.IsReady() {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotReady", "waiting for the ledger to be ready")
+		return NewPendingError().WithMessage("waiting for the ledger to be ready")
+	}
+
+	// Reuse the single source of truth for the ledger v3 gRPC connection: same
+	// service, port and backend TLS material (self-signed CA secret + SNI) that
+	// the gateway uses to reach the ledger.
+	backend := ledgers.V3GRPCBackendRef(stack.Name)
+	ledgerAddress := fmt.Sprintf("%s:%d", backend.TLS.ServerName, backend.Port)
+
+	object := &unstructured.Unstructured{}
+	object.SetGroupVersionKind(connectivityGVK)
+	object.SetNamespace(stack.Name)
+	object.SetName(stack.Name)
+	if _, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), object, func() error {
+		if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(object.Object, ledgerAddress, "spec", "ledgerAddress"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(object.Object, backend.TLS.SecretName, "spec", "ledgerTLS", "secretName"); err != nil {
+			return err
+		}
+		return unstructured.SetNestedField(object.Object, backend.TLS.ServerName, "spec", "ledgerTLS", "serverName")
+	}); err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
+		return err
+	}
+
+	ready, message := connectivityResourceReady(object)
+	if !ready {
+		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityPending", message)
+		return NewPendingError().WithMessage("%s", message)
+	}
+
+	setCondition(connectivity, metav1.ConditionTrue, "Ready", "Connectivity is ready")
+	return nil
+}
+
+func getStackLedger(ctx Context, stackName string) (*v1beta1.Ledger, error) {
+	list := &v1beta1.LedgerList{}
+	if err := ctx.GetClient().List(ctx, list, client.MatchingFields{"stack": stackName}); err != nil {
+		return nil, err
+	}
+	if len(list.Items) == 0 {
+		return nil, nil
+	}
+	return &list.Items[0], nil
+}
+
+func connectivityResourceReady(object *unstructured.Unstructured) (bool, string) {
+	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
+	if phase == "Ready" {
+		return true, "Connectivity is ready"
+	}
+	message, _, _ := unstructured.NestedString(object.Object, "status", "message")
+	if message == "" {
+		message = fmt.Sprintf("connectivity resource phase is %q", phase)
+	}
+	return false, message
+}
+
+func setCondition(connectivity *v1beta1.Connectivity, status metav1.ConditionStatus, reason, message string) {
+	connectivity.GetConditions().AppendOrReplace(v1beta1.Condition{
+		Type:               connectivityReadyCondition,
+		Status:             status,
+		ObservedGeneration: connectivity.GetGeneration(),
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}, v1beta1.ConditionTypeMatch(connectivityReadyCondition))
+}
+
+// withConnectivityClusterWatch detects, at controller start-up, whether the
+// connectivity operator (connectivity.formance.com Connectivity CRD) is
+// installed and reachable with the required RBAC. When present the reconciler
+// watches and owns the delegated resource; otherwise the module reports the
+// capability as unavailable — the same mechanism the Ledger v3 module uses.
+func withConnectivityClusterWatch() ReconcilerOption[*v1beta1.Connectivity] {
+	return func(options *ReconcilerOptions[*v1beta1.Connectivity]) {
+		options.Raws = append(options.Raws, func(ctx Context, b *builder.Builder) error {
+			crds := &apiextensionsv1.CustomResourceDefinitionList{}
+			if err := ctx.GetAPIReader().List(ctx, crds); err != nil {
+				connectivityAvailable = false
+				log.FromContext(ctx).Info("Connectivity capability is unavailable; continuing without it", "error", err)
+				return nil
+			}
+			connectivityAvailable = watchConnectivityResource(ctx, b, options, crds, connectivityGVK)
+			return nil
+		})
+	}
+}
+
+func watchConnectivityResource(
+	ctx Context,
+	b *builder.Builder,
+	options *ReconcilerOptions[*v1beta1.Connectivity],
+	crds *apiextensionsv1.CustomResourceDefinitionList,
+	gvk schema.GroupVersionKind,
+) bool {
+	for _, crd := range crds.Items {
+		if crd.Spec.Group != gvk.Group || crd.Spec.Names.Kind != gvk.Kind {
+			continue
+		}
+		for _, version := range crd.Spec.Versions {
+			if version.Name != gvk.Version || !version.Served {
+				continue
+			}
+			resourceList := &unstructured.UnstructuredList{}
+			resourceList.SetGroupVersionKind(gvk.GroupVersion().WithKind(gvk.Kind + "List"))
+			if err := ctx.GetAPIReader().List(ctx, resourceList, client.Limit(1)); err != nil {
+				log.FromContext(ctx).Info("Connectivity dependency is inaccessible; continuing without it", "gvk", gvk, "error", err)
+				return false
+			}
+			if !canAccessConnectivityResource(ctx, gvk, crd.Spec.Names.Plural) {
+				return false
+			}
+			resource := &unstructured.Unstructured{}
+			resource.SetGroupVersionKind(gvk)
+			options.Owns[resource] = nil
+			b.Owns(resource)
+			log.FromContext(ctx).Info("Connectivity dependency CRD is available", "gvk", gvk)
+			return true
+		}
+	}
+	log.FromContext(ctx).Info("Connectivity dependency CRD is not available", "gvk", gvk)
+	return false
+}
+
+func canAccessConnectivityResource(ctx Context, gvk schema.GroupVersionKind, resource string) bool {
+	for _, verb := range connectivityRequiredVerbs {
+		review := &authorizationv1.SelfSubjectAccessReview{
+			Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Group:    gvk.Group,
+					Version:  gvk.Version,
+					Resource: resource,
+					Verb:     verb,
+				},
+			},
+		}
+		if err := ctx.GetClient().Create(ctx, review); err != nil {
+			log.FromContext(ctx).Info("Connectivity dependency access review failed; continuing without it", "gvk", gvk, "verb", verb, "error", err)
+			return false
+		}
+		if !review.Status.Allowed {
+			log.FromContext(ctx).Info("Connectivity dependency permission is unavailable; continuing without it", "gvk", gvk, "verb", verb, "reason", review.Status.Reason)
+			return false
+		}
+	}
+	return true
+}
+
+func init() {
+	Init(
+		WithModuleReconciler(Reconcile,
+			withConnectivityClusterWatch(),
+			WithWatchSettings[*v1beta1.Connectivity](),
+			WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
+		),
+	)
+}
