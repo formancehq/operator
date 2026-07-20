@@ -1,6 +1,0 @@
-apiVersion: formance.com/v1beta1
-kind: Broker
-metadata:
-  name: chainsaw-reconciliation
-spec:
-  stack: chainsaw-reconciliation

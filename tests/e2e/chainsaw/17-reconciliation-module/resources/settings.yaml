@@ -11,16 +11,6 @@ spec:
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
-  name: chainsaw-reconciliation-broker-dsn
-spec:
-  stacks:
-    - chainsaw-reconciliation
-  key: broker.dsn
-  value: nats://nats.chainsaw-reconciliation.svc.cluster.local:4222?replicas=1
----
-apiVersion: formance.com/v1beta1
-kind: Settings
-metadata:
   name: chainsaw-reconciliation-otel-traces
 spec:
   stacks:
@@ -57,16 +47,6 @@ spec:
     - chainsaw-reconciliation
   key: deployments.reconciliation.replicas
   value: "2"
----
-apiVersion: formance.com/v1beta1
-kind: Settings
-metadata:
-  name: chainsaw-reconciliation-worker-env
-spec:
-  stacks:
-    - chainsaw-reconciliation
-  key: deployments.reconciliation-worker.containers.reconciliation-worker.env-vars
-  value: WORKER_CONCURRENCY=7,WORKER_POLLING_INTERVAL=2s
 ---
 apiVersion: formance.com/v1beta1
 kind: Settings

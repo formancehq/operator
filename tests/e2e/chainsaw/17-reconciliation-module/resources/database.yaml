@@ -3,7 +3,7 @@ kind: Database
 metadata:
   name: chainsaw-reconciliation-reconciliation
   annotations:
-    formance.com/module-version: v3.0.0
+    formance.com/module-version: v2.3.1
 spec:
   stack: chainsaw-reconciliation
   service: reconciliation

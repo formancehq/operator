@@ -17,11 +17,7 @@ spec:
         - apply:
             file: resources/postgres.yaml
         - apply:
-            file: resources/nats.yaml
-        - apply:
             file: resources/settings.yaml
-        - apply:
-            file: resources/broker.yaml
         - apply:
             file: resources/database.yaml
         - script:
@@ -29,9 +25,7 @@ spec:
             content: |
               set -eu
               kubectl rollout status deployment/postgres -n chainsaw-reconciliation --timeout=2m
-              kubectl rollout status deployment/nats -n chainsaw-reconciliation --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-reconciliation-reconciliation --timeout=5m
-              kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-reconciliation --timeout=5m
         - apply:
             file: resources/reconciliation.yaml
         - script:
@@ -50,21 +44,12 @@ spec:
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-reconciliation-reconciliation --timeout=2m
               kubectl wait --for=create deployment/reconciliation -n chainsaw-reconciliation --timeout=2m
-              kubectl wait --for=create deployment/reconciliation-worker -n chainsaw-reconciliation --timeout=2m
               kubectl wait --for=create service/reconciliation -n chainsaw-reconciliation --timeout=2m
               kubectl wait --for=create pdb/reconciliation -n chainsaw-reconciliation --timeout=2m
-              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/reconciliation:v3.0.0 deployment/reconciliation -n chainsaw-reconciliation --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/reconciliation:v2.3.1 deployment/reconciliation -n chainsaw-reconciliation --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-reconciliation-reconciliation --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/reconciliation -n chainsaw-reconciliation --timeout=2m
               assert_jsonpath deployment/reconciliation '{.spec.replicas}' '2'
-              assert_jsonpath deployment/reconciliation '{.spec.template.spec.containers[0].args[0]}' 'serve'
-              assert_jsonpath deployment/reconciliation-worker '{.spec.replicas}' '1'
-              assert_jsonpath deployment/reconciliation-worker '{.spec.template.spec.containers[0].args[0]}' 'worker'
-              assert_jsonpath deployment/reconciliation-worker '{.spec.template.spec.containers[0].env[?(@.name=="OTEL_SERVICE_NAME")].value}' 'reconciliation-worker'
-              if kubectl get service reconciliation-worker -n chainsaw-reconciliation >/dev/null 2>&1; then
-                echo 'reconciliation-worker must not be exposed through a Service or Gateway' >&2
-                exit 1
-              fi
               assert_jsonpath deployment/reconciliation '{.spec.template.spec.containers[0].resources.requests.cpu}' '15m'
               assert_jsonpath deployment/reconciliation '{.spec.template.spec.containers[0].resources.limits.memory}' '192Mi'
               assert_jsonpath deployment/reconciliation '{.spec.template.metadata.annotations.chainsaw\.formance\.com/template}' 'reconciliation'
@@ -85,20 +70,6 @@ spec:
               grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-reconciliation-env
               grep -Fx 'OTEL_SERVICE_NAME=reconciliation' /tmp/chainsaw-reconciliation-env
               grep -Fx 'OTEL_RESOURCE_ATTRIBUTES=pod-name=$(POD_NAME) service.namespace=formance stack=chainsaw-reconciliation team=platform' /tmp/chainsaw-reconciliation-env
-              grep -Fx 'BROKER=nats' /tmp/chainsaw-reconciliation-env
-              grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-reconciliation-env
-              grep -Fx 'PUBLISHER_NATS_CLIENT_ID=chainsaw-reconciliation-reconciliation' /tmp/chainsaw-reconciliation-env
-              grep -Fx 'PUBLISHER_TOPIC_MAPPING=*:chainsaw-reconciliation.reconciliation' /tmp/chainsaw-reconciliation-env
-              grep -Fx 'PUBLISHER_CIRCUIT_BREAKER_ENABLED=true' /tmp/chainsaw-reconciliation-env
-              kubectl get deployment reconciliation-worker -n chainsaw-reconciliation -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'OTEL_SERVICE_NAME=reconciliation-worker' /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'BROKER=nats' /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'PUBLISHER_NATS_CLIENT_ID=chainsaw-reconciliation-reconciliation-worker' /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'PUBLISHER_TOPIC_MAPPING=*:chainsaw-reconciliation.reconciliation' /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'PUBLISHER_CIRCUIT_BREAKER_ENABLED=true' /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'WORKER_CONCURRENCY=7' /tmp/chainsaw-reconciliation-worker-env
-              grep -Fx 'WORKER_POLLING_INTERVAL=2s' /tmp/chainsaw-reconciliation-worker-env
               kubectl get deployment reconciliation -n chainsaw-reconciliation -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-reconciliation-secret-env
               grep -Fx 'POSTGRES_USERNAME=postgres/username' /tmp/chainsaw-reconciliation-secret-env
               grep -Fx 'POSTGRES_PASSWORD=postgres/password' /tmp/chainsaw-reconciliation-secret-env
