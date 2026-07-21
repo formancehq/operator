@@ -16,8 +16,63 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/nodeisolation"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
+
+func TestWithNodeIsolationIsIdempotent(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1beta1.AddToScheme(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, v1.AddToScheme(scheme))
+
+	nodeisolation.SetAvailable(true)
+	t.Cleanup(func() { nodeisolation.SetAvailable(false) })
+
+	stackName := "stack0"
+	enabled := &v1beta1.Settings{ObjectMeta: metav1.ObjectMeta{Name: "enabled"},
+		Spec: v1beta1.SettingsSpec{Stacks: []string{"*"}, Key: "karpenter.enabled", Value: "true"}}
+	ec2 := &v1beta1.Settings{ObjectMeta: metav1.ObjectMeta{Name: "ec2"},
+		Spec: v1beta1.SettingsSpec{Stacks: []string{"*"}, Key: "karpenter.ec2-node-class.reference", Value: "default"}}
+	np := &v1beta1.Settings{ObjectMeta: metav1.ObjectMeta{Name: "np"},
+		Spec: v1beta1.SettingsSpec{Stacks: []string{"*"}, Key: "karpenter.node-pool.reference", Value: "default"}}
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{
+		Name:   stackName,
+		Labels: map[string]string{v1beta1.OrganizationLabel: "acme"},
+	}}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(enabled, ec2, np, stack).
+		WithIndex(&v1beta1.Settings{}, "stack", func(obj client.Object) []string {
+			return obj.(*v1beta1.Settings).GetStacks()
+		}).
+		WithIndex(&v1beta1.Settings{}, "keylen", func(obj client.Object) []string {
+			return []string{fmt.Sprint(len(settings.SplitKeywordWithDot(obj.(*v1beta1.Settings).Spec.Key)))}
+		}).
+		Build()
+
+	ctx := &mockContext{Context: context.Background(), client: fakeClient, scheme: scheme}
+	app := Application{owner: &v1beta1.Ledger{
+		ObjectMeta: metav1.ObjectMeta{Name: "ledger"},
+		Spec:       v1beta1.LedgerSpec{StackDependency: v1beta1.StackDependency{Stack: stackName}},
+	}}
+	deployment := &appsv1.Deployment{}
+
+	// Applying the mutator repeatedly must not accumulate tolerations or selectors.
+	for i := 0; i < 3; i++ {
+		require.NoError(t, app.withNodeIsolation(ctx)(deployment))
+	}
+	require.Equal(t, "acme", deployment.Spec.Template.Spec.NodeSelector[v1beta1.OrganizationLabel])
+	require.Len(t, deployment.Spec.Template.Spec.Tolerations, 1)
+
+	// Disabling must strip the operator-managed selector keys and tolerations.
+	enabled.Spec.Value = "false"
+	require.NoError(t, ctx.GetClient().Update(ctx, enabled))
+	require.NoError(t, app.withNodeIsolation(ctx)(deployment))
+	require.NotContains(t, deployment.Spec.Template.Spec.NodeSelector, v1beta1.OrganizationLabel)
+	require.Empty(t, deployment.Spec.Template.Spec.Tolerations)
+}
 
 func TestWithAnnotations(t *testing.T) {
 	t.Parallel()

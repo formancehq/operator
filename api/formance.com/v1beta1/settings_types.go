@@ -96,6 +96,43 @@ type SettingsSpec struct {
 // Refer to the documentation of each module and resource to discover available Settings.
 //
 // ##### Global settings
+// ###### Karpenter node isolation
+//
+// The operator can provision dedicated Karpenter node pools per organization (or per
+// organization+stack) so that EC2 instances carry customer/organization/stack tags for
+// cost attribution, and so a stack's workloads run only on its dedicated nodes. The
+// organization and customer identity are read from the Stack labels
+// `formance.com/organization` and `formance.com/customer` (customer defaults to the
+// organization when absent).
+//
+// Available keys:
+//   - `karpenter.enabled` (bool): master switch. Requires the Karpenter CRDs to be installed.
+//   - `karpenter.isolation` (`organization` | `stack`, default `organization`): chooses the
+//     pool naming — a shared `<organization>` pool, or a dedicated `<organization>-<stack>` pool.
+//   - `karpenter.ec2-node-class.reference` (string, required when enabled): name of the
+//     cluster-scoped reference EC2NodeClass to clone.
+//   - `karpenter.node-pool.reference` (string, required when enabled): name of the
+//     cluster-scoped reference NodePool to clone.
+//   - `karpenter.api.ec2-node-class.group-version` (string, default `karpenter.k8s.aws/v1`)
+//     and `karpenter.api.node-pool.group-version` (string, default `karpenter.sh/v1`):
+//     override the Karpenter API group/version.
+//
+// ```yaml
+// apiVersion: formance.com/v1beta1
+// kind: Settings
+// metadata:
+//
+//	name: karpenter-enabled
+//
+// spec:
+//
+//	key: karpenter.enabled
+//	stacks:
+//	- '*'
+//	value: "true"
+//
+// ```
+//
 // ###### AWS account
 //
 // A stack can use an AWS account for authentication.

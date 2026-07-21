@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/nodeisolation"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -50,6 +52,9 @@ import (
 // +kubebuilder:rbac:groups=formance.com,resources=versions,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=formance.com,resources=versions/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=formance.com,resources=versions/finalizers,verbs=update
+// +kubebuilder:rbac:groups=karpenter.sh,resources=nodepools,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=karpenter.k8s.aws,resources=ec2nodeclasses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list;watch
 
 var (
 	ModuleReconciliation = "ModuleReconciliation"
@@ -254,6 +259,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 	}
 
 	if err := reconcileNetworkPolicies(ctx, stack); err != nil {
+		return err
+	}
+
+	if err := nodeisolation.Reconcile(ctx, stack); err != nil {
 		return err
 	}
 
@@ -466,7 +475,7 @@ func init() {
 				b.Watches(&v1beta1.Settings{}, handler.EnqueueRequestsFromMapFunc(
 					func(watchCtx context.Context, object client.Object) []reconcile.Request {
 						s := object.(*v1beta1.Settings)
-						if s.Spec.Key != "networkpolicies.enabled" {
+						if s.Spec.Key != "networkpolicies.enabled" && !strings.HasPrefix(s.Spec.Key, "karpenter.") {
 							return nil
 						}
 						requests := make([]reconcile.Request, 0)
@@ -490,6 +499,39 @@ func init() {
 						return requests
 					},
 				))
+				return nil
+			}),
+			// Detect the Karpenter CRDs at setup, and re-detect + re-reconcile all stacks if
+			// they are installed/removed after the operator started (so a post-startup
+			// Karpenter install does not require an operator restart).
+			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
+				if err := nodeisolation.DetectCRDs(ctx); err != nil {
+					return err
+				}
+				b.Watches(&apiextensionsv1.CustomResourceDefinition{}, handler.EnqueueRequestsFromMapFunc(
+					func(watchCtx context.Context, object client.Object) []reconcile.Request {
+						if !nodeisolation.IsKarpenterCRD(object.GetName()) {
+							return nil
+						}
+						if err := nodeisolation.DetectCRDs(ctx); err != nil {
+							return nil
+						}
+						stackList := &v1beta1.StackList{}
+						if err := ctx.GetClient().List(watchCtx, stackList); err != nil {
+							return nil
+						}
+						return collectionutils.Map(stackList.Items, func(s v1beta1.Stack) reconcile.Request {
+							return reconcile.Request{NamespacedName: types.NamespacedName{Name: s.Name}}
+						})
+					}))
+				// The primary Stack predicate only fires on generation/owner-ref changes, but
+				// node isolation keys off the formance.com/organization and /customer labels
+				// (metadata, no generation bump). Watch label changes so relabeling a stack
+				// re-reconciles its pools and workload placement.
+				b.Watches(&v1beta1.Stack{}, handler.EnqueueRequestsFromMapFunc(
+					func(_ context.Context, object client.Object) []reconcile.Request {
+						return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: object.GetName()}}}
+					}), builder.WithPredicates(predicate.LabelChangedPredicate{}))
 				return nil
 			}),
 			// notes(gfyrag): Some resources need to be properly dropped before the stack is dropped
