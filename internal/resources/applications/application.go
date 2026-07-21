@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 
 	"github.com/stoewer/go-strcase"
@@ -20,6 +21,7 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/licence"
+	"github.com/formancehq/operator/v3/internal/resources/nodeisolation"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -465,6 +467,47 @@ func (a Application) withNodeIP(_ core.Context) core.ObjectMutator[*appsv1.Deplo
 	}
 }
 
+// withNodeIsolation pins the deployment's pods onto the stack's dedicated Karpenter nodes
+// by injecting a nodeSelector (enforces placement) and tolerations (permit the node
+// taints). The operator-managed scheduling keys are stripped before re-applying so the
+// result is idempotent (tolerations don't accumulate) and disable / mode-change / relabel
+// removes stale rules. It also no-ops when the Karpenter CRDs are unavailable, to avoid
+// pinning pods onto nodes that will never be provisioned.
+func (a Application) withNodeIsolation(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
+	return func(deployment *appsv1.Deployment) error {
+		stack := &v1beta1.Stack{}
+		if err := ctx.GetClient().Get(ctx, types.NamespacedName{Name: a.owner.GetStack()}, stack); err != nil {
+			return err
+		}
+
+		cfg, err := nodeisolation.Resolve(ctx, stack)
+		if err != nil {
+			return err
+		}
+
+		// Reconcile (not accumulate): drop previously-injected operator-managed keys first.
+		spec := &deployment.Spec.Template.Spec
+		for _, key := range nodeisolation.ManagedSchedulingKeys {
+			delete(spec.NodeSelector, key)
+		}
+		spec.Tolerations = slices.DeleteFunc(spec.Tolerations, func(t corev1.Toleration) bool {
+			return slices.Contains(nodeisolation.ManagedSchedulingKeys, t.Key)
+		})
+
+		if !cfg.Enabled || !nodeisolation.IsAvailable() {
+			return nil
+		}
+
+		if spec.NodeSelector == nil {
+			spec.NodeSelector = map[string]string{}
+		}
+		maps.Copy(spec.NodeSelector, cfg.NodeSelector)
+		spec.Tolerations = append(spec.Tolerations, cfg.Tolerations...)
+
+		return nil
+	}
+}
+
 func (a Application) withTerminationGracePeriod(ctx core.Context) core.ObjectMutator[*appsv1.Deployment] {
 	return func(deployment *appsv1.Deployment) error {
 		terminationGracePeriod, err := settings.GetInt64(ctx, a.owner.GetStack(), "deployments", deployment.Name, "spec", "template", "spec", "termination-grace-period-seconds")
@@ -504,6 +547,7 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		a.withSemconvMetricsNames(ctx),
 		a.withNodeIP(ctx),
 		a.withTerminationGracePeriod(ctx),
+		a.withNodeIsolation(ctx),
 		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
 	)
 

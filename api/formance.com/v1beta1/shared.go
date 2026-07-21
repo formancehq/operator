@@ -392,4 +392,9 @@ const (
 	StackLabel          = "formance.com/stack"
 	SkipLabel           = "formance.com/skip"
 	CreatedByAgentLabel = "formance.com/created-by-agent"
+	// OrganizationLabel and CustomerLabel are set externally (by the control plane)
+	// on the Stack CR metadata. They are not guaranteed to be present and are used to
+	// tag/label/taint dedicated Karpenter node pools for cost attribution.
+	OrganizationLabel = "formance.com/organization"
+	CustomerLabel     = "formance.com/customer"
 )

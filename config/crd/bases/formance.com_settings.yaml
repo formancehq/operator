@@ -48,17 +48,34 @@ spec:
           all the stacks\n\tvalue: postgresql://postgresql.formance.svc.cluster.local:5432\n\n```\n\nSome
           settings are really global, while some are used by specific module.\n\nRefer
           to the documentation of each module and resource to discover available Settings.\n\n#####
-          Global settings\n###### AWS account\n\nA stack can use an AWS account for
-          authentication.\n\nIt can be used to connect to any AWS service we could
-          use.\n\nIt includes RDS, OpenSearch and MSK. To do so, you can create the
-          following setting:\n```yaml\napiVersion: formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\tname:
-          aws-service-account\n\nspec:\n\n\tkey: aws.service-account\n\tstacks:\n\t-
-          '*'\n\tvalue: aws-access\n\n```\nThis setting instruct the operator than
-          there is somewhere on the cluster a service account named `aws-access`.\n\nSo,
-          each time a service has the capability to use AWS, the operator will use
-          this service account.\n\nThe service account could look like that :\n```yaml\napiVersion:
-          v1\nkind: ServiceAccount\nmetadata:\n\n\tannotations:\n\t  eks.amazonaws.com/role-arn:
-          arn:aws:iam::************:role/staging-eu-west-1-hosting-stack-access\n\tlabels:\n\t
+          Global settings\n###### Karpenter node isolation\n\nThe operator can provision
+          dedicated Karpenter node pools per organization (or per\norganization+stack)
+          so that EC2 instances carry customer/organization/stack tags for\ncost attribution,
+          and so a stack's workloads run only on its dedicated nodes. The\norganization
+          and customer identity are read from the Stack labels\n`formance.com/organization`
+          and `formance.com/customer` (customer defaults to the\norganization when
+          absent).\n\nAvailable keys:\n  - `karpenter.enabled` (bool): master switch.
+          Requires the Karpenter CRDs to be installed.\n  - `karpenter.isolation`
+          (`organization` | `stack`, default `organization`): chooses the\n    pool
+          naming — a shared `<organization>` pool, or a dedicated `<organization>-<stack>`
+          pool.\n  - `karpenter.ec2-node-class.reference` (string, required when enabled):
+          name of the\n    cluster-scoped reference EC2NodeClass to clone.\n  - `karpenter.node-pool.reference`
+          (string, required when enabled): name of the\n    cluster-scoped reference
+          NodePool to clone.\n  - `karpenter.api.ec2-node-class.group-version` (string,
+          default `karpenter.k8s.aws/v1`)\n    and `karpenter.api.node-pool.group-version`
+          (string, default `karpenter.sh/v1`):\n    override the Karpenter API group/version.\n\n```yaml\napiVersion:
+          formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\tname: karpenter-enabled\n\nspec:\n\n\tkey:
+          karpenter.enabled\n\tstacks:\n\t- '*'\n\tvalue: \"true\"\n\n```\n\n######
+          AWS account\n\nA stack can use an AWS account for authentication.\n\nIt
+          can be used to connect to any AWS service we could use.\n\nIt includes RDS,
+          OpenSearch and MSK. To do so, you can create the following setting:\n```yaml\napiVersion:
+          formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\tname: aws-service-account\n\nspec:\n\n\tkey:
+          aws.service-account\n\tstacks:\n\t- '*'\n\tvalue: aws-access\n\n```\nThis
+          setting instruct the operator than there is somewhere on the cluster a service
+          account named `aws-access`.\n\nSo, each time a service has the capability
+          to use AWS, the operator will use this service account.\n\nThe service account
+          could look like that :\n```yaml\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n\n\tannotations:\n\t
+          \ eks.amazonaws.com/role-arn: arn:aws:iam::************:role/staging-eu-west-1-hosting-stack-access\n\tlabels:\n\t
           \ formance.com/stack: any\n\tname: aws-access\n\n```\nYou can note two things
           :\n 1. We have an annotation indicating the role arn used to connect to
           AWS. Refer to the AWS documentation to create this role\n 2. We have a label
