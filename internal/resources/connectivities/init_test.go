@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -162,6 +163,98 @@ func TestConnectivityMissingPermissionDisablesCapabilityWithoutFailing(t *testin
 	}
 	if connectivityAvailable {
 		t.Fatal("connectivity capability remains enabled without watch permission")
+	}
+}
+
+// credsTestContext is a core.Context backed by a fake client + real scheme, for
+// exercising ensureLedgerCredentials.
+type credsTestContext struct {
+	context.Context
+	client client.Client
+	scheme *runtime.Scheme
+}
+
+func (c credsTestContext) GetClient() client.Client    { return c.client }
+func (c credsTestContext) GetScheme() *runtime.Scheme  { return c.scheme }
+func (c credsTestContext) GetAPIReader() client.Reader { return c.client }
+func (c credsTestContext) GetPlatform() core.Platform  { return core.Platform{} }
+
+func newCredsTestContext(t *testing.T, objs ...client.Object) credsTestContext {
+	t.Helper()
+	s := runtime.NewScheme()
+	if err := v1beta1.AddToScheme(s); err != nil {
+		t.Fatalf("add v1beta1 to scheme: %v", err)
+	}
+	// Register the cluster-scoped ledger Credentials GVK so the fake client can
+	// track it as an unstructured object.
+	s.AddKnownTypeWithName(ledgerCredentialsGVK, &unstructured.Unstructured{})
+	s.AddKnownTypeWithName(ledgerCredentialsGVK.GroupVersion().WithKind(ledgerCredentialsGVK.Kind+"List"), &unstructured.UnstructuredList{})
+	return credsTestContext{
+		Context: context.Background(),
+		scheme:  s,
+		client:  fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build(),
+	}
+}
+
+func TestEnsureLedgerCredentialsCreatesGodCredentialAndReportsPending(t *testing.T) {
+	ctx := newCredsTestContext(t)
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+
+	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	if err != nil {
+		t.Fatalf("ensureLedgerCredentials: %v", err)
+	}
+	if ready || keyID != "" || secret != "" {
+		t.Fatalf("freshly created credential must be pending, got ready=%v keyID=%q secret=%q", ready, keyID, secret)
+	}
+
+	// The Credentials must have been created cluster-scoped with god + selector.
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(ledgerCredentialsGVK)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-stack0"}, got); err != nil {
+		t.Fatalf("Credentials was not created: %v", err)
+	}
+	if god, _, _ := unstructured.NestedBool(got.Object, "spec", "god"); !god {
+		t.Error("Credentials must have spec.god=true")
+	}
+	if sel, _, _ := unstructured.NestedStringMap(got.Object, "spec", "selector", "matchLabels"); sel["formance.com/stack"] != "stack0" {
+		t.Errorf("selector.matchLabels[formance.com/stack] = %q, want stack0", sel["formance.com/stack"])
+	}
+	if ns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "additionalNamespaces"); len(ns) != 1 || ns[0] != "stack0" {
+		t.Errorf("additionalNamespaces = %v, want [stack0]", ns)
+	}
+}
+
+func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(ledgerCredentialsGVK)
+	existing.SetName("connectivity-stack1")
+	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
+	_ = unstructured.SetNestedStringSlice(existing.Object, []string{"stack1"}, "spec", "additionalNamespaces")
+	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
+	_ = unstructured.SetNestedSlice(existing.Object, []any{
+		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
+	}, "status", "distributedSecretRefs")
+
+	ctx := newCredsTestContext(t, existing)
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack1"
+
+	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	if err != nil {
+		t.Fatalf("ensureLedgerCredentials: %v", err)
+	}
+	if !ready {
+		t.Fatal("credential with status Ready must report ready")
+	}
+	if keyID != "2ba721b2866686f6" {
+		t.Errorf("keyID = %q, want 2ba721b2866686f6", keyID)
+	}
+	if secret != "ledger-connectivity-stack1-credentials-keys" {
+		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
 	}
 }
 

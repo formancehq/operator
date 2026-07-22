@@ -226,6 +226,7 @@ rules:
   - ledger.formance.com
   resources:
   - clusters
+  - credentials
   verbs:
   - create
   - delete
@@ -234,6 +235,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - ledger.formance.com
+  resources:
+  - credentials/status
+  verbs:
+  - get
 - apiGroups:
   - networking.k8s.io
   resources:

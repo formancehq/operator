@@ -56,6 +56,17 @@ var (
 		Kind:    "Connectivity",
 	}
 	connectivityAvailable bool
+
+	// ledgerCredentialsGVK is the cluster-scoped ledger.formance.com/Credentials
+	// resource. The connectivity module provisions a god-mode credential so
+	// connectivity-core can authenticate its gRPC calls to the stack's Ledger v3:
+	// the ledger operator generates the Ed25519 keypair, registers the public key
+	// on the matched ledger Cluster, and distributes the private seed as a Secret.
+	ledgerCredentialsGVK = schema.GroupVersionKind{
+		Group:   "ledger.formance.com",
+		Version: "v1alpha1",
+		Kind:    "Credentials",
+	}
 )
 
 var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
@@ -65,6 +76,8 @@ var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "upda
 //+kubebuilder:rbac:groups=formance.com,resources=connectivities/finalizers,verbs=update
 //+kubebuilder:rbac:groups=connectivity.formance.com,resources=connectivities,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=authorization.k8s.io,resources=selfsubjectaccessreviews,verbs=create
+//+kubebuilder:rbac:groups=ledger.formance.com,resources=credentials,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ledger.formance.com,resources=credentials/status,verbs=get
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity, version string) error {
 	if !connectivityAvailable {
@@ -101,6 +114,21 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	if !ledger.IsReady() {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotReady", "waiting for the ledger to be ready")
 		return NewPendingError().WithMessage("waiting for the ledger to be ready")
+	}
+
+	// Provision a god-mode ledger credential so connectivity-core can
+	// authenticate its gRPC calls. The ledger operator registers the public key
+	// on the ledger and distributes the private seed as a Secret in the stack
+	// namespace; connectivity-core is wired to it via spec.auth below.
+	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsFailed", err.Error())
+		return err
+	}
+	if !credReady {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsPending",
+			"waiting for ledger credentials to be provisioned")
+		return NewPendingError().WithMessage("waiting for ledger credentials to be provisioned")
 	}
 
 	// Resolve the connectivity-core image through the operator's registry
@@ -158,7 +186,23 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := unstructured.SetNestedField(object.Object, apiImage.GetFullImageName(), "spec", "api", "image"); err != nil {
 			return err
 		}
-		return unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(apiImage.PullSecrets), "spec", "api", "imagePullSecrets")
+		if err := unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(apiImage.PullSecrets), "spec", "api", "imagePullSecrets"); err != nil {
+			return err
+		}
+		// Ledger auth: connectivity-core signs its gRPC tokens with the Ed25519
+		// seed distributed by the ledger Credentials (key "seed.hex"), using the
+		// registered key ID. The connectivity operator turns this into the
+		// --auth-key-id / --auth-key-file flags.
+		if err := unstructured.SetNestedField(object.Object, authKeyID, "spec", "auth", "keyId"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(object.Object, "connectivity", "spec", "auth", "subject"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(object.Object, authSecretName, "spec", "auth", "secretKeyRef", "name"); err != nil {
+			return err
+		}
+		return unstructured.SetNestedField(object.Object, "seed.hex", "spec", "auth", "secretKeyRef", "key")
 	}); err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
@@ -212,6 +256,58 @@ func getStackLedger(ctx Context, stackName string) (*v1beta1.Ledger, error) {
 		return nil, nil
 	}
 	return &list.Items[0], nil
+}
+
+// ensureLedgerCredentials provisions the cluster-scoped ledger Credentials that
+// authorizes connectivity-core against the stack's Ledger v3, and reports the
+// registered key ID plus the distributed private-key Secret once ready.
+//
+// The Credentials is cluster-scoped, so it is owned by the (cluster-scoped)
+// Stack rather than the namespaced Connectivity — a namespaced owner cannot own
+// a cluster-scoped resource. The ledger operator generates the Ed25519 keypair,
+// registers the public key on the Cluster matched by the stack selector, and
+// distributes the private seed as a Secret into the stack namespace.
+func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretName string, ready bool, err error) {
+	cred := &unstructured.Unstructured{}
+	cred.SetGroupVersionKind(ledgerCredentialsGVK)
+	cred.SetName("connectivity-" + stack.Name)
+	if _, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cred, func() error {
+		if err := controllerutil.SetControllerReference(stack, cred, ctx.GetScheme()); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(cred.Object, true, "spec", "god"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedStringMap(cred.Object,
+			map[string]string{"formance.com/stack": stack.Name}, "spec", "selector", "matchLabels"); err != nil {
+			return err
+		}
+		return unstructured.SetNestedStringSlice(cred.Object, []string{stack.Name}, "spec", "additionalNamespaces")
+	}); err != nil {
+		return "", "", false, err
+	}
+
+	if phase, _, _ := unstructured.NestedString(cred.Object, "status", "phase"); phase != "Ready" {
+		return "", "", false, nil
+	}
+	keyID, _, _ = unstructured.NestedString(cred.Object, "status", "keyID")
+	// The Secret is distributed to several namespaces; pick the one in the stack
+	// namespace, where connectivity-core runs.
+	refs, _, _ := unstructured.NestedSlice(cred.Object, "status", "distributedSecretRefs")
+	for _, r := range refs {
+		m, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		if ns, _ := m["namespace"].(string); ns == stack.Name {
+			secretName, _ = m["name"].(string)
+			break
+		}
+	}
+	if keyID == "" || secretName == "" {
+		return "", "", false, nil
+	}
+	return keyID, secretName, true, nil
 }
 
 func connectivityResourceReady(object *unstructured.Unstructured) (bool, string) {
