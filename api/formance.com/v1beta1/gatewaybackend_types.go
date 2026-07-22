@@ -39,6 +39,7 @@ type GatewayBackendTLS struct {
 type GatewayBackendRef struct {
 	// Name is the backend Service name in the Stack namespace.
 	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
 	Name string `json:"name"`
 	// Port is the backend Service port.
 	// +kubebuilder:validation:Minimum=1

@@ -55,6 +55,7 @@ spec:
                 type: string
               name:
                 description: Name indicates prefix api
+                maxLength: 253
                 type: string
               rules:
                 description: Rules
@@ -67,6 +68,7 @@ spec:
                         name:
                           description: Name is the backend Service name in the Stack
                             namespace.
+                          maxLength: 253
                           minLength: 1
                           type: string
                         port:
@@ -116,6 +118,7 @@ spec:
                   required:
                   - path
                   type: object
+                maxItems: 100
                 type: array
               stack:
                 description: Stack indicates the stack on which the module is installed
@@ -124,6 +127,11 @@ spec:
             - name
             - rules
             type: object
+            x-kubernetes-validations:
+            - message: backendRef.name must differ from spec.name because the latter
+                is managed by the GatewayHTTPAPI controller
+              rule: self.rules.all(rule, !has(rule.backendRef) || rule.backendRef.name
+                != self.name)
           status:
             properties:
               conditions:

@@ -32,11 +32,14 @@ type GatewayHTTPAPIRule struct {
 	BackendRef *GatewayBackendRef `json:"backendRef,omitempty"`
 }
 
+// +kubebuilder:validation:XValidation:rule="self.rules.all(rule, !has(rule.backendRef) || rule.backendRef.name != self.name)",message="backendRef.name must differ from spec.name because the latter is managed by the GatewayHTTPAPI controller"
 type GatewayHTTPAPISpec struct {
 	StackDependency `json:",inline"`
 	// Name indicates prefix api
+	// +kubebuilder:validation:MaxLength=253
 	Name string `json:"name"`
 	// Rules
+	// +kubebuilder:validation:MaxItems=100
 	Rules []GatewayHTTPAPIRule `json:"rules"`
 	// Health check endpoint
 	HealthCheckEndpoint string `json:"healthCheckEndpoint,omitempty"`

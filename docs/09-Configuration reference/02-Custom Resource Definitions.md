@@ -2326,7 +2326,7 @@ When omitted, Gateway keeps using the module's historical Service.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name is the backend Service name in the Stack namespace. |  | MinLength: 1 <br /> |
+| `name` _string_ | Name is the backend Service name in the Stack namespace. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
 | `port` _integer_ | Port is the backend Service port. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 | `tls` _[GatewayBackendTLS](#gatewaybackendtls)_ | TLS enables a verified TLS connection to the backend. |  |  |
 
@@ -2439,8 +2439,8 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `name` _string_ | Name indicates prefix api |  |  |
-| `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  |  |
+| `name` _string_ | Name indicates prefix api |  | MaxLength: 253 <br /> |
+| `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  | MaxItems: 100 <br /> |
 | `healthCheckEndpoint` _string_ | Health check endpoint |  |  |
 
 ###### GatewayHTTPAPIRule
