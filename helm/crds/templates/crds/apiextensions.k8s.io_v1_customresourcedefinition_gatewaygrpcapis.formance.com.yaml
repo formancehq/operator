@@ -71,8 +71,10 @@ spec:
                         description: CASecretKey is the key containing the CA certificate.
                         type: string
                       secretName:
-                        description: SecretName contains the CA used to verify the
-                          backend certificate.
+                        description: |-
+                          SecretName contains the CA used to verify the backend certificate.
+                          The Secret must carry the `formance.com/gateway-backend-tls: "true"`
+                          label so that certificate rotations trigger a Gateway rollout.
                         minLength: 1
                         type: string
                       serverName:

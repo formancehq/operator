@@ -21,6 +21,8 @@ const GatewayBackendTLSSecretLabel = "formance.com/gateway-backend-tls"
 // GatewayBackendTLS configures TLS when Gateway connects to a backend.
 type GatewayBackendTLS struct {
 	// SecretName contains the CA used to verify the backend certificate.
+	// The Secret must carry the `formance.com/gateway-backend-tls: "true"`
+	// label so that certificate rotations trigger a Gateway rollout.
 	// +kubebuilder:validation:MinLength=1
 	SecretName string `json:"secretName"`
 	// CASecretKey is the key containing the CA certificate.

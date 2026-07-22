@@ -2352,7 +2352,7 @@ GatewayBackendTLS configures TLS when Gateway connects to a backend.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `secretName` _string_ | SecretName contains the CA used to verify the backend certificate. |  | MinLength: 1 <br /> |
+| `secretName` _string_ | SecretName contains the CA used to verify the backend certificate.<br />The Secret must carry the `formance.com/gateway-backend-tls: "true"`<br />label so that certificate rotations trigger a Gateway rollout. |  | MinLength: 1 <br /> |
 | `caSecretKey` _string_ | CASecretKey is the key containing the CA certificate. | ca.crt |  |
 | `serverName` _string_ | ServerName is used for backend certificate verification. |  | MinLength: 1 <br /> |
 
