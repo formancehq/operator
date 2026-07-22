@@ -89,12 +89,6 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 		}, httpRules...)
 	}
 
-	if previewVersion != "" && !ledgerV3ClusterAvailable {
-		if err := DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, GetResourceName(GetObjectName(stack.Name, "ledger"))); err != nil {
-			return err
-		}
-	}
-
 	database, err := databases.Create(ctx, stack, ledger)
 	if err != nil {
 		return err
