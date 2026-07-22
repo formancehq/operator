@@ -28,6 +28,7 @@ type LedgerConfigurationSpec struct {
 	// Stacks on which the configuration is applied. Can contain `*` to
 	// indicate a wildcard, following the same convention as Settings.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="size(self) == 1 || !self.exists(stack, stack == '*')",message="the wildcard stack selector '*' cannot be combined with explicit stack names"
 	Stacks []string `json:"stacks,omitempty"`
 
 	// Cluster is the base Ledger v3 Cluster specification. Stack-specific

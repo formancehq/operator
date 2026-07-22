@@ -944,6 +944,14 @@ var _ = Describe("LedgerConfiguration", Serial, func() {
 			},
 		}
 		Expect(apierrors.IsInvalid(Create(invalidCEL))).To(BeTrue())
+
+		mixedWildcard := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "invalid-mixed-wildcard"},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{"*", "explicit-stack"},
+			},
+		}
+		Expect(apierrors.IsInvalid(Create(mixedWildcard))).To(BeTrue())
 	})
 
 	It("uses the default configuration as a live base for Ledger v3 Clusters", func() {

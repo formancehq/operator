@@ -4039,6 +4039,10 @@ spec:
                 items:
                   type: string
                 type: array
+                x-kubernetes-validations:
+                - message: the wildcard stack selector '*' cannot be combined with
+                    explicit stack names
+                  rule: size(self) == 1 || !self.exists(stack, stack == '*')
             type: object
         type: object
     served: true
