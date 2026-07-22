@@ -418,7 +418,7 @@ var _ = Describe("GatewayController", func() {
 				Eventually(func(g Gomega) string {
 					g.Expect(LoadResource(stack.Name, "gateway", deployment)).To(Succeed())
 					return deployment.Spec.Template.Annotations["formance.com/backend-tls-secrets-hash"]
-				}).ShouldNot(Equal(initialHash))
+				}).Should(SatisfyAll(Not(BeEmpty()), Not(Equal(initialHash))))
 			})
 		})
 		Context("With a consumer on gateway", func() {
