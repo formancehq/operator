@@ -118,7 +118,7 @@ func setLedgerV3TLSResourceMetadata(resource *unstructured.Unstructured, stackNa
 }
 
 func ledgerV3IssuerName(stackName string) string {
-	return stackName + "-selfsigned"
+	return stackName + "-ledger-v3-selfsigned"
 }
 
 func ledgerV3TLSName(stackName string) string {

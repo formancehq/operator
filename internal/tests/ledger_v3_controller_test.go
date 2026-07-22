@@ -231,7 +231,7 @@ var _ = Describe("Ledger v3 controller", func() {
 		tlsName := stack.Name + "-ledger-v3-tls"
 
 		Eventually(func(g Gomega) {
-			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)).To(Succeed())
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-ledger-v3-selfsigned"}, issuer)).To(Succeed())
 			g.Expect(issuer).To(BeControlledBy(ledger))
 			selfSigned, found, err := unstructured.NestedMap(issuer.Object, "spec", "selfSigned")
 			g.Expect(err).NotTo(HaveOccurred())
@@ -888,7 +888,7 @@ var _ = Describe("Ledger v3 controller", func() {
 				issuer := newLedgerV3Issuer()
 				Eventually(func(g Gomega) {
 					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-ledger-v3-tls"}, certificate)).To(Succeed())
-					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)).To(Succeed())
+					g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-ledger-v3-selfsigned"}, issuer)).To(Succeed())
 				}).Should(Succeed())
 
 				Expect(Delete(previewSettings)).To(Succeed())
@@ -900,7 +900,7 @@ var _ = Describe("Ledger v3 controller", func() {
 					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-ledger-v3-tls"}, certificate)
 				}).Should(BeNotFound())
 				Eventually(func() error {
-					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-selfsigned"}, issuer)
+					return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name + "-ledger-v3-selfsigned"}, issuer)
 				}).Should(BeNotFound())
 
 				Eventually(func() error {

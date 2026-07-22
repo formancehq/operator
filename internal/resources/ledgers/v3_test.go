@@ -5,7 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -222,6 +225,57 @@ func TestLedgerV3MissingWatchPermissionDisablesCapabilityWithoutFailing(t *testi
 	}
 	if ledgerV3ClusterAvailable {
 		t.Fatal("Ledger v3 Cluster capability remains enabled without watch permission")
+	}
+}
+
+func TestLegacyLedgerResourcesExistIncludesMigrationJobs(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	if err := appsv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := batchv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := v1beta1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	ledger := &v1beta1.Ledger{ObjectMeta: metav1.ObjectMeta{Name: "ledger0"}}
+	tests := []struct {
+		name  string
+		owner metav1.OwnerReference
+	}{
+		{
+			name:  "Ledger migration Job",
+			owner: metav1.OwnerReference{APIVersion: v1beta1.GroupVersion.String(), Kind: "Ledger", Name: ledger.Name},
+		},
+		{
+			name:  "Database migration Job",
+			owner: metav1.OwnerReference{APIVersion: v1beta1.GroupVersion.String(), Kind: "Database", Name: core.GetObjectName(stack.Name, "ledger")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
+				Namespace:       stack.Name,
+				Name:            "migration",
+				OwnerReferences: []metav1.OwnerReference{tt.owner},
+			}}
+			kubernetesClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(job).Build()
+			ctx := ledgerV3DiscoveryContext{Context: context.Background(), client: kubernetesClient}
+
+			exists, err := legacyLedgerResourcesExist(ctx, stack, ledger)
+			if err != nil {
+				t.Fatalf("legacyLedgerResourcesExist() returned error: %v", err)
+			}
+			if !exists {
+				t.Fatal("legacyLedgerResourcesExist() ignored a legacy migration Job")
+			}
+		})
 	}
 }
 

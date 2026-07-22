@@ -8,6 +8,7 @@ import (
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -197,7 +198,7 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 
 	clearLegacyLedgerConditions(ledger)
 
-	hasLegacyResources, err := legacyLedgerResourcesExist(ctx, stack)
+	hasLegacyResources, err := legacyLedgerResourcesExist(ctx, stack, ledger)
 	if err != nil {
 		return err
 	}
@@ -276,7 +277,7 @@ func setLedgerV3Condition(ledger *v1beta1.Ledger, status metav1.ConditionStatus,
 	}, v1beta1.ConditionTypeMatch(ledgerV3ClusterReadyCondition))
 }
 
-func legacyLedgerResourcesExist(ctx core.Context, stack *v1beta1.Stack) (bool, error) {
+func legacyLedgerResourcesExist(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger) (bool, error) {
 	for _, name := range []string{"ledger", "ledger-worker", "ledger-write", "ledger-read", "ledger-gateway"} {
 		deployment := &appsv1.Deployment{}
 		err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: name}, deployment)
@@ -295,6 +296,21 @@ func legacyLedgerResourcesExist(ctx core.Context, stack *v1beta1.Stack) (bool, e
 	}
 	if !apierrors.IsNotFound(err) {
 		return false, err
+	}
+
+	jobs := &batchv1.JobList{}
+	if err := ctx.GetClient().List(ctx, jobs, client.InNamespace(stack.Name)); err != nil {
+		return false, err
+	}
+	databaseName := core.GetObjectName(stack.Name, "ledger")
+	for _, job := range jobs.Items {
+		for _, owner := range job.OwnerReferences {
+			if owner.APIVersion == v1beta1.GroupVersion.String() &&
+				((owner.Kind == "Ledger" && owner.Name == ledger.Name) ||
+					(owner.Kind == "Database" && owner.Name == databaseName)) {
+				return true, nil
+			}
+		}
 	}
 	return false, nil
 }
