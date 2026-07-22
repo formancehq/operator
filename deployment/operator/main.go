@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	k8syaml "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
+	k8syaml "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 )
@@ -38,6 +38,9 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("failed to glob CRD files: %w", err)
 		}
+		if len(crdFiles) == 0 {
+			return fmt.Errorf("no CRD manifests found under ../../config/crd/bases")
+		}
 
 		var crds []pulumi.Resource
 		for _, crdFile := range crdFiles {
@@ -62,30 +65,25 @@ func main() {
 		}
 
 		// Licence configuration
-		licenceValues := pulumi.Map{}
-		licenceToken := cfg.Get("licence-token")
-		if licenceToken != "" {
-			licenceIssuer := cfg.Get("licence-issuer")
-			if licenceIssuer == "" {
-				licenceIssuer = "https://license.formance.cloud/keys"
-			}
-			licenceValues = pulumi.Map{
-				"createSecret": pulumi.Bool(true),
-				"token":        pulumi.String(licenceToken),
-				"issuer":       pulumi.String(licenceIssuer),
-			}
-		} else {
-			licenceValues = pulumi.Map{
-				"createSecret": pulumi.Bool(false),
-			}
+		licenceIssuer := cfg.Get("licence-issuer")
+		if licenceIssuer == "" {
+			licenceIssuer = "https://license.formance.cloud/keys"
+		}
+		licenceToken := config.GetSecret(ctx, "licence-token")
+		licenceValues := pulumi.Map{
+			"createSecret": licenceToken.ApplyT(func(token string) bool {
+				return token != ""
+			}).(pulumi.BoolOutput),
+			"token":  licenceToken,
+			"issuer": pulumi.String(licenceIssuer),
 		}
 
 		// Deploy operator via Helm
 		operatorChartPath := filepath.Join("..", "..", "helm", "operator")
 
 		operatorRelease, err := helm.NewRelease(ctx, "formance-operator", &helm.ReleaseArgs{
-			Name:      pulumi.String("formance-operator"),
-			Chart:     pulumi.String(operatorChartPath),
+			Name:            pulumi.String("formance-operator"),
+			Chart:           pulumi.String(operatorChartPath),
 			Namespace:       pulumi.String(namespace),
 			CreateNamespace: pulumi.Bool(true),
 			Values: pulumi.Map{

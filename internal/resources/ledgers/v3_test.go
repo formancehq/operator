@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,12 +78,23 @@ type ledgerV3AccessReviewClient struct {
 
 type ledgerV3CleanupClient struct {
 	client.Client
-	getCalls int
+	getCalls    int
+	deleteCalls int
+	secret      *corev1.Secret
 }
 
-func (c *ledgerV3CleanupClient) Get(_ context.Context, key client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+func (c *ledgerV3CleanupClient) Get(_ context.Context, key client.ObjectKey, object client.Object, _ ...client.GetOption) error {
 	c.getCalls++
+	if secret, ok := object.(*corev1.Secret); ok && c.secret != nil {
+		c.secret.DeepCopyInto(secret)
+		return nil
+	}
 	return apierrors.NewNotFound(schema.GroupResource{Group: ledgerV3ClusterGVK.Group, Resource: "clusters"}, key.Name)
+}
+
+func (c *ledgerV3CleanupClient) Delete(_ context.Context, _ client.Object, _ ...client.DeleteOption) error {
+	c.deleteCalls++
+	return nil
 }
 
 func (c ledgerV3AccessReviewClient) Create(_ context.Context, object client.Object, _ ...client.CreateOption) error {
@@ -142,14 +154,18 @@ func TestLedgerV3PreviewVersionIgnoredWhenClusterUnavailable(t *testing.T) {
 	}
 }
 
-func TestDeleteLedgerV3PreviewSkipsCertManagerResourcesWhenUnavailable(t *testing.T) {
+func TestDeleteLedgerV3PreviewRemovesSecretWhenCertManagerIsUnavailable(t *testing.T) {
 	previous := ledgerV3CertManagerAvailable
 	ledgerV3CertManagerAvailable = false
 	t.Cleanup(func() {
 		ledgerV3CertManagerAvailable = previous
 	})
 
-	kubernetesClient := &ledgerV3CleanupClient{}
+	kubernetesClient := &ledgerV3CleanupClient{secret: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "stack0",
+		Name:      ledgerV3TLSName("stack0"),
+		Labels:    map[string]string{ledgerV3PreviewLabel: "true"},
+	}}}
 	ctx := ledgerV3DiscoveryContext{
 		Context: context.Background(),
 		client:  kubernetesClient,
@@ -158,8 +174,11 @@ func TestDeleteLedgerV3PreviewSkipsCertManagerResourcesWhenUnavailable(t *testin
 	if err := deleteLedgerV3Preview(ctx, stack); err != nil {
 		t.Fatalf("deleteLedgerV3Preview() returned error without cert-manager: %v", err)
 	}
-	if kubernetesClient.getCalls != 1 {
-		t.Fatalf("deleteLedgerV3Preview() performed %d GETs, want only the Cluster lookup", kubernetesClient.getCalls)
+	if kubernetesClient.getCalls != 2 {
+		t.Fatalf("deleteLedgerV3Preview() performed %d GETs, want Cluster and Secret lookups", kubernetesClient.getCalls)
+	}
+	if kubernetesClient.deleteCalls != 1 {
+		t.Fatalf("deleteLedgerV3Preview() performed %d deletes, want the preview Secret deleted", kubernetesClient.deleteCalls)
 	}
 }
 

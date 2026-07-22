@@ -212,25 +212,28 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		return err
 	}
 
-	cluster, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, false, tlsCAHash)
+	cluster, clusterSpec, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, false, tlsCAHash)
 	if err != nil {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
 	}
 	if !tlsReady {
+		if err := core.DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, core.GetResourceName(core.GetObjectName(stack.Name, "ledger"))); err != nil {
+			return err
+		}
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSCertificatePending", tlsMessage)
 		return core.NewPendingError().WithMessage("Ledger v3 TLS is not ready: %s", tlsMessage)
 	}
 	if err := gatewayhttpapis.Create(ctx, ledger,
 		gatewayhttpapis.WithHealthCheckEndpoint("livez"),
-		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecuredWithBackend("", ledgerV3HTTPBackendRef(stack.Name))),
+		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecuredWithBackend("", ledgerV3HTTPBackendRef(stack.Name, clusterSpec.Service.HttpPort))),
 	); err != nil {
 		return err
 	}
 	if err := gatewaygrpcapis.Create(ctx, ledger,
 		gatewaygrpcapis.WithGRPCServices(ledgerV3PublicGRPCService),
-		gatewaygrpcapis.WithPort(ledgerV3GRPCPort),
-		gatewaygrpcapis.WithBackendRef(ledgerV3GRPCBackendRef(stack.Name)),
+		gatewaygrpcapis.WithPort(ledgerV3ServicePort(clusterSpec.Service.GrpcPort, ledgerV3GRPCPort)),
+		gatewaygrpcapis.WithBackendRef(ledgerV3GRPCBackendRef(stack.Name, clusterSpec.Service.GrpcPort)),
 	); err != nil {
 		return err
 	}
@@ -315,24 +318,24 @@ func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
 	return configured, false, nil
 }
 
-func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool, tlsCAHash string) (*unstructured.Unstructured, error) {
+func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool, tlsCAHash string) (*unstructured.Unstructured, *ledgerv1alpha1.ClusterSpec, error) {
 	baseSpec, err := ledgerV3BaseSpec(ctx, stack.Name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	image, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	configuredReplicas, err := settings.GetInt32OrDefault(ctx, stack.Name, 3, "deployments", "ledger", "replicas")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	replicas, normalized, err := normalizeLedgerV3Replicas(configuredReplicas)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if normalized {
 		log.FromContext(ctx).Info("Normalized Ledger v3 replicas to an odd number",
@@ -343,27 +346,27 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	resourceRequirements, err := settings.GetResourceRequirements(ctx, stack.Name,
 		"deployments", "ledger", "containers", "ledger", "resource-requirements")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	monitoringConfiguration, err := settings.GetOpenTelemetryConfiguration(ctx, stack.Name, "ledger")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	authConfiguration, err := auths.GetProtectedConfiguration(ctx, stack, "ledger", ledger.Spec.Auth)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	topologySpreadConstraints, err := settings.GetBool(ctx, stack.Name,
 		"deployments", "ledger", "topology-spread-constraints")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	desiredSpec := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
+	desiredSpec, err := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
 		ImageRepository:           imageRepository(image),
 		ImageTag:                  image.Version,
 		ImagePullSecrets:          image.PullSecrets,
@@ -380,9 +383,12 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		ServiceAccountName:        serviceAccountName,
 		TopologySpreadConstraints: topologySpreadConstraints,
 	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("composing Ledger v3 Cluster spec: %w", err)
+	}
 	desiredSpecMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(desiredSpec)
 	if err != nil {
-		return nil, fmt.Errorf("converting Ledger v3 Cluster spec: %w", err)
+		return nil, nil, fmt.Errorf("converting Ledger v3 Cluster spec: %w", err)
 	}
 	// ResourceRequirements is a value struct in the Ledger API. The
 	// unstructured converter therefore emits an empty resources object even
@@ -422,7 +428,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 
 		return nil
 	})
-	return cluster, err
+	return cluster, desiredSpec, err
 }
 
 func ledgerV3BaseSpec(ctx core.Context, stack string) (*ledgerv1alpha1.ClusterSpec, error) {

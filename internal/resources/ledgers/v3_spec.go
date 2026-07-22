@@ -1,6 +1,8 @@
 package ledgers
 
 import (
+	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -35,7 +37,7 @@ type ledgerV3SpecOverrides struct {
 // composeLedgerV3ClusterSpec applies the values owned by the Formance Operator
 // to a shared ClusterSpec. Unmanaged fields remain entirely owned by the
 // LedgerConfiguration.
-func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledgerV3SpecOverrides) *ledgerv1alpha1.ClusterSpec {
+func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledgerV3SpecOverrides) (*ledgerv1alpha1.ClusterSpec, error) {
 	spec := base.DeepCopy()
 
 	spec.Image.Repository = overrides.ImageRepository
@@ -91,7 +93,9 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 		spec.ExtraEnv = core.MergeEnvVars(spec.ExtraEnv, overrides.ExtraEnv)
 	}
 	applyLedgerV3Monitoring(spec, overrides.Monitoring)
-	applyLedgerV3Auth(spec, overrides.Auth)
+	if err := applyLedgerV3Auth(spec, overrides.Auth); err != nil {
+		return nil, err
+	}
 
 	if overrides.ServiceAccountName != "" {
 		spec.ServiceAccount.Create = pointerTo(false)
@@ -105,7 +109,7 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 		}
 	}
 
-	return spec
+	return spec, nil
 }
 
 func defaultLedgerV3TopologySpreadConstraints() []corev1.TopologySpreadConstraint {
@@ -123,9 +127,9 @@ func defaultLedgerV3TopologySpreadConstraints() []corev1.TopologySpreadConstrain
 	}
 }
 
-func applyLedgerV3Auth(spec *ledgerv1alpha1.ClusterSpec, configuration *auths.ProtectedAuthConfiguration) {
+func applyLedgerV3Auth(spec *ledgerv1alpha1.ClusterSpec, configuration *auths.ProtectedAuthConfiguration) error {
 	if configuration == nil {
-		return
+		return nil
 	}
 	if spec.Auth == nil {
 		spec.Auth = &ledgerv1alpha1.AuthorizationConfig{}
@@ -140,8 +144,12 @@ func applyLedgerV3Auth(spec *ledgerv1alpha1.ClusterSpec, configuration *auths.Pr
 		spec.Auth.Service = configuration.Service
 	}
 	if configuration.ReadKeySetMaxRetries != 0 {
+		if configuration.ReadKeySetMaxRetries > math.MaxInt32 || configuration.ReadKeySetMaxRetries < math.MinInt32 {
+			return fmt.Errorf("auth read key set max retries must fit in int32, got %d", configuration.ReadKeySetMaxRetries)
+		}
 		spec.Auth.ReadKeySetMaxRetries = pointerTo(int32(configuration.ReadKeySetMaxRetries))
 	}
+	return nil
 }
 
 func applyLedgerV3Monitoring(spec *ledgerv1alpha1.ClusterSpec, configuration *settings.OpenTelemetryConfiguration) {

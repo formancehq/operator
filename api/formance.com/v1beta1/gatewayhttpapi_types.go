@@ -44,8 +44,6 @@ type GatewayHTTPAPISpec struct {
 
 type GatewayHTTPAPIStatus struct {
 	Status `json:",inline"`
-	//+optional
-	Ready bool `json:"ready,omitempty"`
 }
 
 //+kubebuilder:object:root=true

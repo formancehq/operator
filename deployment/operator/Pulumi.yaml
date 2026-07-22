@@ -27,8 +27,7 @@ x-plr-config:
     description: Image tag (defaults to git version)
   arch:
     type: string
-    default: amd64
-    description: Target CPU architecture
+    description: Target CPU architecture (defaults to amd64 and arm64)
   registry-username:
     type: string
     secret: true

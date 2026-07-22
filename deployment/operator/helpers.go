@@ -92,17 +92,17 @@ func newDockerConfig(ctx *pulumi.Context, cfg *config.Config) *dockerConfig {
 	}
 
 	arch := cfg.Get("arch")
-	if arch == "" {
-		arch = "amd64"
-	}
-	platforms := make([]string, 0, len(allPlatforms))
-	for _, p := range allPlatforms {
-		if strings.HasSuffix(p, arch) {
-			platforms = append(platforms, p)
+	platforms := append([]string(nil), allPlatforms...)
+	if arch != "" {
+		platforms = platforms[:0]
+		for _, p := range allPlatforms {
+			if strings.HasSuffix(p, arch) {
+				platforms = append(platforms, p)
+			}
 		}
-	}
-	if len(platforms) == 0 {
-		platforms = []string{"linux-" + arch}
+		if len(platforms) == 0 {
+			platforms = []string{"linux-" + arch}
+		}
 	}
 
 	return &dockerConfig{
@@ -159,7 +159,8 @@ func (dc *dockerConfig) buildImage(
 			CacheTo: dockerbuild.CacheToArray{
 				dockerbuild.CacheToArgs{
 					Registry: dockerbuild.CacheToRegistryArgs{
-						Ref: pulumi.Sprintf("%s/%s:buildcache-%s,mode=max", dc.Registry, name, platform),
+						Ref:  pulumi.Sprintf("%s/%s:buildcache-%s", dc.Registry, name, platform),
+						Mode: dockerbuild.CacheModeMax,
 					},
 				},
 			},

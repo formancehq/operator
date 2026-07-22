@@ -82,13 +82,6 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 		}
 	}
 
-	httpRules := []v1beta1.GatewayHTTPAPIRule{gatewayhttpapis.RuleSecured()}
-	if previewVersion != "" {
-		httpRules = append([]v1beta1.GatewayHTTPAPIRule{
-			gatewayhttpapis.RuleSecuredWithBackend("/v3", ledgerV3HTTPBackendRef(stack.Name)),
-		}, httpRules...)
-	}
-
 	database, err := databases.Create(ctx, stack, ledger)
 	if err != nil {
 		return err
@@ -101,7 +94,7 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 
 	if err := gatewayhttpapis.Create(ctx, ledger,
 		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
-		gatewayhttpapis.WithRules(httpRules...),
+		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecured()),
 	); err != nil {
 		return err
 	}

@@ -4,12 +4,13 @@ Formance Ledger is a real-time money tracking microservice that lets you model a
 
 Ledger versions up to and including `v3.0.0-alpha` require:
 
-- **PostgreSQL**: See configuration guide [here](../05-Infrastructure%20services/01-PostgreSQL.md).
-- (Optional) **Broker**: See configuration guide [here](../05-Infrastructure%20services/02-Message%20broker.md).
+- See the [PostgreSQL configuration](../05-Infrastructure%20services/01-PostgreSQL.md).
+- (Optional) See the [message broker configuration](../05-Infrastructure%20services/02-Message%20broker.md).
 
 Ledger versions newer than `v3.0.0-alpha` require the Ledger Operator and its
-`ledger.formance.com/v1alpha1` CRDs to be installed in the cluster. They use the
-Ledger v3 native storage and do not require a PostgreSQL `Database` resource.
+`ledger.formance.com/v1alpha1` CRDs, plus cert-manager with its `Issuer` and
+`Certificate` CRDs, to be installed in the cluster. They use Ledger v3 native
+storage and do not require a PostgreSQL `Database` resource.
 
 ## Ledger Object
 

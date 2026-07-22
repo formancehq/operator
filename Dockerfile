@@ -28,7 +28,10 @@ RUN set -e; \
 FROM alpine:3.20
 
 RUN apk update && apk add --no-cache ca-certificates curl
+RUN addgroup -S operator && adduser -S -G operator operator
 
 ENTRYPOINT ["/usr/bin/operator"]
 
 COPY --from=builder /usr/bin/operator /usr/bin/operator
+
+USER operator

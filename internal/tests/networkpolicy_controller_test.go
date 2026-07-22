@@ -81,7 +81,7 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "gateway"))
 				}).Should(Succeed())
 
-				// Direct Ledger v3 replicas can communicate over Raft and service gRPC.
+				// Direct Ledger v3 replicas can communicate on configured service ports.
 				Eventually(func(g Gomega) {
 					np := &networkingv1.NetworkPolicy{}
 					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-cluster", np)).To(Succeed())
@@ -94,7 +94,7 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
 					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
 					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(np.Spec.PodSelector.MatchLabels))
-					g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(2))
+					g.Expect(np.Spec.Ingress[0].Ports).To(BeEmpty())
 				}).Should(Succeed())
 
 				// Existing preview clusters keep their historical immutable selector.
@@ -103,7 +103,10 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-preview-cluster", np)).To(Succeed())
 					g.Expect(np).To(BeControlledBy(stack))
 					g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("formance.com/ledger-v3-preview", "true"))
+					g.Expect(np.Spec.Ingress).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
 					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(np.Spec.PodSelector.MatchLabels))
+					g.Expect(np.Spec.Ingress[0].Ports).To(BeEmpty())
 				}).Should(Succeed())
 
 				// Ledger v3 can reach only the legacy Ledger from the same namespace.

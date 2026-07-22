@@ -98,9 +98,9 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 		return err
 	}
 
-	// 4. allow-ledger-v3-cluster: allow Raft and service gRPC between direct
-	// Ledger v3 replicas. These labels are part of the Ledger Operator's stable
-	// selector and also work for clusters created before this policy.
+	// 4. allow-ledger-v3-cluster: allow traffic between direct Ledger v3
+	// replicas. Ports are intentionally unrestricted within the cluster so
+	// LedgerConfiguration service port overrides cannot break Raft or gRPC.
 	if _, _, err := CreateOrUpdate[*networkingv1.NetworkPolicy](ctx,
 		types.NamespacedName{
 			Namespace: stack.Name,
@@ -116,7 +116,6 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 						From: []networkingv1.NetworkPolicyPeer{
 							{PodSelector: &selector},
 						},
-						Ports: networkPolicyTCPPorts(7777, 8888),
 					},
 				},
 			}
@@ -140,8 +139,7 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 				PodSelector: selector,
 				PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 				Ingress: []networkingv1.NetworkPolicyIngressRule{{
-					From:  []networkingv1.NetworkPolicyPeer{{PodSelector: &selector}},
-					Ports: networkPolicyTCPPorts(7777, 8888),
+					From: []networkingv1.NetworkPolicyPeer{{PodSelector: &selector}},
 				}},
 			}
 			return nil

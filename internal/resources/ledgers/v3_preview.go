@@ -29,6 +29,7 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/gatewaygrpcapis"
+	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -61,7 +62,7 @@ func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
 		return err
 	}
-	cluster, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, true, tlsCAHash)
+	cluster, clusterSpec, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, true, tlsCAHash)
 	if err != nil {
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
@@ -74,10 +75,21 @@ func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 		return core.NewPendingError().WithMessage("Ledger v3 preview TLS is not ready: %s", tlsMessage)
 	}
 
+	if err := gatewayhttpapis.Create(ctx, ledger,
+		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
+		gatewayhttpapis.WithRules(
+			gatewayhttpapis.RuleSecuredWithBackend("/v3", ledgerV3HTTPBackendRef(stack.Name, clusterSpec.Service.HttpPort)),
+			gatewayhttpapis.RuleSecured(),
+		),
+	); err != nil {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
+		return err
+	}
+
 	if err := gatewaygrpcapis.Create(ctx, ledger,
 		gatewaygrpcapis.WithGRPCServices(ledgerV3PublicGRPCService),
-		gatewaygrpcapis.WithPort(ledgerV3GRPCPort),
-		gatewaygrpcapis.WithBackendRef(ledgerV3GRPCBackendRef(stack.Name)),
+		gatewaygrpcapis.WithPort(ledgerV3ServicePort(clusterSpec.Service.GrpcPort, ledgerV3GRPCPort)),
+		gatewaygrpcapis.WithBackendRef(ledgerV3GRPCBackendRef(stack.Name, clusterSpec.Service.GrpcPort)),
 	); err != nil {
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
 		return err
@@ -96,23 +108,30 @@ func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 	return nil
 }
 
-func ledgerV3HTTPBackendRef(stackName string) v1beta1.GatewayBackendRef {
+func ledgerV3HTTPBackendRef(stackName string, port int32) v1beta1.GatewayBackendRef {
 	return v1beta1.GatewayBackendRef{
 		Name: "ledger-" + stackName,
-		Port: ledgerV3HTTPPort,
+		Port: ledgerV3ServicePort(port, ledgerV3HTTPPort),
 	}
 }
 
-func ledgerV3GRPCBackendRef(stackName string) v1beta1.GatewayBackendRef {
+func ledgerV3GRPCBackendRef(stackName string, port int32) v1beta1.GatewayBackendRef {
 	return v1beta1.GatewayBackendRef{
 		Name: "ledger-" + stackName,
-		Port: ledgerV3GRPCPort,
+		Port: ledgerV3ServicePort(port, ledgerV3GRPCPort),
 		TLS: &v1beta1.GatewayBackendTLS{
 			SecretName:  ledgerV3TLSName(stackName),
 			CASecretKey: ledgerV3TLSCASecretKey,
 			ServerName:  "ledger-" + stackName + "." + stackName + ".svc.cluster.local",
 		},
 	}
+}
+
+func ledgerV3ServicePort(configured, defaultPort int32) int32 {
+	if configured == 0 {
+		return defaultPort
+	}
+	return configured
 }
 
 func setLedgerV3PreviewCondition(ledger *v1beta1.Ledger, status metav1.ConditionStatus, reason, message string) {
@@ -140,9 +159,20 @@ func deleteLedgerV3Preview(ctx core.Context, stack *v1beta1.Stack) error {
 			return err
 		}
 	}
+
+	secret := &corev1.Secret{}
+	err = ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: ledgerV3TLSName(stack.Name)}, secret)
+	if err == nil && secret.GetLabels()[ledgerV3PreviewLabel] == "true" {
+		if err := ctx.GetClient().Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
 	// A missing or inaccessible cert-manager dependency must not block the
-	// legacy Ledger reconciliation. The Cluster cleanup above is still safe and
-	// useful because its capability is checked independently.
+	// legacy Ledger reconciliation. Cluster and Secret cleanup above remain
+	// safe because they use preview-specific labels and do not require the CRDs.
 	if !ledgerV3CertManagerAvailable {
 		return nil
 	}
@@ -151,10 +181,6 @@ func deleteLedgerV3Preview(ctx core.Context, stack *v1beta1.Stack) error {
 	err = ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: ledgerV3TLSName(stack.Name)}, certificate)
 	if err == nil && certificate.GetLabels()[ledgerV3PreviewLabel] == "true" {
 		if err := ctx.GetClient().Delete(ctx, certificate); err != nil && !apierrors.IsNotFound(err) {
-			return err
-		}
-		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: stack.Name, Name: ledgerV3TLSName(stack.Name)}}
-		if err := ctx.GetClient().Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	} else if err != nil && !apierrors.IsNotFound(err) {

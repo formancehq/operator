@@ -2384,7 +2384,6 @@ GatewayBackendTLS configures TLS when Gateway connects to a backend.
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
-| `ready` _boolean_ |  |  |  |
 
 
 #### GatewayHTTPAPI
@@ -2499,7 +2498,6 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
-| `ready` _boolean_ |  |  |  |
 
 
 #### LedgerConfiguration
@@ -2556,7 +2554,7 @@ takes priority over a configuration targeting all stacks with `*`.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stacks` _string array_ | Stacks on which the configuration is applied. Can contain `*` to<br />indicate a wildcard, following the same convention as Settings. |  |  |
-| `cluster` _[ClusterSpec](#clusterspec)_ | Cluster is the base Ledger v3 Cluster specification. Stack-specific<br />Settings and values owned by the Operator are applied on top of it. |  |  |
+| `cluster` _[ClusterSpec](https://github.com/formancehq/ledger/blob/release/v3.0/misc/operator/api/v1alpha1/cluster_types.go)_ | Cluster is the base Ledger v3 Cluster specification. Stack-specific<br />Settings and values owned by the Operator are applied on top of it. |  |  |
 
 
 

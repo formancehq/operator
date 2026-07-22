@@ -38,8 +38,6 @@ type GatewayGRPCAPISpec struct {
 
 type GatewayGRPCAPIStatus struct {
 	Status `json:",inline"`
-	//+optional
-	Ready bool `json:"ready,omitempty"`
 }
 
 //+kubebuilder:object:root=true

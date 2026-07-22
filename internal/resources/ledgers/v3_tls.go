@@ -70,7 +70,7 @@ func createOrUpdateV3TLSResources(ctx core.Context, stack *v1beta1.Stack, ledger
 		if err := controllerutil.SetControllerReference(ledger, certificate, ctx.GetScheme()); err != nil {
 			return err
 		}
-		certificate.Object["spec"] = ledgerV3CertificateSpec(stack.Name)
+		certificate.Object["spec"] = ledgerV3CertificateSpec(stack.Name, preview)
 		return nil
 	}); err != nil {
 		return false, "", "", err
@@ -134,17 +134,21 @@ func ledgerV3TLSName(stackName string) string {
 	return stackName + "-ledger-v3-tls"
 }
 
-func ledgerV3CertificateSpec(stackName string) map[string]any {
+func ledgerV3CertificateSpec(stackName string, preview bool) map[string]any {
 	serviceName := "ledger-" + stackName
+	secretLabels := map[string]any{
+		v1beta1.GatewayBackendTLSSecretLabel: "true",
+	}
+	if preview {
+		secretLabels[ledgerV3PreviewLabel] = "true"
+	}
 	return map[string]any{
 		"secretName":  ledgerV3TLSName(stackName),
 		"duration":    ledgerV3TLSCertificateDuration,
 		"renewBefore": ledgerV3TLSCertificateRenewBefore,
 		"isCA":        true,
 		"secretTemplate": map[string]any{
-			"labels": map[string]any{
-				v1beta1.GatewayBackendTLSSecretLabel: "true",
-			},
+			"labels": secretLabels,
 		},
 		"issuerRef": map[string]any{
 			"name": ledgerV3IssuerName(stackName),

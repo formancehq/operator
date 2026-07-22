@@ -56,7 +56,7 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 		},
 	}
 
-	actual := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
+	actual, err := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
 		ImageRepository:  "registry.example/ledger",
 		ImageTag:         "v3.0.0",
 		ImagePullSecrets: []corev1.LocalObjectReference{{Name: "registry"}},
@@ -90,6 +90,7 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 		ServiceAccountName:        "ledger-aws",
 		TopologySpreadConstraints: pointerTo(true),
 	})
+	require.NoError(t, err)
 
 	require.Equal(t, "registry.example/ledger", actual.Image.Repository)
 	require.Equal(t, "v3.0.0", actual.Image.Tag)
@@ -165,13 +166,14 @@ func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 			WhenUnsatisfiable: corev1.ScheduleAnyway,
 		}},
 	}
-	actual := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
+	actual, err := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
 		ImageRepository: "ledger",
 		ImageTag:        "latest",
 		Replicas:        3,
 		ClusterID:       "stack0",
 		TLSSecretName:   "tls",
 	})
+	require.NoError(t, err)
 
 	require.Equal(t, "base-registry", actual.ImagePullSecrets[0].Name)
 	require.Equal(t, "512Mi", actual.Resources.Requests.Memory().String())
@@ -190,7 +192,7 @@ func TestComposeLedgerV3ClusterSpecDisablesConfiguredTopologySpreadConstraints(t
 	base := &ledgerv1alpha1.ClusterSpec{
 		TopologySpreadConstraints: defaultLedgerV3TopologySpreadConstraints(),
 	}
-	actual := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
+	actual, err := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
 		ImageRepository:           "ledger",
 		ImageTag:                  "latest",
 		Replicas:                  3,
@@ -198,7 +200,17 @@ func TestComposeLedgerV3ClusterSpecDisablesConfiguredTopologySpreadConstraints(t
 		TLSSecretName:             "tls",
 		TopologySpreadConstraints: pointerTo(false),
 	})
+	require.NoError(t, err)
 
 	require.Nil(t, actual.TopologySpreadConstraints)
 	require.NotEmpty(t, base.TopologySpreadConstraints)
+}
+
+func TestComposeLedgerV3ClusterSpecRejectsOversizedAuthRetries(t *testing.T) {
+	t.Parallel()
+
+	_, err := composeLedgerV3ClusterSpec(&ledgerv1alpha1.ClusterSpec{}, ledgerV3SpecOverrides{
+		Auth: &auths.ProtectedAuthConfiguration{ReadKeySetMaxRetries: int(^uint32(0)>>1) + 1},
+	})
+	require.ErrorContains(t, err, "must fit in int32")
 }

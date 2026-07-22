@@ -209,6 +209,22 @@ var _ = Describe("Ledger v3 controller", func() {
 	})
 
 	It("configures TLS before the managed certificate is ready", func() {
+		configuration := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "ports-" + stack.Name},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{stack.Name},
+				Cluster: ledgerv1alpha1.ClusterSpec{Service: ledgerv1alpha1.ServiceSpec{
+					HttpPort: 19000,
+					GrpcPort: 18888,
+					RaftPort: 17777,
+				}},
+			},
+		}
+		Expect(Create(configuration)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(configuration))).To(Succeed())
+		})
+
 		issuer := newLedgerV3Issuer()
 		certificate := newLedgerV3Certificate()
 		cluster := newLedgerV3Cluster()
@@ -340,7 +356,7 @@ var _ = Describe("Ledger v3 controller", func() {
 			return httpAPI.Spec.Rules[0].BackendRef
 		}).Should(Equal(&v1beta1.GatewayBackendRef{
 			Name: "ledger-" + stack.Name,
-			Port: 9000,
+			Port: 19000,
 		}))
 		grpcAPI := &v1beta1.GatewayGRPCAPI{}
 		Eventually(func(g Gomega) *v1beta1.GatewayBackendRef {
@@ -350,13 +366,23 @@ var _ = Describe("Ledger v3 controller", func() {
 			return grpcAPI.Spec.BackendRef
 		}).Should(Equal(&v1beta1.GatewayBackendRef{
 			Name: "ledger-" + stack.Name,
-			Port: 8888,
+			Port: 18888,
 			TLS: &v1beta1.GatewayBackendTLS{
 				SecretName:  tlsName,
 				CASecretKey: "ca.crt",
 				ServerName:  "ledger-" + stack.Name + "." + stack.Name + ".svc.cluster.local",
 			},
 		}))
+
+		certificate.Object["status"] = map[string]any{
+			"conditions": []any{
+				map[string]any{"type": "Ready", "status": "False", "reason": "SecretMissing"},
+			},
+		}
+		Expect(TestContext().GetClient().Status().Update(TestContext(), certificate)).To(Succeed())
+		Eventually(func() error {
+			return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.GatewayGRPCAPI{})
+		}).Should(BeNotFound())
 	})
 
 	It("configures authentication and monitoring from the existing stack settings", func() {
@@ -575,17 +601,16 @@ var _ = Describe("Ledger v3 controller", func() {
 			return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
 		}).Should(Succeed())
 
-		Eventually(func(g Gomega) error {
+		Eventually(func(g Gomega) bool {
 			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
 			cluster.Object["status"] = map[string]any{
 				"phase":              "Running",
 				"readyReplicas":      int64(3),
 				"observedGeneration": cluster.GetGeneration(),
 			}
-			return TestContext().GetClient().Status().Update(TestContext(), cluster)
-		}).Should(Succeed())
-
-		Eventually(func(g Gomega) bool {
+			if err := TestContext().GetClient().Status().Update(TestContext(), cluster); err != nil {
+				return false
+			}
 			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
 			return ledger.Status.Ready
 		}, time.Minute).Should(BeTrue())
@@ -780,16 +805,6 @@ var _ = Describe("Ledger v3 controller", func() {
 					return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.Database{})
 				}).Should(Succeed())
 
-				httpAPI := &v1beta1.GatewayHTTPAPI{}
-				Eventually(func(g Gomega) []v1beta1.GatewayHTTPAPIRule {
-					g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), httpAPI)).To(Succeed())
-					return httpAPI.Spec.Rules
-				}).Should(ContainElement(SatisfyAll(
-					HaveField("Path", "/v3"),
-					HaveField("BackendRef.Name", "ledger-"+stack.Name),
-					HaveField("BackendRef.Port", int32(9000)),
-				)))
-
 				certificate := newLedgerV3Certificate()
 				tlsName := stack.Name + "-ledger-v3-tls"
 				Eventually(func(g Gomega) error {
@@ -816,6 +831,16 @@ var _ = Describe("Ledger v3 controller", func() {
 					},
 				}
 				Expect(TestContext().GetClient().Status().Update(TestContext(), certificate)).To(Succeed())
+
+				httpAPI := &v1beta1.GatewayHTTPAPI{}
+				Eventually(func(g Gomega) []v1beta1.GatewayHTTPAPIRule {
+					g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), httpAPI)).To(Succeed())
+					return httpAPI.Spec.Rules
+				}).Should(ContainElement(SatisfyAll(
+					HaveField("Path", "/v3"),
+					HaveField("BackendRef.Name", "ledger-"+stack.Name),
+					HaveField("BackendRef.Port", int32(9000)),
+				)))
 
 				grpcAPI := &v1beta1.GatewayGRPCAPI{}
 				Eventually(func(g Gomega) *v1beta1.GatewayBackendRef {
