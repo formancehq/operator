@@ -71,6 +71,13 @@ func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 		if err := core.DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, core.GetResourceName(core.GetObjectName(stack.Name, "ledger"))); err != nil {
 			return err
 		}
+		if err := gatewayhttpapis.Create(ctx, ledger,
+			gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
+			gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecured()),
+		); err != nil {
+			setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
+			return err
+		}
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "TLSCertificatePending", tlsMessage)
 		return core.NewPendingError().WithMessage("Ledger v3 preview TLS is not ready: %s", tlsMessage)
 	}

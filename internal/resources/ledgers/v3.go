@@ -222,6 +222,9 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		if err := core.DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, core.GetResourceName(core.GetObjectName(stack.Name, "ledger"))); err != nil {
 			return err
 		}
+		if err := core.DeleteIfExists[*v1beta1.GatewayHTTPAPI](ctx, core.GetResourceName(core.GetObjectName(stack.Name, "ledger"))); err != nil {
+			return err
+		}
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSCertificatePending", tlsMessage)
 		return core.NewPendingError().WithMessage("Ledger v3 TLS is not ready: %s", tlsMessage)
 	}

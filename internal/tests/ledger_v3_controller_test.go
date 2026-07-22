@@ -383,6 +383,9 @@ var _ = Describe("Ledger v3 controller", func() {
 		Eventually(func() error {
 			return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.GatewayGRPCAPI{})
 		}).Should(BeNotFound())
+		Eventually(func() error {
+			return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.GatewayHTTPAPI{})
+		}).Should(BeNotFound())
 	})
 
 	It("configures authentication and monitoring from the existing stack settings", func() {
@@ -856,6 +859,23 @@ var _ = Describe("Ledger v3 controller", func() {
 						ServerName:  "ledger-" + stack.Name + "." + stack.Name + ".svc.cluster.local",
 					},
 				}))
+
+				certificate.Object["status"] = map[string]any{
+					"conditions": []any{
+						map[string]any{"type": "Ready", "status": "False", "reason": "SecretMissing"},
+					},
+				}
+				Expect(TestContext().GetClient().Status().Update(TestContext(), certificate)).To(Succeed())
+				Eventually(func(g Gomega) []v1beta1.GatewayHTTPAPIRule {
+					g.Expect(Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), httpAPI)).To(Succeed())
+					return httpAPI.Spec.Rules
+				}).Should(SatisfyAll(
+					HaveLen(1),
+					ContainElement(SatisfyAll(HaveField("Path", ""), HaveField("BackendRef", BeNil()))),
+				))
+				Eventually(func() error {
+					return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), &v1beta1.GatewayGRPCAPI{})
+				}).Should(BeNotFound())
 			})
 
 			It("does not allow the preview Cluster to bypass the migration guard", func() {
