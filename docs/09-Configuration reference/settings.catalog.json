@@ -42,7 +42,7 @@
       "valueType": "string",
       "default": "defaultCaddyImage",
       "sources": [
-        "internal/resources/registries/image.go:49"
+        "internal/resources/registries/image.go:44"
       ]
     },
     {
