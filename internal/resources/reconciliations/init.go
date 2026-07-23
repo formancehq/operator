@@ -18,12 +18,15 @@ package reconciliations
 
 import (
 	"github.com/pkg/errors"
+	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/authclients"
+	"github.com/formancehq/operator/v3/internal/resources/brokers"
+	"github.com/formancehq/operator/v3/internal/resources/brokertopics"
 	"github.com/formancehq/operator/v3/internal/resources/databases"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
@@ -34,9 +37,32 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=reconciliations/finalizers,verbs=update
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconciliation, version string) error {
+	v3Topology := usesV3Topology(version)
 	database, err := databases.Create(ctx, stack, reconciliation)
 	if err != nil {
 		return err
+	}
+
+	var broker *v1beta1.Broker
+	if v3Topology {
+		candidate := &v1beta1.Broker{}
+		hasBroker, err := GetIfExists(ctx, stack.Name, candidate)
+		if err != nil {
+			return err
+		}
+		if hasBroker {
+			broker = candidate
+			if !broker.Status.Ready {
+				return NewPendingError().WithMessage("broker not ready")
+			}
+			topic, err := brokertopics.Create(ctx, stack, reconciliation, "reconciliation")
+			if err != nil {
+				return err
+			}
+			if !topic.Status.Ready {
+				return NewPendingError().WithMessage("reconciliation broker topic not ready")
+			}
+		}
 	}
 
 	authClient, err := authclients.Create(ctx, stack, reconciliation, "reconciliation",
@@ -63,8 +89,17 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconc
 			}
 		}
 
-		if err := createDeployment(ctx, stack, reconciliation, database, authClient, imageConfiguration); err != nil {
-			return err
+		if v3Topology {
+			if err := createV3Deployments(ctx, stack, reconciliation, database, authClient, imageConfiguration, broker); err != nil {
+				return err
+			}
+		} else {
+			if err := deleteWorkerResources(ctx, stack.Name); err != nil {
+				return err
+			}
+			if err := createDeployment(ctx, stack, reconciliation, database, authClient, imageConfiguration); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -73,6 +108,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconc
 	}
 
 	return nil
+}
+
+func usesV3Topology(version string) bool {
+	return !semver.IsValid(version) || semver.Compare(version, "v3.0.0") >= 0
 }
 
 func init() {
@@ -85,6 +124,8 @@ func init() {
 			WithOwn[*v1beta1.Reconciliation](&batchv1.Job{}),
 			WithOwn[*v1beta1.Reconciliation](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Reconciliation](),
+			brokers.Watch[*v1beta1.Reconciliation](),
+			brokertopics.Watch[*v1beta1.Reconciliation]("reconciliation"),
 			WithWatchDependency[*v1beta1.Reconciliation](&v1beta1.Ledger{}),
 			WithWatchDependency[*v1beta1.Reconciliation](&v1beta1.Payments{}),
 		),
