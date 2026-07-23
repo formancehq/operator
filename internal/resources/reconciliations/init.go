@@ -111,7 +111,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconc
 }
 
 func usesV3Topology(version string) bool {
-	return !semver.IsValid(version) || semver.Compare(version, "v3.0.0") >= 0
+	return !semver.IsValid(version) || semver.Compare(version, "v3.0.0-0") >= 0
 }
 
 func init() {
