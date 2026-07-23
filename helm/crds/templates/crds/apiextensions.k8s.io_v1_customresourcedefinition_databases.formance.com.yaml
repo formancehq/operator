@@ -42,6 +42,7 @@ spec:
 
           It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
           Additionally, the uri can define a query param `secret` indicating a k8s secret, than must be used to retrieve database credentials.
+          Credentials in the secret are expected to be URL-encoded by default. Set `secretCredentialsEncoding=raw` to let the operator encode them.
 
           On creation, the reconciler behind the Database object will create the database on the postgresql server using a k8s job.
           On Deletion, by default, the reconciler will let the database untouched.

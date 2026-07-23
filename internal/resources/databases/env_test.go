@@ -1,10 +1,22 @@
 package databases
 
 import (
+	"context"
+	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
 )
 
 func TestBuildPostgresQueryString(t *testing.T) {
@@ -57,6 +69,11 @@ func TestBuildPostgresQueryString(t *testing.T) {
 			uri:           "postgresql://user:pass@host:5432?awsRole=my-role&sslmode=require",
 			expectedQuery: "sslmode=require",
 		},
+		{
+			name:          "secret credentials encoding is filtered out",
+			uri:           "postgresql://host:5432?secret=creds&secretCredentialsEncoding=raw&sslmode=require",
+			expectedQuery: "sslmode=require",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -77,6 +94,279 @@ func TestBuildPostgresQueryString(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expectedParams, actualParams)
 			}
+		})
+	}
+}
+
+type testContext struct {
+	context.Context
+	client    client.Client
+	apiReader client.Reader
+	scheme    *runtime.Scheme
+}
+
+func (t testContext) GetClient() client.Client {
+	return t.client
+}
+
+func (t testContext) GetScheme() *runtime.Scheme {
+	return t.scheme
+}
+
+func (t testContext) GetAPIReader() client.Reader {
+	return t.apiReader
+}
+
+func (t testContext) GetPlatform() core.Platform {
+	return core.Platform{}
+}
+
+func newTestContext(t *testing.T, objects ...client.Object) testContext {
+	return newTestContextWithInterceptor(t, interceptor.Funcs{}, objects...)
+}
+
+func newTestContextWithInterceptor(t *testing.T, interceptorFuncs interceptor.Funcs, objects ...client.Object) testContext {
+	t.Helper()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, v1beta1.AddToScheme(scheme))
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objects...).
+		WithIndex(&v1beta1.Settings{}, "stack", func(obj client.Object) []string {
+			settings := obj.(*v1beta1.Settings)
+			return settings.Spec.Stacks
+		}).
+		WithIndex(&v1beta1.Settings{}, "keylen", func(obj client.Object) []string {
+			settings := obj.(*v1beta1.Settings)
+			keys := strings.Split(settings.Spec.Key, ".")
+			return []string{fmt.Sprint(len(keys))}
+		}).
+		WithInterceptorFuncs(interceptorFuncs).
+		Build()
+
+	return testContext{
+		Context:   context.Background(),
+		client:    fakeClient,
+		apiReader: fakeClient,
+		scheme:    scheme,
+	}
+}
+
+func TestGetPostgresEnvVarsUsesEncodedSecretForURI(t *testing.T) {
+	t.Parallel()
+
+	ctx := newTestContext(t)
+	stack := &v1beta1.Stack{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack"},
+	}
+	postgresURI, err := v1beta1.ParseURL("postgresql://postgres:5432?secret=postgres")
+	require.NoError(t, err)
+	database := &v1beta1.Database{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack-ledger"},
+		Spec: v1beta1.DatabaseSpec{
+			Service: "ledger",
+		},
+		Status: v1beta1.DatabaseStatus{
+			URI:      postgresURI,
+			Database: "ledger",
+		},
+	}
+
+	envVars, err := GetPostgresEnvVars(ctx, stack, database)
+	require.NoError(t, err)
+
+	envByName := make(map[string]corev1.EnvVar, len(envVars))
+	for _, envVar := range envVars {
+		envByName[envVar.Name] = envVar
+	}
+
+	require.Equal(t, "postgres", envByName["POSTGRES_USERNAME"].ValueFrom.SecretKeyRef.Name)
+	require.Equal(t, postgresCredentialsUsernameKey, envByName["POSTGRES_USERNAME"].ValueFrom.SecretKeyRef.Key)
+	require.Equal(t, "postgres", envByName["POSTGRES_PASSWORD"].ValueFrom.SecretKeyRef.Name)
+	require.Equal(t, postgresCredentialsPasswordKey, envByName["POSTGRES_PASSWORD"].ValueFrom.SecretKeyRef.Key)
+
+	encodedSecretName := getEncodedPostgresCredentialsSecretName(database)
+	require.Equal(t, encodedSecretName, envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Name)
+	require.Equal(t, postgresCredentialsUsernameKey, envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Key)
+	require.Equal(t, encodedSecretName, envByName["POSTGRES_URL_ENCODED_PASSWORD"].ValueFrom.SecretKeyRef.Name)
+	require.Equal(t, postgresCredentialsPasswordKey, envByName["POSTGRES_URL_ENCODED_PASSWORD"].ValueFrom.SecretKeyRef.Key)
+
+	require.Equal(t,
+		"postgresql://$(POSTGRES_URL_ENCODED_USERNAME):$(POSTGRES_URL_ENCODED_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)",
+		envByName["POSTGRES_NO_DATABASE_URI"].Value,
+	)
+	require.Equal(t, "$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)", envByName["POSTGRES_URI"].Value)
+}
+
+func TestGetPostgresEnvVarsIncludesCredentialsEncodingRolloutSignal(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		uri      string
+		expected string
+	}{
+		{
+			name:     "defaults to url encoded",
+			uri:      "postgresql://postgres:5432?secret=postgres",
+			expected: "urlEncoded",
+		},
+		{
+			name:     "raw",
+			uri:      "postgresql://postgres:5432?secret=postgres&secretCredentialsEncoding=raw",
+			expected: "raw",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			postgresURI, err := v1beta1.ParseURL(tc.uri)
+			require.NoError(t, err)
+			database := &v1beta1.Database{
+				ObjectMeta: metav1.ObjectMeta{Name: "stack-ledger"},
+				Spec: v1beta1.DatabaseSpec{
+					Service: "ledger",
+				},
+				Status: v1beta1.DatabaseStatus{
+					URI:      postgresURI,
+					Database: "ledger",
+				},
+			}
+
+			envVars, err := GetPostgresEnvVars(newTestContext(t), &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack"}}, database)
+			require.NoError(t, err)
+
+			envByName := make(map[string]corev1.EnvVar, len(envVars))
+			for _, envVar := range envVars {
+				envByName[envVar.Name] = envVar
+			}
+			require.Equal(t, tc.expected, envByName["POSTGRES_CREDENTIALS_ENCODING"].Value)
+		})
+	}
+}
+
+func TestGetPostgresEnvVarsAvoidsEncodedSecretNameCollision(t *testing.T) {
+	t.Parallel()
+
+	ctx := newTestContext(t)
+	stack := &v1beta1.Stack{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack"},
+	}
+	sourceSecretName := "stack-ledger-postgres-uri-credentials"
+	postgresURI, err := v1beta1.ParseURL("postgresql://postgres:5432?secret=" + sourceSecretName)
+	require.NoError(t, err)
+	database := &v1beta1.Database{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack-ledger"},
+		Spec: v1beta1.DatabaseSpec{
+			Service: "ledger",
+		},
+		Status: v1beta1.DatabaseStatus{
+			URI:      postgresURI,
+			Database: "ledger",
+		},
+	}
+
+	envVars, err := GetPostgresEnvVars(ctx, stack, database)
+	require.NoError(t, err)
+
+	envByName := make(map[string]corev1.EnvVar, len(envVars))
+	for _, envVar := range envVars {
+		envByName[envVar.Name] = envVar
+	}
+
+	require.Equal(t, sourceSecretName, envByName["POSTGRES_USERNAME"].ValueFrom.SecretKeyRef.Name)
+	require.Equal(t, sourceSecretName, envByName["POSTGRES_PASSWORD"].ValueFrom.SecretKeyRef.Name)
+	require.NotEqual(t, sourceSecretName, envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Name)
+	require.NotEqual(t,
+		fmt.Sprintf("%s-%s", database.Name, collisionSafeEncodedPostgresCredentialsSecretSuffix),
+		envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Name,
+	)
+	require.Equal(t,
+		envByName["POSTGRES_URL_ENCODED_USERNAME"].ValueFrom.SecretKeyRef.Name,
+		envByName["POSTGRES_URL_ENCODED_PASSWORD"].ValueFrom.SecretKeyRef.Name,
+	)
+	require.Equal(t,
+		"postgresql://$(POSTGRES_URL_ENCODED_USERNAME):$(POSTGRES_URL_ENCODED_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)",
+		envByName["POSTGRES_NO_DATABASE_URI"].Value,
+	)
+}
+
+func TestGetPostgresEnvVarsEscapesInlineCredentialsForURIUserinfo(t *testing.T) {
+	t.Parallel()
+
+	ctx := newTestContext(t)
+	stack := &v1beta1.Stack{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack"},
+	}
+	postgresURI, err := v1beta1.ParseURL("postgresql://user%20name:p%5Ess%20word@postgres:5432")
+	require.NoError(t, err)
+	database := &v1beta1.Database{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack-ledger"},
+		Spec: v1beta1.DatabaseSpec{
+			Service: "ledger",
+		},
+		Status: v1beta1.DatabaseStatus{
+			URI:      postgresURI,
+			Database: "ledger",
+		},
+	}
+
+	envVars, err := GetPostgresEnvVars(ctx, stack, database)
+	require.NoError(t, err)
+
+	envByName := make(map[string]corev1.EnvVar, len(envVars))
+	for _, envVar := range envVars {
+		envByName[envVar.Name] = envVar
+	}
+
+	require.Equal(t, "user%20name", envByName["POSTGRES_USERNAME"].Value)
+	require.Equal(t, "p%5Ess%20word", envByName["POSTGRES_PASSWORD"].Value)
+	require.Equal(t,
+		"postgresql://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)",
+		envByName["POSTGRES_NO_DATABASE_URI"].Value,
+	)
+}
+
+func TestEscapePostgresCredentialForURI(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		credential string
+		expected   string
+	}{
+		{
+			name:       "space",
+			credential: "p ss",
+			expected:   "p%20ss",
+		},
+		{
+			name:       "plus",
+			credential: "p+ss",
+			expected:   "p+ss",
+		},
+		{
+			name:       "authority delimiters",
+			credential: "p@ss:word",
+			expected:   "p%40ss%3Aword",
+		},
+		{
+			name:       "caret",
+			credential: "p^ss",
+			expected:   "p%5Ess",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.expected, escapePostgresCredentialForURI(tc.credential))
 		})
 	}
 }

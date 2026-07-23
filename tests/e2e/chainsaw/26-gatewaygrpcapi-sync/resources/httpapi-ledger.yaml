@@ -1,0 +1,8 @@
+apiVersion: formance.com/v1beta1
+kind: GatewayHTTPAPI
+metadata:
+  name: chainsaw-grpcapi-httpapi-ledger
+spec:
+  stack: chainsaw-grpcapi-sync
+  name: ledger
+  rules: []

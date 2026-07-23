@@ -2,6 +2,7 @@
 {{- $type := .Type -}}
 {{- $recurse := .Recurse -}}
 {{- $prefix := .Prefix -}}
+{{- $ctx := . -}}
 
 {{ repeat ($prefix | int) "#" }} {{ $type.Name }}
 
@@ -43,13 +44,16 @@
 
 {{- if $recurse }}
 {{- if eq $type.Kind 4}}
-{{- $dummy := set . "Fields" $type.UnderlyingType.Fields }}
+{{- $dummy := set $ctx "Fields" $type.UnderlyingType.Fields }}
 {{- else }}
-{{- $dummy := set . "Fields" $type.Fields }}
+{{- $dummy := set $ctx "Fields" $type.Fields }}
 {{- end }}
-{{- range $k, $field := .Fields }}
-{{- if hasPrefix "github.com/formancehq/operator/api" $field.Type.Package }}
+{{- range $k, $field := $ctx.Fields }}
+{{- if hasPrefix "github.com/formancehq/operator/v3/api" $field.Type.Package }}
 {{- if has "Type: string" $field.Type.Validation }}{{ continue }}{{ end }}
+{{- $seenKey := printf "_seen_%s" $field.Type.Name }}
+{{- if hasKey $ctx $seenKey }}{{ continue }}{{ end }}
+{{- $_ := set $ctx $seenKey true }}
 {{ template "type" (dict "Type" $field.Type "Recurse" true "Prefix" (min (add $prefix 1) 6)) }}
 {{- end }}
 {{- end }}

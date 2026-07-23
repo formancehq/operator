@@ -1,0 +1,10 @@
+apiVersion: formance.com/v1beta1
+kind: OtelExporterEndpoint
+metadata:
+  name: chainsaw-observability-otel
+spec:
+  stackSelector:
+    matchLabels:
+      formance.com/stack: chainsaw-observability
+  traces:
+    endpoint: http://otel-exporter.chainsaw:4318

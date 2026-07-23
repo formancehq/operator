@@ -42,6 +42,12 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authorization.k8s.io
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
   - batch
   resources:
   - cronjobs
@@ -58,6 +64,7 @@ rules:
   - cert-manager.io
   resources:
   - certificates
+  - issuers
   verbs:
   - create
   - delete
@@ -88,11 +95,13 @@ rules:
   - brokers
   - brokertopics
   - databases
+  - gatewaygrpcapis
   - gatewayhttpapis
   - gateways
   - ledgers
   - mcps
   - orchestrations
+  - otelexporterendpoints
   - payments
   - reconciliations
   - resourcereferences
@@ -123,11 +132,13 @@ rules:
   - brokers/finalizers
   - brokertopics/finalizers
   - databases/finalizers
+  - gatewaygrpcapis/finalizers
   - gatewayhttpapis/finalizers
   - gateways/finalizers
   - ledgers/finalizers
   - mcps/finalizers
   - orchestrations/finalizers
+  - otelexporterendpoints/finalizers
   - payments/finalizers
   - reconciliations/finalizers
   - resourcereferences/finalizers
@@ -152,11 +163,13 @@ rules:
   - brokers/status
   - brokertopics/status
   - databases/status
+  - gatewaygrpcapis/status
   - gatewayhttpapis/status
   - gateways/status
   - ledgers/status
   - mcps/status
   - orchestrations/status
+  - otelexporterendpoints/status
   - payments/status
   - reconciliations/status
   - resourcereferences/status
@@ -180,6 +193,26 @@ rules:
   - create
   - delete
   - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - formance.com
+  resources:
+  - ledgerconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ledger.formance.com
+  resources:
+  - clusters
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch

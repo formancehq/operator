@@ -39,7 +39,10 @@ Other resources :
 - [BrokerConsumer](#brokerconsumer)
 - [BrokerTopic](#brokertopic)
 - [Database](#database)
+- [GatewayGRPCAPI](#gatewaygrpcapi)
 - [GatewayHTTPAPI](#gatewayhttpapi)
+- [LedgerConfiguration](#ledgerconfiguration)
+- [OtelExporterEndpoint](#otelexporterendpoint)
 - [ResourceReference](#resourcereference)
 - [Versions](#versions)
 
@@ -443,6 +446,33 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
 | `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
 
+###### DelegatedOIDCServerConfiguration
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `issuer` _string_ | Issuer is the url of the delegated oidc server |  |  |
+| `clientID` _string_ | ClientID is the client id to use for authentication |  |  |
+| `clientSecret` _string_ | ClientSecret is the client secret to use for authentication |  |  |
+| `clientSecretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | ClientSecretFromSecret is the client secret to use for authentication |  |  |
+
 
 
 
@@ -532,6 +562,59 @@ Gateway is the Schema for the gateways API
 | `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
 | `ingress` _[GatewayIngress](#gatewayingress)_ | Allow to customize the generated ingress |  |  |
 
+###### GatewayIngress
+
+
+
+GatewayIngress represents the ingress configuration for the gateway.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example : `formance.example.com` |  |  |
+| `hosts` _string array_ | Additional hosts for the ingress. Combined with Host. |  |  |
+| `scheme` _string_ | Indicate the scheme.<br />Actually, It should be `https` unless you know what you are doing. | https |  |
+| `ingressClassName` _string_ | Ingress class to use |  |  |
+| `annotations` _object (keys:string, values:string)_ | Custom annotations to add on the ingress |  |  |
+| `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Allow to customize the tls part of the ingress |  |  |
+
+###### GatewayIngressTLS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `secretName` _string_ | Specify the secret name used for the tls configuration on the ingress |  |  |
+
 
 
 
@@ -561,6 +644,7 @@ Gateway is the Schema for the gateways API
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `syncHTTPAPIs` _string array_ | Detected http apis. See [GatewayHTTPAPI](#gatewayhttpapi) |  |  |
+| `syncGRPCAPIs` _string array_ | Detected grpc apis. See [GatewayGRPCAPI](#gatewaygrpcapi) |  |  |
 
 
 #### Ledger
@@ -1155,6 +1239,56 @@ Stargate is the Schema for the stargates API
 | `stackID` _string_ |  |  |  |
 | `auth` _[StargateAuthSpec](#stargateauthspec)_ |  |  |  |
 | `tls` _[StargateTLSConfig](#stargatetlsconfig)_ |  |  |  |
+
+###### StargateAuthSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `clientID` _string_ |  |  |  |
+| `clientSecret` _string_ |  |  |  |
+| `issuer` _string_ |  |  |  |
+
+###### StargateTLSConfig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `disable` _boolean_ | Disable TLS protocol -- use at your own risks, the transmission will be in clear. |  |  |
 
 
 
@@ -1808,6 +1942,27 @@ Broker is the Schema for the brokers API
 | `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined :<br />* ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />* ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
 | `streams` _string array_ | Streams list streams created when Mode == ModeOneStreamByService |  |  |
 
+###### Mode
+
+_Underlying type:_ _string_
+
+Mode defined how streams are created on the broker (mainly nats)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #### BrokerConsumer
 
@@ -1989,6 +2144,7 @@ Database represent a concrete database on a PostgreSQL server, it is created by 
 
 It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
 Additionally, the uri can define a query param `secret` indicating a k8s secret, than must be used to retrieve database credentials.
+Credentials in the secret are expected to be URL-encoded by default. Set `secretCredentialsEncoding=raw` to let the operator encode them.
 
 On creation, the reconciler behind the Database object will create the database on the postgresql server using a k8s job.
 On Deletion, by default, the reconciler will let the database untouched.
@@ -2089,6 +2245,147 @@ It will be recreated with correct uri.
 | `outOfSync` _boolean_ | OutOfSync indicates than a settings changed the uri of the postgres server<br />The Database object need to be removed to be recreated |  |  |
 
 
+#### GatewayGRPCAPI
+
+
+
+GatewayGRPCAPI is the Schema for the GRPCAPIs API
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `GatewayGRPCAPI` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[GatewayGRPCAPISpec](#gatewaygrpcapispec)_ |  |  |  |
+| `status` _[GatewayGRPCAPIStatus](#gatewaygrpcapistatus)_ |  |  |  |
+
+
+
+##### GatewayGRPCAPISpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `name` _string_ | Name indicates the module name (e.g. "ledger") |  |  |
+| `grpcServices` _string array_ | GRPCServices is the list of fully-qualified gRPC service names<br />exposed by this module (e.g. "formance.ledger.v1.LedgerService") |  |  |
+| `port` _integer_ | Port is the gRPC port on the backend service | 8081 |  |
+| `backendRef` _[GatewayBackendRef](#gatewaybackendref)_ | BackendRef overrides the historical <name>-grpc Service. |  |  |
+
+###### GatewayBackendRef
+
+
+
+GatewayBackendRef selects the Kubernetes Service used by a Gateway route.
+When omitted, Gateway keeps using the module's historical Service.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the backend Service name in the Stack namespace. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
+| `port` _integer_ | Port is the backend Service port. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `tls` _[GatewayBackendTLS](#gatewaybackendtls)_ | TLS enables a verified TLS connection to the backend. |  |  |
+
+###### GatewayBackendTLS
+
+
+
+GatewayBackendTLS configures TLS when Gateway connects to a backend.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `secretName` _string_ | SecretName contains the CA used to verify the backend certificate.<br />The Secret must carry the `formance.com/gateway-backend-tls: "true"`<br />label so that certificate rotations trigger a Gateway rollout. |  | MinLength: 1 <br /> |
+| `caSecretKey` _string_ | CASecretKey is the key containing the CA certificate. | ca.crt |  |
+| `serverName` _string_ | ServerName is used for backend certificate verification. |  | MinLength: 1 <br /> |
+
+
+
+
+
+##### GatewayGRPCAPIStatus
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
+| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+
+
 #### GatewayHTTPAPI
 
 
@@ -2142,9 +2439,36 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `name` _string_ | Name indicates prefix api |  |  |
-| `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  |  |
+| `name` _string_ | Name indicates prefix api |  | MaxLength: 253 <br /> |
+| `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  | MaxItems: 100 <br /> |
 | `healthCheckEndpoint` _string_ | Health check endpoint |  |  |
+
+###### GatewayHTTPAPIRule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `path` _string_ |  |  |  |
+| `methods` _string array_ |  |  |  |
+| `secured` _boolean_ |  | false |  |
+| `backendRef` _[GatewayBackendRef](#gatewaybackendref)_ | BackendRef overrides the historical module Service for this rule. |  |  |
 
 
 
@@ -2174,7 +2498,209 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
-| `ready` _boolean_ |  |  |  |
+
+
+#### LedgerConfiguration
+
+
+
+LedgerConfiguration defines the base specification applied to every Ledger v3
+Cluster targeted by spec.stacks. A configuration targeting a stack by name
+takes priority over a configuration targeting all stacks with `*`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `LedgerConfiguration` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[LedgerConfigurationSpec](#ledgerconfigurationspec)_ |  |  |  |
+
+
+
+##### LedgerConfigurationSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stacks` _string array_ | Stacks on which the configuration is applied. Can contain `*` to<br />indicate a wildcard, following the same convention as Settings. |  |  |
+| `cluster` _[ClusterSpec](https://github.com/formancehq/ledger/blob/release/v3.0/misc/operator/api/v1alpha1/cluster_types.go)_ | Cluster is the base Ledger v3 Cluster specification. Stack-specific<br />Settings and values owned by the Operator are applied on top of it. |  |  |
+
+
+
+
+#### OtelExporterEndpoint
+
+
+
+OtelExporterEndpoint configures an OpenTelemetry collector proxy for exporting traces and metrics.
+Multiple OtelExporterEndpoints can target the same stacks — the collector fans out to all matching destinations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `OtelExporterEndpoint` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[OtelExporterEndpointSpec](#otelexporterendpointspec)_ |  |  |  |
+| `status` _[OtelExporterEndpointStatus](#otelexporterendpointstatus)_ |  |  |  |
+
+
+
+##### OtelExporterEndpointSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stackSelector` _[LabelSelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#labelselector-v1-meta)_ | StackSelector is a standard Kubernetes LabelSelector (matchLabels/matchExpressions).<br />One CRD can target all current and future stacks with a single selector.<br />Matches the pattern established by Settings. |  |  |
+| `traces` _[OtelSignalConfig](#otelsignalconfig)_ | Traces configures the traces signal. At least one of traces or metrics must be set.<br />Logs are intentionally out of scope. |  |  |
+| `metrics` _[OtelSignalConfig](#otelsignalconfig)_ | Metrics configures the metrics signal. At least one of traces or metrics must be set.<br />Logs are intentionally out of scope. |  |  |
+| `resourceAttributes` _object (keys:string, values:string)_ | ResourceAttributes are injected into outgoing telemetry via a collector processor. |  |  |
+
+###### OtelSignalConfig
+
+
+
+OtelSignalConfig configures a single signal type (traces or metrics).
+Each signal type has its own endpoint and authentication block, allowing
+different destinations or credentials per signal.
+Protocol is inferred from the URL scheme: grpc:// for gRPC, http:// or https:// for HTTP/protobuf (default).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `endpoint` _string_ | Endpoint URL for the signal (e.g., "http://my-collector:4318", "grpc://my-collector:4317").<br />Supported schemes: http, https, grpc.<br />Protocol is inferred from the URL scheme. HTTP/protobuf is the default for firewall compatibility. |  | MinLength: 1 <br />Pattern: `^(https?://|grpc://)` <br /> |
+| `auth` _[OtelExporterAuth](#otelexporterauth)_ | Auth is the optional per-signal authentication configuration. |  |  |
+
+###### OtelExporterAuth
+
+
+
+OtelExporterAuth configures per-signal authentication.
+Auth is per-signal so traces and metrics can use different credentials if needed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _string_ | Type is the authentication type. |  | Enum: [bearer] <br /> |
+| `fromSecret` _string_ | FromSecret references a Secret name.<br />The controller creates a ResourceReference to replicate the secret into each target stack namespace.<br />The source secret must have a "formance.com/stack" label set to "any" or a specific stack name. |  | MinLength: 1 <br /> |
+| `fromSecretKey` _string_ | FromSecretKey is the key within the Secret that contains the token. Defaults to "token". | token |  |
+
+
+
+
+
+##### OtelExporterEndpointStatus
+
+
+
+OtelExporterEndpointStatus represents the observed state of an OtelExporterEndpoint.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
+| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `stacks` _string array_ | Stacks is a sorted list of stack names currently targeted by this endpoint.<br />Includes stacks with successful reconciliation and stacks with transient errors or pending cleanup.<br />Used by the finalizer to find previously matched stacks during deletion. |  |  |
 
 
 #### ResourceReference

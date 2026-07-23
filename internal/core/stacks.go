@@ -35,6 +35,10 @@ func GetAllStackDependencies(ctx Context, stackName string, to any) error {
 
 	ret := reflect.ValueOf(slice)
 	for _, item := range list.Items {
+		if !item.GetDeletionTimestamp().IsZero() {
+			continue
+		}
+
 		t := reflect.New(objectType.Elem()).Interface().(client.Object)
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.Object, t); err != nil {
 			panic(err)

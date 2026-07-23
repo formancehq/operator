@@ -22,6 +22,9 @@ func Setup(mgr ctrl.Manager, platform Platform) error {
 	if err := indexSettings(mgr); err != nil {
 		return err
 	}
+	if err := indexLedgerConfigurations(mgr); err != nil {
+		return err
+	}
 
 	wrappedMgr := NewDefaultManager(mgr, platform)
 	for _, initializer := range initializers {
@@ -30,6 +33,17 @@ func Setup(mgr ctrl.Manager, platform Platform) error {
 		}
 	}
 
+	return nil
+}
+
+func indexLedgerConfigurations(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().
+		IndexField(context.Background(), &v1beta1.LedgerConfiguration{}, "stack", func(object client.Object) []string {
+			return object.(*v1beta1.LedgerConfiguration).GetStacks()
+		}); err != nil {
+		mgr.GetLogger().Error(err, "indexing stack field", "type", &v1beta1.LedgerConfiguration{})
+		return err
+	}
 	return nil
 }
 

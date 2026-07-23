@@ -69,9 +69,8 @@ func newClusterNamespace() *corev1.Namespace {
 
 func setTestLicenceValidator(t *testing.T) {
 	t.Helper()
-	core.SetLicenceValidatorForTest(t, func(token string, issuer string, clusterID string) (core.LicenceState, string) {
+	core.SetLicenceValidatorForTest(t, func(token string, issuer string) (core.LicenceState, string) {
 		require.Equal(t, "https://license.formance.cloud/keys", issuer)
-		require.Equal(t, "cluster-id", clusterID)
 		switch token {
 		case validLicenceToken:
 			return core.LicenceStateValid, ""

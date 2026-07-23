@@ -3,6 +3,7 @@ package databases
 import (
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -20,23 +21,35 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 		core.Env("POSTGRES_DATABASE", database.Status.Database),
 	}
 	if database.Status.URI.User.Username() != "" || database.Status.URI.Query().Get("secret") != "" {
+		postgresURIUsernameEnv := "POSTGRES_USERNAME"
+		postgresURIPasswordEnv := "POSTGRES_PASSWORD"
 		if database.Status.URI.User.Username() != "" {
 			password, _ := database.Status.URI.User.Password()
 			ret = append(ret,
-				core.Env("POSTGRES_USERNAME", database.Status.URI.User.Username()),
-				core.Env("POSTGRES_PASSWORD", url.QueryEscape(password)),
+				core.Env("POSTGRES_USERNAME", escapePostgresCredentialForURI(database.Status.URI.User.Username())),
+				core.Env("POSTGRES_PASSWORD", escapePostgresCredentialForURI(password)),
 			)
 		} else {
 			secret := database.Status.URI.Query().Get("secret")
+			credentialsEncoding, err := parsePostgresCredentialsEncoding(database.Status.URI.Query().Get(postgresCredentialsEncodingQueryParam))
+			if err != nil {
+				return nil, err
+			}
+			postgresURIUsernameEnv = "POSTGRES_URL_ENCODED_USERNAME"
+			postgresURIPasswordEnv = "POSTGRES_URL_ENCODED_PASSWORD"
+			encodedSecretName := getEncodedPostgresCredentialsSecretName(database, secret)
 			ret = append(ret,
-				core.EnvFromSecret("POSTGRES_USERNAME", secret, "username"),
-				core.EnvFromSecret("POSTGRES_PASSWORD", secret, "password"),
+				core.EnvFromSecret("POSTGRES_USERNAME", secret, postgresCredentialsUsernameKey),
+				core.EnvFromSecret("POSTGRES_PASSWORD", secret, postgresCredentialsPasswordKey),
+				core.EnvFromSecret("POSTGRES_URL_ENCODED_USERNAME", encodedSecretName, postgresCredentialsUsernameKey),
+				core.EnvFromSecret("POSTGRES_URL_ENCODED_PASSWORD", encodedSecretName, postgresCredentialsPasswordKey),
+				core.Env("POSTGRES_CREDENTIALS_ENCODING", string(credentialsEncoding)),
 			)
 		}
 		ret = append(ret,
 			core.Env("POSTGRES_NO_DATABASE_URI", core.ComputeEnvVar("postgresql://%s:%s@%s:%s",
-				"POSTGRES_USERNAME",
-				"POSTGRES_PASSWORD",
+				postgresURIUsernameEnv,
+				postgresURIPasswordEnv,
 				"POSTGRES_HOST",
 				"POSTGRES_PORT",
 			)),
@@ -106,6 +119,12 @@ func GetPostgresEnvVars(ctx core.Context, stack *v1beta1.Stack, database *v1beta
 	return ret, nil
 }
 
+// escapePostgresCredentialForURI escapes credentials for URI userinfo, where
+// spaces must be encoded as %20 rather than query-string-style plus signs.
+func escapePostgresCredentialForURI(credential string) string {
+	return strings.TrimPrefix(url.UserPassword("", credential).String(), ":")
+}
+
 // BuildPostgresQueryString takes the raw URI query params, filters internal
 // params (secret, disableSSLMode), and returns the final encoded query string.
 func BuildPostgresQueryString(rawQuery url.Values) string {
@@ -116,6 +135,7 @@ func BuildPostgresQueryString(rawQuery url.Values) string {
 	delete(params, "disableSSLMode")
 	delete(params, "secret")
 	delete(params, "awsRole")
+	delete(params, postgresCredentialsEncodingQueryParam)
 	if settings.IsTrue(rawQuery.Get("disableSSLMode")) {
 		params.Set("sslmode", "disable")
 	}

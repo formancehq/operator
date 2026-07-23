@@ -4,20 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	golibslicence "github.com/formancehq/go-libs/v5/pkg/authn/licence"
-	logging "github.com/formancehq/go-libs/v5/pkg/observe/log"
-)
-
-const (
-	licenceClusterNamespace = "kube-system"
-	licenceServiceName      = "operator"
+	licence "github.com/formancehq/go-libs/v5/pkg/authn/licence"
 )
 
 // LicenceState represents the current state of the licence in the operator.
@@ -45,40 +38,26 @@ func (s LicenceState) String() string {
 	}
 }
 
-type licenceValidator func(token string, issuer string, clusterID string) (LicenceState, string)
+type licenceValidator func(token string, issuer string) (LicenceState, string)
 
 var validateLicenceToken = validateLicenceTokenWithGoLibs
 
 // ValidateLicenceToken validates a licence JWT token and returns the licence state and a human-readable message.
-func ValidateLicenceToken(token string, issuer string, clusterID string) (LicenceState, string) {
-	return validateLicenceToken(token, issuer, clusterID)
+func ValidateLicenceToken(token string, issuer string) (LicenceState, string) {
+	return validateLicenceToken(token, issuer)
 }
 
-func validateLicenceTokenWithGoLibs(token string, issuer string, clusterID string) (LicenceState, string) {
+func validateLicenceTokenWithGoLibs(token string, issuer string) (LicenceState, string) {
 	if token == "" {
 		return LicenceStateAbsent, ""
 	}
 	if issuer == "" {
 		return LicenceStateInvalid, "licence issuer is required"
 	}
-	if clusterID == "" {
-		return LicenceStateInvalid, "licence cluster ID is required"
-	}
 
-	licence := golibslicence.NewLicence(
-		logging.Testing(),
-		token,
-		time.Hour,
-		licenceServiceName,
-		clusterID,
-		issuer,
-	)
-
-	licenceErrors := make(chan error, 1)
-	if err := licence.Start(licenceErrors); err != nil {
+	if err := licence.ValidateToken(token, issuer); err != nil {
 		return licenceStateFromError(err)
 	}
-	licence.Stop()
 
 	return LicenceStateValid, ""
 }
@@ -105,17 +84,6 @@ func SetLicenceValidatorForTest(t interface {
 	original := validateLicenceToken
 	validateLicenceToken = validator
 	t.Cleanup(func() { validateLicenceToken = original })
-}
-
-func resolveLicenceClusterID(reader client.Reader) (string, error) {
-	namespace := &corev1.Namespace{}
-	if err := reader.Get(context.Background(), types.NamespacedName{Name: licenceClusterNamespace}, namespace); err != nil {
-		return "", fmt.Errorf("failed to read %q namespace: %w", licenceClusterNamespace, err)
-	}
-	if namespace.UID == "" {
-		return "", fmt.Errorf("%q namespace has no UID", licenceClusterNamespace)
-	}
-	return string(namespace.UID), nil
 }
 
 // ResolveLicenceState reads the licence Secret by name from the configured licence namespace,
@@ -148,10 +116,5 @@ func ResolveLicenceState(reader client.Reader, secretName string, licenceNamespa
 		return LicenceStateInvalid, "licence secret missing non-empty 'issuer' key"
 	}
 
-	clusterID, err := resolveLicenceClusterID(reader)
-	if err != nil {
-		return LicenceStateInvalid, fmt.Sprintf("failed to resolve licence cluster ID: %s", err)
-	}
-
-	return ValidateLicenceToken(string(token), string(issuer), clusterID)
+	return ValidateLicenceToken(string(token), string(issuer))
 }

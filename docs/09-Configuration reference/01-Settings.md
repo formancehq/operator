@@ -29,6 +29,7 @@ While we have some basic types (string, number, bool ...), we also have some com
 | ledger.experimental-numscript-flags                                                      | Array  | experimental-overdraft-function experimental-get-asset-function experimental-get-amount-function experimental-oneof experimental-account-interpolation experimental-mid-script-function-call experimental-asset-colors | Enable numscript interpreter flags                                                                                                                                                                                               |
 | ledger.experimental-exporters                                                            | Bool   | true                                                                                                                                                                                                                   | Enable new exporters feature                                                                                                                                                                                                     |
 | ledger.schema-enforcement-mode                                                           | String | strict                                                                                                                                                                                                                 | Schema enforcement mode for the Ledger (v2.4+)                                                                                                                                                                                   |
+| ledger.disable-ledger-scope-optimization                                                 | Bool   | true                                                                                                                                                                                                                   | Always emit the `ledger = ?` predicate on read queries, disabling the alone-in-bucket optimization that skips it when a ledger is the only one in its bucket                                                                     |
 | ledger.worker.async-block-hasher                                                         | Map    | max-block-size=1000, schedule="0 * * * * *"                                                                                                                                                                            | Configure async block hasher for the Ledger worker (v2.3+). Fields: `max-block-size`, `schedule`                                                                                                                                 |
 | ledger.worker.bucket-cleanup                                                             | Map    | retention-period=720h, schedule="0 0 * * *"                                                                                                                                                                            | Configure bucket cleanup for the Ledger worker (v2.4+). Fields: `retention-period`, `schedule`                                                                                                                                   |
 | ledger.worker.pipelines                                                                  | Map    | pull-interval=5s, push-retry-period=10s, sync-period=1m, logs-page-size=100                                                                                                                                            | Configure pipelines for the Ledger worker (v2.3+). Fields: `pull-interval`, `push-retry-period`, `sync-period`, `logs-page-size`                                                                                                 |
@@ -68,6 +69,8 @@ While we have some basic types (string, number, bool ...), we also have some com
 | gateway.ingress.tls.enabled                                                              | bool   | true                                                                                                                                                                                                                   | Enable TLS if not enabled at Gateway CRD level                                                                                                                                                                                   |
 | gateway.caddyfile.trusted-proxies                                                        | string | 10.0.0.0/8,192.168.0.0/16                                                                                                                                                                                              | Comma-separated list of IP ranges (CIDRs) of trusted proxy servers. Caddy will parse the real client IP from HTTP headers when requests come from these proxies. Use `private_ranges` to match all private IPv4 and IPv6 ranges. |
 | gateway.caddyfile.trusted-proxies-strict                                                 | bool   | false                                                                                                                                                                                                                  | Enable strict (right-to-left) parsing of the X-Forwarded-For header. Recommended when using upstream proxies like HAProxy, Cloudflare, AWS ALB, or CloudFront.                                                                   |
+| gateway.caddyfile.shutdown-delay                                                         | string |                                                                                                                                                                                                                        | Delay before Caddy starts the graceful shutdown sequence, allowing load balancers to remove the pod from rotation before in-flight requests are drained. Use Go duration format (e.g., 30s, 5m).                                 |
+| gateway.caddyfile.grace-period                                                           | string |                                                                                                                                                                                                                        | Maximum time to wait for in-flight requests to complete before forcefully closing connections during shutdown. Use Go duration format (e.g., 30s, 5m).                                                                           |
 | gateway.config.idle-timeout                                                              | string | 10m                                                                                                                                                                                                                    | Configure the idle timeout for client connections (default: 5m). Use Go duration format (e.g., 30s, 5m, 1h).                                                                                                                     |
 | gateway.dns.private.enabled                                                              | bool   | false                                                                                                                                                                                                                  | Enable generation of private DNS endpoints for the gateway                                                                                                                                                                       |
 | gateway.dns.private.dns-names                                                            | string |                                                                                                                                                                                                                        | DNS name pattern(s) for private DNS endpoints. Comma-separated list. Supports `{stack}` placeholder                                                                                                                              |
@@ -81,7 +84,7 @@ While we have some basic types (string, number, bool ...), we also have some com
 | gateway.dns.public.record-type                                                           | string | CNAME                                                                                                                                                                                                                  | DNS record type (e.g., CNAME, A, AAAA)                                                                                                                                                                                           |
 | gateway.dns.public.provider-specific                                                     | Map    | alias=true,aws/target-hosted-zone=same-zone                                                                                                                                                                            | Provider-specific DNS settings for public endpoints                                                                                                                                                                              |
 | gateway.dns.public.annotations                                                           | Map    |                                                                                                                                                                                                                        | Annotations to add to the public DNSEndpoint resource                                                                                                                                                                            |
-| networkpolicies.enabled                                                                  | bool   | true                                                                                                                                                                                                                   | Enable network micro-segmentation within a Stack namespace. When enabled, only the Gateway can reach other services                                                                                                              |
+| networkpolicies.enabled                                                                  | bool   | true                                                                                                                                                                                                                   | Enable network micro-segmentation within a Stack namespace, including Ledger v3 Raft and migration traffic isolation                                                                                                             |
 
 ### Postgres URI format
 
@@ -89,10 +92,11 @@ Scheme: postgresql
 
 Query params :
 
-| Name           | Type   | Default | Description                                    |
-| -------------- | ------ | ------- | ---------------------------------------------- |
-| secret         | string |         | Specify a secret where credentials are defined |
-| disableSSLMode | bool   | false   | Disable SSL on Postgres connection             |
+| Name                      | Type   | Default      | Description                                                                    |
+| ------------------------- | ------ | ------------ | ------------------------------------------------------------------------------ |
+| secret                    | string |              | Specify a secret where credentials are defined                                 |
+| secretCredentialsEncoding | string | `urlEncoded` | Use `raw` to let the operator URL-encode the credentials read from the secret   |
+| disableSSLMode            | bool   | false        | Disable SSL on Postgres connection                                             |
 
 In addition to the parameters above, any extra query parameters included in the URI are passed through to the final `POSTGRES_URI` environment variable. This is useful for managed PostgreSQL providers (e.g. Google Cloud SQL, Azure Database) that require additional connection parameters.
 
@@ -102,7 +106,9 @@ For example:
 postgresql://user:pass@host:5432?sslmode=require&tcpKeepAlive=true
 ```
 
-The `secret` and `disableSSLMode` parameters are consumed by the operator and will not appear in the resulting connection string. When `disableSSLMode=true` is set, it overrides any `sslmode` parameter with `sslmode=disable`.
+The `secret`, `secretCredentialsEncoding`, and `disableSSLMode` parameters are consumed by the operator and will not appear in the resulting connection string. When `disableSSLMode=true` is set, it overrides any `sslmode` parameter with `sslmode=disable`.
+
+Credentials stored in the referenced secret are assumed to be URL-encoded by default for compatibility with operator versions before `v3.12.0`. Set `secretCredentialsEncoding=raw` when the `username` and `password` keys contain raw values that the operator must encode before building the PostgreSQL URI.
 
 ### ElasticSearch URI format
 
@@ -433,8 +439,13 @@ The operator can create Kubernetes NetworkPolicies to enforce network micro-segm
 - **All ingress traffic is denied by default** to all pods in the namespace
 - **The Gateway is accessible by everyone** (it is the entry point)
 - **All other services** (Ledger, Payments, Auth, etc.) **are only accessible from the Gateway**
+- **Ledger v3 replicas can communicate with each other** on the Raft and service gRPC ports
+- **Ledger v3 can read Ledger v2 only in its own Stack namespace**
 
-Egress traffic is not restricted — pods can still reach DNS, databases, brokers, and external services.
+Egress traffic is not restricted. This is required for public Auth issuers and
+external monitoring endpoints. The Ledger v3 mirror must use the internal
+`http://ledger:8080` Service; ingress isolation on the destination ensures that
+only a Ledger v3 pod from the same Stack namespace can reach it directly.
 
 NetworkPolicies are owned by the Stack and are automatically garbage-collected when the Stack is deleted.
 
@@ -454,13 +465,16 @@ spec:
 
 #### Created NetworkPolicies
 
-When enabled, 3 NetworkPolicies are created in the Stack namespace:
+When enabled, 6 NetworkPolicies are created in the Stack namespace:
 
 | Name | Effect |
 |------|--------|
 | `default-deny-ingress` | Denies all ingress traffic to all pods |
 | `allow-gateway-ingress` | Allows all ingress traffic to pods labeled `app.kubernetes.io/name: gateway` |
 | `allow-from-gateway` | Allows ingress traffic from gateway pods to all other pods |
+| `allow-ledger-v3-cluster` | Allows Raft and service gRPC traffic between direct Ledger v3 replicas on ports 7777 and 8888 |
+| `allow-ledger-v3-preview-cluster` | Allows the same cluster traffic for preview Ledger v3 replicas while preserving their historical pod selector |
+| `allow-ledger-v2-from-v3` | Allows Ledger v3 to reach Ledger v2 on port 8080 within the same Stack namespace |
 
 Since Kubernetes NetworkPolicies are additive, the Gateway receives both `deny-all` and `allow-all`, making it fully accessible. Other services receive `deny-all` and `allow-from-gateway`, restricting access to Gateway only.
 

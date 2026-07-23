@@ -19,8 +19,8 @@ var ErrNoVersionFound = errors.New("no version found")
 // MinimumStackVersion is the minimum Stack version the operator supports deploying.
 const MinimumStackVersion = "v2.2.0"
 
-// ValidateMinimumVersion checks that a resolved version meets the minimum requirement.
-// Non-semver versions (dev tags, SHA refs) are allowed through.
+// ValidateMinimumVersion checks that a Versions resource name meets the minimum requirement.
+// Non-semver names (dev tags, SHA refs) are allowed through.
 func ValidateMinimumVersion(version string) error {
 	if strings.TrimPrefix(version, "v") == "0.0.0-e2e" {
 		return nil
@@ -75,11 +75,14 @@ func ResolveModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Modu
 }
 
 func GetModuleVersion(ctx Context, stack *v1beta1.Stack, module v1beta1.Module) (string, error) {
+	if module.GetVersion() == "" && stack.Spec.Version == "" && stack.Spec.VersionsFromFile != "" {
+		if err := ValidateMinimumVersion(stack.Spec.VersionsFromFile); err != nil {
+			return "", err
+		}
+	}
+
 	version, err := ResolveModuleVersion(ctx, stack, module)
 	if err != nil {
-		return "", err
-	}
-	if err := ValidateMinimumVersion(version); err != nil {
 		return "", err
 	}
 

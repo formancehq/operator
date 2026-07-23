@@ -46,7 +46,7 @@ spec:
               kubectl wait --for=create deployment/reconciliation -n chainsaw-reconciliation --timeout=2m
               kubectl wait --for=create service/reconciliation -n chainsaw-reconciliation --timeout=2m
               kubectl wait --for=create pdb/reconciliation -n chainsaw-reconciliation --timeout=2m
-              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/reconciliation:v3.0.0 deployment/reconciliation -n chainsaw-reconciliation --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/reconciliation:v2.3.1 deployment/reconciliation -n chainsaw-reconciliation --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-reconciliation-reconciliation --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/reconciliation -n chainsaw-reconciliation --timeout=2m
               assert_jsonpath deployment/reconciliation '{.spec.replicas}' '2'

@@ -31,3 +31,6 @@ charts
 
 # E2E test artifacts
 tests/e2e/artifacts/
+
+# Local scratch files
+tmp/

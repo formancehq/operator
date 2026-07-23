@@ -1,0 +1,14 @@
+apiVersion: formance.com/v1beta1
+kind: LedgerConfiguration
+metadata:
+  name: default
+spec:
+  stacks:
+    - "*"
+  cluster:
+    monitoring:
+      pyroscope:
+        enabled: false
+    podAntiAffinity:
+      enabled: true
+      type: soft

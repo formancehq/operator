@@ -39,7 +39,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, mcp *v1beta1.MCP, version stri
 		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
 		gatewayhttpapis.WithRules(
 			v1beta1.GatewayHTTPAPIRule{
-				Path:    "/mcp",
 				Methods: []string{http.MethodPost},
 			},
 			v1beta1.GatewayHTTPAPIRule{

@@ -2,6 +2,7 @@ package auths
 
 import (
 	"strconv"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -10,15 +11,21 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
-func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth *v1beta1.AuthConfig) ([]v1.EnvVar, error) {
-	ret := make([]v1.EnvVar, 0)
+type ProtectedAuthConfiguration struct {
+	Issuer               string
+	Issuers              []string
+	ReadKeySetMaxRetries int
+	CheckScopes          bool
+	Service              string
+}
 
+func GetProtectedConfiguration(ctx Context, stack *v1beta1.Stack, moduleName string, auth *v1beta1.AuthConfig) (*ProtectedAuthConfiguration, error) {
 	hasAuth, err := HasDependency(ctx, stack.Name, &v1beta1.Auth{})
 	if err != nil {
 		return nil, err
 	}
 	if !hasAuth {
-		return ret, nil
+		return nil, nil
 	}
 
 	url, err := getUrl(ctx, stack.Name)
@@ -26,37 +33,54 @@ func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth
 		return nil, err
 	}
 
-	ret = append(ret,
-		Env("AUTH_ENABLED", "true"),
-		Env("AUTH_ISSUER", url),
-	)
-
-	issuers, err := settings.GetStringOrEmpty(ctx, stack.Name, "auth", "issuers")
+	issuers, err := settings.GetTrimmedStringSlice(ctx, stack.Name, "auth", "issuers")
 	if err != nil {
 		return nil, err
 	}
-	if issuers != "" {
-		ret = append(ret, Env("AUTH_ISSUERS", issuers))
-	}
 
+	configuration := &ProtectedAuthConfiguration{
+		Issuer:  url,
+		Issuers: issuers,
+		Service: moduleName,
+	}
 	if auth != nil {
-		if auth.ReadKeySetMaxRetries != 0 {
-			ret = append(ret,
-				Env("AUTH_READ_KEY_SET_MAX_RETRIES", strconv.Itoa(auth.ReadKeySetMaxRetries)),
-			)
-		}
+		configuration.ReadKeySetMaxRetries = auth.ReadKeySetMaxRetries
 	}
 
 	// Check if scope verification is enabled via Settings or module spec
-	checkScopes, err := shouldCheckScopes(ctx, stack.Name, moduleName, auth)
+	configuration.CheckScopes, err = shouldCheckScopes(ctx, stack.Name, moduleName, auth)
 	if err != nil {
 		return nil, err
 	}
+	return configuration, nil
+}
 
-	if checkScopes {
+func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth *v1beta1.AuthConfig) ([]v1.EnvVar, error) {
+	configuration, err := GetProtectedConfiguration(ctx, stack, moduleName, auth)
+	if err != nil {
+		return nil, err
+	}
+	if configuration == nil {
+		return nil, nil
+	}
+
+	ret := []v1.EnvVar{
+		Env("AUTH_ENABLED", "true"),
+		Env("AUTH_ISSUER", configuration.Issuer),
+	}
+	if len(configuration.Issuers) > 0 {
+		ret = append(ret, Env("AUTH_ISSUERS", strings.Join(configuration.Issuers, ",")))
+	}
+	if configuration.ReadKeySetMaxRetries != 0 {
+		ret = append(ret,
+			Env("AUTH_READ_KEY_SET_MAX_RETRIES", strconv.Itoa(configuration.ReadKeySetMaxRetries)),
+		)
+	}
+
+	if configuration.CheckScopes {
 		ret = append(ret,
 			Env("AUTH_CHECK_SCOPES", "true"),
-			Env("AUTH_SERVICE", moduleName),
+			Env("AUTH_SERVICE", configuration.Service),
 		)
 	}
 

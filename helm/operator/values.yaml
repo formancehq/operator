@@ -3,7 +3,26 @@
 # Declare variables to be passed into your templates.
 
 global:
-  # Add your license information 
+  monitoring:
+    support:
+      # Enable the Formance support OtelExporterEndpoint
+      enabled: false
+      # The support collector endpoint
+      endpoint: "https://otel-support.internal.frmnc.net"
+      # Secret name containing the bearer token for auth (key: "token").
+      # Defaults to the licence secret if set.
+      authSecret: ""
+      # Key within the auth secret that contains the token. Defaults to "token" in the CRD.
+      authSecretKey: ""
+      # Resource attributes added to all signals sent to this endpoint
+      resourceAttributes: {}
+      # Stack selector for the support OtelExporterEndpoint
+      stackSelector:
+        matchExpressions:
+          - key: formance.com/stack
+            operator: Exists
+
+  # Add your license information
   licence:
     # -- Is disabled automatically if an existingSecret is provided
     # @section -- Licence
@@ -54,6 +73,9 @@ operator:
 
   utils:
     tag: ""
+
+  # Override the OTel Collector image used by OtelExporterEndpoint resources
+  collectorImage: ""
 
 podAnnotations: {}
 

@@ -1,0 +1,43 @@
+{{- if .Values.global.monitoring.support.enabled }}
+{{- $authSecret := .Values.global.monitoring.support.authSecret }}
+{{- if not $authSecret }}
+  {{- if .Values.global.licence.existingSecret }}
+    {{- $authSecret = .Values.global.licence.existingSecret }}
+  {{- else if and .Values.global.licence.createSecret .Values.global.licence.token }}
+    {{- $authSecret = (printf "%s-licence" (include "operator.fullname" .)) }}
+  {{- end }}
+{{- end }}
+apiVersion: formance.com/v1beta1
+kind: OtelExporterEndpoint
+metadata:
+  name: formance-support
+  labels:
+    {{- include "operator.labels" . | nindent 4 }}
+spec:
+  stackSelector:
+    {{- toYaml .Values.global.monitoring.support.stackSelector | nindent 4 }}
+  traces:
+    endpoint: {{ .Values.global.monitoring.support.endpoint | quote }}
+    {{- if $authSecret }}
+    auth:
+      type: bearer
+      fromSecret: {{ $authSecret | quote }}
+      {{- with .Values.global.monitoring.support.authSecretKey }}
+      fromSecretKey: {{ . | quote }}
+      {{- end }}
+    {{- end }}
+  metrics:
+    endpoint: {{ .Values.global.monitoring.support.endpoint | quote }}
+    {{- if $authSecret }}
+    auth:
+      type: bearer
+      fromSecret: {{ $authSecret | quote }}
+      {{- with .Values.global.monitoring.support.authSecretKey }}
+      fromSecretKey: {{ . | quote }}
+      {{- end }}
+    {{- end }}
+  {{- with .Values.global.monitoring.support.resourceAttributes }}
+  resourceAttributes:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,208 @@
+/*
+Copyright 2022.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package ledgers
+
+import (
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/gatewaygrpcapis"
+	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
+)
+
+func ledgerV3PreviewVersion(ctx core.Context, stack *v1beta1.Stack) (string, error) {
+	// Preview is an optional capability. Ignore its Setting entirely when the
+	// Ledger Operator CRD could not be discovered, so Ledger v2 reconciliation
+	// remains unchanged and does not expose routes to a missing backend.
+	if !ledgerV3ClusterAvailable {
+		return "", nil
+	}
+
+	version, err := settings.GetStringOrEmpty(ctx, stack.Name, "ledger", "v3", "preview-version")
+	if err != nil {
+		return "", err
+	}
+	if version != "" && !isLedgerV3(version) {
+		return "", fmt.Errorf("ledger.v3.preview-version must be greater than %s, got %q", ledgerV3Threshold, version)
+	}
+	return version, nil
+}
+
+func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
+	if !ledgerV3ClusterAvailable {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "OperatorUnavailable", "Ledger v3 Cluster CRD is not installed")
+		return core.NewPendingError().WithMessage("Ledger v3 preview unavailable: Cluster CRD is not installed")
+	}
+
+	tlsReady, tlsMessage, tlsCAHash, err := createOrUpdateV3TLSResources(ctx, stack, ledger, true)
+	if err != nil {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
+		return err
+	}
+	cluster, clusterSpec, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, true, tlsCAHash)
+	if err != nil {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
+		return err
+	}
+	if !tlsReady {
+		if err := core.DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, core.GetResourceName(core.GetObjectName(stack.Name, "ledger"))); err != nil {
+			return err
+		}
+		if err := gatewayhttpapis.Create(ctx, ledger,
+			gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
+			gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecured()),
+		); err != nil {
+			setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
+			return err
+		}
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "TLSCertificatePending", tlsMessage)
+		return core.NewPendingError().WithMessage("Ledger v3 preview TLS is not ready: %s", tlsMessage)
+	}
+
+	if err := gatewayhttpapis.Create(ctx, ledger,
+		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
+		gatewayhttpapis.WithRules(
+			gatewayhttpapis.RuleSecuredWithBackend("/v3", ledgerV3HTTPBackendRef(stack.Name, clusterSpec.Service.HttpPort)),
+			gatewayhttpapis.RuleSecured(),
+		),
+	); err != nil {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
+		return err
+	}
+
+	if err := gatewaygrpcapis.Create(ctx, ledger,
+		gatewaygrpcapis.WithGRPCServices(ledgerV3PublicGRPCService),
+		gatewaygrpcapis.WithPort(ledgerV3ServicePort(clusterSpec.Service.GrpcPort, ledgerV3GRPCPort)),
+		gatewaygrpcapis.WithBackendRef(ledgerV3GRPCBackendRef(stack.Name, clusterSpec.Service.GrpcPort)),
+	); err != nil {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
+		return err
+	}
+
+	ready, message, err := isV3ClusterReady(cluster)
+	if err != nil {
+		return err
+	}
+	if !ready {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "Pending", message)
+		return core.NewPendingError().WithMessage("Ledger v3 preview Cluster is not ready: %s", message)
+	}
+
+	setLedgerV3PreviewCondition(ledger, metav1.ConditionTrue, "Running", message)
+	return nil
+}
+
+func ledgerV3HTTPBackendRef(stackName string, port int32) v1beta1.GatewayBackendRef {
+	return v1beta1.GatewayBackendRef{
+		Name: "ledger-" + stackName,
+		Port: ledgerV3ServicePort(port, ledgerV3HTTPPort),
+	}
+}
+
+func ledgerV3GRPCBackendRef(stackName string, port int32) v1beta1.GatewayBackendRef {
+	return v1beta1.GatewayBackendRef{
+		Name: "ledger-" + stackName,
+		Port: ledgerV3ServicePort(port, ledgerV3GRPCPort),
+		TLS: &v1beta1.GatewayBackendTLS{
+			SecretName:  ledgerV3TLSName(stackName),
+			CASecretKey: ledgerV3TLSCASecretKey,
+			ServerName:  "ledger-" + stackName + "." + stackName + ".svc.cluster.local",
+		},
+	}
+}
+
+func ledgerV3ServicePort(configured, defaultPort int32) int32 {
+	if configured == 0 {
+		return defaultPort
+	}
+	return configured
+}
+
+func setLedgerV3PreviewCondition(ledger *v1beta1.Ledger, status metav1.ConditionStatus, reason, message string) {
+	ledger.GetConditions().AppendOrReplace(v1beta1.Condition{
+		Type:               ledgerV3PreviewReadyCondition,
+		Status:             status,
+		ObservedGeneration: ledger.GetGeneration(),
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}, v1beta1.ConditionTypeMatch(ledgerV3PreviewReadyCondition))
+}
+
+func isLedgerV3Preview(cluster *unstructured.Unstructured) bool {
+	return cluster.GetLabels()[ledgerV3PreviewLabel] == "true"
+}
+
+func deleteLedgerV3Preview(ctx core.Context, stack *v1beta1.Stack) error {
+	cluster, exists, err := getV3Cluster(ctx, stack)
+	if err != nil {
+		return err
+	}
+	if exists && isLedgerV3Preview(cluster) {
+		if err := client.IgnoreNotFound(ctx.GetClient().Delete(ctx, cluster)); err != nil {
+			return err
+		}
+	}
+
+	secret := &corev1.Secret{}
+	err = ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: ledgerV3TLSName(stack.Name)}, secret)
+	if err == nil && secret.GetLabels()[ledgerV3PreviewLabel] == "true" {
+		if err := ctx.GetClient().Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	// A missing or inaccessible cert-manager dependency must not block the
+	// legacy Ledger reconciliation. Cluster and Secret cleanup above remain
+	// safe because they use preview-specific labels and do not require the CRDs.
+	if !ledgerV3CertManagerAvailable {
+		return nil
+	}
+
+	certificate := newLedgerV3Resource(ledgerV3CertificateGVK)
+	err = ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: ledgerV3TLSName(stack.Name)}, certificate)
+	if err == nil && certificate.GetLabels()[ledgerV3PreviewLabel] == "true" {
+		if err := ctx.GetClient().Delete(ctx, certificate); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	issuer := newLedgerV3Resource(ledgerV3IssuerGVK)
+	err = ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: ledgerV3IssuerName(stack.Name)}, issuer)
+	if err == nil && issuer.GetLabels()[ledgerV3PreviewLabel] == "true" {
+		if err := ctx.GetClient().Delete(ctx, issuer); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	} else if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	return nil
+}

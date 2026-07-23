@@ -66,17 +66,14 @@ func TestForModulePassesRefreshedLicenceState(t *testing.T) {
 			"issuer": []byte(testLicenceIssuer),
 		},
 	}
-	clusterNamespace := newClusterNamespace("cluster-id")
-
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(stack, search, secret, clusterNamespace).
+		WithObjects(stack, search, secret).
 		Build()
 
-	SetLicenceValidatorForTest(t, func(token string, issuer string, clusterID string) (LicenceState, string) {
+	SetLicenceValidatorForTest(t, func(token string, issuer string) (LicenceState, string) {
 		require.Equal(t, "token", token)
 		require.Equal(t, testLicenceIssuer, issuer)
-		require.Equal(t, "cluster-id", clusterID)
 		return LicenceStateValid, ""
 	})
 

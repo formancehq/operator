@@ -1,5 +1,15 @@
 package core
 
+const (
+	DefaultCollectorImage = "otel/opentelemetry-collector-contrib:0.151.0"
+
+	SignalTracesAnnotation  = "formance.com/otel-traces-enabled"
+	SignalMetricsAnnotation = "formance.com/otel-metrics-enabled"
+
+	CollectorManagedByLabel = "formance.com/managed-by"
+	CollectorManagedByValue = "otelexporterendpoint"
+)
+
 type Platform struct {
 	// Cloud region where the stack is deployed
 	Region string
@@ -16,4 +26,6 @@ type Platform struct {
 	LicenceState LicenceState
 	// Human-readable message about the licence state
 	LicenceMessage string
+	// The OTel Collector image used by OtelExporterEndpoint resources
+	CollectorImage string
 }

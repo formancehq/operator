@@ -5,6 +5,7 @@ resources:
 - bases/formance.com_databases.yaml
 - bases/formance.com_stacks.yaml
 - bases/formance.com_brokertopics.yaml
+- bases/formance.com_gatewaygrpcapis.yaml
 - bases/formance.com_gatewayhttpapis.yaml
 - bases/formance.com_ledgers.yaml
 - bases/formance.com_gateways.yaml
@@ -26,7 +27,9 @@ resources:
 - bases/formance.com_brokerconsumers.yaml
 - bases/formance.com_brokers.yaml
 - bases/formance.com_transactionplanes.yaml
+- bases/formance.com_otelexporterendpoints.yaml
 
+- bases/formance.com_ledgerconfigurations.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # commonAnnotations:

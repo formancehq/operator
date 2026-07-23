@@ -1,0 +1,67 @@
+name: formance-operator
+runtime:
+  name: go
+  options:
+    buildTarget: ./bin/pulumi
+description: Formance operator deployment (CRDs, operator)
+x-plr-config:
+  k8s-context:
+    type: string
+    required: true
+    description: Kubernetes context to use
+  namespace:
+    type: string
+    description: Kubernetes namespace (defaults to stack name)
+  registry:
+    type: string
+    default: ghcr.io
+    description: Docker registry for building images
+  pull-registry:
+    type: string
+    description: Docker registry for pulling images (defaults to registry)
+  docker-builder-name:
+    type: string
+    description: Docker buildx builder name
+  imageTag:
+    type: string
+    description: Image tag (defaults to git version)
+  arch:
+    type: string
+    description: Target CPU architecture (defaults to amd64 and arm64)
+  registry-username:
+    type: string
+    secret: true
+    description: Docker registry username
+  registry-password:
+    type: string
+    secret: true
+    description: Docker registry password
+  image-pull-secrets:
+    type: array
+    description: "Image pull secrets [{name: string}]"
+  operator-region:
+    type: string
+    default: eu-west-1
+    description: Region passed to the operator
+  operator-env:
+    type: string
+    default: staging
+    description: Environment passed to the operator
+  operator-dev:
+    type: boolean
+    default: false
+    description: Enable operator dev mode
+  licence-token:
+    type: string
+    secret: true
+    description: Formance licence token
+  licence-issuer:
+    type: string
+    default: "https://license.formance.cloud/keys"
+    description: Formance licence issuer URL
+  node-selector:
+    type: object
+    description: "Node selector for the operator pod"
+  tolerations:
+    type: array
+    description: "Tolerations for the operator pod"
