@@ -58,6 +58,9 @@
 	{{- end }}
 
 	servers {
+		{{- if .GRPCServices }}
+		protocols h1 h2c
+		{{- end }}
 		{{- if and .TrustedProxies (gt (len .TrustedProxies) 0) }}
 		trusted_proxies {{ .TrustedProxies }}
 		{{- end }}
@@ -107,14 +110,50 @@
 
 	{{- range $i, $service := .Services }}
 	{{- range $j, $rule := $service.Rules }}
+	{{- $backendName := $service.Name }}
+	{{- $backendPort := 8080 }}
+	{{- if $rule.BackendRef }}
+		{{- $backendName = $rule.BackendRef.Name }}
+		{{- $backendPort = $rule.BackendRef.Port }}
+	{{- end }}
 	handle /api/{{ $service.Name }}{{ $rule.Path }}* {
 		{{- if $rule.Methods }}
 		method {{ join $rule.Methods " " }}
 		{{- end }}
 		uri strip_prefix /api/{{ $service.Name }}
 		import cors
-		reverse_proxy {{ $service.Name }}:8080 {
+		reverse_proxy {{ if and $rule.BackendRef $rule.BackendRef.TLS }}https://{{ end }}{{ $backendName }}:{{ $backendPort }} {
 			header_up Host {upstream_hostport}
+			{{- if and $rule.BackendRef $rule.BackendRef.TLS }}
+			transport http {
+				tls
+				tls_trust_pool file /etc/gateway/tls/{{ $rule.BackendRef.TLS.SecretName }}/{{ $rule.BackendRef.TLS.CASecretKey }}
+				tls_server_name {{ $rule.BackendRef.TLS.ServerName }}
+			}
+			{{- end }}
+		}
+	}
+	{{- end }}
+	{{- end }}
+
+	{{- range $i, $service := .Services }}
+	{{- if $service.HealthCheckBackend.TLS }}
+	{{- $healthCheckEndpoint := $service.HealthCheckEndpoint }}
+	{{- if eq $healthCheckEndpoint "" }}
+		{{- $healthCheckEndpoint = "_healthcheck" }}
+	{{- end }}
+	@tls_health_{{ $i }} {
+		remote_ip 127.0.0.1 ::1
+		path /_gateway-health/{{ $service.Name }}/_info /_gateway-health/{{ $service.Name }}/{{ $healthCheckEndpoint }}
+	}
+	handle @tls_health_{{ $i }} {
+		uri strip_prefix /_gateway-health/{{ $service.Name }}
+		reverse_proxy https://{{ $service.HealthCheckBackend.Name }}:{{ $service.HealthCheckBackend.Port }} {
+			transport http {
+				tls
+				tls_trust_pool file /etc/gateway/tls/{{ $service.HealthCheckBackend.TLS.SecretName }}/{{ $service.HealthCheckBackend.TLS.CASecretKey }}
+				tls_server_name {{ $service.HealthCheckBackend.TLS.ServerName }}
+			}
 		}
 	}
 	{{- end }}
@@ -133,15 +172,48 @@
 
 				{{- if or (not (semver_is_valid $values.Gateway.Version)) (gt (semver_compare $values.Gateway.Version "v0.1.7") 0) }}
 				{{ $service.Name }} {
-					http://{{ $service.Name }}:8080/_info http://{{ $service.Name }}:8080/{{ $service.HealthCheckEndpoint }}
+					{{- if $service.HealthCheckBackend.TLS }}
+					http://127.0.0.1:8080/_gateway-health/{{ $service.Name }}/_info http://127.0.0.1:8080/_gateway-health/{{ $service.Name }}/{{ $healthCheckEndpoint }}
+					{{- else }}
+					http://{{ $service.HealthCheckBackend.Name }}:{{ $service.HealthCheckBackend.Port }}/_info http://{{ $service.HealthCheckBackend.Name }}:{{ $service.HealthCheckBackend.Port }}/{{ $healthCheckEndpoint }}
+					{{- end }}
 				}
 				{{- else }}
-				{{ $service.Name }} http://{{ $service.Name }}:8080/_info http://{{ $service.Name }}:8080/{{ $service.HealthCheckEndpoint }}
+				{{- if $service.HealthCheckBackend.TLS }}
+				{{ $service.Name }} http://127.0.0.1:8080/_gateway-health/{{ $service.Name }}/_info http://127.0.0.1:8080/_gateway-health/{{ $service.Name }}/{{ $healthCheckEndpoint }}
+				{{- else }}
+				{{ $service.Name }} http://{{ $service.HealthCheckBackend.Name }}:{{ $service.HealthCheckBackend.Port }}/_info http://{{ $service.HealthCheckBackend.Name }}:{{ $service.HealthCheckBackend.Port }}/{{ $healthCheckEndpoint }}
+				{{- end }}
 				{{- end }}
 				{{- end }}
 			}
 		}
 	}
+
+	{{- range $i, $service := .GRPCServices }}
+	{{- range $j, $svcName := $service.GRPCServices }}
+	{{- $backendName := printf "%s-grpc" $service.Name }}
+	{{- $backendPort := $service.Port }}
+	{{- if $service.BackendRef }}
+		{{- $backendName = $service.BackendRef.Name }}
+		{{- $backendPort = $service.BackendRef.Port }}
+	{{- end }}
+	handle /{{ $svcName }}/* {
+		reverse_proxy {{ if and $service.BackendRef $service.BackendRef.TLS }}https://{{ end }}{{ $backendName }}:{{ $backendPort }} {
+			transport http {
+				{{- if and $service.BackendRef $service.BackendRef.TLS }}
+				tls
+				tls_trust_pool file /etc/gateway/tls/{{ $service.BackendRef.TLS.SecretName }}/{{ $service.BackendRef.TLS.CASecretKey }}
+				tls_server_name {{ $service.BackendRef.TLS.ServerName }}
+				versions 2
+				{{- else }}
+				versions h2c 2
+				{{- end }}
+			}
+		}
+	}
+	{{- end }}
+	{{- end }}
 
 	# Respond 404 if service does not exists
 	handle /api/* {

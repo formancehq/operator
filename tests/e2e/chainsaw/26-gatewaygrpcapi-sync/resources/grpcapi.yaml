@@ -1,0 +1,11 @@
+apiVersion: formance.com/v1beta1
+kind: GatewayGRPCAPI
+metadata:
+  name: chainsaw-grpcapi-mymodule
+spec:
+  stack: chainsaw-grpcapi-sync
+  name: mymodule
+  grpcServices:
+    - formance.mymodule.v1.MyService
+    - formance.mymodule.v1.HealthService
+  port: 8081

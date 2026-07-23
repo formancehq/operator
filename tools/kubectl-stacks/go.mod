@@ -1,13 +1,11 @@
 module github.com/formancehq/operator/tools/kubectl-stacks/v3
 
-go 1.25.0
-
-toolchain go1.25.5
+go 1.26.0
 
 require (
 	github.com/formancehq/go-libs/v5 v5.2.0
 	github.com/formancehq/operator/v3 v3.0.0-00010101000000-000000000000
-	github.com/pterm/pterm v0.12.81
+	github.com/pterm/pterm v0.12.82
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	k8s.io/apimachinery v0.34.2
@@ -27,6 +25,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
+	github.com/formancehq/ledger/misc/operator v0.0.0-20260715094310-76862ea0b681 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

@@ -23,6 +23,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
@@ -39,6 +40,48 @@ import (
 //+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string) error {
+	if isLedgerV3(version) {
+		return reconcileV3(ctx, stack, ledger, version)
+	}
+	previewVersion, err := ledgerV3PreviewVersion(ctx, stack)
+	if err != nil {
+		return err
+	}
+
+	if ledgerV3ClusterAvailable {
+		cluster, exists, err := getV3Cluster(ctx, stack)
+		if err != nil {
+			return err
+		}
+		if exists && !isLedgerV3Preview(cluster) {
+			setLedgerV3Condition(ledger, metav1.ConditionFalse, "MigrationRequired", "A Ledger v3 Cluster exists; an explicit v3 to v2 migration is required")
+			return NewPendingError().WithMessage("migration required before switching Ledger from v3 to v2")
+		}
+		if previewVersion == "" {
+			if err := deleteLedgerV3Preview(ctx, stack); err != nil {
+				return err
+			}
+		}
+	}
+
+	ledger.GetConditions().Delete(v1beta1.ConditionTypeMatch(ledgerV3ClusterReadyCondition))
+	ledger.GetConditions().Delete(v1beta1.ConditionTypeMatch(ledgerV3PreviewReadyCondition))
+	if err := reconcileLegacy(ctx, stack, ledger, version, previewVersion); err != nil {
+		return err
+	}
+	if previewVersion != "" {
+		return reconcileV3Preview(ctx, stack, ledger, previewVersion)
+	}
+	return nil
+}
+
+func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version, previewVersion string) error {
+	if previewVersion == "" {
+		if err := DeleteIfExists[*v1beta1.GatewayGRPCAPI](ctx, GetResourceName(GetObjectName(stack.Name, "ledger"))); err != nil {
+			return err
+		}
+	}
+
 	database, err := databases.Create(ctx, stack, ledger)
 	if err != nil {
 		return err
@@ -49,7 +92,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, versio
 		return err
 	}
 
-	if err := gatewayhttpapis.Create(ctx, ledger, gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck")); err != nil {
+	if err := gatewayhttpapis.Create(ctx, ledger,
+		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
+		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecured()),
+	); err != nil {
 		return err
 	}
 
@@ -107,12 +153,16 @@ func init() {
 			WithOwn[*v1beta1.Ledger](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.Job{}),
 			WithOwn[*v1beta1.Ledger](&corev1.Service{}),
+			WithOwn[*v1beta1.Ledger](&v1beta1.GatewayGRPCAPI{}),
 			WithOwn[*v1beta1.Ledger](&v1beta1.GatewayHTTPAPI{}),
 			WithOwn[*v1beta1.Ledger](&v1beta1.Database{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.CronJob{}),
 			WithOwn[*v1beta1.Ledger](&corev1.ConfigMap{}),
 			WithOwn[*v1beta1.Ledger](&v1beta1.BenthosStream{}),
+			withLedgerV3ClusterWatch(),
+			withLedgerConfigurationWatch(),
 			WithWatchSettings[*v1beta1.Ledger](),
+			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Search{}),
 			brokertopics.Watch[*v1beta1.Ledger]("ledger"),
 			databases.Watch[*v1beta1.Ledger](),

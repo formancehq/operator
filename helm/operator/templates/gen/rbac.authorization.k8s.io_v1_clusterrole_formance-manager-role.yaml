@@ -42,6 +42,12 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authorization.k8s.io
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
   - batch
   resources:
   - cronjobs
@@ -58,6 +64,7 @@ rules:
   - cert-manager.io
   resources:
   - certificates
+  - issuers
   verbs:
   - create
   - delete
@@ -88,6 +95,7 @@ rules:
   - brokers
   - brokertopics
   - databases
+  - gatewaygrpcapis
   - gatewayhttpapis
   - gateways
   - ledgers
@@ -124,6 +132,7 @@ rules:
   - brokers/finalizers
   - brokertopics/finalizers
   - databases/finalizers
+  - gatewaygrpcapis/finalizers
   - gatewayhttpapis/finalizers
   - gateways/finalizers
   - ledgers/finalizers
@@ -154,6 +163,7 @@ rules:
   - brokers/status
   - brokertopics/status
   - databases/status
+  - gatewaygrpcapis/status
   - gatewayhttpapis/status
   - gateways/status
   - ledgers/status
@@ -183,6 +193,26 @@ rules:
   - create
   - delete
   - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - formance.com
+  resources:
+  - ledgerconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ledger.formance.com
+  resources:
+  - clusters
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch

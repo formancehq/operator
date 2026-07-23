@@ -86,6 +86,9 @@ type GatewayStatus struct {
 	// Detected http apis. See [GatewayHTTPAPI](#gatewayhttpapi)
 	//+optional
 	SyncHTTPAPIs []string `json:"syncHTTPAPIs"`
+	// Detected grpc apis. See [GatewayGRPCAPI](#gatewaygrpcapi)
+	//+optional
+	SyncGRPCAPIs []string `json:"syncGRPCAPIs,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -184,6 +184,11 @@ spec:
                 description: Ready indicates if the resource is seen as completely
                   reconciled
                 type: boolean
+              syncGRPCAPIs:
+                description: Detected grpc apis. See [GatewayGRPCAPI](#gatewaygrpcapi)
+                items:
+                  type: string
+                type: array
               syncHTTPAPIs:
                 description: Detected http apis. See [GatewayHTTPAPI](#gatewayhttpapi)
                 items:

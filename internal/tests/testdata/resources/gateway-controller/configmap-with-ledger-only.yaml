@@ -43,7 +43,7 @@
 			env "staging"
 			endpoints {
 				ledger {
-					http://ledger:8080/_info http://ledger:8080/
+					http://ledger:8080/_info http://ledger:8080/_healthcheck
 				}
 			}
 		}

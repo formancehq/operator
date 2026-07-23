@@ -39,7 +39,9 @@ Other resources :
 - [BrokerConsumer](#brokerconsumer)
 - [BrokerTopic](#brokertopic)
 - [Database](#database)
+- [GatewayGRPCAPI](#gatewaygrpcapi)
 - [GatewayHTTPAPI](#gatewayhttpapi)
+- [LedgerConfiguration](#ledgerconfiguration)
 - [OtelExporterEndpoint](#otelexporterendpoint)
 - [ResourceReference](#resourcereference)
 - [Versions](#versions)
@@ -642,6 +644,7 @@ GatewayIngress represents the ingress configuration for the gateway.
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `syncHTTPAPIs` _string array_ | Detected http apis. See [GatewayHTTPAPI](#gatewayhttpapi) |  |  |
+| `syncGRPCAPIs` _string array_ | Detected grpc apis. See [GatewayGRPCAPI](#gatewaygrpcapi) |  |  |
 
 
 #### Ledger
@@ -2242,6 +2245,147 @@ It will be recreated with correct uri.
 | `outOfSync` _boolean_ | OutOfSync indicates than a settings changed the uri of the postgres server<br />The Database object need to be removed to be recreated |  |  |
 
 
+#### GatewayGRPCAPI
+
+
+
+GatewayGRPCAPI is the Schema for the GRPCAPIs API
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `GatewayGRPCAPI` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[GatewayGRPCAPISpec](#gatewaygrpcapispec)_ |  |  |  |
+| `status` _[GatewayGRPCAPIStatus](#gatewaygrpcapistatus)_ |  |  |  |
+
+
+
+##### GatewayGRPCAPISpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `name` _string_ | Name indicates the module name (e.g. "ledger") |  |  |
+| `grpcServices` _string array_ | GRPCServices is the list of fully-qualified gRPC service names<br />exposed by this module (e.g. "formance.ledger.v1.LedgerService") |  |  |
+| `port` _integer_ | Port is the gRPC port on the backend service | 8081 |  |
+| `backendRef` _[GatewayBackendRef](#gatewaybackendref)_ | BackendRef overrides the historical <name>-grpc Service. |  |  |
+
+###### GatewayBackendRef
+
+
+
+GatewayBackendRef selects the Kubernetes Service used by a Gateway route.
+When omitted, Gateway keeps using the module's historical Service.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is the backend Service name in the Stack namespace. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
+| `port` _integer_ | Port is the backend Service port. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `tls` _[GatewayBackendTLS](#gatewaybackendtls)_ | TLS enables a verified TLS connection to the backend. |  |  |
+
+###### GatewayBackendTLS
+
+
+
+GatewayBackendTLS configures TLS when Gateway connects to a backend.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `secretName` _string_ | SecretName contains the CA used to verify the backend certificate.<br />The Secret must carry the `formance.com/gateway-backend-tls: "true"`<br />label so that certificate rotations trigger a Gateway rollout. |  | MinLength: 1 <br /> |
+| `caSecretKey` _string_ | CASecretKey is the key containing the CA certificate. | ca.crt |  |
+| `serverName` _string_ | ServerName is used for backend certificate verification. |  | MinLength: 1 <br /> |
+
+
+
+
+
+##### GatewayGRPCAPIStatus
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
+| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+
+
 #### GatewayHTTPAPI
 
 
@@ -2295,8 +2439,8 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `name` _string_ | Name indicates prefix api |  |  |
-| `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  |  |
+| `name` _string_ | Name indicates prefix api |  | MaxLength: 253 <br /> |
+| `rules` _[GatewayHTTPAPIRule](#gatewayhttpapirule) array_ | Rules |  | MaxItems: 100 <br /> |
 | `healthCheckEndpoint` _string_ | Health check endpoint |  |  |
 
 ###### GatewayHTTPAPIRule
@@ -2324,6 +2468,7 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | `path` _string_ |  |  |  |
 | `methods` _string array_ |  |  |  |
 | `secured` _boolean_ |  | false |  |
+| `backendRef` _[GatewayBackendRef](#gatewaybackendref)_ | BackendRef overrides the historical module Service for this rule. |  |  |
 
 
 
@@ -2353,7 +2498,65 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
-| `ready` _boolean_ |  |  |  |
+
+
+#### LedgerConfiguration
+
+
+
+LedgerConfiguration defines the base specification applied to every Ledger v3
+Cluster targeted by spec.stacks. A configuration targeting a stack by name
+takes priority over a configuration targeting all stacks with `*`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `LedgerConfiguration` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[LedgerConfigurationSpec](#ledgerconfigurationspec)_ |  |  |  |
+
+
+
+##### LedgerConfigurationSpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `stacks` _string array_ | Stacks on which the configuration is applied. Can contain `*` to<br />indicate a wildcard, following the same convention as Settings. |  |  |
+| `cluster` _[ClusterSpec](https://github.com/formancehq/ledger/blob/release/v3.0/misc/operator/api/v1alpha1/cluster_types.go)_ | Cluster is the base Ledger v3 Cluster specification. Stack-specific<br />Settings and values owned by the Operator are applied on top of it. |  |  |
+
+
 
 
 #### OtelExporterEndpoint

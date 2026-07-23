@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
@@ -13,6 +14,20 @@ import (
 )
 
 var _ = Describe("GatewayHTTPAPI", func() {
+	It("rejects a backendRef that collides with the managed Service name", func() {
+		httpAPI := &v1beta1.GatewayHTTPAPI{
+			ObjectMeta: RandObjectMeta(),
+			Spec: v1beta1.GatewayHTTPAPISpec{
+				StackDependency: v1beta1.StackDependency{Stack: "stack0"},
+				Name:            "ledger",
+				Rules: []v1beta1.GatewayHTTPAPIRule{{
+					BackendRef: &v1beta1.GatewayBackendRef{Name: "ledger", Port: 8081},
+				}},
+			},
+		}
+		Expect(apierrors.IsInvalid(Create(httpAPI))).To(BeTrue())
+	})
+
 	Context("When creating an GatewayHTTPAPI", func() {
 		var (
 			stack   *v1beta1.Stack

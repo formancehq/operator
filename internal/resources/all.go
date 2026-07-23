@@ -8,6 +8,7 @@ import (
 	_ "github.com/formancehq/operator/v3/internal/resources/brokers"
 	_ "github.com/formancehq/operator/v3/internal/resources/brokertopics"
 	_ "github.com/formancehq/operator/v3/internal/resources/databases"
+	_ "github.com/formancehq/operator/v3/internal/resources/gatewaygrpcapis"
 	_ "github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	_ "github.com/formancehq/operator/v3/internal/resources/gateways"
 	_ "github.com/formancehq/operator/v3/internal/resources/ledgers"

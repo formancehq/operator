@@ -27,13 +27,19 @@ type GatewayHTTPAPIRule struct {
 	//+optional
 	//+kubebuilder:default:=false
 	Secured bool `json:"secured"`
+	// BackendRef overrides the historical module Service for this rule.
+	// +optional
+	BackendRef *GatewayBackendRef `json:"backendRef,omitempty"`
 }
 
+// +kubebuilder:validation:XValidation:rule="self.rules.all(rule, !has(rule.backendRef) || rule.backendRef.name != self.name)",message="backendRef.name must differ from spec.name because the latter is managed by the GatewayHTTPAPI controller"
 type GatewayHTTPAPISpec struct {
 	StackDependency `json:",inline"`
 	// Name indicates prefix api
+	// +kubebuilder:validation:MaxLength=253
 	Name string `json:"name"`
 	// Rules
+	// +kubebuilder:validation:MaxItems=100
 	Rules []GatewayHTTPAPIRule `json:"rules"`
 	// Health check endpoint
 	HealthCheckEndpoint string `json:"healthCheckEndpoint,omitempty"`
@@ -41,8 +47,6 @@ type GatewayHTTPAPISpec struct {
 
 type GatewayHTTPAPIStatus struct {
 	Status `json:",inline"`
-	//+optional
-	Ready bool `json:"ready,omitempty"`
 }
 
 //+kubebuilder:object:root=true

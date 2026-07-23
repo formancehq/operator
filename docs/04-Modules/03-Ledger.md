@@ -2,9 +2,15 @@ Formance Ledger is a real-time money tracking microservice that lets you model a
 
 ## Requirements
 
-Formance Ledger requires:
-- **PostgreSQL**: See configuration guide [here](../05-Infrastructure%20services/01-PostgreSQL.md).
-- (Optional) **Broker**: See configuration guide [here](../05-Infrastructure%20services/02-Message%20broker.md).
+Ledger versions up to and including `v3.0.0-alpha` require:
+
+- See the [PostgreSQL configuration](../05-Infrastructure%20services/01-PostgreSQL.md).
+- (Optional) See the [message broker configuration](../05-Infrastructure%20services/02-Message%20broker.md).
+
+Ledger versions newer than `v3.0.0-alpha` require the Ledger Operator and its
+`ledger.formance.com/v1alpha1` CRDs, plus cert-manager with its `Issuer` and
+`Certificate` CRDs, to be installed in the cluster. They use Ledger v3 native
+storage and do not require a PostgreSQL `Database` resource.
 
 ## Ledger Object
 
@@ -20,6 +26,77 @@ metadata:
 spec:
   stack: formance-dev
 ```
+
+## Ledger v3 delegation
+
+When the stack version is strictly newer than `v3.0.0-alpha`, the Formance
+Operator delegates Ledger provisioning to the Ledger Operator. It creates a
+`ledger.formance.com/v1alpha1` `Cluster` with the same name and namespace as the
+stack instead of creating the legacy Ledger Deployments, Database, migration
+jobs, and CronJobs.
+
+The Ledger Operator must be installed before the Formance Operator starts so
+that the latter can watch `Cluster` resources. If the CRD is unavailable, the
+Ledger remains pending and no legacy resources are created.
+
+Automatic in-place migration is intentionally not supported. If legacy Ledger
+Deployments or a Database already exist when switching a stack to v3, the
+Ledger reports that an explicit migration is required and does not create the
+v3 `Cluster`. The reverse transition is guarded in the same way: legacy
+resources are not created while a v3 `Cluster` still exists.
+
+### Ledger v3 preview alongside Ledger v2
+
+For migration preparation, a stack that still runs Ledger v2 can start a
+separate Ledger v3 cluster without changing its module version:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-preview
+spec:
+  stacks: ["formance-dev"]
+  key: ledger.v3.preview-version
+  value: "v3.0.0-alpha.11"
+```
+
+The value must be a Ledger version strictly newer than `v3.0.0-alpha`. In this
+mode, the Operator keeps all v2 Deployments and the v2 Database running, and
+creates an isolated v3 `Cluster`. Gateway exposes the preview through:
+
+- HTTP under `/api/ledger/v3`, while `/api/ledger/v2` and the other historical
+  Ledger routes continue to target v2;
+- gRPC service `ledger.BucketService`, which targets the TLS-enabled v3
+  cluster.
+
+The Operator creates and mounts a cert-manager-managed CA for the Gateway to
+verify the v3 gRPC backend. The gRPC route is published only after both the
+`Certificate` and its TLS `Secret` are ready.
+
+This preview mode does not start or supervise data mirroring. Mirroring and
+client validation remain explicit migration steps. Changing the Ledger module
+version to v3 is still blocked while legacy resources exist, even when the
+preview cluster is already running. Removing the Setting deletes only preview
+resources and routes; Ledger v2 remains active.
+
+The v3 cluster size defaults to three replicas and can be configured per stack:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ledger-v3-replicas
+spec:
+  stacks: ["formance-dev"]
+  key: deployments.ledger.replicas
+  value: "2"
+```
+
+This is the same setting used by legacy Ledger deployments. Ledger v3 requires
+an odd replica count for its quorum: a positive even value is rounded up to the
+next odd value (`2` becomes `3`, `4` becomes `5`). If the setting is absent,
+Ledger v3 defaults to three replicas. Zero and negative values are rejected.
 
 ## Settings (v2.4+)
 

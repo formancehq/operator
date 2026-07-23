@@ -1,8 +1,8 @@
 module github.com/formancehq/operator/v3
 
-go 1.25.0
+go 1.26.0
 
-toolchain go1.25.5
+toolchain go1.26.1
 
 require (
 	github.com/formancehq/go-libs/v5 v5.2.0
@@ -46,6 +46,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
+	github.com/formancehq/ledger/misc/operator v0.0.0-20260715094310-76862ea0b681
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
