@@ -111,8 +111,8 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	require.Empty(t, actual.Resources.Requests)
 	require.Equal(t, []corev1.EnvVar{
 		{Name: "BASE_ONLY", Value: "kept"},
-		{Name: "OPERATOR_ONLY", Value: "added"},
 		{Name: "SHARED", Value: "operator"},
+		{Name: "OPERATOR_ONLY", Value: "added"},
 	}, actual.ExtraEnv)
 
 	require.True(t, actual.Monitoring.Pyroscope.Enabled)

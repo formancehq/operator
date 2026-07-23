@@ -123,9 +123,6 @@ func createNamedDeployment(
 		}
 		env = append(env, brokerEnv...)
 		env = append(env, brokers.GetPublisherEnvVars(stack, broker, "reconciliation")...)
-		// Reconciliation deliberately keeps go-libs' PostgreSQL circuit breaker
-		// enabled for both manual and scheduled alert events.
-		env = core.MergeEnvVars(env, []v1.EnvVar{core.Env("PUBLISHER_CIRCUIT_BREAKER_ENABLED", "true")})
 	}
 
 	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)

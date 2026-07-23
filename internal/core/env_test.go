@@ -49,10 +49,29 @@ func TestMergeEnvVars(t *testing.T) {
 			expected:  []corev1.EnvVar{{Name: "A", Value: "1"}, {Name: "B", Value: "override"}, {Name: "C", Value: "3"}},
 		},
 		{
-			name:      "result is sorted by name",
+			name:      "base order is preserved and new overrides are appended",
 			base:      []corev1.EnvVar{{Name: "Z", Value: "1"}, {Name: "A", Value: "2"}},
 			overrides: []corev1.EnvVar{{Name: "M", Value: "3"}},
-			expected:  []corev1.EnvVar{{Name: "A", Value: "2"}, {Name: "M", Value: "3"}, {Name: "Z", Value: "1"}},
+			expected:  []corev1.EnvVar{{Name: "Z", Value: "1"}, {Name: "A", Value: "2"}, {Name: "M", Value: "3"}},
+		},
+		{
+			name: "dependent environment variables preserve expansion order",
+			base: []corev1.EnvVar{
+				{Name: "POSTGRES_HOST", Value: "postgres"},
+				{Name: "POSTGRES_PORT", Value: "5432"},
+				{Name: "POSTGRES_NO_DATABASE_URI", Value: "postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)"},
+				{Name: "POSTGRES_DATABASE", Value: "reconciliation"},
+				{Name: "POSTGRES_URI", Value: "$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)"},
+			},
+			overrides: []corev1.EnvVar{{Name: "PUBLISHER_NATS_ENABLED", Value: "true"}},
+			expected: []corev1.EnvVar{
+				{Name: "POSTGRES_HOST", Value: "postgres"},
+				{Name: "POSTGRES_PORT", Value: "5432"},
+				{Name: "POSTGRES_NO_DATABASE_URI", Value: "postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)"},
+				{Name: "POSTGRES_DATABASE", Value: "reconciliation"},
+				{Name: "POSTGRES_URI", Value: "$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)"},
+				{Name: "PUBLISHER_NATS_ENABLED", Value: "true"},
+			},
 		},
 		{
 			name:      "both empty",
