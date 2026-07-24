@@ -18,7 +18,6 @@ package reconciliations
 
 import (
 	"github.com/pkg/errors"
-	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 
@@ -111,7 +110,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, reconciliation *v1beta1.Reconc
 }
 
 func usesV3Topology(version string) bool {
-	return !semver.IsValid(version) || semver.Compare(version, "v3.0.0-0") >= 0
+	return v1beta1.IsReconciliationV3(version)
 }
 
 func init() {

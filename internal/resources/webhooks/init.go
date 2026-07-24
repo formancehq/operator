@@ -89,6 +89,7 @@ func init() {
 			WithWatchSettings[*v1beta1.Webhooks](),
 			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Ledger{}),
 			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Payments{}),
+			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Reconciliation{}),
 			databases.Watch[*v1beta1.Webhooks](),
 			brokers.Watch[*v1beta1.Webhooks](),
 		),

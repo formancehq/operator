@@ -17,8 +17,11 @@ limitations under the License.
 package v1beta1
 
 import (
+	"golang.org/x/mod/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+const ReconciliationV3Version = "v3.0.0-0"
 
 type ReconciliationSpec struct {
 	StackDependency  `json:",inline"`
@@ -74,6 +77,16 @@ func (in *Reconciliation) GetVersion() string {
 	return in.Spec.Version
 }
 
+func (in Reconciliation) isEventPublisher() {}
+
+func (in Reconciliation) PublishesEvents(version string) bool {
+	return IsReconciliationV3(version)
+}
+
+func IsReconciliationV3(version string) bool {
+	return !semver.IsValid(version) || semver.Compare(version, ReconciliationV3Version) >= 0
+}
+
 func (a Reconciliation) IsDebug() bool {
 	return a.Spec.Debug
 }
@@ -98,3 +111,5 @@ type ReconciliationList struct {
 func init() {
 	SchemeBuilder.Register(&Reconciliation{}, &ReconciliationList{})
 }
+
+var _ VersionedEventPublisher = (*Reconciliation)(nil)

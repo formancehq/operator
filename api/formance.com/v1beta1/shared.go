@@ -19,6 +19,15 @@ type EventPublisher interface {
 	isEventPublisher()
 }
 
+// VersionedEventPublisher is an event publisher whose availability depends on
+// the effective module version resolved by the operator.
+// +kubebuilder:object:generate=false
+type VersionedEventPublisher interface {
+	EventPublisher
+	Module
+	PublishesEvents(version string) bool
+}
+
 type DevProperties struct {
 	// +optional
 	// Allow to enable debug mode on the module
