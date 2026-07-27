@@ -131,12 +131,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return NewPendingError().WithMessage("waiting for ledger credentials to be provisioned")
 	}
 
-	// Resolve the connectivity-core image through the operator's registry
+	// Resolve the connectivity core image through the operator's registry
 	// translation so it honours the stack's registry settings (e.g. the
 	// ghcr.io -> registry.v2.formance.dev rewrite and pull secrets) instead of
 	// the connectivity operator's built-in ghcr.io/...:latest default, which
-	// would not be pullable on rewritten registries.
-	image, err := registries.GetFormanceImage(ctx, stack, "connectivity-core", version)
+	// would not be pullable on rewritten registries. The image repository is
+	// "connectivity" (the former "connectivity-core" name no longer exists).
+	image, err := registries.GetFormanceImage(ctx, stack, "connectivity", version)
 	if err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ImageResolveFailed", err.Error())
 		return err
