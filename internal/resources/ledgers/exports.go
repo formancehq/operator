@@ -30,7 +30,9 @@ func IsV3(version string) bool {
 // V3GRPCBackendRef returns the connection details of the ledger v3 gRPC service
 // for the given stack: service name, port, and backend TLS material
 // (self-signed CA secret and SNI server name). It is the single source of
-// truth for how in-cluster clients reach the ledger v3 gRPC endpoint.
+// truth for how in-cluster clients reach the ledger v3 gRPC endpoint. The
+// default gRPC service port is assumed; stacks overriding the ledger Cluster
+// service port are not reachable through this helper.
 func V3GRPCBackendRef(stackName string) v1beta1.GatewayBackendRef {
-	return ledgerV3GRPCBackendRef(stackName)
+	return ledgerV3GRPCBackendRef(stackName, 0)
 }
