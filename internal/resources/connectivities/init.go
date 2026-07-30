@@ -287,10 +287,23 @@ func connectivityMonitoringSpec(configuration *settings.OpenTelemetryConfigurati
 	if len(configuration.Attributes) > 0 {
 		attributes := make([]string, 0, len(configuration.Attributes))
 		for key, value := range configuration.Attributes {
+			// GetOpenTelemetryConfiguration injects pod-name=$(POD_NAME), which
+			// only resolves when a downward-API POD_NAME env var is defined ahead
+			// of OTEL_RESOURCE_ATTRIBUTES on the workload. Unlike this operator's
+			// own env-var path (settings.otelEnvVars/collectorEnvVars), the
+			// connectivity operator emits OTEL_RESOURCE_ATTRIBUTES verbatim from
+			// spec.monitoring.attributes and defines no such env var, so any
+			// $(...) placeholder would surface literally in the telemetry. Forward
+			// only attributes with resolvable (literal) values.
+			if strings.Contains(value, "$(") {
+				continue
+			}
 			attributes = append(attributes, key+"="+value)
 		}
-		slices.Sort(attributes)
-		monitoring["attributes"] = strings.Join(attributes, ",")
+		if len(attributes) > 0 {
+			slices.Sort(attributes)
+			monitoring["attributes"] = strings.Join(attributes, ",")
+		}
 	}
 
 	signal := func(cfg *settings.OpenTelemetrySignalConfiguration, extra map[string]any) map[string]any {

@@ -284,8 +284,11 @@ func TestApplyConnectivityMonitoringEmbedsSignalsInline(t *testing.T) {
 	if sn, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "serviceName"); sn != "connectivity" {
 		t.Errorf("serviceName = %q, want connectivity", sn)
 	}
-	if attrs, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "attributes"); attrs != "pod-name=$(POD_NAME),stack=stack0" {
-		t.Errorf("attributes = %q, want sorted key=value list", attrs)
+	// pod-name=$(POD_NAME) is dropped: the connectivity operator forwards
+	// OTEL_RESOURCE_ATTRIBUTES verbatim without defining a POD_NAME env var, so
+	// the placeholder would surface literally. Only resolvable attributes remain.
+	if attrs, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "attributes"); attrs != "stack=stack0" {
+		t.Errorf("attributes = %q, want sorted key=value list without unresolvable placeholders", attrs)
 	}
 
 	if enabled, _, _ := unstructured.NestedBool(object.Object, "spec", "monitoring", "traces", "enabled"); !enabled {
@@ -315,6 +318,31 @@ func TestApplyConnectivityMonitoringEmbedsSignalsInline(t *testing.T) {
 	}
 	if mode, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "logs", "mode"); mode != "http" {
 		t.Errorf("logs.mode = %q, want http", mode)
+	}
+}
+
+func TestConnectivityMonitoringSpecDropsUnresolvableAttributes(t *testing.T) {
+	// The connectivity operator emits OTEL_RESOURCE_ATTRIBUTES verbatim and
+	// defines no POD_NAME env var, so a forwarded $(POD_NAME) would surface
+	// literally. Such placeholders must be stripped, keeping literal attributes.
+	got := connectivityMonitoringSpec(&settings.OpenTelemetryConfiguration{
+		Attributes: map[string]string{
+			"stack":    "stack0",
+			"pod-name": "$(POD_NAME)",
+			"team":     "connectivity",
+		},
+	})
+	if attrs := got["attributes"]; attrs != "stack=stack0,team=connectivity" {
+		t.Errorf("attributes = %q, want the placeholder stripped and literals kept, sorted", attrs)
+	}
+
+	// When the only attribute is an unresolvable placeholder, the attributes key
+	// must be omitted entirely rather than set to an empty string.
+	onlyPlaceholder := connectivityMonitoringSpec(&settings.OpenTelemetryConfiguration{
+		Attributes: map[string]string{"pod-name": "$(POD_NAME)"},
+	})
+	if _, found := onlyPlaceholder["attributes"]; found {
+		t.Errorf("attributes must be omitted when every attribute is unresolvable, got %v", onlyPlaceholder["attributes"])
 	}
 }
 
