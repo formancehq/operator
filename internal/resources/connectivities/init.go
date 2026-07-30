@@ -18,6 +18,10 @@ package connectivities
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"strings"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +39,7 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 const (
@@ -148,6 +153,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return err
 	}
 
+	// Collector-aware OTEL configuration, embedded inline in spec.monitoring.
+	monitoringConfiguration, err := settings.GetOpenTelemetryConfiguration(ctx, stack.Name, "connectivity")
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "MonitoringResolveFailed", err.Error())
+		return err
+	}
+
 	// Reuse the single source of truth for the ledger v3 gRPC connection: same
 	// service, port and backend TLS material (self-signed CA secret + SNI) that
 	// the gateway uses to reach the ledger.
@@ -188,6 +200,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 			return err
 		}
 		if err := unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(apiImage.PullSecrets), "spec", "api", "imagePullSecrets"); err != nil {
+			return err
+		}
+		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err
 		}
 		// Ledger auth: connectivity-core signs its gRPC tokens with the Ed25519
@@ -246,6 +261,61 @@ func pullSecretsToUnstructured(secrets []corev1.LocalObjectReference) []any {
 		out = append(out, map[string]any{"name": ps.Name})
 	}
 	return out
+}
+
+// applyConnectivityMonitoring sets spec.monitoring from the resolved OTEL
+// configuration, or prunes it when telemetry is disabled (idempotent).
+func applyConnectivityMonitoring(object *unstructured.Unstructured, configuration *settings.OpenTelemetryConfiguration) error {
+	monitoring := connectivityMonitoringSpec(configuration)
+	if monitoring == nil {
+		unstructured.RemoveNestedField(object.Object, "spec", "monitoring")
+		return nil
+	}
+	return unstructured.SetNestedMap(object.Object, monitoring, "spec", "monitoring")
+}
+
+// connectivityMonitoringSpec maps the OTEL configuration to the connectivity
+// MonitoringConfig JSON shape, mirroring the Ledger v3 mapping.
+func connectivityMonitoringSpec(configuration *settings.OpenTelemetryConfiguration) map[string]any {
+	if configuration == nil {
+		return nil
+	}
+
+	monitoring := map[string]any{
+		"serviceName": "connectivity",
+	}
+	if len(configuration.Attributes) > 0 {
+		attributes := make([]string, 0, len(configuration.Attributes))
+		for key, value := range configuration.Attributes {
+			attributes = append(attributes, key+"="+value)
+		}
+		slices.Sort(attributes)
+		monitoring["attributes"] = strings.Join(attributes, ",")
+	}
+
+	signal := func(cfg *settings.OpenTelemetrySignalConfiguration, extra map[string]any) map[string]any {
+		out := map[string]any{
+			"enabled":  true,
+			"exporter": "otlp",
+			"endpoint": cfg.Endpoint,
+			"port":     cfg.Port,
+			"insecure": strconv.FormatBool(cfg.Insecure),
+			"mode":     cfg.Mode,
+		}
+		maps.Copy(out, extra)
+		return out
+	}
+
+	if configuration.Traces != nil {
+		monitoring["traces"] = signal(configuration.Traces, map[string]any{"batch": "true"})
+	}
+	if configuration.Metrics != nil {
+		monitoring["metrics"] = signal(configuration.Metrics, map[string]any{"runtime": true})
+	}
+	if configuration.Logs != nil {
+		monitoring["logs"] = signal(configuration.Logs, nil)
+	}
+	return monitoring
 }
 
 func getStackLedger(ctx Context, stackName string) (*v1beta1.Ledger, error) {

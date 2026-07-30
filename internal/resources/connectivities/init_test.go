@@ -19,6 +19,7 @@ package connectivities
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 type connectivityDiscoveryContext struct {
@@ -255,6 +257,122 @@ func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
 	}
 	if secret != "ledger-connectivity-stack1-credentials-keys" {
 		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
+	}
+}
+
+func TestConnectivityMonitoringSpecNilWhenDisabled(t *testing.T) {
+	if got := connectivityMonitoringSpec(nil); got != nil {
+		t.Fatalf("connectivityMonitoringSpec(nil) = %v, want nil (telemetry disabled)", got)
+	}
+}
+
+func TestApplyConnectivityMonitoringEmbedsSignalsInline(t *testing.T) {
+	cfg := &settings.OpenTelemetryConfiguration{
+		// ServiceName is intentionally ignored: the operator forces "connectivity".
+		ServiceName: "ignored",
+		Attributes:  map[string]string{"stack": "stack0", "pod-name": "$(POD_NAME)"},
+		Traces:      &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Insecure: true, Mode: "http"},
+		Metrics:     &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Insecure: true, Mode: "http"},
+		Logs:        &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Insecure: true, Mode: "http"},
+	}
+
+	object := &unstructured.Unstructured{Object: map[string]any{}}
+	if err := applyConnectivityMonitoring(object, cfg); err != nil {
+		t.Fatalf("applyConnectivityMonitoring: %v", err)
+	}
+
+	if sn, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "serviceName"); sn != "connectivity" {
+		t.Errorf("serviceName = %q, want connectivity", sn)
+	}
+	if attrs, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "attributes"); attrs != "pod-name=$(POD_NAME),stack=stack0" {
+		t.Errorf("attributes = %q, want sorted key=value list", attrs)
+	}
+
+	if enabled, _, _ := unstructured.NestedBool(object.Object, "spec", "monitoring", "traces", "enabled"); !enabled {
+		t.Error("traces.enabled must be true")
+	}
+	if exporter, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "traces", "exporter"); exporter != "otlp" {
+		t.Errorf("traces.exporter = %q, want otlp", exporter)
+	}
+	if batch, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "traces", "batch"); batch != "true" {
+		t.Errorf("traces.batch = %q, want \"true\"", batch)
+	}
+	if insecure, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "traces", "insecure"); insecure != "true" {
+		t.Errorf("traces.insecure = %q, want \"true\" (string)", insecure)
+	}
+
+	if endpoint, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "metrics", "endpoint"); endpoint != "otel-collector.stack0" {
+		t.Errorf("metrics.endpoint = %q, want otel-collector.stack0", endpoint)
+	}
+	if runtimeOn, _, _ := unstructured.NestedBool(object.Object, "spec", "monitoring", "metrics", "runtime"); !runtimeOn {
+		t.Error("metrics.runtime must be true")
+	}
+
+	// Logs is configured but, unlike traces/metrics, carries no batch/runtime
+	// extra — just the enabled otlp signal.
+	if enabled, _, _ := unstructured.NestedBool(object.Object, "spec", "monitoring", "logs", "enabled"); !enabled {
+		t.Error("logs.enabled must be true")
+	}
+	if mode, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "logs", "mode"); mode != "http" {
+		t.Errorf("logs.mode = %q, want http", mode)
+	}
+}
+
+func TestApplyConnectivityMonitoringOmitsUnconfiguredSignals(t *testing.T) {
+	// Only metrics enabled: traces and logs blocks must be absent.
+	cfg := &settings.OpenTelemetryConfiguration{
+		Metrics: &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Mode: "http"},
+	}
+	object := &unstructured.Unstructured{Object: map[string]any{}}
+	if err := applyConnectivityMonitoring(object, cfg); err != nil {
+		t.Fatalf("applyConnectivityMonitoring: %v", err)
+	}
+	if _, found, _ := unstructured.NestedMap(object.Object, "spec", "monitoring", "traces"); found {
+		t.Error("spec.monitoring.traces must be absent when traces are not configured")
+	}
+	if _, found, _ := unstructured.NestedMap(object.Object, "spec", "monitoring", "logs"); found {
+		t.Error("spec.monitoring.logs must be absent when logs are not configured")
+	}
+	// No resource attributes were provided, so the attributes key must be omitted.
+	if _, found, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "attributes"); found {
+		t.Error("spec.monitoring.attributes must be omitted when no attributes are set")
+	}
+}
+
+func TestApplyConnectivityMonitoringIsIdempotent(t *testing.T) {
+	cfg := &settings.OpenTelemetryConfiguration{
+		Attributes: map[string]string{"stack": "stack0"},
+		Traces:     &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Insecure: false, Mode: "grpc"},
+	}
+
+	first := &unstructured.Unstructured{Object: map[string]any{}}
+	if err := applyConnectivityMonitoring(first, cfg); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	// Re-applying the same configuration onto the already-populated object must
+	// yield a byte-for-byte identical spec (idempotent reconcile).
+	second := first.DeepCopy()
+	if err := applyConnectivityMonitoring(second, cfg); err != nil {
+		t.Fatalf("second apply: %v", err)
+	}
+	if !reflect.DeepEqual(first.Object, second.Object) {
+		t.Errorf("monitoring is not idempotent:\nfirst  = %#v\nsecond = %#v", first.Object, second.Object)
+	}
+}
+
+func TestApplyConnectivityMonitoringPrunesStaleBlockWhenDisabled(t *testing.T) {
+	object := &unstructured.Unstructured{Object: map[string]any{}}
+	// Seed a stale monitoring block, as if telemetry had been enabled before.
+	if err := unstructured.SetNestedField(object.Object, "connectivity", "spec", "monitoring", "serviceName"); err != nil {
+		t.Fatalf("seed stale monitoring: %v", err)
+	}
+
+	if err := applyConnectivityMonitoring(object, nil); err != nil {
+		t.Fatalf("applyConnectivityMonitoring(nil): %v", err)
+	}
+	if _, found, _ := unstructured.NestedMap(object.Object, "spec", "monitoring"); found {
+		t.Error("spec.monitoring must be pruned when telemetry is disabled")
 	}
 }
 
