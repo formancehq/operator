@@ -9,6 +9,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -124,6 +125,12 @@ func configureBackendTLSVolumes(
 	for _, secretName := range sortedSecretNames {
 		secret := &v1.Secret{}
 		if err := ctx.GetClient().Get(ctx, core.GetNamespacedResourceName(namespace, secretName), secret); err != nil {
+			if apierrors.IsNotFound(err) {
+				// The backend module may not have provisioned its TLS Secret
+				// yet. Surface this as a pending (application) error so the
+				// framework retries instead of marking the Gateway as failed.
+				return core.NewPendingError().WithMessage("waiting for backend TLS Secret %s/%s", namespace, secretName)
+			}
 			return fmt.Errorf("getting backend TLS Secret %s/%s: %w", namespace, secretName, err)
 		}
 		secretData, err := json.Marshal(secret.Data)
