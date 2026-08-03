@@ -124,7 +124,8 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8080))
 				}).Should(Succeed())
 
-				// The delegated connectivity workload can reach the Ledger v3 gRPC port.
+				// The delegated connectivity workload can reach the Ledger v3 pods;
+				// ports are intentionally unrestricted for this tightly scoped pair.
 				Eventually(func(g Gomega) {
 					np := &networkingv1.NetworkPolicy{}
 					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", np)).To(Succeed())
@@ -137,8 +138,7 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
 					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
 					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "connectivity"))
-					g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8888))
+					g.Expect(np.Spec.Ingress[0].Ports).To(BeEmpty())
 				}).Should(Succeed())
 
 			})

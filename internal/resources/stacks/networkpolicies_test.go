@@ -49,7 +49,7 @@ func loadNetworkPolicy(t *testing.T, ctx core.Context, namespace, name string) *
 }
 
 // TestCreateNetworkPolicies_AllowsConnectivityToLedgerV3 asserts that the
-// connectivity workload is granted ingress to the Ledger v3 gRPC port, so its
+// connectivity workload is granted ingress to the Ledger v3 pods, so its
 // delegated pods are not blocked by the default-deny policy.
 func TestCreateNetworkPolicies_AllowsConnectivityToLedgerV3(t *testing.T) {
 	ctx := newNetworkPolicyMockContext(t)
@@ -77,9 +77,10 @@ func TestCreateNetworkPolicies_AllowsConnectivityToLedgerV3(t *testing.T) {
 	require.NotNil(t, peer.PodSelector)
 	require.Equal(t, "connectivity", peer.PodSelector.MatchLabels["app.kubernetes.io/name"])
 
-	// Restricted to the Ledger v3 gRPC port (8888).
-	require.Len(t, np.Spec.Ingress[0].Ports, 1)
-	require.Equal(t, 8888, np.Spec.Ingress[0].Ports[0].Port.IntValue())
+	// Ports are intentionally unrestricted for this tightly scoped
+	// connectivity->ledger-v3 pair (mirroring allow-ledger-v3-cluster), so a
+	// LedgerConfiguration grpcPort override can never break or stale the policy.
+	require.Empty(t, np.Spec.Ingress[0].Ports)
 }
 
 func TestConnectivitySelector(t *testing.T) {

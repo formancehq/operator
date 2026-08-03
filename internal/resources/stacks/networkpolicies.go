@@ -182,12 +182,13 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 		return err
 	}
 
-	// 7. allow-ledger-v3-from-connectivity: the delegated connectivity workload
-	// dials the stack's Ledger v3 gRPC endpoint directly on the ledger Service
-	// (ledgers.V3GRPCBackendRef, port 8888). Connectivity pods are not Ledger v3
-	// pods, so the default-deny policy would otherwise silently drop those gRPC
-	// connections. Allow them, restricted to the gRPC port, following the
-	// dedicated-policy pattern used for the gateway (allow-from-gateway).
+	// 7. allow-ledger-v3-from-connectivity: let the delegated connectivity
+	// workload reach the stack's Ledger v3 pods (it dials their gRPC endpoint).
+	// Connectivity pods are not Ledger v3 pods, so the default-deny policy would
+	// otherwise drop those connections. Ports are intentionally unrestricted for
+	// this tightly scoped same-namespace source/target pair — mirroring
+	// allow-ledger-v3-cluster — so a LedgerConfiguration spec.cluster.service.grpcPort
+	// override cannot silently break connectivity or leave the policy stale.
 	if _, _, err := CreateOrUpdate[*networkingv1.NetworkPolicy](ctx,
 		types.NamespacedName{
 			Namespace: stack.Name,
@@ -201,8 +202,7 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 				PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 				Ingress: []networkingv1.NetworkPolicyIngressRule{
 					{
-						From:  []networkingv1.NetworkPolicyPeer{{PodSelector: &connectivity}},
-						Ports: networkPolicyTCPPorts(ledgerV3GRPCPort),
+						From: []networkingv1.NetworkPolicyPeer{{PodSelector: &connectivity}},
 					},
 				},
 			}
@@ -235,11 +235,6 @@ func deleteNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 	}
 	return nil
 }
-
-// ledgerV3GRPCPort mirrors the (unexported) ledgers.ledgerV3GRPCPort: the
-// default Ledger v3 gRPC service port that ledgers.V3GRPCBackendRef targets and
-// that the delegated connectivity workload dials.
-const ledgerV3GRPCPort = 8888
 
 // connectivitySelector matches the delegated connectivity workload pods that
 // dial the stack's Ledger v3 gRPC endpoint.
