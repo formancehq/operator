@@ -18,6 +18,7 @@ package connectivities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -299,13 +300,22 @@ func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.
 	delegated.SetGroupVersionKind(connectivityGVK)
 	delegated.SetNamespace(stack.Name)
 	delegated.SetName(stack.Name)
-	if err := client.IgnoreNotFound(ctx.GetClient().Delete(ctx, delegated)); err != nil {
-		return err
-	}
 
 	httpAPI := &v1beta1.GatewayHTTPAPI{}
 	httpAPI.SetName(GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity)))
-	return client.IgnoreNotFound(ctx.GetClient().Delete(ctx, httpAPI))
+
+	// Attempt every deletion independently rather than bailing on the first
+	// error: a failure to delete one resource must not leave the public gateway
+	// route or the god-mode Credentials behind, since the point of the hard
+	// teardown is to stop exposing the workload — and its credential — once the
+	// ledger prerequisite no longer holds. Deleting the cluster-scoped
+	// Credentials also cascades the ledger operator's key deregistration and the
+	// distributed private-key Secret, which stack-namespace GC never reclaims.
+	return errors.Join(
+		client.IgnoreNotFound(ctx.GetClient().Delete(ctx, delegated)),
+		client.IgnoreNotFound(ctx.GetClient().Delete(ctx, httpAPI)),
+		deleteLedgerCredentials(ctx, connectivity),
+	)
 }
 
 // connectivityAPIBackendRef points the gateway at the connectivity-api Service

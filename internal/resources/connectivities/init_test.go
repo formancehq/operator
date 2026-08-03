@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -640,6 +641,25 @@ func gatewayHTTPAPIExists(t *testing.T, ctx credsTestContext, stackName string) 
 	return err == nil
 }
 
+// newLedgerCredentialsForStack returns the cluster-scoped god-mode Credentials
+// as ensureLedgerCredentials provisions it: named "connectivity-<stack>".
+func newLedgerCredentialsForStack(stackName string) *unstructured.Unstructured {
+	cred := &unstructured.Unstructured{}
+	cred.SetGroupVersionKind(ledgerCredentialsGVK)
+	cred.SetName("connectivity-" + stackName)
+	return cred
+}
+
+// credentialsExist reports whether the cluster-scoped god-mode Credentials for
+// the stack is still present in the cluster.
+func credentialsExist(t *testing.T, ctx credsTestContext, stackName string) bool {
+	t.Helper()
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(ledgerCredentialsGVK)
+	err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-" + stackName}, got)
+	return err == nil
+}
+
 func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = true
@@ -657,8 +677,9 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3(t *testing.T) {
 	delegated := newDelegatedConnectivity("stack0")
 	httpAPI := &v1beta1.GatewayHTTPAPI{}
 	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
 
-	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI)
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, cred)
 
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack0"
@@ -683,6 +704,9 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3(t *testing.T) {
 	if gatewayHTTPAPIExists(t, ctx, "stack0") {
 		t.Error("GatewayHTTPAPI must be torn down when the ledger is not v3")
 	}
+	if credentialsExist(t, ctx, "stack0") {
+		t.Error("god-mode Credentials must be torn down when the ledger is not v3")
+	}
 }
 
 func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
@@ -701,8 +725,9 @@ func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
 	delegated := newDelegatedConnectivity("stack0")
 	httpAPI := &v1beta1.GatewayHTTPAPI{}
 	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
 
-	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI)
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, cred)
 
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack0"
@@ -727,6 +752,9 @@ func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
 	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
 		t.Error("GatewayHTTPAPI must NOT be torn down on a transient ledger-not-ready gate")
 	}
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Error("god-mode Credentials must NOT be torn down on a transient ledger-not-ready gate")
+	}
 }
 
 func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
@@ -749,5 +777,42 @@ func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
 	}
 	if len(connectivity.Status.Conditions) == 0 {
 		t.Fatal("Reconcile() must record a condition when the capability is unavailable")
+	}
+}
+
+// A failure to delete one resource during the hard teardown must not leave the
+// others behind: the public GatewayHTTPAPI and the god-mode Credentials still
+// have to be removed even when the delegated Connectivity delete fails (e.g. its
+// CRD/API was removed after startup), and the failure must surface.
+func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
+
+	base := newReconcileTestContext(t, httpAPI, cred)
+	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+			if obj.GetObjectKind().GroupVersionKind() == connectivityGVK {
+				return apierrors.NewInternalError(errors.New("delegated Connectivity delete failed"))
+			}
+			return c.Delete(ctx, obj, opts...)
+		},
+	})
+	ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	if err := teardownDelegated(ctx, stack, connectivity); err == nil {
+		t.Fatal("teardownDelegated must surface the delegated Connectivity delete failure")
+	}
+	if gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must still be torn down when the delegated Connectivity delete fails")
+	}
+	if credentialsExist(t, ctx, "stack0") {
+		t.Error("god-mode Credentials must still be torn down when the delegated Connectivity delete fails")
 	}
 }
