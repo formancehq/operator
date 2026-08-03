@@ -211,8 +211,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 
 	// Reuse the single source of truth for the ledger v3 gRPC connection: same
 	// service, port and backend TLS material (self-signed CA secret + SNI) that
-	// the gateway uses to reach the ledger.
-	backend := ledgers.V3GRPCBackendRef(stack.Name)
+	// the gateway uses to reach the ledger. The port is resolved from the stack's
+	// LedgerConfiguration so a stack overriding spec.cluster.service.grpcPort
+	// stays reachable, consistently with the gateway backend.
+	backend, err := ledgers.V3GRPCBackendRef(ctx, stack.Name)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerBackendResolveFailed", err.Error())
+		return err
+	}
 	ledgerAddress := fmt.Sprintf("%s:%d", backend.TLS.ServerName, backend.Port)
 
 	object := &unstructured.Unstructured{}

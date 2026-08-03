@@ -18,6 +18,7 @@ package ledgers
 
 import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/core"
 )
 
 // IsV3 reports whether the given ledger version resolves to a Ledger v3 (or
@@ -30,9 +31,15 @@ func IsV3(version string) bool {
 // V3GRPCBackendRef returns the connection details of the ledger v3 gRPC service
 // for the given stack: service name, port, and backend TLS material
 // (self-signed CA secret and SNI server name). It is the single source of
-// truth for how in-cluster clients reach the ledger v3 gRPC endpoint. The
-// default gRPC service port is assumed; stacks overriding the ledger Cluster
-// service port are not reachable through this helper.
-func V3GRPCBackendRef(stackName string) v1beta1.GatewayBackendRef {
-	return ledgerV3GRPCBackendRef(stackName, 0)
+// truth for how in-cluster clients reach the ledger v3 gRPC endpoint. The gRPC
+// service port is resolved from the stack's LedgerConfiguration
+// (spec.cluster.service.grpcPort) exactly as the gateway backend resolves it,
+// so stacks overriding the ledger Cluster service port stay reachable through
+// this helper; it falls back to the default gRPC port when unset.
+func V3GRPCBackendRef(ctx core.Context, stackName string) (v1beta1.GatewayBackendRef, error) {
+	baseSpec, err := ledgerV3BaseSpec(ctx, stackName)
+	if err != nil {
+		return v1beta1.GatewayBackendRef{}, err
+	}
+	return ledgerV3GRPCBackendRef(stackName, baseSpec.Service.GrpcPort), nil
 }
