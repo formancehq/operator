@@ -26,6 +26,7 @@ import (
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -394,6 +395,20 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 	return keyID, secretName, true, nil
 }
 
+// The Credentials is cluster-scoped and owned by the Stack, so neither GC on
+// Connectivity deletion nor namespace deletion reclaims it — hence this finalizer.
+// Deleting it cascades in the ledger operator (key + distributed Secret).
+func deleteLedgerCredentials(ctx Context, connectivity *v1beta1.Connectivity) error {
+	cred := &unstructured.Unstructured{}
+	cred.SetGroupVersionKind(ledgerCredentialsGVK)
+	cred.SetName("connectivity-" + connectivity.GetStack())
+	// IsNoMatchError: without the ledger CRD, Delete errors and would block deletion forever.
+	if err := ctx.GetClient().Delete(ctx, cred); client.IgnoreNotFound(err) != nil && !apimeta.IsNoMatchError(err) {
+		return err
+	}
+	return nil
+}
+
 func connectivityResourceReady(object *unstructured.Unstructured) (bool, string) {
 	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
 	if phase == "Ready" {
@@ -500,6 +515,7 @@ func canAccessConnectivityResource(ctx Context, gvk schema.GroupVersionKind, res
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
 			WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
 			withConnectivityClusterWatch(),
 			WithWatchSettings[*v1beta1.Connectivity](),
