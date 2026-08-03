@@ -766,8 +766,9 @@ func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
 	stack.Name = "stack0"
 	connectivity := &v1beta1.Connectivity{}
 	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
 
-	ctx := connectivityDiscoveryContext{Context: context.Background()}
+	ctx := newReconcileTestContext(t)
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if err == nil {
 		t.Fatal("Reconcile() must return a pending error when the capability is unavailable")
@@ -777,6 +778,75 @@ func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
 	}
 	if len(connectivity.Status.Conditions) == 0 {
 		t.Fatal("Reconcile() must record a condition when the capability is unavailable")
+	}
+}
+
+// When the connectivity operator becomes unavailable after resources were
+// provisioned AND the ledger hard gate has since closed, the capability
+// short-circuit must not skip the teardown: the gateway route and god-mode
+// Credentials still have to be removed.
+func TestConnectivityReconcileTearsDownWhenCapabilityUnavailableAndLedgerGateClosed(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = false
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	// No ledger on the stack: the hard gate is closed.
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
+
+	ctx := newReconcileTestContext(t, httpAPI, cred)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	if gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must be torn down when the capability is unavailable and the ledger gate is closed")
+	}
+	if credentialsExist(t, ctx, "stack0") {
+		t.Error("god-mode Credentials must be torn down when the capability is unavailable and the ledger gate is closed")
+	}
+}
+
+// A transient connectivity-operator outage with a healthy v3 ledger (gate still
+// open) must NOT flap the already-provisioned resources.
+func TestConnectivityReconcileKeepsResourcesWhenCapabilityUnavailableButLedgerV3(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = false
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = true
+
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
+
+	ctx := newReconcileTestContext(t, ledger, httpAPI, cred)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must be kept while the ledger gate is still open")
+	}
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Error("Credentials must be kept while the ledger gate is still open")
 	}
 }
 
