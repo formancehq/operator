@@ -19,12 +19,16 @@ func TestListEventPublishersFiltersVersionedPublishers(t *testing.T) {
 		reconciliationVersion string
 		expectedServices      []string
 	}{
-		"v2 reconciliation is excluded": {
+		"v2.3 reconciliation is excluded": {
 			reconciliationVersion: "v2.3.1",
 			expectedServices:      []string{"Ledger", "Payments"},
 		},
-		"v3 prerelease reconciliation is included": {
-			reconciliationVersion: "v3.0.0-alpha.1",
+		"v2.4 prerelease reconciliation is excluded": {
+			reconciliationVersion: "v2.4.0-rc.1",
+			expectedServices:      []string{"Ledger", "Payments"},
+		},
+		"v2.4 reconciliation is included": {
+			reconciliationVersion: "v2.4.0",
 			expectedServices:      []string{"Ledger", "Payments", "Reconciliation"},
 		},
 		"main reconciliation is included": {

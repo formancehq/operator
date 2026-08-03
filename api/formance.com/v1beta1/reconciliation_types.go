@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const ReconciliationV3Version = "v3.0.0-0"
+const ReconciliationV3Version = "v2.4.0"
 
 type ReconciliationSpec struct {
 	StackDependency  `json:",inline"`
