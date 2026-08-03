@@ -124,6 +124,23 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8080))
 				}).Should(Succeed())
 
+				// The delegated connectivity workload can reach the Ledger v3 gRPC port.
+				Eventually(func(g Gomega) {
+					np := &networkingv1.NetworkPolicy{}
+					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", np)).To(Succeed())
+					g.Expect(np).To(BeControlledBy(stack))
+					g.Expect(np.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{
+						"app.kubernetes.io/instance": stack.Name,
+						"app.kubernetes.io/name":     "ledger",
+					}))
+					g.Expect(np.Spec.Ingress).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
+					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "connectivity"))
+					g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
+					g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8888))
+				}).Should(Succeed())
+
 			})
 
 			Context("Then disabling networkpolicies", func() {
@@ -156,6 +173,9 @@ var _ = Describe("NetworkPolicyController", func() {
 					}).Should(BeNotFound())
 					Eventually(func() error {
 						return LoadResource(stack.Name, "allow-ledger-v2-from-v3", &networkingv1.NetworkPolicy{})
+					}).Should(BeNotFound())
+					Eventually(func() error {
+						return LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", &networkingv1.NetworkPolicy{})
 					}).Should(BeNotFound())
 				})
 			})
