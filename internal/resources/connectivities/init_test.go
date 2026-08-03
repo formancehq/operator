@@ -586,6 +586,149 @@ func TestLedgerCredentialsWatchDisabledWhenDiscoveryFails(t *testing.T) {
 	}
 }
 
+// newReconcileTestContext builds a core.Context backed by a fake client whose
+// scheme knows the v1beta1 types, the delegated connectivity GVK and the ledger
+// Credentials GVK (as unstructured), and whose client indexes Ledgers by their
+// "stack" field so getStackLedger's List(MatchingFields{"stack": ...}) resolves.
+func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestContext {
+	t.Helper()
+	s := runtime.NewScheme()
+	if err := v1beta1.AddToScheme(s); err != nil {
+		t.Fatalf("add v1beta1 to scheme: %v", err)
+	}
+	s.AddKnownTypeWithName(connectivityGVK, &unstructured.Unstructured{})
+	s.AddKnownTypeWithName(connectivityGVK.GroupVersion().WithKind(connectivityGVK.Kind+"List"), &unstructured.UnstructuredList{})
+	s.AddKnownTypeWithName(ledgerCredentialsGVK, &unstructured.Unstructured{})
+	s.AddKnownTypeWithName(ledgerCredentialsGVK.GroupVersion().WithKind(ledgerCredentialsGVK.Kind+"List"), &unstructured.UnstructuredList{})
+	return credsTestContext{
+		Context: context.Background(),
+		scheme:  s,
+		client: fake.NewClientBuilder().WithScheme(s).
+			WithIndex(&v1beta1.Ledger{}, "stack", func(obj client.Object) []string {
+				return []string{obj.(*v1beta1.Ledger).Spec.Stack}
+			}).
+			WithObjects(objs...).Build(),
+	}
+}
+
+// newDelegatedConnectivity returns the delegated Connectivity resource as it is
+// provisioned by Reconcile: namespaced, with name == namespace == stack name.
+func newDelegatedConnectivity(stackName string) *unstructured.Unstructured {
+	object := &unstructured.Unstructured{}
+	object.SetGroupVersionKind(connectivityGVK)
+	object.SetNamespace(stackName)
+	object.SetName(stackName)
+	return object
+}
+
+// delegatedConnectivityExists reports whether the delegated Connectivity for the
+// stack is still present in the cluster.
+func delegatedConnectivityExists(t *testing.T, ctx credsTestContext, stackName string) bool {
+	t.Helper()
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(connectivityGVK)
+	err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stackName, Name: stackName}, got)
+	return err == nil
+}
+
+// gatewayHTTPAPIExists reports whether the connectivity GatewayHTTPAPI
+// ("<stack>-connectivity", cluster-scoped) is still present in the cluster.
+func gatewayHTTPAPIExists(t *testing.T, ctx credsTestContext, stackName string) bool {
+	t.Helper()
+	got := &v1beta1.GatewayHTTPAPI{}
+	err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: stackName + "-connectivity"}, got)
+	return err == nil
+}
+
+func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	// A v2 (non-v3) ledger: a real downgrade below the connectivity prerequisite.
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v2.0.0"
+	ledger.Status.Ready = true
+
+	// Pre-provisioned delegated resources, as if connectivity had been running
+	// before the ledger was downgraded.
+	delegated := newDelegatedConnectivity("stack0")
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if err == nil {
+		t.Fatal("Reconcile() must return a pending error when the ledger is not v3")
+	}
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerNotV3" {
+		t.Fatalf("expected a LedgerNotV3 condition, got %#v", connectivity.Status.Conditions)
+	}
+
+	if delegatedConnectivityExists(t, ctx, "stack0") {
+		t.Error("delegated Connectivity must be torn down when the ledger is not v3")
+	}
+	if gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must be torn down when the ledger is not v3")
+	}
+}
+
+func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	// A v3 ledger that is momentarily not ready: the prerequisite still holds, so
+	// this is a transient gate that must NOT flap the workload.
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = false
+
+	delegated := newDelegatedConnectivity("stack0")
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if err == nil {
+		t.Fatal("Reconcile() must return a pending error when the ledger is not ready")
+	}
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerNotReady" {
+		t.Fatalf("expected a LedgerNotReady condition, got %#v", connectivity.Status.Conditions)
+	}
+
+	if !delegatedConnectivityExists(t, ctx, "stack0") {
+		t.Error("delegated Connectivity must NOT be torn down on a transient ledger-not-ready gate")
+	}
+	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must NOT be torn down on a transient ledger-not-ready gate")
+	}
+}
+
 func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = false
