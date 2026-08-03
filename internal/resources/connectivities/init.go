@@ -17,6 +17,7 @@ limitations under the License.
 package connectivities
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"slices"
@@ -33,7 +34,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
@@ -73,6 +76,13 @@ var (
 		Version: "v1alpha1",
 		Kind:    "Credentials",
 	}
+
+	// ledgerCredentialsWatchAvailable records whether, at controller start-up,
+	// the ledger Credentials CRD was present so the reconciler could register a
+	// watch on it. When true, changes to the connectivity-<stack> Credentials
+	// (notably its status.phase flipping to Ready) re-trigger the owning
+	// Connectivity's reconcile.
+	ledgerCredentialsWatchAvailable bool
 )
 
 var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
@@ -512,12 +522,106 @@ func canAccessConnectivityResource(ctx Context, gvk schema.GroupVersionKind, res
 	return true
 }
 
+// withLedgerCredentialsWatch registers a watch on the cluster-scoped ledger
+// Credentials so that changes to the connectivity-<stack> Credentials re-trigger
+// the owning Connectivity's reconcile.
+//
+// Reconcile returns a PendingError while the Credentials is not yet Ready
+// (LedgerCredentialsPending), and the reconcile loop treats a PendingError as a
+// terminal ctrl.Result{} with no RequeueAfter (see core.reconcileObject). The
+// Credentials is provisioned by the ledger operator, is cluster-scoped, and is
+// owned by the Stack (not controller-owned by the namespaced Connectivity), so
+// neither WithOwn nor the standard requeue would re-trigger Connectivity when the
+// ledger operator flips the Credentials status.phase to Ready. Without this
+// watch the module can stall indefinitely on LedgerCredentialsPending.
+//
+// The Credentials is an external, unstructured GVK, so this uses a raw builder
+// watch (mirroring withConnectivityClusterWatch) rather than WithWatch, which
+// reflect-instantiates a typed WATCHED and cannot carry the GVK an unstructured
+// watch needs. The watch is gated on the Credentials CRD being installed so
+// controller setup never fails when the ledger operator is absent.
+func withLedgerCredentialsWatch() ReconcilerOption[*v1beta1.Connectivity] {
+	return func(options *ReconcilerOptions[*v1beta1.Connectivity]) {
+		options.Raws = append(options.Raws, func(ctx Context, b *builder.Builder) error {
+			crds := &apiextensionsv1.CustomResourceDefinitionList{}
+			if err := ctx.GetAPIReader().List(ctx, crds); err != nil {
+				ledgerCredentialsWatchAvailable = false
+				log.FromContext(ctx).Info("ledger Credentials watch unavailable; continuing without it", "error", err)
+				return nil
+			}
+			ledgerCredentialsWatchAvailable = watchLedgerCredentials(ctx, b, crds)
+			return nil
+		})
+	}
+}
+
+func watchLedgerCredentials(ctx Context, b *builder.Builder, crds *apiextensionsv1.CustomResourceDefinitionList) bool {
+	for _, crd := range crds.Items {
+		if crd.Spec.Group != ledgerCredentialsGVK.Group || crd.Spec.Names.Kind != ledgerCredentialsGVK.Kind {
+			continue
+		}
+		for _, version := range crd.Spec.Versions {
+			if version.Name != ledgerCredentialsGVK.Version || !version.Served {
+				continue
+			}
+			cred := &unstructured.Unstructured{}
+			cred.SetGroupVersionKind(ledgerCredentialsGVK)
+			// The raw builder callback receives a Context wrapping the manager;
+			// its client is long-lived, so it is safe to reuse for the mapping.
+			b.Watches(cred, handler.EnqueueRequestsFromMapFunc(func(_ context.Context, object client.Object) []reconcile.Request {
+				return mapLedgerCredentialsToConnectivity(ctx, object)
+			}))
+			log.FromContext(ctx).Info("ledger Credentials watch registered", "gvk", ledgerCredentialsGVK)
+			return true
+		}
+	}
+	log.FromContext(ctx).Info("ledger Credentials CRD is not available; connectivity will not watch credentials", "gvk", ledgerCredentialsGVK)
+	return false
+}
+
+// mapLedgerCredentialsToConnectivity maps a ledger Credentials event back to the
+// Connectivity module(s) that provisioned it. ensureLedgerCredentials names the
+// Credentials "connectivity-<stack>", so the stack is derived from that name and
+// the Connectivity in that stack is enqueued (there is one Connectivity per
+// stack). It returns nothing when the name is not a connectivity-owned
+// Credentials or when the stack has no Connectivity.
+func mapLedgerCredentialsToConnectivity(ctx Context, object client.Object) []reconcile.Request {
+	stack, ok := connectivityStackFromCredentials(object)
+	if !ok {
+		return nil
+	}
+	list := &v1beta1.ConnectivityList{}
+	if err := ctx.GetClient().List(ctx, list, client.MatchingFields{"stack": stack}); err != nil {
+		log.FromContext(ctx).Error(err, "listing Connectivity for ledger Credentials watch", "stack", stack)
+		return nil
+	}
+	items := make([]*v1beta1.Connectivity, len(list.Items))
+	for i := range list.Items {
+		items[i] = &list.Items[i]
+	}
+	return MapObjectToReconcileRequests(items...)
+}
+
+// connectivityStackFromCredentials derives the stack a connectivity-owned ledger
+// Credentials belongs to. ensureLedgerCredentials names it "connectivity-<stack>"
+// (and stamps spec.selector.matchLabels["formance.com/stack"]); requiring the
+// "connectivity-" name prefix keeps unrelated ledger Credentials from enqueueing
+// a Connectivity.
+func connectivityStackFromCredentials(object client.Object) (string, bool) {
+	stack, ok := strings.CutPrefix(object.GetName(), "connectivity-")
+	if !ok || stack == "" {
+		return "", false
+	}
+	return stack, true
+}
+
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
 			WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
 			WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
 			withConnectivityClusterWatch(),
+			withLedgerCredentialsWatch(),
 			WithWatchSettings[*v1beta1.Connectivity](),
 			WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
 		),

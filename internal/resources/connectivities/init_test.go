@@ -469,6 +469,123 @@ func TestApplyConnectivityMonitoringPrunesStaleBlockWhenDisabled(t *testing.T) {
 	}
 }
 
+// newConnectivityMapContext builds a core.Context backed by a fake client that
+// indexes Connectivity by stack (as the manager does at runtime), for exercising
+// the ledger Credentials -> Connectivity watch mapping.
+func newConnectivityMapContext(t *testing.T, objs ...client.Object) credsTestContext {
+	t.Helper()
+	s := runtime.NewScheme()
+	if err := v1beta1.AddToScheme(s); err != nil {
+		t.Fatalf("add v1beta1 to scheme: %v", err)
+	}
+	c := fake.NewClientBuilder().
+		WithScheme(s).
+		WithIndex(&v1beta1.Connectivity{}, "stack", func(obj client.Object) []string {
+			return []string{obj.(*v1beta1.Connectivity).GetStack()}
+		}).
+		WithObjects(objs...).
+		Build()
+	return credsTestContext{Context: context.Background(), scheme: s, client: c}
+}
+
+func newConnectivity(name, stack string) *v1beta1.Connectivity {
+	c := &v1beta1.Connectivity{}
+	c.Name = name
+	c.Spec.Stack = stack
+	return c
+}
+
+func newLedgerCredentials(name string) *unstructured.Unstructured {
+	cred := &unstructured.Unstructured{}
+	cred.SetGroupVersionKind(ledgerCredentialsGVK)
+	cred.SetName(name)
+	return cred
+}
+
+func TestMapLedgerCredentialsToConnectivityEnqueuesMatchingConnectivity(t *testing.T) {
+	// One Connectivity per stack; only the one in the Credentials' stack must be
+	// enqueued.
+	ctx := newConnectivityMapContext(t,
+		newConnectivity("stack1", "stack1"),
+		newConnectivity("stack2", "stack2"),
+	)
+
+	requests := mapLedgerCredentialsToConnectivity(ctx, newLedgerCredentials("connectivity-stack1"))
+	if len(requests) != 1 {
+		t.Fatalf("expected exactly one reconcile request, got %d: %v", len(requests), requests)
+	}
+	if requests[0].Name != "stack1" {
+		t.Errorf("enqueued Connectivity %q, want stack1", requests[0].Name)
+	}
+}
+
+func TestMapLedgerCredentialsToConnectivityReturnsNothingWithoutMatchingConnectivity(t *testing.T) {
+	// A Connectivity exists, but not in the stack the Credentials belongs to.
+	ctx := newConnectivityMapContext(t, newConnectivity("stack1", "stack1"))
+
+	if requests := mapLedgerCredentialsToConnectivity(ctx, newLedgerCredentials("connectivity-stack9")); len(requests) != 0 {
+		t.Fatalf("expected no reconcile requests for a stack without Connectivity, got %v", requests)
+	}
+}
+
+func TestMapLedgerCredentialsToConnectivityIgnoresForeignCredentials(t *testing.T) {
+	// A ledger Credentials not provisioned by the connectivity module (no
+	// "connectivity-" name prefix) must never enqueue a Connectivity, even when a
+	// Connectivity would otherwise match by stack.
+	ctx := newConnectivityMapContext(t, newConnectivity("stack1", "stack1"))
+
+	if requests := mapLedgerCredentialsToConnectivity(ctx, newLedgerCredentials("some-other-credential")); requests != nil {
+		t.Fatalf("foreign Credentials must map to no Connectivity, got %v", requests)
+	}
+	// The bare prefix with an empty stack must also be rejected.
+	if _, ok := connectivityStackFromCredentials(newLedgerCredentials("connectivity-")); ok {
+		t.Fatal("a Credentials named exactly \"connectivity-\" must not resolve a stack")
+	}
+}
+
+func TestLedgerCredentialsWatchDisabledWhenCRDAbsent(t *testing.T) {
+	previous := ledgerCredentialsWatchAvailable
+	ledgerCredentialsWatchAvailable = true
+	t.Cleanup(func() { ledgerCredentialsWatchAvailable = previous })
+
+	options := core.ReconcilerOptions[*v1beta1.Connectivity]{}
+	withLedgerCredentialsWatch()(&options)
+	if len(options.Raws) != 1 {
+		t.Fatalf("withLedgerCredentialsWatch() registered %d raw builders, want 1", len(options.Raws))
+	}
+
+	// crdPresentReader advertises only the connectivity CRD, not the ledger
+	// Credentials CRD, so the watch must stay unregistered without touching the
+	// (nil) builder or failing setup.
+	ctx := connectivityDiscoveryContext{Context: context.Background(), reader: crdPresentReader{}}
+	if err := options.Raws[0](ctx, nil); err != nil {
+		t.Fatalf("absent ledger Credentials CRD must not fail controller setup: %v", err)
+	}
+	if ledgerCredentialsWatchAvailable {
+		t.Fatal("ledger Credentials watch remains enabled when the CRD is absent")
+	}
+}
+
+func TestLedgerCredentialsWatchDisabledWhenDiscoveryFails(t *testing.T) {
+	previous := ledgerCredentialsWatchAvailable
+	ledgerCredentialsWatchAvailable = true
+	t.Cleanup(func() { ledgerCredentialsWatchAvailable = previous })
+
+	options := core.ReconcilerOptions[*v1beta1.Connectivity]{}
+	withLedgerCredentialsWatch()(&options)
+
+	ctx := connectivityDiscoveryContext{
+		Context: context.Background(),
+		reader:  failingDiscoveryReader{err: errors.New("CRD discovery forbidden")},
+	}
+	if err := options.Raws[0](ctx, nil); err != nil {
+		t.Fatalf("discovery failure must not fail controller setup: %v", err)
+	}
+	if ledgerCredentialsWatchAvailable {
+		t.Fatal("ledger Credentials watch remains enabled after discovery failure")
+	}
+}
+
 func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = false
