@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -202,6 +203,12 @@ func stopWorkers(ctx core.Context, namespace string) error {
 }
 
 func deleteWorkerDeployment(ctx core.Context, namespace string) error {
+	if err := client.IgnoreNotFound(ctx.GetClient().Delete(ctx, &policyv1.PodDisruptionBudget{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: "webhooks-worker"},
+	})); err != nil {
+		return err
+	}
+
 	deployment := &appsv1.Deployment{}
 	err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: namespace, Name: "webhooks-worker"}, deployment)
 	if apierrors.IsNotFound(err) {
@@ -264,5 +271,19 @@ func removeEmbeddedWorker(deployment *appsv1.Deployment) {
 			}
 		}
 		deployment.Spec.Template.Spec.Containers[containerIndex].Env = filtered
+	}
+}
+
+func clearWorkerDeploymentConditions(webhooks *v1beta1.Webhooks) {
+	conditions := webhooks.GetConditions()
+	for _, conditionType := range []string{
+		"DeploymentReady",
+		"PodDisruptionBudget",
+		"PodDisruptionBudgetConfigured",
+	} {
+		conditions.Delete(v1beta1.AndConditions(
+			v1beta1.ConditionTypeMatch(conditionType),
+			v1beta1.ConditionReasonMatch("WebhooksWorker"),
+		))
 	}
 }

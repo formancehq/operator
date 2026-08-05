@@ -7,6 +7,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
 
 func TestUsesSeparateWorkerDeployment(t *testing.T) {
@@ -103,5 +105,25 @@ func TestRemoveEmbeddedWorker(t *testing.T) {
 	want := []corev1.EnvVar{{Name: "BEFORE", Value: "before"}, {Name: "AFTER", Value: "after"}}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("unexpected environment after disabling worker: %#v", got)
+	}
+}
+
+func TestClearWorkerDeploymentConditions(t *testing.T) {
+	webhooks := &v1beta1.Webhooks{}
+	webhooks.Status.Conditions = v1beta1.Conditions{
+		{Type: "DeploymentReady", Reason: "Webhooks", Status: metav1.ConditionTrue},
+		{Type: "DeploymentReady", Reason: "WebhooksWorker", Status: metav1.ConditionFalse},
+		{Type: "PodDisruptionBudget", Reason: "WebhooksWorker", Status: metav1.ConditionTrue},
+		{Type: "PodDisruptionBudgetConfigured", Reason: "WebhooksWorker", Status: metav1.ConditionFalse},
+	}
+
+	clearWorkerDeploymentConditions(webhooks)
+
+	if len(webhooks.Status.Conditions) != 1 {
+		t.Fatalf("expected only API conditions to remain, got %#v", webhooks.Status.Conditions)
+	}
+	remaining := webhooks.Status.Conditions[0]
+	if remaining.Type != "DeploymentReady" || remaining.Reason != "Webhooks" {
+		t.Fatalf("unexpected remaining condition: %#v", remaining)
 	}
 }

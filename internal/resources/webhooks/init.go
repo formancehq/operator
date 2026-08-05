@@ -101,6 +101,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 			if err := deleteWorkerDeployment(ctx, stack.Name); err != nil {
 				return err
 			}
+			clearWorkerDeploymentConditions(webhooks)
 			if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
 				return err
 			}
