@@ -231,7 +231,7 @@ func deleteWorkerDeployment(ctx core.Context, namespace string) error {
 
 func waitForDeploymentRollout(ctx core.Context, namespace, name string) error {
 	deployment := &appsv1.Deployment{}
-	if err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, deployment); err != nil {
+	if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, deployment); err != nil {
 		return err
 	}
 	if !deploymentRolloutComplete(deployment) {
