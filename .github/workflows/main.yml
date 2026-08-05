@@ -12,7 +12,9 @@ permissions:
   pull-requests: write
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # A cancelled main run can leave a mutable Argo CD parameter override behind.
+  # Queue main deployments so each promotion either completes or rolls back.
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 jobs:
   PR:
     if: github.event_name == 'pull_request'
@@ -60,6 +62,8 @@ jobs:
       - uses: "namespacelabs/nscloud-checkout-action@v9"
         with:
           fetch-depth: 0
+      - name: Test staging promotion rollback
+        run: scripts/deploy-staging_test.sh
       - name: Setup Env
         uses: ./.github/actions/default
         with:

@@ -113,12 +113,15 @@ deploy-staging:
     ARG --required TAG
     ARG APPLICATION=staging-eu-west-1-hosting-operator
     LET SERVER=argocd.internal.formance.cloud
+    RUN apk add --no-cache jq
+    COPY scripts/deploy-staging.sh /usr/local/bin/deploy-staging
+    RUN chmod 555 /usr/local/bin/deploy-staging
     RUN --secret AUTH_TOKEN \
-        argocd app set $APPLICATION \ 
-        --parameter image.tag=$TAG \
-        --parameter operator.utils.tag=$TAG \
-        --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web
-    RUN --secret AUTH_TOKEN argocd --auth-token=$AUTH_TOKEN --server=$SERVER --grpc-web app sync $APPLICATION
+        AUTH_TOKEN=$AUTH_TOKEN \
+        APPLICATION=$APPLICATION \
+        SERVER=$SERVER \
+        TAG=$TAG \
+        deploy-staging
 
 ### Following targets are used by agent tests
 manifests:
