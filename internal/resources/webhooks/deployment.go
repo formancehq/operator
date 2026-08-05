@@ -209,8 +209,47 @@ func stopWorkers(ctx core.Context, namespace string) error {
 	if err != nil {
 		return err
 	}
+	if err := waitForEmbeddedWorkerPodsTermination(ctx, deployment); err != nil {
+		return err
+	}
 	clearWorkerDrain(deployment)
 	return ctx.GetClient().Update(ctx, deployment)
+}
+
+func waitForEmbeddedWorkerPodsTermination(ctx core.Context, deployment *appsv1.Deployment) error {
+	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
+	if err != nil {
+		return err
+	}
+
+	pods := &v1.PodList{}
+	if err := ctx.GetAPIReader().List(ctx, pods,
+		client.InNamespace(deployment.Namespace),
+		client.MatchingLabelsSelector{Selector: selector},
+	); err != nil {
+		return err
+	}
+
+	for index := range pods.Items {
+		if podHasActiveEmbeddedWorker(&pods.Items[index]) {
+			return core.NewPendingError().WithMessage("waiting for embedded webhooks worker pods to terminate")
+		}
+	}
+	return nil
+}
+
+func podHasActiveEmbeddedWorker(pod *v1.Pod) bool {
+	if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
+		return false
+	}
+	for _, container := range pod.Spec.Containers {
+		for _, env := range container.Env {
+			if env.Name == "WORKER" && env.Value == "true" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func deleteWorkerDeployment(ctx core.Context, namespace string) error {

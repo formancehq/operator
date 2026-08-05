@@ -108,6 +108,36 @@ func TestRemoveEmbeddedWorker(t *testing.T) {
 	}
 }
 
+func TestPodHasActiveEmbeddedWorker(t *testing.T) {
+	pod := &corev1.Pod{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Env: []corev1.EnvVar{{Name: "WORKER", Value: "true"}},
+			}},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	if !podHasActiveEmbeddedWorker(pod) {
+		t.Fatal("expected running embedded worker pod to be active")
+	}
+
+	pod.DeletionTimestamp = &metav1.Time{Time: metav1.Now().Time}
+	if !podHasActiveEmbeddedWorker(pod) {
+		t.Fatal("terminating embedded worker pod must remain active until it reaches a terminal phase")
+	}
+
+	pod.Status.Phase = corev1.PodSucceeded
+	if podHasActiveEmbeddedWorker(pod) {
+		t.Fatal("completed embedded worker pod must not block migrations")
+	}
+
+	pod.Status.Phase = corev1.PodRunning
+	pod.Spec.Containers[0].Env[0].Value = "false"
+	if podHasActiveEmbeddedWorker(pod) {
+		t.Fatal("API-only pod must not be detected as an embedded worker")
+	}
+}
+
 func TestClearWorkerDeploymentConditions(t *testing.T) {
 	webhooks := &v1beta1.Webhooks{}
 	webhooks.Status.Conditions = v1beta1.Conditions{
