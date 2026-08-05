@@ -2,12 +2,14 @@ package core
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 )
 
 type ApplicationError struct {
-	message string
+	message      string
+	requeueAfter time.Duration
 }
 
 func (e *ApplicationError) Error() string {
@@ -21,6 +23,11 @@ func (e *ApplicationError) Is(err error) bool {
 
 func (e *ApplicationError) WithMessage(msg string, args ...any) *ApplicationError {
 	e.message = fmt.Sprintf(msg, args...)
+	return e
+}
+
+func (e *ApplicationError) WithRequeueAfter(delay time.Duration) *ApplicationError {
+	e.requeueAfter = delay
 	return e
 }
 
@@ -42,4 +49,12 @@ func NewMissingSettingsError(msg string) *ApplicationError {
 
 func IsApplicationError(err error) bool {
 	return errors.Is(err, &ApplicationError{})
+}
+
+func ApplicationErrorRequeueAfter(err error) time.Duration {
+	applicationError := &ApplicationError{}
+	if errors.As(err, &applicationError) {
+		return applicationError.requeueAfter
+	}
+	return 0
 }

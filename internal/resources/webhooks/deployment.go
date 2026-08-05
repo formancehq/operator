@@ -1,6 +1,8 @@
 package webhooks
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -232,7 +234,9 @@ func waitForEmbeddedWorkerPodsTermination(ctx core.Context, deployment *appsv1.D
 
 	for index := range pods.Items {
 		if podHasActiveEmbeddedWorker(&pods.Items[index]) {
-			return core.NewPendingError().WithMessage("waiting for embedded webhooks worker pods to terminate")
+			return core.NewPendingError().
+				WithMessage("waiting for embedded webhooks worker pods to terminate").
+				WithRequeueAfter(time.Second)
 		}
 	}
 	return nil
