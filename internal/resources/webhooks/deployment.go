@@ -21,6 +21,8 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
+const workerDrainAnnotation = "formance.com/webhooks-workers-draining"
+
 func deploymentEnvVars(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database) ([]v1.EnvVar, error) {
 
 	brokerURI, err := settings.RequireURL(ctx, stack.Name, "broker", "dsn")
@@ -183,7 +185,7 @@ func stopWorkers(ctx core.Context, namespace string) error {
 	}
 
 	deployment := &appsv1.Deployment{}
-	err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: namespace, Name: "webhooks"}, deployment)
+	err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: "webhooks"}, deployment)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -193,13 +195,22 @@ func stopWorkers(ctx core.Context, namespace string) error {
 
 	if deploymentHasEmbeddedWorker(deployment) {
 		removeEmbeddedWorker(deployment)
+		markWorkerDrain(deployment)
 		if err := ctx.GetClient().Update(ctx, deployment); err != nil {
 			return err
 		}
 		return core.NewPendingError().WithMessage("waiting for embedded webhooks workers to terminate")
 	}
 
-	return waitForDeploymentRollout(ctx, namespace, "webhooks")
+	if !workerDrainPending(deployment) {
+		return nil
+	}
+	deployment, err = getDeploymentAfterRollout(ctx, namespace, "webhooks")
+	if err != nil {
+		return err
+	}
+	clearWorkerDrain(deployment)
+	return ctx.GetClient().Update(ctx, deployment)
 }
 
 func deleteWorkerDeployment(ctx core.Context, namespace string) error {
@@ -230,14 +241,19 @@ func deleteWorkerDeployment(ctx core.Context, namespace string) error {
 }
 
 func waitForDeploymentRollout(ctx core.Context, namespace, name string) error {
+	_, err := getDeploymentAfterRollout(ctx, namespace, name)
+	return err
+}
+
+func getDeploymentAfterRollout(ctx core.Context, namespace, name string) (*appsv1.Deployment, error) {
 	deployment := &appsv1.Deployment{}
 	if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, deployment); err != nil {
-		return err
+		return nil, err
 	}
 	if !deploymentRolloutComplete(deployment) {
-		return core.NewPendingError().WithMessage("waiting for deployment %s rollout to complete", name)
+		return nil, core.NewPendingError().WithMessage("waiting for deployment %s rollout to complete", name)
 	}
-	return nil
+	return deployment, nil
 }
 
 func deploymentRolloutComplete(deployment *appsv1.Deployment) bool {
@@ -286,4 +302,19 @@ func clearWorkerDeploymentConditions(webhooks *v1beta1.Webhooks) {
 			v1beta1.ConditionReasonMatch("WebhooksWorker"),
 		))
 	}
+}
+
+func markWorkerDrain(deployment *appsv1.Deployment) {
+	if deployment.Annotations == nil {
+		deployment.Annotations = map[string]string{}
+	}
+	deployment.Annotations[workerDrainAnnotation] = "true"
+}
+
+func workerDrainPending(deployment *appsv1.Deployment) bool {
+	return deployment.Annotations[workerDrainAnnotation] == "true"
+}
+
+func clearWorkerDrain(deployment *appsv1.Deployment) {
+	delete(deployment.Annotations, workerDrainAnnotation)
 }

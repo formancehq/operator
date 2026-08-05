@@ -127,3 +127,17 @@ func TestClearWorkerDeploymentConditions(t *testing.T) {
 		t.Fatalf("unexpected remaining condition: %#v", remaining)
 	}
 }
+
+func TestWorkerDrainAnnotation(t *testing.T) {
+	deployment := &appsv1.Deployment{}
+
+	markWorkerDrain(deployment)
+	if !workerDrainPending(deployment) {
+		t.Fatal("expected worker drain annotation")
+	}
+
+	clearWorkerDrain(deployment)
+	if workerDrainPending(deployment) {
+		t.Fatal("worker drain annotation must be removable after the rollout completes")
+	}
+}
