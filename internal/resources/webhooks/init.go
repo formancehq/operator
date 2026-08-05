@@ -17,7 +17,10 @@ limitations under the License.
 package webhooks
 
 import (
+	"strings"
+
 	"github.com/pkg/errors"
+	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 
@@ -35,6 +38,8 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=webhooks/finalizers,verbs=update
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, version string) error {
+	separateWorkerDeployment := usesSeparateWorkerDeployment(version)
+
 	database, err := databases.Create(ctx, stack, webhooks)
 	if err != nil {
 		return err
@@ -58,7 +63,15 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 		return errors.Wrap(err, "resolving image")
 	}
 
-	if databases.GetSavedModuleVersion(database) != version {
+	savedVersion := databases.GetSavedModuleVersion(database)
+	if savedVersion != version {
+		updateRequiresStoppedWorkers := separateWorkerDeployment ||
+			(savedVersion != "" && usesSeparateWorkerDeployment(savedVersion))
+		if updateRequiresStoppedWorkers {
+			if err := stopWorkers(ctx, stack.Name); err != nil {
+				return err
+			}
+		}
 
 		if err := databases.Migrate(ctx, stack, webhooks, image, database); err != nil {
 			return err
@@ -67,15 +80,44 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 		if err := databases.SaveModuleVersion(ctx, database, version); err != nil {
 			return errors.Wrap(err, "saving module version in database object")
 		}
+
+		if separateWorkerDeployment {
+			return NewPendingError().WithMessage("database migrated, waiting to deploy webhooks API")
+		}
 	}
 
-	if consumer.Status.Ready {
+	if separateWorkerDeployment {
+		if err := createAPIDeployment(ctx, stack, webhooks, database, consumer, version, false); err != nil {
+			return err
+		}
+		if err := waitForDeploymentRollout(ctx, stack.Name, "webhooks"); err != nil {
+			return err
+		}
+		if !consumer.Status.Ready {
+			return NewPendingError().WithMessage("broker consumer not ready")
+		}
+		if err := createWorkerDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
+			return err
+		}
+	} else if consumer.Status.Ready {
+		if err := deleteWorkerDeployment(ctx, stack.Name); err != nil {
+			return err
+		}
+		clearWorkerDeploymentConditions(webhooks)
 		if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func usesSeparateWorkerDeployment(version string) bool {
+	normalizedVersion := version
+	if !strings.HasPrefix(normalizedVersion, "v") && semver.IsValid("v"+normalizedVersion) {
+		normalizedVersion = "v" + normalizedVersion
+	}
+	return !semver.IsValid(normalizedVersion) || semver.Compare(normalizedVersion, "v2.5.0-0") >= 0
 }
 
 func init() {
