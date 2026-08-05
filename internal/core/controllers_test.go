@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -27,6 +28,19 @@ func (t testContext) GetClient() client.Client    { return t.client }
 func (t testContext) GetScheme() *runtime.Scheme  { return t.scheme }
 func (t testContext) GetAPIReader() client.Reader { return t.apiReader }
 func (t testContext) GetPlatform() Platform       { return t.platform }
+
+func TestForObjectControllerPropagatesApplicationErrorRequeue(t *testing.T) {
+	delay := 5 * time.Second
+	search := &v1beta1.Search{}
+	controller := ForObjectController(func(_ Context, _ *ReconcilerOptions[*v1beta1.Search], _ *v1beta1.Search) error {
+		return NewPendingError().WithRequeueAfter(delay)
+	})
+
+	err := controller(testContext{Context: context.Background()}, &ReconcilerOptions[*v1beta1.Search]{}, search)
+	require.Error(t, err)
+	require.Equal(t, delay, ApplicationErrorRequeueAfter(err))
+	require.False(t, search.Status.Ready)
+}
 
 func TestForModulePassesRefreshedLicenceState(t *testing.T) {
 	scheme := runtime.NewScheme()
