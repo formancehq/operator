@@ -3,7 +3,7 @@ kind: Database
 metadata:
   name: chainsaw-webhooks-webhooks
   annotations:
-    formance.com/module-version: v3.0.0
+    formance.com/module-version: v2.5.0
 spec:
   stack: chainsaw-webhooks
   service: webhooks

@@ -53,8 +53,8 @@ spec:
               kubectl wait --for=create deployment/webhooks-worker -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=create service/webhooks -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=create pdb/webhooks -n chainsaw-webhooks --timeout=2m
-              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v3.0.0 deployment/webhooks -n chainsaw-webhooks --timeout=2m
-              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v3.0.0 deployment/webhooks-worker -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v2.5.0 deployment/webhooks -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v2.5.0 deployment/webhooks-worker -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-webhooks-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/webhooks -n chainsaw-webhooks --timeout=2m
               assert_jsonpath deployment/webhooks '{.spec.replicas}' '2'
