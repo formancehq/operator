@@ -86,25 +86,26 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, ve
 		}
 	}
 
-	if consumer.Status.Ready {
-		if separateWorkerDeployment {
-			if err := createAPIDeployment(ctx, stack, webhooks, database, consumer, version, false); err != nil {
-				return err
-			}
-			if err := waitForDeploymentRollout(ctx, stack.Name, "webhooks"); err != nil {
-				return err
-			}
-			if err := createWorkerDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-				return err
-			}
-		} else {
-			if err := deleteWorkerDeployment(ctx, stack.Name); err != nil {
-				return err
-			}
-			clearWorkerDeploymentConditions(webhooks)
-			if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
-				return err
-			}
+	if separateWorkerDeployment {
+		if err := createAPIDeployment(ctx, stack, webhooks, database, consumer, version, false); err != nil {
+			return err
+		}
+		if err := waitForDeploymentRollout(ctx, stack.Name, "webhooks"); err != nil {
+			return err
+		}
+		if !consumer.Status.Ready {
+			return NewPendingError().WithMessage("broker consumer not ready")
+		}
+		if err := createWorkerDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
+			return err
+		}
+	} else if consumer.Status.Ready {
+		if err := deleteWorkerDeployment(ctx, stack.Name); err != nil {
+			return err
+		}
+		clearWorkerDeploymentConditions(webhooks)
+		if err := createSingleDeployment(ctx, stack, webhooks, database, consumer, version); err != nil {
+			return err
 		}
 	}
 
