@@ -58,10 +58,10 @@ argocd_cli app wait "$APPLICATION" --operation --timeout 600
 baseline=$(argocd_cli app get "$APPLICATION" --output json)
 previous_parameters=$(printf '%s\n' "$baseline" | jq -c '.spec.source.helm.parameters // []')
 
+mutated=true
 argocd_cli app set "$APPLICATION" \
 	--parameter "image.tag=$TAG" \
 	--parameter "operator.utils.tag=$TAG"
-mutated=true
 
 argocd_cli app sync "$APPLICATION" --timeout 600
 argocd_cli app wait "$APPLICATION" --operation --sync --health --timeout 600

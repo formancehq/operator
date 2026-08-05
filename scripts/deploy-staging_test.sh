@@ -63,6 +63,10 @@ case "$1 $2" in
 				operator.utils.tag=*) write_state utils "${argument#operator.utils.tag=}" ;;
 			esac
 		done
+		if [ -f "$FAKE_ARGOCD_SIGNAL_ON_SET" ]; then
+			rm "$FAKE_ARGOCD_SIGNAL_ON_SET"
+			kill -TERM "$PPID"
+		fi
 		;;
 	"app patch")
 		patch=""
@@ -105,11 +109,12 @@ run_subject() {
 		FAKE_ARGOCD_STATE="$test_dir/state" \
 		FAKE_ARGOCD_FAIL_ONCE="$test_dir/fail-once" \
 		FAKE_ARGOCD_OPERATION="$test_dir/operation" \
+		FAKE_ARGOCD_SIGNAL_ON_SET="$test_dir/signal-on-set" \
 		sh "$subject"
 }
 
 reset_test() {
-	rm -f "$test_dir"/state.* "$test_dir/fail-once" "$test_dir/operation"
+	rm -f "$test_dir"/state.* "$test_dir/fail-once" "$test_dir/operation" "$test_dir/signal-on-set"
 	: >"$test_dir/log"
 }
 
@@ -142,5 +147,16 @@ if run_subject; then
 fi
 test ! -e "$test_dir/state.image"
 test ! -e "$test_dir/state.utils"
+
+reset_test
+printf 'old-image' >"$test_dir/state.image"
+printf 'old-utils' >"$test_dir/state.utils"
+: >"$test_dir/signal-on-set"
+if run_subject; then
+	echo "expected interrupted promotion" >&2
+	exit 1
+fi
+test "$(cat "$test_dir/state.image")" = old-image
+test "$(cat "$test_dir/state.utils")" = old-utils
 
 echo "deploy-staging tests passed"
