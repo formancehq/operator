@@ -221,7 +221,7 @@ func deleteWorkerDeployment(ctx core.Context, namespace string) error {
 	}
 
 	deployment := &appsv1.Deployment{}
-	err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: namespace, Name: "webhooks-worker"}, deployment)
+	err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Namespace: namespace, Name: "webhooks-worker"}, deployment)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
