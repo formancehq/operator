@@ -50,13 +50,16 @@ spec:
               }
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/webhooks-webhooks --timeout=5m
               kubectl wait --for=create deployment/webhooks -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=create deployment/webhooks-worker -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=create service/webhooks -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=create pdb/webhooks -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v3.0.0 deployment/webhooks -n chainsaw-webhooks --timeout=2m
+              kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=ghcr.io/formancehq/webhooks:v3.0.0 deployment/webhooks-worker -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true gatewayhttpapi/chainsaw-webhooks-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.spec.ports[0].port}'=8080 service/webhooks -n chainsaw-webhooks --timeout=2m
               assert_jsonpath deployment/webhooks '{.spec.replicas}' '2'
               assert_jsonpath deployment/webhooks '{.spec.template.spec.containers[0].args[0]}' 'serve'
+              assert_jsonpath deployment/webhooks-worker '{.spec.template.spec.containers[0].args[0]}' 'worker'
               assert_jsonpath deployment/webhooks '{.spec.template.spec.containers[0].resources.requests.cpu}' '20m'
               assert_jsonpath deployment/webhooks '{.spec.template.spec.containers[0].resources.limits.memory}' '160Mi'
               assert_jsonpath deployment/webhooks '{.spec.template.metadata.annotations.chainsaw\.formance\.com/template}' 'webhooks'
@@ -75,9 +78,15 @@ spec:
               grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-webhooks.svc.cluster.local:4222' /tmp/chainsaw-webhooks-env
               grep -Fx 'PUBLISHER_NATS_CLIENT_ID=chainsaw-webhooks-webhooks' /tmp/chainsaw-webhooks-env
               grep -Fx 'PUBLISHER_NATS_AUTO_PROVISION=false' /tmp/chainsaw-webhooks-env
-              grep -Fx 'WORKER=true' /tmp/chainsaw-webhooks-env
+              if grep -q '^WORKER=' /tmp/chainsaw-webhooks-env; then
+                echo 'webhooks API must not run an embedded worker' >&2
+                exit 1
+              fi
               grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-webhooks-env
               grep -Fx 'OTEL_SERVICE_NAME=webhooks' /tmp/chainsaw-webhooks-env
+              kubectl get deployment webhooks-worker -n chainsaw-webhooks -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-webhooks-worker-env
+              grep -E '^KAFKA_TOPICS=' /tmp/chainsaw-webhooks-worker-env
+              grep -Fx 'STORAGE_POSTGRES_CONN_STRING=$(POSTGRES_URI)' /tmp/chainsaw-webhooks-worker-env
               kubectl get deployment webhooks -n chainsaw-webhooks -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.valueFrom.secretKeyRef.name}/{.valueFrom.secretKeyRef.key}{"\n"}{end}' > /tmp/chainsaw-webhooks-secret-env
               grep -Fx 'POSTGRES_USERNAME=postgres/username' /tmp/chainsaw-webhooks-secret-env
               grep -Fx 'POSTGRES_PASSWORD=postgres/password' /tmp/chainsaw-webhooks-secret-env

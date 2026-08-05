@@ -4,7 +4,10 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -123,4 +126,143 @@ func createAPIDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1bet
 
 func createSingleDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database, consumer *v1beta1.BrokerConsumer, version string) error {
 	return createAPIDeployment(ctx, stack, webhooks, database, consumer, version, true)
+}
+
+func createWorkerDeployment(ctx core.Context, stack *v1beta1.Stack, webhooks *v1beta1.Webhooks, database *v1beta1.Database, consumer *v1beta1.BrokerConsumer, version string) error {
+	imageConfiguration, err := registries.GetFormanceImage(ctx, stack, "webhooks", version)
+	if err != nil {
+		return err
+	}
+
+	env, err := deploymentEnvVars(ctx, stack, webhooks, database)
+	if err != nil {
+		return err
+	}
+	topics, err := brokers.GetTopicsEnvVars(ctx, stack, "KAFKA_TOPICS", consumer.Spec.Services...)
+	if err != nil {
+		return err
+	}
+	env = append(env, topics...)
+
+	serviceAccountName, err := settings.GetAWSServiceAccount(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+
+	return applications.
+		New(webhooks, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "webhooks-worker",
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: v1.PodTemplateSpec{
+					Spec: v1.PodSpec{
+						ServiceAccountName: serviceAccountName,
+						ImagePullSecrets:   imageConfiguration.PullSecrets,
+						Containers: []v1.Container{{
+							Name:           "worker",
+							Env:            env,
+							Image:          imageConfiguration.GetFullImageName(),
+							Args:           []string{"worker"},
+							Ports:          []v1.ContainerPort{applications.StandardHTTPPort()},
+							LivenessProbe:  applications.DefaultLiveness("http"),
+							ReadinessProbe: applications.DefaultReadiness("http"),
+						}},
+					},
+				},
+			},
+		}).
+		IsEE().
+		Install(ctx)
+}
+
+func stopWorkers(ctx core.Context, namespace string) error {
+	if err := deleteWorkerDeployment(ctx, namespace); err != nil {
+		return err
+	}
+
+	deployment := &appsv1.Deployment{}
+	err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: namespace, Name: "webhooks"}, deployment)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	if deploymentHasEmbeddedWorker(deployment) {
+		removeEmbeddedWorker(deployment)
+		if err := ctx.GetClient().Update(ctx, deployment); err != nil {
+			return err
+		}
+		return core.NewPendingError().WithMessage("waiting for embedded webhooks workers to terminate")
+	}
+
+	return waitForDeploymentRollout(ctx, namespace, "webhooks")
+}
+
+func deleteWorkerDeployment(ctx core.Context, namespace string) error {
+	deployment := &appsv1.Deployment{}
+	err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: namespace, Name: "webhooks-worker"}, deployment)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !deployment.DeletionTimestamp.IsZero() {
+		return core.NewPendingError().WithMessage("waiting for webhooks workers to terminate")
+	}
+
+	propagationPolicy := metav1.DeletePropagationForeground
+	core.LogDeletion(ctx, deployment, "webhooks.deleteWorkerDeployment")
+	if err := ctx.GetClient().Delete(ctx, deployment, &client.DeleteOptions{PropagationPolicy: &propagationPolicy}); err != nil {
+		return err
+	}
+	return core.NewPendingError().WithMessage("waiting for webhooks workers to terminate")
+}
+
+func waitForDeploymentRollout(ctx core.Context, namespace, name string) error {
+	deployment := &appsv1.Deployment{}
+	if err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, deployment); err != nil {
+		return err
+	}
+	if !deploymentRolloutComplete(deployment) {
+		return core.NewPendingError().WithMessage("waiting for deployment %s rollout to complete", name)
+	}
+	return nil
+}
+
+func deploymentRolloutComplete(deployment *appsv1.Deployment) bool {
+	if deployment.Spec.Replicas == nil || deployment.Status.ObservedGeneration != deployment.Generation {
+		return false
+	}
+	desired := *deployment.Spec.Replicas
+	return deployment.Status.UpdatedReplicas >= desired &&
+		deployment.Status.Replicas == deployment.Status.UpdatedReplicas &&
+		deployment.Status.AvailableReplicas >= desired
+}
+
+func deploymentHasEmbeddedWorker(deployment *appsv1.Deployment) bool {
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		for _, env := range container.Env {
+			if env.Name == "WORKER" && env.Value == "true" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func removeEmbeddedWorker(deployment *appsv1.Deployment) {
+	for containerIndex := range deployment.Spec.Template.Spec.Containers {
+		env := deployment.Spec.Template.Spec.Containers[containerIndex].Env
+		filtered := env[:0]
+		for _, variable := range env {
+			if variable.Name != "WORKER" {
+				filtered = append(filtered, variable)
+			}
+		}
+		deployment.Spec.Template.Spec.Containers[containerIndex].Env = filtered
+	}
 }
