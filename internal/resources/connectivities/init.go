@@ -18,6 +18,7 @@ package connectivities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -99,6 +100,18 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	if !connectivityAvailable {
 		setCondition(connectivity, metav1.ConditionFalse, "OperatorUnavailable",
 			"connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
+		// The connectivity operator is gone, so we can neither provision nor
+		// manage the delegated workload — but if the ledger hard gate is also
+		// closed we must still tear down the god-mode Credentials and the gateway
+		// route we own, otherwise a closed gate leaves them behind just because
+		// this capability check short-circuits before the ledger gates below.
+		// Gated on the gate being closed so a transient operator outage (with a
+		// healthy ledger) does not flap those resources.
+		if ledgerGateClosed(ctx, stack) {
+			if err := teardownDelegated(ctx, stack, connectivity); err != nil {
+				return err
+			}
+		}
 		return NewPendingError().WithMessage("connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
 	}
 
@@ -111,6 +124,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	}
 	if ledger == nil {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotFound", "stack has no Ledger module")
+		// Hard gate: the Ledger module has been removed from the stack. This is a
+		// definitive loss of the prerequisite (not a momentary blip), so tear down
+		// any previously provisioned delegated Connectivity + GatewayHTTPAPI rather
+		// than leaving the workload running and exposed through the gateway with no
+		// ledger to ingest into.
+		if err := teardownDelegated(ctx, stack, connectivity); err != nil {
+			return err
+		}
 		return NewPendingError().WithMessage("connectivity requires a Ledger module on the stack")
 	}
 
@@ -120,15 +141,32 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
 	if err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionUnresolved", err.Error())
+		// Transient: we could not resolve the ledger version (e.g. a referenced
+		// Versions file not yet present). This is an error *resolving* the
+		// prerequisite, not a definitive downgrade below v3, so we deliberately do
+		// NOT tear down the delegated resources here — flapping the workload on a
+		// transient resolution hiccup would be worse than briefly keeping it up.
 		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", err.Error())
 	}
 	if !ledgers.IsV3(ledgerVersion) {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
 			fmt.Sprintf("connectivity requires a Ledger v3 (found %q)", ledgerVersion))
+		// Hard gate: the ledger version resolved but is not v3 (i.e. a real
+		// downgrade). Connectivity binds to the ledger v3 gRPC surface, so the
+		// prerequisite no longer holds — tear down the delegated Connectivity +
+		// GatewayHTTPAPI before returning pending.
+		if err := teardownDelegated(ctx, stack, connectivity); err != nil {
+			return err
+		}
 		return NewPendingError().WithMessage("connectivity requires a Ledger v3")
 	}
 	if !ledger.IsReady() {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotReady", "waiting for the ledger to be ready")
+		// Transient: the ledger exists and is v3 but is momentarily not ready.
+		// Unlike the hard gates above (LedgerNotFound / LedgerNotV3), the
+		// prerequisite still holds, so we deliberately do NOT tear down the
+		// delegated resources — doing so on every ledger readiness blip would flap
+		// the connectivity workload. Leave it in place and just report pending.
 		return NewPendingError().WithMessage("waiting for the ledger to be ready")
 	}
 
@@ -253,6 +291,75 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 
 	setCondition(connectivity, metav1.ConditionTrue, "Ready", "Connectivity is ready")
 	return nil
+}
+
+// teardownDelegated deletes the delegated Connectivity resource and the
+// GatewayHTTPAPI provisioned for the stack. It is invoked when a hard/persistent
+// ledger gate closes (the Ledger module was removed, or its version resolved to
+// something below v3) so the connectivity workload is not left running and
+// exposed through the gateway once its prerequisite no longer holds. There is no
+// automatic pruning of these module-owned objects on a normal reconcile
+// early-return — controller-runtime garbage collection only removes them when
+// the Connectivity CR itself is deleted — so the teardown must be explicit.
+//
+// Deletes use client.IgnoreNotFound so the helper is idempotent and safe to call
+// on every reconcile while the gate stays closed (including when the resources
+// were never created). The names/scopes mirror how they are provisioned in
+// Reconcile: the delegated Connectivity is namespaced (name == namespace ==
+// stack name) and the GatewayHTTPAPI is cluster-scoped ("<stack>-connectivity").
+func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
+	delegated := &unstructured.Unstructured{}
+	delegated.SetGroupVersionKind(connectivityGVK)
+	delegated.SetNamespace(stack.Name)
+	delegated.SetName(stack.Name)
+
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.SetName(GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity)))
+
+	// Attempt every deletion independently rather than bailing on the first
+	// error: a failure to delete one resource must not leave the public gateway
+	// route or the god-mode Credentials behind, since the point of the hard
+	// teardown is to stop exposing the workload — and its credential — once the
+	// ledger prerequisite no longer holds. Deleting the cluster-scoped
+	// Credentials also cascades the ledger operator's key deregistration and the
+	// distributed private-key Secret, which stack-namespace GC never reclaims.
+	return errors.Join(
+		ignoreAbsent(ctx.GetClient().Delete(ctx, delegated)),
+		ignoreAbsent(ctx.GetClient().Delete(ctx, httpAPI)),
+		deleteLedgerCredentials(ctx, connectivity),
+	)
+}
+
+// ignoreAbsent drops NotFound and NoMatch (the whole CRD is not installed)
+// errors, so a teardown delete is a no-op when the resource — or its API — is
+// already gone. This matters on the capability-unavailable path, where the
+// connectivity CRD may have been removed after startup.
+func ignoreAbsent(err error) error {
+	if apimeta.IsNoMatchError(err) {
+		return nil
+	}
+	return client.IgnoreNotFound(err)
+}
+
+// ledgerGateClosed reports whether the ledger prerequisite is definitively gone
+// — the module was removed, or resolves to a non-v3 version — which are the hard
+// gates that warrant tearing down the delegated resources. It mirrors the gate
+// decisions in Reconcile and deliberately returns false on transient states (an
+// unresolvable version, a not-yet-ready ledger) and on any lookup error, so the
+// workload is never flapped on a blip.
+func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) bool {
+	ledger, err := getStackLedger(ctx, stack.Name)
+	if err != nil {
+		return false
+	}
+	if ledger == nil {
+		return true
+	}
+	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
+	if err != nil {
+		return false
+	}
+	return !ledgers.IsV3(ledgerVersion)
 }
 
 // connectivityAPIBackendRef points the gateway at the connectivity-api Service
