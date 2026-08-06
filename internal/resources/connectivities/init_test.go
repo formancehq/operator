@@ -24,6 +24,9 @@ import (
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -258,6 +261,68 @@ func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
 	if secret != "ledger-connectivity-stack1-credentials-keys" {
 		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
 	}
+}
+
+func TestDeleteLedgerCredentialsFinalizerDeletesCredential(t *testing.T) {
+	// A Connectivity being deleted (deletion timestamp + finalizer set) whose
+	// god-mode ledger Credentials still exists cluster-scoped.
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(ledgerCredentialsGVK)
+	existing.SetName("connectivity-stack0")
+	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+
+	ctx := newCredsTestContext(t, existing)
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+	now := metav1.Now()
+	connectivity.DeletionTimestamp = &now
+	connectivity.Finalizers = []string{"delete-ledger-credentials"}
+
+	if err := deleteLedgerCredentials(ctx, connectivity); err != nil {
+		t.Fatalf("deleteLedgerCredentials: %v", err)
+	}
+
+	// The cluster-scoped Credentials must be gone once the finalizer ran.
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(ledgerCredentialsGVK)
+	err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-stack0"}, got)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("Credentials must be deleted by the finalizer, got err=%v", err)
+	}
+}
+
+func TestDeleteLedgerCredentialsFinalizerIsNoOpWhenAlreadyGone(t *testing.T) {
+	// No Credentials seeded: the finalizer must be idempotent and not error when
+	// the credential has already been removed.
+	ctx := newCredsTestContext(t)
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+	now := metav1.Now()
+	connectivity.DeletionTimestamp = &now
+	connectivity.Finalizers = []string{"delete-ledger-credentials"}
+
+	if err := deleteLedgerCredentials(ctx, connectivity); err != nil {
+		t.Fatalf("deleteLedgerCredentials on missing credential must be a no-op, got: %v", err)
+	}
+}
+
+func TestDeleteLedgerCredentialsFinalizerToleratesMissingCRD(t *testing.T) {
+	// Without the ledger CRD, Delete returns a no-match error; the finalizer must
+	// still complete or the Connectivity would be stuck terminating forever.
+	ctx := credsTestContext{Context: context.Background(), client: noMatchDeleteClient{}}
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Spec.Stack = "stack0"
+	if err := deleteLedgerCredentials(ctx, connectivity); err != nil {
+		t.Fatalf("finalizer must tolerate a missing ledger CRD, got %v", err)
+	}
+}
+
+type noMatchDeleteClient struct{ client.Client }
+
+func (noMatchDeleteClient) Delete(context.Context, client.Object, ...client.DeleteOption) error {
+	return &apimeta.NoKindMatchError{GroupKind: ledgerCredentialsGVK.GroupKind()}
 }
 
 func TestConnectivityMonitoringSpecNilWhenDisabled(t *testing.T) {
