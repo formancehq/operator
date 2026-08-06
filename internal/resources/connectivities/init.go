@@ -28,6 +28,7 @@ import (
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -181,6 +182,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	// namespace; connectivity-core is wired to it via spec.auth below.
 	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
+		// Missing Credentials CRD (NoMatch) or absent RBAC (Forbidden) is a
+		// capability gap, not a failure: report pending so it retries once provided.
+		if apimeta.IsNoMatchError(err) || apierrors.IsForbidden(err) {
+			setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsUnavailable",
+				"ledger Credentials API unavailable: "+err.Error())
+			return NewPendingError().WithMessage("ledger Credentials API unavailable: %s", err.Error())
+		}
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsFailed", err.Error())
 		return err
 	}

@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -885,6 +886,59 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 	}
 	if credentialsExist(t, ctx, "stack0") {
 		t.Error("god-mode Credentials must still be torn down when the delegated Connectivity delete fails")
+	}
+}
+
+// A missing ledger Credentials CRD (NoMatch) or absent RBAC (Forbidden) must
+// surface as pending, not as a reconcile failure, so the module reports
+// unavailable and retries once the ledger operator provides the capability.
+func TestConnectivityReconcilePendingWhenLedgerCredentialsAPIUnavailable(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"missing CRD", &apimeta.NoKindMatchError{GroupKind: ledgerCredentialsGVK.GroupKind()}},
+		{"absent RBAC", apierrors.NewForbidden(
+			schema.GroupResource{Group: ledgerCredentialsGVK.Group, Resource: "credentials"},
+			"connectivity-stack0", errors.New("forbidden by test"))},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ledger := &v1beta1.Ledger{}
+			ledger.Name = "stack0-ledger"
+			ledger.Spec.Stack = "stack0"
+			ledger.Spec.Version = "v3.0.0"
+			ledger.Status.Ready = true
+
+			base := newReconcileTestContext(t, ledger)
+			failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if obj.GetObjectKind().GroupVersionKind() == ledgerCredentialsGVK {
+						return tc.err
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			})
+			ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
+
+			stack := &v1beta1.Stack{}
+			stack.Name = "stack0"
+			connectivity := &v1beta1.Connectivity{}
+			connectivity.Name = "stack0"
+			connectivity.Spec.Stack = "stack0"
+
+			err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+			if !core.IsApplicationError(err) {
+				t.Fatalf("Reconcile() returned %v, want an application (pending) error when the ledger Credentials API is unavailable", err)
+			}
+			if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerCredentialsUnavailable" {
+				t.Fatalf("expected a LedgerCredentialsUnavailable condition, got %#v", connectivity.Status.Conditions)
+			}
+		})
 	}
 }
 
