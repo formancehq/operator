@@ -613,12 +613,13 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 }
 
 // newDelegatedConnectivity returns the delegated Connectivity resource as it is
-// provisioned by Reconcile: namespaced, with name == namespace == stack name.
+// provisioned by Reconcile: namespaced in the stack namespace, with the fixed
+// name "connectivity".
 func newDelegatedConnectivity(stackName string) *unstructured.Unstructured {
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(connectivityGVK)
 	object.SetNamespace(stackName)
-	object.SetName(stackName)
+	object.SetName(connectivityDelegatedName)
 	return object
 }
 
@@ -628,7 +629,7 @@ func delegatedConnectivityExists(t *testing.T, ctx credsTestContext, stackName s
 	t.Helper()
 	got := &unstructured.Unstructured{}
 	got.SetGroupVersionKind(connectivityGVK)
-	err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stackName, Name: stackName}, got)
+	err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}, got)
 	return err == nil
 }
 
@@ -884,5 +885,17 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 	}
 	if credentialsExist(t, ctx, "stack0") {
 		t.Error("god-mode Credentials must still be torn down when the delegated Connectivity delete fails")
+	}
+}
+
+// The connectivity-api Service is named after the (now fixed) delegated
+// resource name, so the gateway backend must point at "connectivity-api".
+func TestConnectivityAPIBackendRef(t *testing.T) {
+	ref := connectivityAPIBackendRef()
+	if ref.Name != "connectivity-api" {
+		t.Fatalf("connectivityAPIBackendRef().Name = %q, want %q", ref.Name, "connectivity-api")
+	}
+	if ref.Port != connectivityAPIPort {
+		t.Fatalf("connectivityAPIBackendRef().Port = %d, want %d", ref.Port, connectivityAPIPort)
 	}
 }

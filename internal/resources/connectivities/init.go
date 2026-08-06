@@ -49,6 +49,11 @@ import (
 
 const (
 	connectivityReadyCondition = "ConnectivityClusterReady"
+	// connectivityDelegatedName is the fixed name of the delegated
+	// connectivity.formance.com/Connectivity resource. It is namespaced (one per
+	// stack namespace), so a constant name stays unique per stack; the connectivity
+	// operator derives its API Service name from it ("connectivity-api").
+	connectivityDelegatedName = "connectivity"
 	// connectivityAPIPort is the port the connectivity-api HTTP server (and its
 	// Service, provisioned by the connectivity operator) listens on.
 	connectivityAPIPort = int32(8080)
@@ -224,7 +229,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(connectivityGVK)
 	object.SetNamespace(stack.Name)
-	object.SetName(stack.Name)
+	object.SetName(connectivityDelegatedName)
 	if _, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), object, func() error {
 		if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
 			return err
@@ -280,10 +285,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	}
 
 	// Expose the connectivity-api through the stack gateway: routes
-	// /api/connectivity to the connectivity-api Service (named "<stack>-api")
+	// /api/connectivity to the connectivity-api Service (named "connectivity-api")
 	// the connectivity operator provisions for the delegated Connectivity.
 	if err := gatewayhttpapis.Create(ctx, connectivity,
-		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecuredWithBackend("", connectivityAPIBackendRef(stack.Name))),
+		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecuredWithBackend("", connectivityAPIBackendRef())),
 	); err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
 		return err
@@ -317,7 +322,7 @@ func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.
 	delegated := &unstructured.Unstructured{}
 	delegated.SetGroupVersionKind(connectivityGVK)
 	delegated.SetNamespace(stack.Name)
-	delegated.SetName(stack.Name)
+	delegated.SetName(connectivityDelegatedName)
 
 	httpAPI := &v1beta1.GatewayHTTPAPI{}
 	httpAPI.SetName(GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity)))
@@ -369,12 +374,11 @@ func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) bool {
 }
 
 // connectivityAPIBackendRef points the gateway at the connectivity-api Service
-// the connectivity operator provisions for the delegated Connectivity, which is
-// named "<connectivity-name>-api" (the delegated resource is named after the
-// stack).
-func connectivityAPIBackendRef(stackName string) v1beta1.GatewayBackendRef {
+// the connectivity operator provisions for the delegated Connectivity. It is
+// named "<delegated-name>-api", i.e. "connectivity-api".
+func connectivityAPIBackendRef() v1beta1.GatewayBackendRef {
 	return v1beta1.GatewayBackendRef{
-		Name: stackName + "-api",
+		Name: connectivityDelegatedName + "-api",
 		Port: connectivityAPIPort,
 	}
 }
