@@ -942,6 +942,19 @@ func TestConnectivityReconcilePendingWhenLedgerCredentialsAPIUnavailable(t *test
 	}
 }
 
+// ledgerAddress must dial the backend Service name (resolves in-namespace on any
+// cluster DNS domain), not the TLS SNI FQDN which may not resolve off cluster.local.
+func TestLedgerV3GRPCAddressUsesServiceNameNotSNI(t *testing.T) {
+	backend := v1beta1.GatewayBackendRef{
+		Name: "ledger-stack0",
+		Port: 8888,
+		TLS:  &v1beta1.GatewayBackendTLS{ServerName: "ledger-stack0.stack0.svc.cluster.local"},
+	}
+	if got := ledgerV3GRPCAddress(backend); got != "ledger-stack0:8888" {
+		t.Fatalf("ledgerV3GRPCAddress = %q, want the in-namespace Service name ledger-stack0:8888 (not the SNI FQDN)", got)
+	}
+}
+
 // The connectivity-api Service is named after the (now fixed) delegated
 // resource name, so the gateway backend must point at "connectivity-api".
 func TestConnectivityAPIBackendRef(t *testing.T) {

@@ -232,7 +232,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerBackendResolveFailed", err.Error())
 		return err
 	}
-	ledgerAddress := fmt.Sprintf("%s:%d", backend.TLS.ServerName, backend.Port)
+	ledgerAddress := ledgerV3GRPCAddress(backend)
 
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(connectivityGVK)
@@ -384,6 +384,13 @@ func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) bool {
 // connectivityAPIBackendRef points the gateway at the connectivity-api Service
 // the connectivity operator provisions for the delegated Connectivity. It is
 // named "<delegated-name>-api", i.e. "connectivity-api".
+// ledgerV3GRPCAddress dials the backend Service name (resolves in-namespace on
+// any cluster DNS domain), not backend.TLS.ServerName — the SNI FQDN, which is
+// kept for TLS verification only. Mirrors the gateway upstream.
+func ledgerV3GRPCAddress(backend v1beta1.GatewayBackendRef) string {
+	return fmt.Sprintf("%s:%d", backend.Name, backend.Port)
+}
+
 func connectivityAPIBackendRef() v1beta1.GatewayBackendRef {
 	return v1beta1.GatewayBackendRef{
 		Name: connectivityDelegatedName + "-api",
