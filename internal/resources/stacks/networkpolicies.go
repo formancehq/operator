@@ -182,6 +182,37 @@ func createNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 		return err
 	}
 
+	// 7. allow-ledger-v3-from-connectivity: let the delegated connectivity
+	// workload reach the stack's Ledger v3 pods (it dials their gRPC endpoint).
+	// Connectivity pods are not Ledger v3 pods, so the default-deny policy would
+	// otherwise drop those connections. Ports are intentionally unrestricted for
+	// this tightly scoped same-namespace source/target pair — mirroring
+	// allow-ledger-v3-cluster — so a LedgerConfiguration spec.cluster.service.grpcPort
+	// override cannot silently break connectivity or leave the policy stale.
+	if _, _, err := CreateOrUpdate[*networkingv1.NetworkPolicy](ctx,
+		types.NamespacedName{
+			Namespace: stack.Name,
+			Name:      "allow-ledger-v3-from-connectivity",
+		},
+		func(np *networkingv1.NetworkPolicy) error {
+			ledgerSelector := directLedgerV3Selector(stack.Name)
+			connectivity := connectivitySelector()
+			np.Spec = networkingv1.NetworkPolicySpec{
+				PodSelector: ledgerSelector,
+				PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+				Ingress: []networkingv1.NetworkPolicyIngressRule{
+					{
+						From: []networkingv1.NetworkPolicyPeer{{PodSelector: &connectivity}},
+					},
+				},
+			}
+			return nil
+		},
+		WithController[*networkingv1.NetworkPolicy](ctx.GetScheme(), stack),
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -193,6 +224,7 @@ func deleteNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 		"allow-ledger-v3-cluster",
 		"allow-ledger-v3-preview-cluster",
 		"allow-ledger-v2-from-v3",
+		"allow-ledger-v3-from-connectivity",
 	} {
 		if err := DeleteIfExists[*networkingv1.NetworkPolicy](ctx, types.NamespacedName{
 			Namespace: stack.Name,
@@ -202,6 +234,24 @@ func deleteNetworkPolicies(ctx Context, stack *v1beta1.Stack) error {
 		}
 	}
 	return nil
+}
+
+// connectivitySelector matches the delegated connectivity workload pods that
+// dial the stack's Ledger v3 gRPC endpoint.
+//
+// ASSUMPTION: the connectivity pods are provisioned by the connectivity
+// operator (connectivity.formance.com), which lives in a separate repository,
+// so their pod labels are not defined in this repo and cannot be confirmed
+// here. We match the operator-wide convention app.kubernetes.io/name=<component>
+// with the "connectivity" component name (the connectivity core image
+// repository is likewise "connectivity"). We intentionally match only the name
+// label (a subset match) to avoid over-constraining on labels we cannot verify.
+// If the connectivity operator labels its pods differently, this selector must
+// be reconciled against that repository.
+func connectivitySelector() metav1.LabelSelector {
+	return metav1.LabelSelector{MatchLabels: map[string]string{
+		"app.kubernetes.io/name": "connectivity",
+	}}
 }
 
 func directLedgerV3Selector(stackName string) metav1.LabelSelector {
