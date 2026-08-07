@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -934,8 +933,7 @@ func TestConnectivityReconcileRequeuesWhenLedgerCredentialsWatchUnavailable(t *t
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
 	}
-	var delayed interface{ RequeueAfter() time.Duration }
-	if !errors.As(err, &delayed) || delayed.RequeueAfter() <= 0 {
+	if core.ApplicationErrorRequeueAfter(err) <= 0 {
 		t.Fatalf("pending credentials without a watch must request a delayed requeue, got %v", err)
 	}
 }
@@ -968,12 +966,8 @@ func TestConnectivityReconcileUsesWatchWhenLedgerCredentialsArePending(t *testin
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
 	}
-	var delayed interface{ RequeueAfter() time.Duration }
-	if !errors.As(err, &delayed) {
-		t.Fatalf("pending error does not expose its requeue policy: %v", err)
-	}
-	if delayed.RequeueAfter() != 0 {
-		t.Fatalf("ready-state watch should drive the next reconcile without polling, got delay %s", delayed.RequeueAfter())
+	if delay := core.ApplicationErrorRequeueAfter(err); delay != 0 {
+		t.Fatalf("ready-state watch should drive the next reconcile without polling, got delay %s", delay)
 	}
 }
 
@@ -1025,8 +1019,7 @@ func TestConnectivityReconcilePendingWhenLedgerCredentialsAPIUnavailable(t *test
 			if !core.IsApplicationError(err) {
 				t.Fatalf("Reconcile() returned %v, want an application (pending) error when the ledger Credentials API is unavailable", err)
 			}
-			var delayed interface{ RequeueAfter() time.Duration }
-			if !errors.As(err, &delayed) || delayed.RequeueAfter() <= 0 {
+			if core.ApplicationErrorRequeueAfter(err) <= 0 {
 				t.Fatalf("unavailable Credentials API must be polled even when its watch was registered at startup, got %v", err)
 			}
 			if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerCredentialsUnavailable" {

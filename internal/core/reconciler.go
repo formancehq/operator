@@ -338,7 +338,7 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 			if !IsApplicationError(err) {
 				reconcilerError = errors.Wrap(err, "reconciling resource")
 			} else {
-				requeueAfter = errorRequeueAfter(err)
+				requeueAfter = ApplicationErrorRequeueAfter(err)
 			}
 		}
 

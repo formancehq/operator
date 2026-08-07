@@ -20,6 +20,7 @@ spec:
             timeout: 2m
             content: |
               set -eu
+              kubectl wait --for=create deployment/gateway -n chainsaw-observability --timeout=2m
               kubectl wait --for=jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="OTEL_TRACES")].value}'=true deployment/gateway -n chainsaw-observability --timeout=2m
               kubectl get deployment gateway -n chainsaw-observability -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-observability-env
               grep -Fx 'OTEL_TRACES=true' /tmp/chainsaw-observability-env

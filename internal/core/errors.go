@@ -7,18 +7,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type requeueAfterError interface {
-	RequeueAfter() time.Duration
-}
-
-func errorRequeueAfter(err error) time.Duration {
-	var delayed requeueAfterError
-	if errors.As(err, &delayed) {
-		return delayed.RequeueAfter()
-	}
-	return 0
-}
-
 type ApplicationError struct {
 	message      string
 	requeueAfter time.Duration
@@ -43,10 +31,6 @@ func (e *ApplicationError) WithRequeueAfter(delay time.Duration) *ApplicationErr
 	return e
 }
 
-func (e *ApplicationError) RequeueAfter() time.Duration {
-	return e.requeueAfter
-}
-
 func NewApplicationError() *ApplicationError {
 	return &ApplicationError{}
 }
@@ -65,4 +49,12 @@ func NewMissingSettingsError(msg string) *ApplicationError {
 
 func IsApplicationError(err error) bool {
 	return errors.Is(err, &ApplicationError{})
+}
+
+func ApplicationErrorRequeueAfter(err error) time.Duration {
+	applicationError := &ApplicationError{}
+	if errors.As(err, &applicationError) {
+		return applicationError.requeueAfter
+	}
+	return 0
 }

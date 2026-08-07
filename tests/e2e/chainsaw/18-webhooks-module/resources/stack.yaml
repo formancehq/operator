@@ -3,5 +3,5 @@ kind: Stack
 metadata:
   name: chainsaw-webhooks
 spec:
-  version: v3.0.0
+  version: v2.5.0
   dev: true

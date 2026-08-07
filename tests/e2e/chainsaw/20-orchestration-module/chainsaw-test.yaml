@@ -52,6 +52,7 @@ spec:
                   exit 1
                 fi
               }
+              kubectl wait --for=create brokerconsumer/orchestration-orchestration --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/orchestration-orchestration --timeout=5m
               kubectl wait --for=jsonpath='{.status.ready}'=true authclient/chainsaw-orchestration-orchestration --timeout=2m
               kubectl wait --for=create deployment/orchestration -n chainsaw-orchestration --timeout=2m

@@ -34,7 +34,7 @@
       "valueType": "uri",
       "sources": [
         "internal/resources/brokers/reconcile.go:24",
-        "internal/resources/webhooks/deployment.go:22"
+        "internal/resources/webhooks/deployment.go:30"
       ]
     },
     {
