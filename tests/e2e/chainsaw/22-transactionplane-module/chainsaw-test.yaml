@@ -55,6 +55,7 @@ spec:
                   exit 1
                 fi
               }
+              kubectl wait --for=create brokerconsumer/transactionplane-transactionplane --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/transactionplane-transactionplane --timeout=5m
               until kubectl get authclient/chainsaw-transactionplane-transactionplane >/dev/null 2>&1; do
                 sleep 1

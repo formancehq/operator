@@ -13,6 +13,8 @@ spec:
             file: resources/networkpolicies-enabled.yaml
         - apply:
             file: resources/stack.yaml
+        - apply:
+            file: resources/connectivity.yaml
         - assert:
             file: asserts/networkpolicies.yaml
       catch:
@@ -30,6 +32,7 @@ spec:
               kubectl wait --for=delete networkpolicy/default-deny-ingress -n chainsaw-networkpolicies --timeout=2m
               kubectl wait --for=delete networkpolicy/allow-gateway-ingress -n chainsaw-networkpolicies --timeout=2m
               kubectl wait --for=delete networkpolicy/allow-from-gateway -n chainsaw-networkpolicies --timeout=2m
+              kubectl wait --for=delete networkpolicy/allow-ledger-v3-from-connectivity -n chainsaw-networkpolicies --timeout=2m
       catch:
         - script:
             timeout: 2m

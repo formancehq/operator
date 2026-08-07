@@ -126,12 +126,6 @@ type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, 
 
 func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) StackDependentObjectController[T] {
 	return func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], t T) error {
-
-		moduleVersion, err := GetModuleVersion(ctx, stack, t)
-		if err != nil {
-			return err
-		}
-
 		hasOwnerReference, err := HasOwnerReference(ctx, stack, t)
 		if err != nil {
 			return err
@@ -153,10 +147,15 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 			// Owned objects must be controlled by the module.
 			// if not, they will not be automatically removed on stack removal.
 			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
-			if err := removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns); err != nil {
-				return err
-			}
-		} else if t.IsEE() {
+			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
+		}
+
+		moduleVersion, err := GetModuleVersion(ctx, stack, t)
+		if err != nil {
+			return err
+		}
+
+		if t.IsEE() {
 			platform := ctx.GetPlatform()
 			licenceState := platform.LicenceState
 			licenceMessage := platform.LicenceMessage

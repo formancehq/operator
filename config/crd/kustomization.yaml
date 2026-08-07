@@ -30,6 +30,7 @@ resources:
 - bases/formance.com_otelexporterendpoints.yaml
 
 - bases/formance.com_ledgerconfigurations.yaml
+- bases/formance.com_connectivities.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # commonAnnotations:

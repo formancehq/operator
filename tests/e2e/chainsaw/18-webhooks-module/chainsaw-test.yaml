@@ -48,6 +48,7 @@ spec:
                   exit 1
                 fi
               }
+              kubectl wait --for=create brokerconsumer/webhooks-webhooks --timeout=2m
               kubectl wait --for=jsonpath='{.status.ready}'=true brokerconsumer/webhooks-webhooks --timeout=5m
               kubectl wait --for=create deployment/webhooks -n chainsaw-webhooks --timeout=2m
               kubectl wait --for=create deployment/webhooks-worker -n chainsaw-webhooks --timeout=2m

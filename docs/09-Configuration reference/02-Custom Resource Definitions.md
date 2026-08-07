@@ -19,6 +19,7 @@ Various parts of the stack can be configured either using the CRD properties or 
 
 Modules :
 - [Auth](#auth)
+- [Connectivity](#connectivity)
 - [Gateway](#gateway)
 - [Ledger](#ledger)
 - [MCP](#mcp)
@@ -502,6 +503,99 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 | `clients` _string array_ | Clients contains the list of clients created using [AuthClient](#authclient) |  |  |
+
+
+#### Connectivity
+
+
+
+Connectivity is the module allowing to install a connectivity instance.
+
+Connectivity ingests data from external sources (blockchains, payment
+providers, ...) through a plugin system and writes double-entry
+transactions into the stack ledger. It delegates the actual workload to the
+connectivity operator (connectivity.formance.com), bound to the stack's
+Ledger v3 gRPC endpoint.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `formance.com/v1beta1` | | |
+| `kind` _string_ | `Connectivity` | | |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ConnectivitySpec](#connectivityspec)_ |  |  |  |
+| `status` _[ConnectivityStatus](#connectivitystatus)_ |  |  |  |
+
+
+
+##### ConnectivitySpec
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
+| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
+| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+
+
+
+
+
+##### ConnectivityStatus
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
+| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
 
 
 #### Gateway
