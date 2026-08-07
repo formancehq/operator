@@ -1,0 +1,6 @@
+apiVersion: formance.com/v1beta1
+kind: Connectivity
+metadata:
+  name: chainsaw-networkpolicies
+spec:
+  stack: chainsaw-networkpolicies

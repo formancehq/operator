@@ -7,6 +7,8 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
+
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 	. "github.com/formancehq/operator/v3/internal/tests/internal"
@@ -124,23 +126,74 @@ var _ = Describe("NetworkPolicyController", func() {
 					g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8080))
 				}).Should(Succeed())
 
-				// The delegated connectivity workload can reach the Ledger v3 pods;
-				// ports are intentionally unrestricted for this tightly scoped pair.
-				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
-					g.Expect(np.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{
-						"app.kubernetes.io/instance": stack.Name,
-						"app.kubernetes.io/name":     "ledger",
-					}))
-					g.Expect(np.Spec.Ingress).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
-					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "connectivity"))
-					g.Expect(np.Spec.Ingress[0].Ports).To(BeEmpty())
-				}).Should(Succeed())
+				// Without a Connectivity module, no ingress exception is opened.
+				Consistently(func() error {
+					return LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", &networkingv1.NetworkPolicy{})
+				}).Should(BeNotFound())
 
+			})
+
+			Context("Given a Connectivity module", func() {
+				var connectivity *v1beta1.Connectivity
+
+				JustBeforeEach(func() {
+					connectivity = &v1beta1.Connectivity{
+						ObjectMeta: RandObjectMeta(),
+						Spec: v1beta1.ConnectivitySpec{
+							StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+						},
+					}
+					connectivity.Name = stack.Name
+					Expect(Create(connectivity)).To(Succeed())
+				})
+				AfterEach(func() {
+					Expect(Delete(connectivity)).To(Succeed())
+				})
+
+				It("Then creates a scoped policy and reconciles LedgerConfiguration port changes", func() {
+					// Then the default Ledger v3 gRPC port is opened only for the
+					// delegated Connectivity instance.
+					Eventually(func(g Gomega) {
+						np := &networkingv1.NetworkPolicy{}
+						g.Expect(LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", np)).To(Succeed())
+						g.Expect(np).To(BeControlledBy(stack))
+						g.Expect(np.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{
+							"app.kubernetes.io/instance": stack.Name,
+							"app.kubernetes.io/name":     "ledger",
+						}))
+						g.Expect(np.Spec.Ingress).To(HaveLen(1))
+						g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
+						g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
+						g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(map[string]string{
+							"app.kubernetes.io/instance": "connectivity",
+							"app.kubernetes.io/name":     "connectivity",
+						}))
+						g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
+						g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8888))
+					}).Should(Succeed())
+
+					// When the LedgerConfiguration port changes, its watch must
+					// enqueue the Stack and update the policy.
+					configuration := &v1beta1.LedgerConfiguration{
+						ObjectMeta: RandObjectMeta(),
+						Spec: v1beta1.LedgerConfigurationSpec{
+							Stacks: []string{stack.Name},
+							Cluster: ledgerv1alpha1.ClusterSpec{
+								Service: ledgerv1alpha1.ServiceSpec{GrpcPort: 7777},
+							},
+						},
+					}
+					Expect(Create(configuration)).To(Succeed())
+					DeferCleanup(func() { Expect(Delete(configuration)).To(Succeed()) })
+
+					Eventually(func(g Gomega) {
+						np := &networkingv1.NetworkPolicy{}
+						g.Expect(LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", np)).To(Succeed())
+						g.Expect(np.Spec.Ingress).To(HaveLen(1))
+						g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
+						g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(7777))
+					}).Should(Succeed())
+				})
 			})
 
 			Context("Then disabling networkpolicies", func() {

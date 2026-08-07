@@ -589,7 +589,7 @@
       "key": "networkpolicies.enabled",
       "valueType": "bool",
       "sources": [
-        "internal/resources/stacks/networkpolicies.go:16"
+        "internal/resources/stacks/networkpolicies.go:19"
       ]
     },
     {

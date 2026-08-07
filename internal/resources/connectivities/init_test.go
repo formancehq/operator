@@ -78,6 +78,34 @@ func (r crdPresentReader) Get(context.Context, client.ObjectKey, client.Object, 
 	return nil
 }
 
+type credentialsCRDPresentReader struct {
+	resourceErr error
+}
+
+func (r credentialsCRDPresentReader) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
+	return nil
+}
+
+func (r credentialsCRDPresentReader) List(_ context.Context, object client.ObjectList, _ ...client.ListOption) error {
+	switch list := object.(type) {
+	case *apiextensionsv1.CustomResourceDefinitionList:
+		list.Items = []apiextensionsv1.CustomResourceDefinition{{
+			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Group: ledgerCredentialsGVK.Group,
+				Names: apiextensionsv1.CustomResourceDefinitionNames{Kind: ledgerCredentialsGVK.Kind, Plural: "credentials"},
+				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+					Name: ledgerCredentialsGVK.Version, Served: true, Storage: true,
+				}},
+			},
+		}}
+		return nil
+	case *unstructured.UnstructuredList:
+		return r.resourceErr
+	default:
+		return nil
+	}
+}
+
 func (r crdPresentReader) List(_ context.Context, object client.ObjectList, _ ...client.ListOption) error {
 	switch list := object.(type) {
 	case *apiextensionsv1.CustomResourceDefinitionList:
@@ -592,6 +620,50 @@ func TestLedgerCredentialsWatchDisabledWhenDiscoveryFails(t *testing.T) {
 	}
 }
 
+func TestLedgerCredentialsWatchDisabledWhenCredentialsListIsForbidden(t *testing.T) {
+	previous := ledgerCredentialsWatchAvailable
+	ledgerCredentialsWatchAvailable = true
+	t.Cleanup(func() { ledgerCredentialsWatchAvailable = previous })
+
+	options := core.ReconcilerOptions[*v1beta1.Connectivity]{}
+	withLedgerCredentialsWatch()(&options)
+	ctx := connectivityDiscoveryContext{
+		Context: context.Background(),
+		reader: credentialsCRDPresentReader{resourceErr: apierrors.NewForbidden(
+			schema.GroupResource{Group: ledgerCredentialsGVK.Group, Resource: "credentials"},
+			"", errors.New("forbidden by test"))},
+		client: accessReviewClient{},
+	}
+
+	if err := options.Raws[0](ctx, nil); err != nil {
+		t.Fatalf("inaccessible ledger Credentials must not fail controller setup: %v", err)
+	}
+	if ledgerCredentialsWatchAvailable {
+		t.Fatal("ledger Credentials watch remains enabled when Credentials cannot be listed")
+	}
+}
+
+func TestLedgerCredentialsWatchDisabledWithoutWatchPermission(t *testing.T) {
+	previous := ledgerCredentialsWatchAvailable
+	ledgerCredentialsWatchAvailable = true
+	t.Cleanup(func() { ledgerCredentialsWatchAvailable = previous })
+
+	options := core.ReconcilerOptions[*v1beta1.Connectivity]{}
+	withLedgerCredentialsWatch()(&options)
+	ctx := connectivityDiscoveryContext{
+		Context: context.Background(),
+		reader:  credentialsCRDPresentReader{},
+		client:  accessReviewClient{deniedVerb: "watch"},
+	}
+
+	if err := options.Raws[0](ctx, nil); err != nil {
+		t.Fatalf("missing ledger Credentials watch RBAC must not fail controller setup: %v", err)
+	}
+	if ledgerCredentialsWatchAvailable {
+		t.Fatal("ledger Credentials watch remains enabled without watch permission")
+	}
+}
+
 // newReconcileTestContext builds a core.Context backed by a fake client whose
 // scheme knows the v1beta1 types, the delegated connectivity GVK and the ledger
 // Credentials GVK (as unstructured), and whose client indexes Ledgers by their
@@ -832,6 +904,47 @@ func TestConnectivityReconcileTearsDownWhenCapabilityUnavailableAndLedgerGateClo
 	}
 }
 
+func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbidden(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = false
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	delegated := newDelegatedConnectivity("stack0")
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
+	base := newReconcileTestContext(t, delegated, httpAPI, cred)
+	forbidden := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+			if obj.GetObjectKind().GroupVersionKind() == connectivityGVK {
+				return apierrors.NewForbidden(
+					schema.GroupResource{Group: connectivityGVK.Group, Resource: "connectivities"},
+					obj.GetName(), errors.New("forbidden by test"))
+			}
+			return c.Delete(ctx, obj, opts...)
+		},
+	})
+	ctx := credsTestContext{Context: context.Background(), client: forbidden, scheme: base.scheme}
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	connectivity.Spec.Stack = stack.Name
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want the advertised pending capability state", err)
+	}
+	if !delegatedConnectivityExists(t, ctx, stack.Name) {
+		t.Error("inaccessible delegated Connectivity must be left for the external operator/API to recover")
+	}
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Error("GatewayHTTPAPI must still be deleted independently")
+	}
+	if credentialsExist(t, ctx, stack.Name) {
+		t.Error("god-mode Credentials must still be revoked independently")
+	}
+}
+
 // A transient connectivity-operator outage with a healthy v3 ledger (gate still
 // open) must NOT flap the already-provisioned resources.
 func TestConnectivityReconcileKeepsResourcesWhenCapabilityUnavailableButLedgerV3(t *testing.T) {
@@ -1066,6 +1179,46 @@ func TestConnectivityReconcileDialsLedgerServiceAndKeepsSNIForTLS(t *testing.T) 
 	}
 	if serverName, _, _ := unstructured.NestedString(delegated.Object, "spec", "ledgerTLS", "serverName"); serverName != "ledger-stack0.stack0.svc.cluster.local" {
 		t.Fatalf("spec.ledgerTLS.serverName = %q, want the certificate SNI to remain unchanged", serverName)
+	}
+}
+
+func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = true
+
+	credentials := newLedgerCredentialsForStack("stack0")
+	_ = unstructured.SetNestedField(credentials.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(credentials.Object, "key-id", "status", "keyID")
+	_ = unstructured.SetNestedSlice(credentials.Object, []any{
+		map[string]any{"namespace": "stack0", "name": "connectivity-ledger-key"},
+	}, "status", "distributedSecretRefs")
+
+	delegated := newDelegatedConnectivity("stack0")
+	_ = unstructured.SetNestedField(delegated.Object, "old-ledger:9999", "spec", "ledgerAddress")
+	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+
+	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending after changing the delegated spec", err)
+	}
+	updated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, updated); err != nil {
+		t.Fatalf("get updated delegated Connectivity: %v", err)
+	}
+	if address, _, _ := unstructured.NestedString(updated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
+		t.Fatalf("updated spec.ledgerAddress = %q, want ledger-stack0:8888", address)
 	}
 }
 

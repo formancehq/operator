@@ -116,7 +116,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// Gated on the gate being closed so a transient operator outage (with a
 		// healthy ledger) does not flap those resources.
 		if ledgerGateClosed(ctx, stack) {
-			if err := teardownDelegated(ctx, stack, connectivity); err != nil {
+			if err := teardownAccessibleResources(ctx, connectivity); err != nil {
 				return err
 			}
 		}
@@ -238,7 +238,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	object.SetGroupVersionKind(connectivityGVK)
 	object.SetNamespace(stack.Name)
 	object.SetName(connectivityDelegatedName)
-	if _, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), object, func() error {
+	operation, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), object, func() error {
 		if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
 			return err
 		}
@@ -287,7 +287,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 			return err
 		}
 		return unstructured.SetNestedField(object.Object, "seed.hex", "spec", "auth", "secretKeyRef", "key")
-	}); err != nil {
+	})
+	if err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
 		return err
 	}
@@ -301,6 +302,11 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
 		return err
 	}
+	if operation != controllerutil.OperationResultNone {
+		message := "waiting for the delegated Connectivity to observe its updated specification"
+		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityPending", message)
+		return NewPendingError().WithMessage("%s", message)
+	}
 
 	ready, message := connectivityResourceReady(object)
 	if !ready {
@@ -310,6 +316,20 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 
 	setCondition(connectivity, metav1.ConditionTrue, "Ready", "Connectivity is ready")
 	return nil
+}
+
+// teardownAccessibleResources revokes the resources owned by this operator
+// when the external Connectivity API is unavailable. Deleting the delegated CR
+// on this path would turn an RBAC capability gap into a hard Forbidden error;
+// leave that CR untouched and independently remove the public route and the
+// god-mode ledger credential that remain accessible to this controller.
+func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity) error {
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.SetName(GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity)))
+	return errors.Join(
+		ignoreAbsent(ctx.GetClient().Delete(ctx, httpAPI)),
+		deleteLedgerCredentials(ctx, connectivity),
+	)
 }
 
 // teardownDelegated deletes the delegated Connectivity resource and the
@@ -702,6 +722,15 @@ func watchLedgerCredentials(ctx Context, b *builder.Builder, crds *apiextensions
 			if version.Name != ledgerCredentialsGVK.Version || !version.Served {
 				continue
 			}
+			credentials := &unstructured.UnstructuredList{}
+			credentials.SetGroupVersionKind(ledgerCredentialsGVK.GroupVersion().WithKind(ledgerCredentialsGVK.Kind + "List"))
+			if err := ctx.GetAPIReader().List(ctx, credentials, client.Limit(1)); err != nil {
+				log.FromContext(ctx).Info("ledger Credentials are inaccessible; continuing without watch", "gvk", ledgerCredentialsGVK, "error", err)
+				return false
+			}
+			if !canWatchLedgerCredentials(ctx, crd.Spec.Names.Plural) {
+				return false
+			}
 			cred := &unstructured.Unstructured{}
 			cred.SetGroupVersionKind(ledgerCredentialsGVK)
 			// The raw builder callback receives a Context wrapping the manager;
@@ -715,6 +744,30 @@ func watchLedgerCredentials(ctx Context, b *builder.Builder, crds *apiextensions
 	}
 	log.FromContext(ctx).Info("ledger Credentials CRD is not available; connectivity will not watch credentials", "gvk", ledgerCredentialsGVK)
 	return false
+}
+
+func canWatchLedgerCredentials(ctx Context, resource string) bool {
+	for _, verb := range []string{"list", "watch"} {
+		review := &authorizationv1.SelfSubjectAccessReview{
+			Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Group:    ledgerCredentialsGVK.Group,
+					Version:  ledgerCredentialsGVK.Version,
+					Resource: resource,
+					Verb:     verb,
+				},
+			},
+		}
+		if err := ctx.GetClient().Create(ctx, review); err != nil {
+			log.FromContext(ctx).Info("ledger Credentials access review failed; continuing without watch", "verb", verb, "error", err)
+			return false
+		}
+		if !review.Status.Allowed {
+			log.FromContext(ctx).Info("ledger Credentials watch permission is unavailable; continuing without watch", "verb", verb, "reason", review.Status.Reason)
+			return false
+		}
+	}
+	return true
 }
 
 // mapLedgerCredentialsToConnectivity maps a ledger Credentials event back to the
@@ -757,6 +810,7 @@ func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
 			WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
+			WithDisabledCleanup[*v1beta1.Connectivity](deleteLedgerCredentials),
 			WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
 			withConnectivityClusterWatch(),
 			withLedgerCredentialsWatch(),

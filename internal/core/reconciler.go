@@ -59,10 +59,11 @@ type finalizerConfig[T client.Object] struct {
 }
 
 type ReconcilerOptions[T client.Object] struct {
-	Owns       map[client.Object][]builder.OwnsOption
-	Watchers   map[client.Object]ReconcilerOptionsWatch
-	Finalizers []finalizerConfig[T]
-	Raws       []func(Context, *builder.Builder) error
+	Owns            map[client.Object][]builder.OwnsOption
+	Watchers        map[client.Object]ReconcilerOptionsWatch
+	Finalizers      []finalizerConfig[T]
+	DisabledCleanup []Finalizer[T]
+	Raws            []func(Context, *builder.Builder) error
 }
 
 type ReconcilerOption[T client.Object] func(*ReconcilerOptions[T])
@@ -102,6 +103,12 @@ func WithFinalizer[T client.Object](name string, callback Finalizer[T]) Reconcil
 			name: name,
 			fn:   callback,
 		})
+	}
+}
+
+func WithDisabledCleanup[T client.Object](callback Finalizer[T]) ReconcilerOption[T] {
+	return func(r *ReconcilerOptions[T]) {
+		r.DisabledCleanup = append(r.DisabledCleanup, callback)
 	}
 }
 
