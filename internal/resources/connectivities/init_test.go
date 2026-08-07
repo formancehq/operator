@@ -333,9 +333,8 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 	existing.SetName("connectivity-stack0")
 	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
 
-	ctx := newCredsTestContext(t, existing)
 	stack := &v1beta1.Stack{
-		ObjectMeta: metav1.ObjectMeta{Name: "stack0"},
+		ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack0-uid")},
 		Spec:       v1beta1.StackSpec{Disabled: true},
 	}
 	connectivity := &v1beta1.Connectivity{
@@ -344,6 +343,7 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 			StackDependency: v1beta1.StackDependency{Stack: stack.Name},
 		},
 	}
+	ctx := newCredsTestContext(t, existing, connectivity)
 	options := &core.ReconcilerOptions[*v1beta1.Connectivity]{
 		Owns:     map[client.Object][]builder.OwnsOption{},
 		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},

@@ -126,19 +126,6 @@ type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, 
 
 func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) StackDependentObjectController[T] {
 	return func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], t T) error {
-		if stack.Spec.Disabled {
-			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
-			// Owned objects must be controlled by the module.
-			// if not, they will not be automatically removed on stack removal.
-			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
-			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
-		}
-
-		moduleVersion, err := GetModuleVersion(ctx, stack, t)
-		if err != nil {
-			return err
-		}
-
 		hasOwnerReference, err := HasOwnerReference(ctx, stack, t)
 		if err != nil {
 			return err
@@ -153,6 +140,19 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 				return errors.Wrap(err, "patching object to add owner reference on stack")
 			}
 			log.FromContext(ctx).Info("Add owner reference on stack")
+		}
+
+		if stack.Spec.Disabled {
+			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
+			// Owned objects must be controlled by the module.
+			// if not, they will not be automatically removed on stack removal.
+			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
+			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
+		}
+
+		moduleVersion, err := GetModuleVersion(ctx, stack, t)
+		if err != nil {
+			return err
 		}
 
 		if t.IsEE() {

@@ -181,6 +181,11 @@ func TestForModuleDisablesOwnedResourcesWithoutRunningFinalizers(t *testing.T) {
 
 	require.NoError(t, controller(ctx, stack, options, search))
 	require.False(t, finalizerCalled)
+	refreshedSearch := &v1beta1.Search{}
+	require.NoError(t, fakeClient.Get(ctx, client.ObjectKey{Name: search.Name}, refreshedSearch))
+	require.Len(t, refreshedSearch.OwnerReferences, 1)
+	require.Equal(t, stack.Name, refreshedSearch.OwnerReferences[0].Name)
+	require.Equal(t, stack.UID, refreshedSearch.OwnerReferences[0].UID)
 	err := fakeClient.Get(ctx, types.NamespacedName{Namespace: owned.Namespace, Name: owned.Name}, &corev1.ConfigMap{})
 	require.True(t, apierrors.IsNotFound(err), "owned runtime resource must be deleted when the Stack is disabled")
 }
