@@ -1,7 +1,6 @@
 package core
 
 import (
-	stderrors "errors"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -128,20 +127,11 @@ type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, 
 func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) StackDependentObjectController[T] {
 	return func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], t T) error {
 		if stack.Spec.Disabled {
-			teardownErrors := make([]error, 0, len(reconcilerOptions.DisabledCleanup)+1)
-			for _, cleanup := range reconcilerOptions.DisabledCleanup {
-				if err := cleanup(ctx, t); err != nil {
-					teardownErrors = append(teardownErrors, err)
-				}
-			}
 			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
 			// Owned objects must be controlled by the module.
 			// if not, they will not be automatically removed on stack removal.
 			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
-			if err := removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns); err != nil {
-				teardownErrors = append(teardownErrors, err)
-			}
-			return stderrors.Join(teardownErrors...)
+			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
 		}
 
 		moduleVersion, err := GetModuleVersion(ctx, stack, t)

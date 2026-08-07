@@ -806,16 +806,17 @@ func connectivityStackFromCredentials(object client.Object) (string, bool) {
 	return stack, true
 }
 
+func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
+	return []ReconcilerOption[*v1beta1.Connectivity]{
+		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
+		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
+		withConnectivityClusterWatch(),
+		withLedgerCredentialsWatch(),
+		WithWatchSettings[*v1beta1.Connectivity](),
+		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
+	}
+}
+
 func init() {
-	Init(
-		WithModuleReconciler(Reconcile,
-			WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
-			WithDisabledCleanup[*v1beta1.Connectivity](deleteLedgerCredentials),
-			WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
-			withConnectivityClusterWatch(),
-			withLedgerCredentialsWatch(),
-			WithWatchSettings[*v1beta1.Connectivity](),
-			WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
-		),
-	)
+	Init(WithModuleReconciler(Reconcile, connectivityReconcilerOptions()...))
 }

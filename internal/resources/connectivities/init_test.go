@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -323,6 +324,46 @@ func TestDeleteLedgerCredentialsFinalizerDeletesCredential(t *testing.T) {
 	err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-stack0"}, got)
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("Credentials must be deleted by the finalizer, got err=%v", err)
+	}
+}
+
+func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.T) {
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(ledgerCredentialsGVK)
+	existing.SetName("connectivity-stack0")
+	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+
+	ctx := newCredsTestContext(t, existing)
+	stack := &v1beta1.Stack{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack0"},
+		Spec:       v1beta1.StackSpec{Disabled: true},
+	}
+	connectivity := &v1beta1.Connectivity{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack0"},
+		Spec: v1beta1.ConnectivitySpec{
+			StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+		},
+	}
+	options := &core.ReconcilerOptions[*v1beta1.Connectivity]{
+		Owns:     map[client.Object][]builder.OwnsOption{},
+		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
+	}
+	for _, option := range connectivityReconcilerOptions() {
+		option(options)
+	}
+	controller := core.ForModule(func(_ core.Context, _ *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], _ *v1beta1.Connectivity, _ string) error {
+		t.Fatal("a disabled Stack must not reconcile its Connectivity module")
+		return nil
+	})
+
+	if err := controller(ctx, stack, options, connectivity); err != nil {
+		t.Fatalf("disable Connectivity module: %v", err)
+	}
+
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(ledgerCredentialsGVK)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: existing.GetName()}, got); err != nil {
+		t.Fatalf("Stack disable must keep ledger Credentials for re-enable: %v", err)
 	}
 }
 
