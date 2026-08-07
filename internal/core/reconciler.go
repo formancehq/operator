@@ -331,11 +331,14 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 		patch := client.MergeFrom(cp)
 
 		var reconcilerError error
+		var requeueAfter time.Duration
 		err := controller(reconcileContext, &reconcilerOptions, object)
 		if err != nil {
 			log.FromContext(ctx).Info(fmt.Sprintf("Terminated with error: %s", err))
 			if !IsApplicationError(err) {
 				reconcilerError = errors.Wrap(err, "reconciling resource")
+			} else {
+				requeueAfter = errorRequeueAfter(err)
 			}
 		}
 
@@ -353,7 +356,7 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 			}, nil
 		}
 
-		return ctrl.Result{}, reconcilerError
+		return ctrl.Result{RequeueAfter: requeueAfter}, reconcilerError
 	}
 }
 

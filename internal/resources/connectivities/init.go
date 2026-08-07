@@ -24,10 +24,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -48,7 +50,8 @@ import (
 )
 
 const (
-	connectivityReadyCondition = "ConnectivityClusterReady"
+	connectivityReadyCondition  = "ConnectivityClusterReady"
+	ledgerCredentialsRetryDelay = 5 * time.Second
 	// connectivityDelegatedName is the fixed name of the delegated
 	// connectivity.formance.com/Connectivity resource. It is namespaced (one per
 	// stack namespace), so a constant name stays unique per stack; the connectivity
@@ -181,13 +184,18 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	// namespace; connectivity-core is wired to it via spec.auth below.
 	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
+		if apimeta.IsNoMatchError(err) || apierrors.IsForbidden(err) {
+			setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsUnavailable",
+				"ledger Credentials API unavailable: "+err.Error())
+			return ledgerCredentialsUnavailableError("ledger Credentials API unavailable: %s", err.Error())
+		}
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsFailed", err.Error())
 		return err
 	}
 	if !credReady {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsPending",
 			"waiting for ledger credentials to be provisioned")
-		return NewPendingError().WithMessage("waiting for ledger credentials to be provisioned")
+		return ledgerCredentialsPendingError("waiting for ledger credentials to be provisioned")
 	}
 
 	// Resolve the connectivity core image through the operator's registry
@@ -224,7 +232,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerBackendResolveFailed", err.Error())
 		return err
 	}
-	ledgerAddress := fmt.Sprintf("%s:%d", backend.TLS.ServerName, backend.Port)
+	ledgerAddress := fmt.Sprintf("%s:%d", backend.Name, backend.Port)
 
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(connectivityGVK)
@@ -316,8 +324,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 // Deletes use client.IgnoreNotFound so the helper is idempotent and safe to call
 // on every reconcile while the gate stays closed (including when the resources
 // were never created). The names/scopes mirror how they are provisioned in
-// Reconcile: the delegated Connectivity is namespaced (name == namespace ==
-// stack name) and the GatewayHTTPAPI is cluster-scoped ("<stack>-connectivity").
+// Reconcile: the delegated Connectivity is named "connectivity" in the stack
+// namespace and the GatewayHTTPAPI is cluster-scoped ("<stack>-connectivity").
 func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
 	delegated := &unstructured.Unstructured{}
 	delegated.SetGroupVersionKind(connectivityGVK)
@@ -339,6 +347,20 @@ func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.
 		ignoreAbsent(ctx.GetClient().Delete(ctx, httpAPI)),
 		deleteLedgerCredentials(ctx, connectivity),
 	)
+}
+
+func ledgerCredentialsPendingError(message string, args ...any) *ApplicationError {
+	err := NewPendingError().WithMessage(message, args...)
+	if !ledgerCredentialsWatchAvailable {
+		return err.WithRequeueAfter(ledgerCredentialsRetryDelay)
+	}
+	return err
+}
+
+func ledgerCredentialsUnavailableError(message string, args ...any) *ApplicationError {
+	return NewPendingError().
+		WithMessage(message, args...).
+		WithRequeueAfter(ledgerCredentialsRetryDelay)
 }
 
 // ignoreAbsent drops NotFound and NoMatch (the whole CRD is not installed)
@@ -644,13 +666,12 @@ func canAccessConnectivityResource(ctx Context, gvk schema.GroupVersionKind, res
 // the owning Connectivity's reconcile.
 //
 // Reconcile returns a PendingError while the Credentials is not yet Ready
-// (LedgerCredentialsPending), and the reconcile loop treats a PendingError as a
-// terminal ctrl.Result{} with no RequeueAfter (see core.reconcileObject). The
-// Credentials is provisioned by the ledger operator, is cluster-scoped, and is
-// owned by the Stack (not controller-owned by the namespaced Connectivity), so
-// neither WithOwn nor the standard requeue would re-trigger Connectivity when the
-// ledger operator flips the Credentials status.phase to Ready. Without this
-// watch the module can stall indefinitely on LedgerCredentialsPending.
+// (LedgerCredentialsPending). This watch lets the cluster-scoped Credentials,
+// which is owned by the Stack rather than the namespaced Connectivity, re-trigger
+// reconciliation when the ledger operator marks it Ready. If the watch is not
+// available, PendingError carries a bounded polling delay instead. API-level
+// failures such as a removed CRD or lost RBAC permission always use that polling
+// fallback because the watch cannot observe their recovery.
 //
 // The Credentials is an external, unstructured GVK, so this uses a raw builder
 // watch (mirroring withConnectivityClusterWatch) rather than WithWatch, which

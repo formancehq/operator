@@ -35,7 +35,7 @@ func ForObjectController[T v1beta1.Object](controller ObjectController[T]) Objec
 		err := controller(ctx, reconcilerOptions, object)
 		if err != nil {
 			setStatus(err)
-			if !IsApplicationError(err) {
+			if !IsApplicationError(err) || errorRequeueAfter(err) > 0 {
 				reconcilerError = err
 			}
 		} else {

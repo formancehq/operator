@@ -20,15 +20,21 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -597,6 +603,9 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 	if err := v1beta1.AddToScheme(s); err != nil {
 		t.Fatalf("add v1beta1 to scheme: %v", err)
 	}
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("add core v1 to scheme: %v", err)
+	}
 	s.AddKnownTypeWithName(connectivityGVK, &unstructured.Unstructured{})
 	s.AddKnownTypeWithName(connectivityGVK.GroupVersion().WithKind(connectivityGVK.Kind+"List"), &unstructured.UnstructuredList{})
 	s.AddKnownTypeWithName(ledgerCredentialsGVK, &unstructured.Unstructured{})
@@ -607,6 +616,15 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 		client: fake.NewClientBuilder().WithScheme(s).
 			WithIndex(&v1beta1.Ledger{}, "stack", func(obj client.Object) []string {
 				return []string{obj.(*v1beta1.Ledger).Spec.Stack}
+			}).
+			WithIndex(&v1beta1.Settings{}, "stack", func(obj client.Object) []string {
+				return obj.(*v1beta1.Settings).GetStacks()
+			}).
+			WithIndex(&v1beta1.Settings{}, "keylen", func(obj client.Object) []string {
+				return []string{strconv.Itoa(len(strings.Split(obj.(*v1beta1.Settings).Spec.Key, ".")))}
+			}).
+			WithIndex(&v1beta1.LedgerConfiguration{}, "stack", func(obj client.Object) []string {
+				return obj.(*v1beta1.LedgerConfiguration).GetStacks()
 			}).
 			WithObjects(objs...).Build(),
 	}
@@ -885,6 +903,176 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 	}
 	if credentialsExist(t, ctx, "stack0") {
 		t.Error("god-mode Credentials must still be torn down when the delegated Connectivity delete fails")
+	}
+}
+
+func TestConnectivityReconcileRequeuesWhenLedgerCredentialsWatchUnavailable(t *testing.T) {
+	previousConnectivityAvailable := connectivityAvailable
+	previousWatchAvailable := ledgerCredentialsWatchAvailable
+	connectivityAvailable = true
+	ledgerCredentialsWatchAvailable = false
+	t.Cleanup(func() {
+		connectivityAvailable = previousConnectivityAvailable
+		ledgerCredentialsWatchAvailable = previousWatchAvailable
+	})
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = true
+	credentials := newLedgerCredentialsForStack("stack0")
+	ctx := newReconcileTestContext(t, ledger, credentials)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	var delayed interface{ RequeueAfter() time.Duration }
+	if !errors.As(err, &delayed) || delayed.RequeueAfter() <= 0 {
+		t.Fatalf("pending credentials without a watch must request a delayed requeue, got %v", err)
+	}
+}
+
+func TestConnectivityReconcileUsesWatchWhenLedgerCredentialsArePending(t *testing.T) {
+	previousConnectivityAvailable := connectivityAvailable
+	previousWatchAvailable := ledgerCredentialsWatchAvailable
+	connectivityAvailable = true
+	ledgerCredentialsWatchAvailable = true
+	t.Cleanup(func() {
+		connectivityAvailable = previousConnectivityAvailable
+		ledgerCredentialsWatchAvailable = previousWatchAvailable
+	})
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = true
+	credentials := newLedgerCredentialsForStack("stack0")
+	ctx := newReconcileTestContext(t, ledger, credentials)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	var delayed interface{ RequeueAfter() time.Duration }
+	if !errors.As(err, &delayed) {
+		t.Fatalf("pending error does not expose its requeue policy: %v", err)
+	}
+	if delayed.RequeueAfter() != 0 {
+		t.Fatalf("ready-state watch should drive the next reconcile without polling, got delay %s", delayed.RequeueAfter())
+	}
+}
+
+func TestConnectivityReconcilePendingWhenLedgerCredentialsAPIUnavailable(t *testing.T) {
+	previous := connectivityAvailable
+	previousWatchAvailable := ledgerCredentialsWatchAvailable
+	connectivityAvailable = true
+	ledgerCredentialsWatchAvailable = true
+	t.Cleanup(func() {
+		connectivityAvailable = previous
+		ledgerCredentialsWatchAvailable = previousWatchAvailable
+	})
+
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"missing CRD", &apimeta.NoKindMatchError{GroupKind: ledgerCredentialsGVK.GroupKind()}},
+		{"absent RBAC", apierrors.NewForbidden(
+			schema.GroupResource{Group: ledgerCredentialsGVK.Group, Resource: "credentials"},
+			"connectivity-stack0", errors.New("forbidden by test"))},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ledger := &v1beta1.Ledger{}
+			ledger.Name = "stack0-ledger"
+			ledger.Spec.Stack = "stack0"
+			ledger.Spec.Version = "v3.0.0"
+			ledger.Status.Ready = true
+
+			base := newReconcileTestContext(t, ledger)
+			failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if obj.GetObjectKind().GroupVersionKind() == ledgerCredentialsGVK {
+						return tc.err
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+			})
+			ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
+
+			stack := &v1beta1.Stack{}
+			stack.Name = "stack0"
+			connectivity := &v1beta1.Connectivity{}
+			connectivity.Name = "stack0"
+			connectivity.Spec.Stack = "stack0"
+
+			err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+			if !core.IsApplicationError(err) {
+				t.Fatalf("Reconcile() returned %v, want an application (pending) error when the ledger Credentials API is unavailable", err)
+			}
+			var delayed interface{ RequeueAfter() time.Duration }
+			if !errors.As(err, &delayed) || delayed.RequeueAfter() <= 0 {
+				t.Fatalf("unavailable Credentials API must be polled even when its watch was registered at startup, got %v", err)
+			}
+			if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerCredentialsUnavailable" {
+				t.Fatalf("expected a LedgerCredentialsUnavailable condition, got %#v", connectivity.Status.Conditions)
+			}
+		})
+	}
+}
+
+func TestConnectivityReconcileDialsLedgerServiceAndKeepsSNIForTLS(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = true
+
+	credentials := newLedgerCredentialsForStack("stack0")
+	_ = unstructured.SetNestedField(credentials.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(credentials.Object, "key-id", "status", "keyID")
+	_ = unstructured.SetNestedSlice(credentials.Object, []any{
+		map[string]any{"namespace": "stack0", "name": "connectivity-ledger-key"},
+	}, "status", "distributedSecretRefs")
+
+	ctx := newReconcileTestContext(t, ledger, credentials)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if err == nil || !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the delegated resource has no Ready status", err)
+	}
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, delegated); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	if address, _, _ := unstructured.NestedString(delegated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
+		t.Fatalf("spec.ledgerAddress = %q, want the in-namespace Service endpoint ledger-stack0:8888", address)
+	}
+	if serverName, _, _ := unstructured.NestedString(delegated.Object, "spec", "ledgerTLS", "serverName"); serverName != "ledger-stack0.stack0.svc.cluster.local" {
+		t.Fatalf("spec.ledgerTLS.serverName = %q, want the certificate SNI to remain unchanged", serverName)
 	}
 }
 
