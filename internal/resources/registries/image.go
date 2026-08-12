@@ -8,6 +8,12 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
+// Format Accepted:
+// ENDPOINT/ORGANIZATION/REPOSITORY:VERSION
+// ghcr.io/<organization>/<repository>:<version>
+// public.ecr.aws/<organization>/jeffail/benthos
+// docker.io/<organization|user>/<image>:<version>
+
 func NormalizeVersion(version string) string {
 	if version == "" {
 		version = "latest"
@@ -27,7 +33,7 @@ func GetBenthosImage(ctx core.Context, stack *v1beta1.Stack, version string) (*I
 	return GetImageConfiguration(
 		ctx,
 		stack.Name,
-		fmt.Sprintf("docker.io/redpandadata/connect:%s", NormalizeVersion(version)),
+		fmt.Sprintf("public.ecr.aws/formance-internal/jeffail/benthos:%s", NormalizeVersion(version)),
 	)
 }
 

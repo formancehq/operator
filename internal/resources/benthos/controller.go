@@ -200,7 +200,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 	}
 
 	cmd := []string{
-		"/redpanda-connect",
+		"/benthos",
 		"-r", "/resources/*.yaml",
 		"-t", "/templates/*.yaml",
 	}
@@ -311,7 +311,7 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, b *v1beta1.Benthos) err
 		return streams[i].Name < streams[j].Name
 	})
 
-	benthosImage, err := registries.GetBenthosImage(ctx, stack, "4.93.0")
+	benthosImage, err := registries.GetBenthosImage(ctx, stack, "v4.23.1-es")
 	if err != nil {
 		return err
 	}
