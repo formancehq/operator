@@ -43,6 +43,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/auths"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
@@ -222,6 +223,18 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return err
 	}
 
+	// OIDC protection for the connectivity-api, following the same convention
+	// as the other stack modules (ledger, payments): nil when the stack has no
+	// Auth module, otherwise the stack auth issuer plus the scope-checking
+	// policy from the auth.connectivity.check-scopes Setting. The connectivity
+	// CRD only models a single trusted issuer, so additional Settings-declared
+	// issuers (auth.issuers) are not propagated.
+	apiAuth, err := auths.GetProtectedConfiguration(ctx, stack, "connectivity", nil)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "APIAuthResolveFailed", err.Error())
+		return err
+	}
+
 	// Reuse the single source of truth for the ledger v3 gRPC connection: same
 	// service, port and backend TLS material (self-signed CA secret + SNI) that
 	// the gateway uses to reach the ledger. The port is resolved from the stack's
@@ -269,6 +282,19 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		}
 		if err := unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(apiImage.PullSecrets), "spec", "api", "imagePullSecrets"); err != nil {
 			return err
+		}
+		// checkScopes is always set explicitly: the connectivity CRD defaults it
+		// to true while the platform convention (shouldCheckScopes) defaults to
+		// false, so omitting the field would flip the semantics.
+		if apiAuth != nil {
+			if err := unstructured.SetNestedField(object.Object, apiAuth.Issuer, "spec", "api", "auth", "issuer"); err != nil {
+				return err
+			}
+			if err := unstructured.SetNestedField(object.Object, apiAuth.CheckScopes, "spec", "api", "auth", "checkScopes"); err != nil {
+				return err
+			}
+		} else {
+			unstructured.RemoveNestedField(object.Object, "spec", "api", "auth")
 		}
 		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err

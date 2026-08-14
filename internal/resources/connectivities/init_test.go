@@ -738,8 +738,21 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 			WithIndex(&v1beta1.LedgerConfiguration{}, "stack", func(obj client.Object) []string {
 				return obj.(*v1beta1.LedgerConfiguration).GetStacks()
 			}).
+			WithIndex(&v1beta1.Auth{}, "stack", unstructuredStackIndex).
+			WithIndex(&v1beta1.Gateway{}, "stack", unstructuredStackIndex).
 			WithObjects(objs...).Build(),
 	}
+}
+
+// unstructuredStackIndex indexes module resources looked up through
+// core.GetAllStackDependencies, which lists with an UnstructuredList: the fake
+// client hands the unstructured form of the stored object to the index
+// function, not the typed one.
+func unstructuredStackIndex(object client.Object) []string {
+	if value, found, err := unstructured.NestedString(object.(*unstructured.Unstructured).Object, "spec", "stack"); err == nil && found {
+		return []string{value}
+	}
+	return nil
 }
 
 // newDelegatedConnectivity returns the delegated Connectivity resource as it is
@@ -1260,6 +1273,154 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	}
 	if address, _, _ := unstructured.NestedString(updated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
 		t.Fatalf("updated spec.ledgerAddress = %q, want ledger-stack0:8888", address)
+	}
+}
+
+// newReadyLedgerPrerequisites returns a ready v3 Ledger and its provisioned
+// god-mode Credentials for stack0, the common prerequisites of a Reconcile
+// reaching the delegated-resource provisioning.
+func newReadyLedgerPrerequisites() (*v1beta1.Ledger, *unstructured.Unstructured) {
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = true
+
+	credentials := newLedgerCredentialsForStack("stack0")
+	_ = unstructured.SetNestedField(credentials.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(credentials.Object, "key-id", "status", "keyID")
+	_ = unstructured.SetNestedSlice(credentials.Object, []any{
+		map[string]any{"namespace": "stack0", "name": "connectivity-ledger-key"},
+	}, "status", "distributedSecretRefs")
+	return ledger, credentials
+}
+
+func TestConnectivityReconcileWiresAPIAuthWhenStackHasAuth(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+
+	auth := &v1beta1.Auth{}
+	auth.Name = "stack0-auth"
+	auth.Spec.Stack = "stack0"
+
+	gateway := &v1beta1.Gateway{}
+	gateway.Name = "stack0-gateway"
+	gateway.Spec.Stack = "stack0"
+	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
+
+	ctx := newReconcileTestContext(t, ledger, credentials, auth, gateway)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the delegated resource has no Ready status", err)
+	}
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, delegated); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	if issuer, _, _ := unstructured.NestedString(delegated.Object, "spec", "api", "auth", "issuer"); issuer != "https://stack0.example.com/api/auth" {
+		t.Fatalf("spec.api.auth.issuer = %q, want the stack auth issuer https://stack0.example.com/api/auth", issuer)
+	}
+	checkScopes, found, _ := unstructured.NestedBool(delegated.Object, "spec", "api", "auth", "checkScopes")
+	if !found || checkScopes {
+		t.Fatalf("spec.api.auth.checkScopes = %v (found=%v), want an explicit false without a check-scopes Setting", checkScopes, found)
+	}
+}
+
+func TestConnectivityReconcileAPIAuthHonorsCheckScopesSetting(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+
+	auth := &v1beta1.Auth{}
+	auth.Name = "stack0-auth"
+	auth.Spec.Stack = "stack0"
+
+	checkScopesSetting := settings.New("check-scopes", "auth.connectivity.check-scopes", "true", "stack0")
+
+	ctx := newReconcileTestContext(t, ledger, credentials, auth, checkScopesSetting)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the delegated resource has no Ready status", err)
+	}
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, delegated); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	if checkScopes, _, _ := unstructured.NestedBool(delegated.Object, "spec", "api", "auth", "checkScopes"); !checkScopes {
+		t.Fatal("spec.api.auth.checkScopes = false, want true when the auth.connectivity.check-scopes Setting is enabled")
+	}
+}
+
+func TestConnectivityReconcileFailsWhenAPIAuthResolutionFails(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+
+	base := newReconcileTestContext(t, ledger, credentials)
+	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if strings.HasPrefix(list.GetObjectKind().GroupVersionKind().Kind, "Auth") {
+				return errors.New("auth list forbidden by test")
+			}
+			return c.List(ctx, list, opts...)
+		},
+	})
+	ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if err == nil || core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want a hard error when the stack Auth module cannot be resolved", err)
+	}
+	condition := connectivity.GetConditions().Get(connectivityReadyCondition)
+	if condition == nil || condition.Reason != "APIAuthResolveFailed" {
+		t.Fatalf("condition = %+v, want reason APIAuthResolveFailed", condition)
+	}
+}
+
+func TestConnectivityReconcileClearsAPIAuthWhenStackHasNoAuth(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+
+	delegated := newDelegatedConnectivity("stack0")
+	_ = unstructured.SetNestedField(delegated.Object, "https://stale.example.com/api/auth", "spec", "api", "auth", "issuer")
+	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+
+	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending after changing the delegated spec", err)
+	}
+
+	updated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, updated); err != nil {
+		t.Fatalf("get updated delegated Connectivity: %v", err)
+	}
+	if _, found, _ := unstructured.NestedMap(updated.Object, "spec", "api", "auth"); found {
+		t.Fatal("spec.api.auth still present, want it cleared when the stack has no Auth module")
 	}
 }
 
