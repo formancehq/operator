@@ -28,9 +28,9 @@ type AuthClientSpec struct {
 	// It must be used with oauth2 `client_id` parameter
 	ID string `json:"id" yaml:"id"`
 	// +optional
-	// Public indicates whether a client is confidential.
-	// Confidential clients are clients whose secret can be kept secret.
-	// As opposed to public clients which cannot have a secret (a single-page application, for example)
+	// Public indicates whether the client is a public client.
+	// Confidential clients (the default) are clients whose secret can be kept secret.
+	// Public clients cannot hold a secret (a single-page application, for example)
 	// +kubebuilder:default:=false
 	Public bool `json:"public" yaml:"public"`
 	// +optional

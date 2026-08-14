@@ -73,9 +73,9 @@ spec:
               public:
                 default: false
                 description: |-
-                  Public indicates whether a client is confidential.
-                  Confidential clients are clients whose secret can be kept secret.
-                  As opposed to public clients which cannot have a secret (a single-page application, for example)
+                  Public indicates whether the client is a public client.
+                  Confidential clients (the default) are clients whose secret can be kept secret.
+                  Public clients cannot hold a secret (a single-page application, for example)
                 type: boolean
               redirectUris:
                 description: RedirectUris lists the allowed redirect URIs for the

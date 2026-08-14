@@ -1731,7 +1731,7 @@ AuthClient creates OAuth2/OIDC clients on the auth server (see [Auth](#auth))
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `id` _string_ | ID indicates the client id<br />It must be used with oauth2 `client_id` parameter |  |  |
-| `public` _boolean_ | Public indicates whether a client is confidential.<br />Confidential clients are clients whose secret can be kept secret.<br />As opposed to public clients which cannot have a secret (a single-page application, for example) | false |  |
+| `public` _boolean_ | Public indicates whether the client is a public client.<br />Confidential clients (the default) are clients whose secret can be kept secret.<br />Public clients cannot hold a secret (a single-page application, for example) | false |  |
 | `description` _string_ | Description represents an optional description of the client |  |  |
 | `redirectUris` _string array_ | RedirectUris lists the allowed redirect URIs for the client |  |  |
 | `postLogoutRedirectUris` _string array_ | PostLogoutRedirectUris lists the allowed post-logout redirect URIs for the client |  |  |
