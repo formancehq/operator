@@ -3,6 +3,8 @@ package ledgers
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -20,6 +22,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 type failingLedgerV3DiscoveryReader struct {
@@ -79,6 +82,13 @@ type ledgerV3AccessReviewClient struct {
 	deniedVerb string
 }
 
+type failingLedgerV3Client struct {
+	client.Client
+	err        error
+	failOnCall int
+	listCalls  int
+}
+
 type ledgerV3CleanupClient struct {
 	client.Client
 	getCalls    int
@@ -107,6 +117,113 @@ func (c ledgerV3AccessReviewClient) Create(_ context.Context, object client.Obje
 		review.Status.Reason = "denied by test"
 	}
 	return nil
+}
+
+func (c *failingLedgerV3Client) List(ctx context.Context, object client.ObjectList, options ...client.ListOption) error {
+	c.listCalls++
+	if c.listCalls == c.failOnCall {
+		return c.err
+	}
+	return c.Client.List(ctx, object, options...)
+}
+
+func newLedgerV3SettingsContext(t *testing.T, objects ...client.Object) ledgerV3DiscoveryContext {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	if err := v1beta1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	kubernetesClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithIndex(&v1beta1.Settings{}, "stack", func(object client.Object) []string {
+			return object.(*v1beta1.Settings).GetStacks()
+		}).
+		WithIndex(&v1beta1.Settings{}, "keylen", func(object client.Object) []string {
+			return []string{strconv.Itoa(len(strings.Split(object.(*v1beta1.Settings).Spec.Key, ".")))}
+		}).
+		WithObjects(objects...).
+		Build()
+	return ledgerV3DiscoveryContext{Context: context.Background(), client: kubernetesClient}
+}
+
+func TestLedgerV3ExtraEnv(t *testing.T) {
+	t.Parallel()
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	ledger := &v1beta1.Ledger{}
+	tests := []struct {
+		name        string
+		settings    []client.Object
+		wantJSONLog bool
+	}{
+		{name: "disabled by default"},
+		{
+			name:        "enabled by platform setting",
+			settings:    []client.Object{settings.New("json-logging", "logging.json", "true", stack.Name)},
+			wantJSONLog: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			env, err := ledgerV3ExtraEnv(newLedgerV3SettingsContext(t, test.settings...), stack, ledger)
+			if err != nil {
+				t.Fatalf("ledgerV3ExtraEnv() returned error: %v", err)
+			}
+			values := make(map[string]string, len(env))
+			for _, variable := range env {
+				values[variable.Name] = variable.Value
+			}
+			if _, found := values["JSON_FORMATTING_LOGGER"]; found != test.wantJSONLog {
+				t.Fatalf("JSON_FORMATTING_LOGGER present = %t, want %t", found, test.wantJSONLog)
+			}
+			if test.wantJSONLog && values["JSON_FORMATTING_LOGGER"] != "true" {
+				t.Fatalf("JSON_FORMATTING_LOGGER = %q, want true", values["JSON_FORMATTING_LOGGER"])
+			}
+		})
+	}
+}
+
+func TestLedgerV3ExtraEnvPropagatesSettingsLookupError(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("settings lookup failed")
+	baseClient := newLedgerV3SettingsContext(t).client
+	ctx := ledgerV3DiscoveryContext{
+		Context: context.Background(),
+		client:  &failingLedgerV3Client{Client: baseClient, err: wantErr, failOnCall: 1},
+	}
+	_, err := ledgerV3ExtraEnv(
+		ctx,
+		&v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}},
+		&v1beta1.Ledger{},
+	)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ledgerV3ExtraEnv() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestIsV3ClusterReadyDefaultsToThreeReplicas(t *testing.T) {
+	t.Parallel()
+
+	cluster := newV3Cluster()
+	cluster.SetGeneration(2)
+	cluster.Object["status"] = map[string]any{
+		"phase":              "Running",
+		"readyReplicas":      int64(3),
+		"observedGeneration": int64(2),
+	}
+	ready, message, err := isV3ClusterReady(cluster)
+	if err != nil {
+		t.Fatalf("isV3ClusterReady() returned error: %v", err)
+	}
+	if !ready {
+		t.Fatalf("isV3ClusterReady() = false, want true (%s)", message)
+	}
+	if message != "phase=Running readyReplicas=3/3 observedGeneration=2/2" {
+		t.Fatalf("isV3ClusterReady() message = %q", message)
+	}
 }
 
 func TestLedgerV3DiscoveryFailureDisablesCapabilityWithoutFailing(t *testing.T) {

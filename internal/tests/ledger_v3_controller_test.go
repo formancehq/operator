@@ -208,6 +208,71 @@ var _ = Describe("Ledger v3 controller", func() {
 		}).Should(BeFalse())
 	})
 
+	It("propagates logging.json to the Ledger v3 Cluster", func() {
+		configuration := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: uuid.NewString()},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{stack.Name},
+				Cluster: ledgerv1alpha1.ClusterSpec{ExtraEnv: []corev1.EnvVar{
+					{Name: "JSON_FORMATTING_LOGGER", Value: "false"},
+					{Name: "BASE_ONLY", Value: "kept"},
+				}},
+			},
+		}
+		Expect(Create(configuration)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(configuration))).To(Succeed())
+		})
+
+		cluster := newLedgerV3Cluster()
+		envValues := func(g Gomega) map[string]string {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			env, found, err := unstructured.NestedSlice(cluster.Object, "spec", "extraEnv")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			values := make(map[string]string, len(env))
+			for _, raw := range env {
+				item, ok := raw.(map[string]any)
+				g.Expect(ok).To(BeTrue())
+				name, ok := item["name"].(string)
+				g.Expect(ok).To(BeTrue())
+				value, ok := item["value"].(string)
+				g.Expect(ok).To(BeTrue())
+				values[name] = value
+			}
+			return values
+		}
+
+		// Given a LedgerConfiguration with an explicit human-readable log format
+		// and an unrelated environment variable.
+		Eventually(envValues).Should(SatisfyAll(
+			HaveKeyWithValue("JSON_FORMATTING_LOGGER", "false"),
+			HaveKeyWithValue("BASE_ONLY", "kept"),
+		))
+
+		// When logging.json is enabled for the stack.
+		jsonLogging := settings.New(uuid.NewString(), "logging.json", "true", stack.Name)
+		Expect(Create(jsonLogging)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(jsonLogging))).To(Succeed())
+		})
+
+		// Then the operator override wins without dropping unrelated base values.
+		Eventually(envValues).Should(SatisfyAll(
+			HaveKeyWithValue("JSON_FORMATTING_LOGGER", "true"),
+			HaveKeyWithValue("BASE_ONLY", "kept"),
+		))
+
+		// When the setting is removed, the Settings watch reconciles the Ledger.
+		Expect(Delete(jsonLogging)).To(Succeed())
+
+		// Then the configured value is restored and the unrelated value remains.
+		Eventually(envValues).Should(SatisfyAll(
+			HaveKeyWithValue("JSON_FORMATTING_LOGGER", "false"),
+			HaveKeyWithValue("BASE_ONLY", "kept"),
+		))
+	})
+
 	It("configures TLS before the managed certificate is ready", func() {
 		configuration := &v1beta1.LedgerConfiguration{
 			ObjectMeta: metav1.ObjectMeta{Name: "ports-" + stack.Name},

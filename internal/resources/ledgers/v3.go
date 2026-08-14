@@ -337,6 +337,20 @@ func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
 	return configured, false, nil
 }
 
+func ledgerV3ExtraEnv(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger) ([]corev1.EnvVar, error) {
+	extraEnv := core.GetDevEnvVars(stack, ledger)
+	jsonLogging, err := settings.GetBoolOrFalse(ctx, stack.Name, "logging", "json")
+	if err != nil {
+		return nil, err
+	}
+	if jsonLogging {
+		extraEnv = core.MergeEnvVars(extraEnv, []corev1.EnvVar{
+			core.Env("JSON_FORMATTING_LOGGER", "true"),
+		})
+	}
+	return extraEnv, nil
+}
+
 func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool, tlsCAHash string) (*unstructured.Unstructured, *ledgerv1alpha1.ClusterSpec, error) {
 	baseSpec, err := ledgerV3BaseSpec(ctx, stack.Name)
 	if err != nil {
@@ -385,6 +399,10 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	if err != nil {
 		return nil, nil, err
 	}
+	extraEnv, err := ledgerV3ExtraEnv(ctx, stack, ledger)
+	if err != nil {
+		return nil, nil, err
+	}
 	desiredSpec, err := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
 		ImageRepository:           imageRepository(image),
 		ImageTag:                  image.Version,
@@ -396,7 +414,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		TLSCAHash:                 tlsCAHash,
 		Preview:                   preview,
 		Resources:                 resourceRequirements,
-		ExtraEnv:                  core.GetDevEnvVars(stack, ledger),
+		ExtraEnv:                  extraEnv,
 		Monitoring:                monitoringConfiguration,
 		Auth:                      authConfiguration,
 		ServiceAccountName:        serviceAccountName,

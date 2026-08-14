@@ -2,6 +2,7 @@ package ledgers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,6 +40,53 @@ func ledgerConfiguration(name string, grpcPort int32, stacks ...string) *v1beta1
 				Service: ledgerv1alpha1.ServiceSpec{GrpcPort: grpcPort},
 			},
 		},
+	}
+}
+
+func TestIsV3(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]bool{
+		"v2.4.0":          false,
+		"v3.0.0-alpha":    false,
+		"v3.0.0-alpha.1":  true,
+		"v3.0.0":          true,
+		"v4.0.0-rc.1":     true,
+		"invalid-version": false,
+	}
+	for version, expected := range tests {
+		if actual := IsV3(version); actual != expected {
+			t.Errorf("IsV3(%q) = %t, want %t", version, actual, expected)
+		}
+	}
+}
+
+func TestV3GRPCBackendRefPropagatesConfigurationLookupError(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("configuration lookup failed")
+	tests := map[string]int{
+		"stack configuration lookup":    1,
+		"wildcard configuration lookup": 2,
+	}
+	for name, failOnCall := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			baseClient := newExportsContext(t).client
+			ctx := ledgerV3DiscoveryContext{
+				Context: context.Background(),
+				client: &failingLedgerV3Client{
+					Client:     baseClient,
+					err:        wantErr,
+					failOnCall: failOnCall,
+				},
+			}
+			_, err := V3GRPCBackendRef(ctx, "stack0")
+			if !errors.Is(err, wantErr) {
+				t.Fatalf("V3GRPCBackendRef() error = %v, want %v", err, wantErr)
+			}
+		})
 	}
 }
 

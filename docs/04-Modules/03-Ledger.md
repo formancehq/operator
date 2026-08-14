@@ -98,6 +98,11 @@ an odd replica count for its quorum: a positive even value is rounded up to the
 next odd value (`2` becomes `3`, `4` becomes `5`). If the setting is absent,
 Ledger v3 defaults to three replicas. Zero and negative values are rejected.
 
+The platform-wide [`logging.json`](../09-Configuration%20reference/01-Settings.md)
+Setting also applies to delegated Ledger v3 clusters. When enabled, the
+Operator adds `JSON_FORMATTING_LOGGER=true` to the delegated `Cluster`; removing
+the Setting removes the Operator-owned override again.
+
 ## Settings (v2.4+)
 
 ### Schema Enforcement Mode
