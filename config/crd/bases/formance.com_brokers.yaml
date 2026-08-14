@@ -112,12 +112,13 @@ spec:
                   type: object
                 type: array
               info:
-                description: Info can contain any additional like reconciliation errors
+                description: Info can contain any additional detail, such as reconciliation
+                  errors
                 type: string
               mode:
                 description: |-
                   Mode indicating the configuration of the nats streams
-                  Two modes are defined :
+                  Two modes are defined:
                   * ModeOneStreamByService: In this case, each service will have a dedicated stream created
                   * ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream
                 enum:

@@ -23,24 +23,24 @@ import (
 type StackSpec struct {
 	DevProperties `json:",inline"`
 	// +optional
-	// Version allow to specify the version of the components
+	// Version specifies the version of the components
 	// Must be a valid docker tag
 	Version string `json:"version,omitempty"`
 	// +optional
-	// VersionsFromFile allow to specify a formance.com/Versions object which contains individual versions
+	// VersionsFromFile references a formance.com/Versions object which contains individual versions
 	// for each component.
 	// Must reference a valid formance.com/Versions object
 	VersionsFromFile string `json:"versionsFromFile"`
 	// +optional
 	// +kubebuilder:default:=false
-	// EnableAudit enable audit at the stack level.
-	// Actually, it enables audit on [Gateway](#gateway)
+	// EnableAudit enables auditing at the stack level.
+	// Currently, it enables auditing on [Gateway](#gateway)
 	// deprecated
 	EnableAudit bool `json:"enableAudit,omitempty"`
 	// +optional
 	// +kubebuilder:default:=false
-	// Disabled indicate the stack is disabled.
-	// A disabled stack disable everything
+	// Disabled indicates that the stack is disabled.
+	// A disabled stack disables everything
 	// It just keeps the namespace and the [Database](#database) resources.
 	Disabled bool `json:"disabled"`
 }
@@ -68,9 +68,9 @@ type StackStatus struct {
 //
 // To do more, you need to create some [modules](#modules).
 //
-// The Stack resource allow to specify the version of the stack.
+// The Stack resource specifies the version of the stack.
 //
-// It can be specified using either the field `.spec.version` or the `.spec.versionsFromFile` field (Refer to the documentation of [Versions](#versions) resource.
+// It can be specified using either the field `.spec.version` or the `.spec.versionsFromFile` field (see the documentation for the [Versions](#versions) resource).
 //
 // The `version` field will have priority over `versionFromFile`.
 //

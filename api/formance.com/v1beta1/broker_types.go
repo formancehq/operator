@@ -24,7 +24,7 @@ type BrokerSpec struct {
 	StackDependency `json:",inline"`
 }
 
-// Mode defined how streams are created on the broker (mainly nats)
+// Mode defines how streams are created on the broker (mainly nats)
 type Mode string
 
 const (
@@ -39,7 +39,7 @@ type BrokerStatus struct {
 	//+optional
 	//+kubebuilder:validation:Enum:={OneStreamByService, OneStreamByStack}
 	// Mode indicating the configuration of the nats streams
-	// Two modes are defined :
+	// Two modes are defined:
 	// * ModeOneStreamByService: In this case, each service will have a dedicated stream created
 	// * ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream
 	Mode Mode `json:"mode"`

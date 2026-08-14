@@ -29,22 +29,22 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: "ResourceReference is a special resources used to refer to externally
+        description: "ResourceReference is a special resource used to refer to externally
           created resources.\n\nIt includes k8s service accounts and secrets.\n\nWhy?
-          Because the operator create a namespace by stack, so, a stack does not have
-          access to secrets and service\naccounts created externally.\n\nA ResourceReference
-          is created by other resource who need to use a specific secret or service
-          account.\nFor example, if you want to use a secret for your database connection
-          (see [Database](#database), you will\ncreate a setting indicating a secret
-          name. You will need to create this secret yourself, and you will put this\nsecret
-          inside the namespace you want (`default` maybe).\n\nThe Database reconciler
-          will create a ResourceReference looking like that :\n```\napiVersion: formance.com/v1beta1\nkind:
-          ResourceReference\nmetadata:\n\n\tname: jqkuffjxcezj-qlii-auth-postgres\n\townerReferences:\n\t-
-          apiVersion: formance.com/v1beta1\n\t  blockOwnerDeletion: true\n\t  controller:
-          true\n\t  kind: Database\n\t  name: jqkuffjxcezj-qlii-auth\n\t  uid: 2cc4b788-3ffb-4e3d-8a30-07ed3941c8d2\n\nspec:\n\n\tgvk:\n\t
+          Because the operator creates one namespace per stack, so a stack does not
+          have access to secrets and service\naccounts created externally.\n\nA ResourceReference
+          is created by another resource that needs a specific secret or service account.\nFor
+          example, if you want to use a secret for your database connection (see [Database](#database)),
+          you will\ncreate a setting indicating a secret name. You will need to create
+          this secret yourself, and you will put this\nsecret inside the namespace
+          you want (`default` maybe).\n\nThe Database reconciler will create a ResourceReference
+          that looks like this:\n```\napiVersion: formance.com/v1beta1\nkind: ResourceReference\nmetadata:\n\n\tname:
+          jqkuffjxcezj-qlii-auth-postgres\n\townerReferences:\n\t- apiVersion: formance.com/v1beta1\n\t
+          \ blockOwnerDeletion: true\n\t  controller: true\n\t  kind: Database\n\t
+          \ name: jqkuffjxcezj-qlii-auth\n\t  uid: 2cc4b788-3ffb-4e3d-8a30-07ed3941c8d2\n\nspec:\n\n\tgvk:\n\t
           \ group: \"\"\n\t  kind: Secret\n\t  version: v1\n\tname: postgres\n\tstack:
-          jqkuffjxcezj-qlii\n\nstatus:\n\n\t...\n\n```\nThis reconciler behind this
-          ResourceReference will search, in all namespaces, for a secret named \"postgres\".\nThe
+          jqkuffjxcezj-qlii\n\nstatus:\n\n\t...\n\n```\nThe reconciler behind this
+          ResourceReference searches all namespaces for a secret named \"postgres\".\nThe
           secret must have a label `formance.com/stack` with the value matching either
           a specific stack or `any` to target any stack.\n\nOnce the reconciler has
           found the secret, it will copy it inside the stack namespace, allowing the
@@ -153,7 +153,8 @@ spec:
               hash:
                 type: string
               info:
-                description: Info can contain any additional like reconciliation errors
+                description: Info can contain any additional detail, such as reconciliation
+                  errors
                 type: string
               ready:
                 description: Ready indicates if the resource is seen as completely

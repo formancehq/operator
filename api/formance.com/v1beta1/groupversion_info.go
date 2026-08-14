@@ -16,11 +16,11 @@ limitations under the License.
 
 // Package v1beta1 contains API Schema definitions for the formance v1beta1 API group.
 //
-// It allow to configure a Formance stack.
+// It lets you configure a Formance stack.
 //
 // A stack is composed of a [Stack](#stack) resource and some [modules](#modules).
 //
-// Each module can create multiple resources following its needs. See [Other resources](#other-resources).
+// Each module can create multiple resources as it needs. See [Other resources](#other-resources).
 //
 // Various parts of the stack can be configured either using the CRD properties or using some [Settings](#settings).
 //

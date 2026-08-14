@@ -28,26 +28,26 @@ type AuthClientSpec struct {
 	// It must be used with oauth2 `client_id` parameter
 	ID string `json:"id" yaml:"id"`
 	// +optional
-	// Public indicate whether a client is confidential or not.
-	// Confidential clients are clients which the secret can be kept secret...
-	// As opposed to public clients which cannot have a secret (application single page for example)
+	// Public indicates whether a client is confidential.
+	// Confidential clients are clients whose secret can be kept secret.
+	// As opposed to public clients which cannot have a secret (a single-page application, for example)
 	// +kubebuilder:default:=false
 	Public bool `json:"public" yaml:"public"`
 	// +optional
 	// Description represents an optional description of the client
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	// +optional
-	// RedirectUris allow to list allowed redirect uris for the client
+	// RedirectUris lists the allowed redirect URIs for the client
 	RedirectUris []string `json:"redirectUris,omitempty" yaml:"redirectUris"`
 	// +optional
-	// RedirectUris allow to list allowed post logout redirect uris for the client
+	// PostLogoutRedirectUris lists the allowed post-logout redirect URIs for the client
 	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty" yaml:"postLogoutRedirectUris"`
 	// +optional
-	// Scopes allow to five some scope to the client
+	// Scopes grants scopes to the client
 	Scopes []string `json:"scopes,omitempty" yaml:"scopes"`
 	// +optional
-	// Secret allow to configure a secret for the client.
-	// It is not required as some client could use some oauth2 flows which does not requires a client secret
+	// Secret configures a secret for the client.
+	// It is not required, since some clients use oauth2 flows that do not require a client secret
 	Secret string `json:"secret,omitempty"`
 
 	// +optional
@@ -86,7 +86,7 @@ type AuthClientStatus struct {
 //+kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.ready",description="Is ready"
 //+kubebuilder:printcolumn:name="Info",type=string,JSONPath=".status.info",description="Info"
 
-// AuthClient allow to create OAuth2/OIDC clients on the auth server (see [Auth](#auth))
+// AuthClient creates OAuth2/OIDC clients on the auth server (see [Auth](#auth))
 type AuthClient struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

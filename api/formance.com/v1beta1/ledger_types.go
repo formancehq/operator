@@ -33,7 +33,7 @@ type LedgerStatus struct {
 	Status `json:",inline"`
 }
 
-// Ledger is the module allowing to install a ledger instance.
+// Ledger is the module that installs a ledger instance.
 //
 // The ledger is a stateful application that manages financial transactions
 // and maintains an immutable audit trail.

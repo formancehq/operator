@@ -28,15 +28,15 @@ type GatewayIngressTLS struct {
 // GatewayIngress represents the ingress configuration for the gateway.
 type GatewayIngress struct {
 	// Indicates the hostname on which the stack will be served.
-	// Example : `formance.example.com`
+	// Example: `formance.example.com`
 	//+required
 	Host string `json:"host"`
 	// Additional hosts for the ingress. Combined with Host.
 	//+optional
 	Hosts []string `json:"hosts,omitempty"`
-	// Indicate the scheme.
+	// Indicates the scheme.
 	//
-	// Actually, It should be `https` unless you know what you are doing.
+	// It should be `https` unless you know what you are doing.
 	// +kubebuilder:default:="https"
 	Scheme string `json:"scheme"`
 
@@ -46,7 +46,7 @@ type GatewayIngress struct {
 
 	// Custom annotations to add on the ingress
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// Allow to customize the tls part of the ingress
+	// Customizes the tls part of the ingress
 	//+optional
 	TLS *GatewayIngressTLS `json:"tls,omitempty"`
 }
@@ -77,7 +77,7 @@ type GatewaySpec struct {
 	StackDependency  `json:",inline"`
 	ModuleProperties `json:",inline"`
 	//+optional
-	// Allow to customize the generated ingress
+	// Customizes the generated ingress
 	Ingress *GatewayIngress `json:"ingress,omitempty"`
 }
 

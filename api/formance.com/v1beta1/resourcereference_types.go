@@ -34,19 +34,19 @@ type ResourceReferenceStatus struct {
 	Hash string `json:"hash,omitempty"`
 }
 
-// ResourceReference is a special resources used to refer to externally created resources.
+// ResourceReference is a special resource used to refer to externally created resources.
 //
 // It includes k8s service accounts and secrets.
 //
-// Why? Because the operator create a namespace by stack, so, a stack does not have access to secrets and service
+// Why? Because the operator creates one namespace per stack, so a stack does not have access to secrets and service
 // accounts created externally.
 //
-// A ResourceReference is created by other resource who need to use a specific secret or service account.
-// For example, if you want to use a secret for your database connection (see [Database](#database), you will
+// A ResourceReference is created by another resource that needs a specific secret or service account.
+// For example, if you want to use a secret for your database connection (see [Database](#database)), you will
 // create a setting indicating a secret name. You will need to create this secret yourself, and you will put this
 // secret inside the namespace you want (`default` maybe).
 //
-// The Database reconciler will create a ResourceReference looking like that :
+// The Database reconciler will create a ResourceReference that looks like this:
 // ```
 // apiVersion: formance.com/v1beta1
 // kind: ResourceReference
@@ -75,7 +75,7 @@ type ResourceReferenceStatus struct {
 //	...
 //
 // ```
-// This reconciler behind this ResourceReference will search, in all namespaces, for a secret named "postgres".
+// The reconciler behind this ResourceReference searches all namespaces for a secret named "postgres".
 // The secret must have a label `formance.com/stack` with the value matching either a specific stack or `any` to target any stack.
 //
 // Once the reconciler has found the secret, it will copy it inside the stack namespace, allowing the ResourceReconciler owner to use it.
