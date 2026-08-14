@@ -5,72 +5,85 @@ on:
     branches:
       - main
       - releases/*
+      - release/*
   pull_request:
     types: [assigned, opened, synchronize, reopened, labeled]
+
 permissions:
   contents: write
   pull-requests: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
 jobs:
   PR:
     if: github.event_name == 'pull_request'
-    name: Check PR Title
-    runs-on: "namespace-profile-linux-amd64-2vcpu"
+    uses: formancehq/ci/.github/workflows/go-pr.yml@main
     permissions:
+      pull-requests: read
       statuses: write
-    steps:
-      - uses: amannn/action-semantic-pull-request@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   Dirty:
-    runs-on: "namespace-profile-linux-amd64-4vcpu"
+    runs-on: namespace-profile-linux-amd64-4vcpu
     steps:
-      - uses: "namespacelabs/nscloud-checkout-action@v9"
+      - uses: namespacelabs/nscloud-checkout-action@v9
         with:
           fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/default
+          dissociate: true
+
+      - uses: formancehq/ci/actions/setup-nix@main
         with:
-          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just pre-commit
+          nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
+
+      - run: nix develop --extra-experimental-features "nix-command" --extra-experimental-features "flakes" --impure --command just pre-commit
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+
       - name: Get changed files
-        id: changed-files
         shell: bash
-        run: "hasChanged=$(git status --porcelain) \nif (( $(echo ${#hasChanged}) != 0 )); then\n  git status\n  echo \"There are changes in the repository\"\n  exit 1\nfi\n"
+        run: |
+          hasChanged=$(git status --porcelain)
+          if (( $(echo ${#hasChanged}) != 0 )); then
+            git status
+            echo "There are changes in the repository"
+            exit 1
+          fi
+
       - name: Validate Dependabot PR
         if: github.event.pull_request.user.login == 'dependabot[bot]'
         run: gh pr review $PR_URL --approve -b "Auto approve dependencies bump PR"
         env:
-          PR_URL: ${{github.event.pull_request.html_url}}
-          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Merge Dependabot PR
         if: github.event.pull_request.user.login == 'dependabot[bot]'
         run: gh pr merge $PR_URL
         env:
-          PR_URL: ${{github.event.pull_request.html_url}}
-          GH_TOKEN: ${{secrets.NUMARY_GITHUB_TOKEN}}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.NUMARY_GITHUB_TOKEN }}
+
   Tests:
-    runs-on: "namespace-profile-linux-amd64-8vcpu"
+    runs-on: namespace-profile-linux-amd64-8vcpu
     steps:
-      - uses: "namespacelabs/nscloud-checkout-action@v9"
+      - uses: namespacelabs/nscloud-checkout-action@v9
         with:
           fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/default
+          dissociate: true
+
+      - uses: formancehq/ci/actions/setup-nix@main
         with:
-          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just tests
+          nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
+
+      - run: nix develop --extra-experimental-features "nix-command" --extra-experimental-features "flakes" --impure --command just tests
         env:
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+
   E2E:
     name: E2E (Kubernetes ${{ matrix.kubernetes.version }})
-    runs-on: "namespace-profile-linux-amd64-8vcpu"
+    runs-on: namespace-profile-linux-amd64-8vcpu
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
     strategy:
       fail-fast: false
@@ -92,19 +105,21 @@ jobs:
             kind_node_image: kindest/node:v1.35.1
             cluster_name: formance-operator-e2e-135
     steps:
-      - uses: "namespacelabs/nscloud-checkout-action@v9"
+      - uses: namespacelabs/nscloud-checkout-action@v9
         with:
           fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/default
+          dissociate: true
+
+      - uses: formancehq/ci/actions/setup-nix@main
         with:
-          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just e2e
+          nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
+
+      - run: nix develop --extra-experimental-features "nix-command" --extra-experimental-features "flakes" --impure --command just e2e
         env:
           KIND_CLUSTER_NAME: ${{ matrix.kubernetes.cluster_name }}
           KIND_NODE_IMAGE: ${{ matrix.kubernetes.kind_node_image }}
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+
       - name: Upload Chainsaw artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -112,57 +127,52 @@ jobs:
           name: chainsaw-e2e-artifacts-k8s-${{ matrix.kubernetes.version }}
           path: tests/e2e/artifacts
           if-no-files-found: ignore
+
   GoReleaser:
-    runs-on: "namespace-profile-linux-amd64-4vcpu"
-    if: contains(github.event.pull_request.labels.*.name, 'build-images') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
+    runs-on: namespace-profile-linux-amd64-4vcpu
+    if: contains(github.event.pull_request.labels.*.name, 'build-images') || contains(github.event.pull_request.labels.*.name, 'deploy-staging') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
     steps:
-      - uses: "namespacelabs/nscloud-checkout-action@v9"
+      - uses: namespacelabs/nscloud-checkout-action@v9
         with:
           fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/default
+          dissociate: true
+
+      - uses: formancehq/ci/actions/setup-nix@main
         with:
-          token: ${{ secrets.NUMARY_GITHUB_TOKEN }}
-      - run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command just release-ci
+          nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
+
+      - run: nix develop --extra-experimental-features "nix-command" --extra-experimental-features "flakes" --impure --command just release-ci
         env:
           GITHUB_TOKEN: ${{ secrets.NUMARY_GITHUB_TOKEN }}
           SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
           FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+
   Deploy:
-    runs-on: "namespace-profile-linux-amd64-2vcpu"
+    runs-on: namespace-profile-linux-amd64-2vcpu
     if: github.ref == 'refs/heads/main'
     environment: staging
+    permissions:
+      contents: read
+      id-token: write
     needs:
       - Dirty
       - E2E
       - GoReleaser
       - Tests
     steps:
-      - name: Tailscale
-        uses: formancehq/tailscale-github-action@v3+formance
+      - uses: formancehq/ci/actions/deploy-staging@main
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: ${{ vars.TS_TAGS }}
-          version: ${{ vars.TS_VERSION }}
-          args: ${{ vars.TS_ARGS }}
-          retry: ${{ vars.TS_RETRY }}
-          timeout: ${{ vars.TS_TIMEOUT }}
-      - uses: "namespacelabs/nscloud-checkout-action@v9"
-        with:
-          fetch-depth: 0
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-      - name: "Deploy in staging"
-        env:
-          TAG: ${{ github.sha }}
-          ARGOCD_REGION_AUTH_TOKEN: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
-        run: >
-          nix --extra-experimental-features "nix-command" --extra-experimental-features "flakes" develop --impure --command
-          earthly
-          --no-output
-          --secret AUTH_TOKEN=$ARGOCD_REGION_AUTH_TOKEN
-          +deploy-staging
-          --TAG=$TAG
+          application: staging-eu-west-1-hosting-operator
+          parameter: |
+            image.tag=${{ github.sha }}
+            operator.utils.tag=${{ github.sha }}
+          auth-token: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
+          ts-oauth-client-id: ${{ secrets.TS_OIDC_OAUTH_CLIENT_ID }}
+          ts-audience: ${{ secrets.TS_OIDC_AUDIENCE }}
+          ts-tags: ${{ vars.TS_TAGS }}
+          ts-version: ${{ vars.TS_VERSION }}
+          ts-args: ${{ vars.TS_ARGS }}
+          ts-retry: ${{ vars.TS_RETRY }}
+          ts-timeout: ${{ vars.TS_TIMEOUT }}
+          ts-ping: ${{ vars.TS_PING }}
