@@ -8,7 +8,7 @@
 
 Package v1beta1 contains API Schema definitions for the formance v1beta1 API group.
 
-It lets you configure a Formance stack.
+These definitions let you configure a Formance stack.
 
 A stack is composed of a [Stack](#stack) resource and some [modules](#modules).
 
@@ -178,7 +178,7 @@ spec:
 
 This example creates a setting named `postgres-uri` targeting the stack named `stack0` and the service `ledger` (see the key `postgres.ledger.uri`).
 
-Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the uri `postgresql://postgresql.formance.svc.cluster.local:5432`.
+Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the URI `postgresql://postgresql.formance.svc.cluster.local:5432`.
 
 Settings supports wildcards in keys and in the stacks list.
 
@@ -509,7 +509,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 
 
 
-Connectivity is the module that installs a connectivity instance.
+Connectivity declares the connectivity module on a stack. Creating it makes the operator deploy a connectivity instance.
 
 Connectivity ingests data from external sources (blockchains, payment
 providers, ...) through a plugin system and writes double-entry
@@ -678,7 +678,7 @@ GatewayIngress represents the ingress configuration for the gateway.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example: `formance.example.com` |  |  |
+| `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example: `stack.example.com` |  |  |
 | `hosts` _string array_ | Additional hosts for the ingress. Combined with Host. |  |  |
 | `scheme` _string_ | Indicates the scheme.<br />It should be `https` unless you know what you are doing. | https |  |
 | `ingressClassName` _string_ | Ingress class to use |  |  |
@@ -745,7 +745,7 @@ GatewayIngress represents the ingress configuration for the gateway.
 
 
 
-Ledger is the module that installs a ledger instance.
+Ledger declares the ledger module on a stack. Creating it makes the operator deploy a ledger instance.
 
 The ledger is a stateful application that manages financial transactions
 and maintains an immutable audit trail.
@@ -2236,9 +2236,9 @@ BrokerTopic is the Schema for the brokertopics API
 
 Database represents a concrete database on a PostgreSQL server. Modules that require a database create it ([Ledger](#ledger), for example).
 
-It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>:<password>@]<host>[:<port>]`.
+It uses the settings `postgres.<module-name>.uri` which must have the following URI format: `postgresql://[<username>:<password>@]<host>[:<port>]`.
 The database name is not part of the setting: the operator derives it from the stack and the service.
-Additionally, the uri can define a query param `secret` indicating a k8s secret that must be used to retrieve database credentials.
+Additionally, the URI can define a query param `secret` indicating a k8s secret that must be used to retrieve database credentials.
 Credentials in the secret are expected to be URL-encoded by default. Set `secretCredentialsEncoding=raw` to let the operator encode them.
 
 On creation, the reconciler behind the Database object will create the database on the postgresql server using a k8s job.
@@ -2250,12 +2250,12 @@ Be careful: no backup is performed!
 Database resource honors `aws.service-account` setting, so, you can create databases on an AWS server if you need.
 See [AWS accounts](#aws-account)
 
-Once a database is fully configured, it retains the postgres uri used.
-If the setting that specifies the server uri changes, the Database object will set the field `.status.outOfSync` to true
+Once a database is fully configured, it retains the postgres URI used.
+If the setting that specifies the server URI changes, the Database object will set the field `.status.outOfSync` to true
 and will not change anything.
 
 Therefore, to switch to a new server, you must change the setting value, then drop the Database object.
-It will be recreated with the correct uri.
+It will be recreated with the correct URI.
 
 
 
@@ -2337,7 +2337,7 @@ It will be recreated with the correct uri.
 | `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `uri` _string_ |  |  | Type: string <br /> |
 | `database` _string_ | The generated database name |  |  |
-| `outOfSync` _boolean_ | OutOfSync indicates that a setting changed the uri of the postgres server<br />The Database object must be removed so that it can be recreated |  |  |
+| `outOfSync` _boolean_ | OutOfSync indicates that a setting changed the URI of the postgres server<br />The Database object must be removed so that it can be recreated |  |  |
 
 
 #### GatewayGRPCAPI
@@ -2802,19 +2802,18 @@ OtelExporterEndpointStatus represents the observed state of an OtelExporterEndpo
 
 
 
-ResourceReference is a special resource used to refer to externally created resources.
+ResourceReference gives a stack access to a Kubernetes object created outside the operator — for example a secret
+holding the credentials of an existing Postgres server, or a service account granting access to AWS.
 
-It includes k8s service accounts and secrets.
-
-Why? Because the operator creates one namespace per stack, so a stack does not have access to secrets and service
-accounts created externally.
+The indirection is needed because the operator gives each stack its own namespace, and a stack cannot read secrets
+or service accounts that live in another namespace.
 
 A ResourceReference is created by another resource that needs a specific secret or service account.
 For example, if you want to use a secret for your database connection (see [Database](#database)), you will
 create a setting indicating a secret name. You will need to create this secret yourself, and you will put this
 secret inside the namespace you want (`default` maybe).
 
-The Database reconciler will create a ResourceReference that looks like this:
+The Database reconciler creates a ResourceReference with the following shape:
 ```
 apiVersion: formance.com/v1beta1
 kind: ResourceReference
@@ -2843,10 +2842,10 @@ status:
 	...
 
 ```
-The reconciler behind this ResourceReference searches all namespaces for a secret named "postgres".
+The ResourceReference reconciler then searches every namespace for a secret named `postgres`.
 The secret must have a label `formance.com/stack` with the value matching either a specific stack or `any` to target any stack.
 
-Once the reconciler has found the secret, it will copy it inside the stack namespace, allowing the ResourceReconciler owner to use it.
+Once the reconciler has found the secret, it copies it into the stack namespace, so the owner of the ResourceReference can use it.
 
 
 
