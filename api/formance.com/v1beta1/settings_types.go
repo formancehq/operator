@@ -53,7 +53,7 @@ type SettingsSpec struct {
 //
 // This example creates a setting named `postgres-uri` targeting the stack named `stack0` and the service `ledger` (see the key `postgres.ledger.uri`).
 //
-// Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the uri `postgresql://postgresql.formance.svc.cluster.local:5432`.
+// Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the URI `postgresql://postgresql.formance.svc.cluster.local:5432`.
 //
 // Settings supports wildcards in keys and in the stacks list.
 //
