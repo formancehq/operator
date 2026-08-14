@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package v1beta1 contains API Schema definitions for the formance v1beta1 API group.
 //
-// It lets you configure a Formance stack.
+// These definitions let you configure a Formance stack.
 //
 // A stack is composed of a [Stack](#stack) resource and some [modules](#modules).
 //

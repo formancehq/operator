@@ -37,7 +37,7 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          Ledger is the module that installs a ledger instance.
+          Ledger declares the ledger module on a stack. Creating it makes the operator deploy a ledger instance.
 
           The ledger is a stateful application that manages financial transactions
           and maintains an immutable audit trail.
