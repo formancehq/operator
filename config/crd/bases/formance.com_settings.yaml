@@ -59,12 +59,12 @@ spec:
           could look like this:\n```yaml\napiVersion: v1\nkind: ServiceAccount\nmetadata:\n\n\tannotations:\n\t
           \ eks.amazonaws.com/role-arn: arn:aws:iam::************:role/staging-eu-west-1-hosting-stack-access\n\tlabels:\n\t
           \ formance.com/stack: any\n\tname: aws-access\n\n```\nYou can note two things:\n
-          1. We have an annotation indicating the role arn used to connect to AWS.
+          1. We have an annotation indicating the role ARN used to connect to AWS.
           Refer to the AWS documentation to create this role\n 2. We have a label
           `formance.com/stack=any` indicating we are targeting all stacks.\n    Refer
           to the documentation of [ResourceReference](#resourcereference) for further
           information.\n\n###### JSON logging\n\nYou can use the setting `logging.json`
-          with the value `true` to configure eligible services to log as json.\nExample:\n```yaml\napiVersion:
+          with the value `true` to configure eligible services to log as JSON.\nExample:\n```yaml\napiVersion:
           formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\tname: json-logging\n\nspec:\n\n\tkey:
           logging.json\n\tstacks:\n\t- '*'\n\tvalue: \"true\"\n\n```\n\n###### Authentication
           scopes\n\nYou can enable scope verification for modules using the setting
@@ -109,7 +109,8 @@ spec:
                   type: string
                 type: array
               value:
-                description: The value. Its required format depends on the Key.
+                description: Value is the setting value. Its required format depends
+                  on the Key.
                 type: string
             required:
             - key

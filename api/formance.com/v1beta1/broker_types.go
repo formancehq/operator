@@ -24,7 +24,7 @@ type BrokerSpec struct {
 	StackDependency `json:",inline"`
 }
 
-// Mode defines how streams are created on the broker (mainly nats)
+// Mode defines how streams are created on the broker (mainly NATS)
 type Mode string
 
 const (
@@ -38,10 +38,10 @@ type BrokerStatus struct {
 	URI *URI `json:"uri,omitempty"`
 	//+optional
 	//+kubebuilder:validation:Enum:={OneStreamByService, OneStreamByStack}
-	// Mode indicating the configuration of the nats streams
+	// Mode indicating the configuration of the NATS streams
 	// Two modes are defined:
-	// * ModeOneStreamByService: In this case, each service will have a dedicated stream created
-	// * ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream
+	// - ModeOneStreamByService: In this case, each service will have a dedicated stream created
+	// - ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream
 	Mode Mode `json:"mode"`
 	// Streams list streams created when Mode == ModeOneStreamByService
 	//+optional

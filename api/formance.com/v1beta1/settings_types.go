@@ -26,7 +26,7 @@ type SettingsSpec struct {
 	Stacks []string `json:"stacks,omitempty"`
 	// The setting Key. See the documentation of each module or [global settings](#global-settings) to discover them.
 	Key string `json:"key"`
-	// The value. Its required format depends on the Key.
+	// Value is the setting value. Its required format depends on the Key.
 	Value string `json:"value"`
 }
 
@@ -136,13 +136,13 @@ type SettingsSpec struct {
 //
 // ```
 // You can note two things:
-//  1. We have an annotation indicating the role arn used to connect to AWS. Refer to the AWS documentation to create this role
+//  1. We have an annotation indicating the role ARN used to connect to AWS. Refer to the AWS documentation to create this role
 //  2. We have a label `formance.com/stack=any` indicating we are targeting all stacks.
 //     Refer to the documentation of [ResourceReference](#resourcereference) for further information.
 //
 // ###### JSON logging
 //
-// You can use the setting `logging.json` with the value `true` to configure eligible services to log as json.
+// You can use the setting `logging.json` with the value `true` to configure eligible services to log as JSON.
 // Example:
 // ```yaml
 // apiVersion: formance.com/v1beta1

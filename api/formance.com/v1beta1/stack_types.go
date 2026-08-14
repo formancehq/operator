@@ -24,7 +24,7 @@ type StackSpec struct {
 	DevProperties `json:",inline"`
 	// +optional
 	// Version specifies the version of the components
-	// Must be a valid docker tag
+	// Must be a valid Docker tag
 	Version string `json:"version,omitempty"`
 	// +optional
 	// VersionsFromFile references a formance.com/Versions object which contains individual versions
@@ -40,8 +40,8 @@ type StackSpec struct {
 	// +optional
 	// +kubebuilder:default:=false
 	// Disabled indicates that the stack is disabled.
-	// A disabled stack disables everything
-	// It just keeps the namespace and the [Database](#database) resources.
+	// A disabled stack disables its modules.
+	// It keeps the namespace and the [Database](#database) resources.
 	Disabled bool `json:"disabled"`
 }
 

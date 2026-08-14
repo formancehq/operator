@@ -84,7 +84,7 @@ spec:
                   type: string
                 type: array
               scopes:
-                description: Scopes grants scopes to the client
+                description: Scopes lists the scopes granted to the client
                 items:
                   type: string
                 type: array

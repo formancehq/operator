@@ -63,7 +63,7 @@ type AuthStatus struct {
 
 // Auth represents the authentication module of a stack.
 //
-// It is an OIDC compliant server.
+// It is an OIDC-compliant server.
 //
 // Creating it for a stack automatically adds authentication to all supported modules.
 //

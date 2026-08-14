@@ -20,7 +20,7 @@ limitations under the License.
 //
 // A stack is composed of a [Stack](#stack) resource and some [modules](#modules).
 //
-// Each module can create multiple resources as it needs. See [Other resources](#other-resources).
+// Each module can create multiple resources as needed. See [Other resources](#other-resources).
 //
 // Various parts of the stack can be configured either using the CRD properties or using some [Settings](#settings).
 //

@@ -12,7 +12,7 @@ It lets you configure a Formance stack.
 
 A stack is composed of a [Stack](#stack) resource and some [modules](#modules).
 
-Each module can create multiple resources as it needs. See [Other resources](#other-resources).
+Each module can create multiple resources as needed. See [Other resources](#other-resources).
 
 Various parts of the stack can be configured either using the CRD properties or using some [Settings](#settings).
 
@@ -115,10 +115,10 @@ If `versions` and `versionsFromFile` are not specified, modules will fail to rec
 | --- | --- | --- | --- |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
-| `version` _string_ | Version specifies the version of the components<br />Must be a valid docker tag |  |  |
+| `version` _string_ | Version specifies the version of the components<br />Must be a valid Docker tag |  |  |
 | `versionsFromFile` _string_ | VersionsFromFile references a formance.com/Versions object which contains individual versions<br />for each component.<br />Must reference a valid formance.com/Versions object |  |  |
 | `enableAudit` _boolean_ | EnableAudit enables auditing at the stack level.<br />Currently, it enables auditing on [Gateway](#gateway)<br />deprecated | false |  |
-| `disabled` _boolean_ | Disabled indicates that the stack is disabled.<br />A disabled stack disables everything<br />It just keeps the namespace and the [Database](#database) resources. | false |  |
+| `disabled` _boolean_ | Disabled indicates that the stack is disabled.<br />A disabled stack disables its modules.<br />It keeps the namespace and the [Database](#database) resources. | false |  |
 
 
 
@@ -261,13 +261,13 @@ metadata:
 
 ```
 You can note two things:
- 1. We have an annotation indicating the role arn used to connect to AWS. Refer to the AWS documentation to create this role
+ 1. We have an annotation indicating the role ARN used to connect to AWS. Refer to the AWS documentation to create this role
  2. We have a label `formance.com/stack=any` indicating we are targeting all stacks.
     Refer to the documentation of [ResourceReference](#resourcereference) for further information.
 
 ###### JSON logging
 
-You can use the setting `logging.json` with the value `true` to configure eligible services to log as json.
+You can use the setting `logging.json` with the value `true` to configure eligible services to log as JSON.
 Example:
 ```yaml
 apiVersion: formance.com/v1beta1
@@ -373,7 +373,7 @@ Note: The `auth.checkScopes` field in module specifications takes priority over 
 | --- | --- | --- | --- |
 | `stacks` _string array_ | Stacks on which the setting is applied. Can contain `*` to indicate a wildcard. |  |  |
 | `key` _string_ | The setting Key. See the documentation of each module or [global settings](#global-settings) to discover them. |  |  |
-| `value` _string_ | The value. Its required format depends on the Key. |  |  |
+| `value` _string_ | Value is the setting value. Its required format depends on the Key. |  |  |
 
 
 
@@ -386,7 +386,7 @@ Note: The `auth.checkScopes` field in module specifications takes priority over 
 
 Auth represents the authentication module of a stack.
 
-It is an OIDC compliant server.
+It is an OIDC-compliant server.
 
 Creating it for a stack automatically adds authentication to all supported modules.
 
@@ -683,7 +683,7 @@ GatewayIngress represents the ingress configuration for the gateway.
 | `scheme` _string_ | Indicates the scheme.<br />It should be `https` unless you know what you are doing. | https |  |
 | `ingressClassName` _string_ | Ingress class to use |  |  |
 | `annotations` _object (keys:string, values:string)_ | Custom annotations to add on the ingress |  |  |
-| `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Customizes the tls part of the ingress |  |  |
+| `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Customizes the TLS part of the ingress |  |  |
 
 ###### GatewayIngressTLS
 
@@ -1735,7 +1735,7 @@ AuthClient creates OAuth2/OIDC clients on the auth server (see [Auth](#auth))
 | `description` _string_ | Description represents an optional description of the client |  |  |
 | `redirectUris` _string array_ | RedirectUris lists the allowed redirect URIs for the client |  |  |
 | `postLogoutRedirectUris` _string array_ | PostLogoutRedirectUris lists the allowed post-logout redirect URIs for the client |  |  |
-| `scopes` _string array_ | Scopes grants scopes to the client |  |  |
+| `scopes` _string array_ | Scopes lists the scopes granted to the client |  |  |
 | `secret` _string_ | Secret configures a secret for the client.<br />It is not required, since some clients use oauth2 flows that do not require a client secret |  |  |
 | `secretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ |  |  |  |
 
@@ -2033,14 +2033,14 @@ Broker is the Schema for the brokers API
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `uri` _string_ |  |  | Type: string <br /> |
-| `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined:<br />* ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />* ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
+| `mode` _[Mode](#mode)_ | Mode indicating the configuration of the NATS streams<br />Two modes are defined:<br />- ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />- ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
 | `streams` _string array_ | Streams list streams created when Mode == ModeOneStreamByService |  |  |
 
 ###### Mode
 
 _Underlying type:_ _string_
 
-Mode defines how streams are created on the broker (mainly nats)
+Mode defines how streams are created on the broker (mainly NATS)
 
 
 
@@ -2234,9 +2234,10 @@ BrokerTopic is the Schema for the brokertopics API
 
 
 
-Database represents a concrete database on a PostgreSQL server, it is created by modules requiring a database ([Ledger](#ledger) for example).
+Database represents a concrete database on a PostgreSQL server. Modules that require a database create it ([Ledger](#ledger), for example).
 
-It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
+It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>:<password>@]<host>[:<port>]`.
+The database name is not part of the setting: the operator derives it from the stack and the service.
 Additionally, the uri can define a query param `secret` indicating a k8s secret that must be used to retrieve database credentials.
 Credentials in the secret are expected to be URL-encoded by default. Set `secretCredentialsEncoding=raw` to let the operator encode them.
 
@@ -2303,7 +2304,7 @@ It will be recreated with the correct uri.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `service` _string_ | Service is a discriminator for the created database.<br />In practice, it is the module name (ledger, payments...).<br />Therefore, the created database will be named `<stack-name><service>` |  |  |
+| `service` _string_ | Service is a discriminator for the created database.<br />In practice, it is the module name (ledger, payments...).<br />Therefore, the created database will be named `<stack-name>-<service>` |  |  |
 | `debug` _boolean_ |  | false |  |
 
 

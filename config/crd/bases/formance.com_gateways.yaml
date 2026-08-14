@@ -100,7 +100,7 @@ spec:
                       It should be `https` unless you know what you are doing.
                     type: string
                   tls:
-                    description: Customizes the tls part of the ingress
+                    description: Customizes the TLS part of the ingress
                     properties:
                       secretName:
                         description: Specify the secret name used for the tls configuration

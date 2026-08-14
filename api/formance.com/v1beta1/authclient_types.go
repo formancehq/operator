@@ -43,7 +43,7 @@ type AuthClientSpec struct {
 	// PostLogoutRedirectUris lists the allowed post-logout redirect URIs for the client
 	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty" yaml:"postLogoutRedirectUris"`
 	// +optional
-	// Scopes grants scopes to the client
+	// Scopes lists the scopes granted to the client
 	Scopes []string `json:"scopes,omitempty" yaml:"scopes"`
 	// +optional
 	// Secret configures a secret for the client.

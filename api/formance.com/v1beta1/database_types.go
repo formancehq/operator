@@ -24,7 +24,7 @@ type DatabaseSpec struct {
 	StackDependency `json:",inline"`
 	// Service is a discriminator for the created database.
 	// In practice, it is the module name (ledger, payments...).
-	// Therefore, the created database will be named `<stack-name><service>`
+	// Therefore, the created database will be named `<stack-name>-<service>`
 	Service string `json:"service"`
 	// +kubebuilder:default:=false
 	Debug bool `json:"debug,omitempty"`
@@ -43,9 +43,10 @@ type DatabaseStatus struct {
 	OutOfSync bool `json:"outOfSync,omitempty"`
 }
 
-// Database represents a concrete database on a PostgreSQL server, it is created by modules requiring a database ([Ledger](#ledger) for example).
+// Database represents a concrete database on a PostgreSQL server. Modules that require a database create it ([Ledger](#ledger), for example).
 //
-// It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
+// It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>:<password>@]<host>[:<port>]`.
+// The database name is not part of the setting: the operator derives it from the stack and the service.
 // Additionally, the uri can define a query param `secret` indicating a k8s secret that must be used to retrieve database credentials.
 // Credentials in the secret are expected to be URL-encoded by default. Set `secretCredentialsEncoding=raw` to let the operator encode them.
 //

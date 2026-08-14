@@ -46,7 +46,7 @@ type GatewayIngress struct {
 
 	// Custom annotations to add on the ingress
 	Annotations map[string]string `json:"annotations,omitempty"`
-	// Customizes the tls part of the ingress
+	// Customizes the TLS part of the ingress
 	//+optional
 	TLS *GatewayIngressTLS `json:"tls,omitempty"`
 }

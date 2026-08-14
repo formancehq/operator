@@ -97,8 +97,8 @@ spec:
                 default: false
                 description: |-
                   Disabled indicates that the stack is disabled.
-                  A disabled stack disables everything
-                  It just keeps the namespace and the [Database](#database) resources.
+                  A disabled stack disables its modules.
+                  It keeps the namespace and the [Database](#database) resources.
                 type: boolean
               enableAudit:
                 default: false
@@ -110,7 +110,7 @@ spec:
               version:
                 description: |-
                   Version specifies the version of the components
-                  Must be a valid docker tag
+                  Must be a valid Docker tag
                 type: string
               versionsFromFile:
                 description: |-
