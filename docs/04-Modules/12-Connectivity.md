@@ -38,3 +38,21 @@ spec:
   stacks:
     - "*"
 ```
+
+## JSON logging
+
+Connectivity honours the platform-wide [`logging.json`](../09-Configuration%20reference/01-Settings.md) Setting. When it is `true`, the Operator sets `spec.monitoring.logs.format` to `json` on the delegated resource, and the connectivity operator switches the core, `connectivity-api` and connector workloads to JSON-encoded logs. Otherwise they keep the human-readable format.
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: json-logging
+spec:
+  key: logging.json
+  value: "true"
+  stacks:
+    - "*"
+```
+
+The Setting is independent of telemetry export: it applies whether or not an OpenTelemetry collector is configured on the stack.

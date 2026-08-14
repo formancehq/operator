@@ -542,7 +542,8 @@
       "key": "logging.json",
       "valueType": "bool",
       "sources": [
-        "internal/resources/applications/application.go:392"
+        "internal/resources/applications/application.go:392",
+        "internal/resources/connectivities/init.go:230"
       ]
     },
     {

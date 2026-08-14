@@ -401,8 +401,77 @@ func (noMatchDeleteClient) Delete(context.Context, client.Object, ...client.Dele
 }
 
 func TestConnectivityMonitoringSpecNilWhenDisabled(t *testing.T) {
-	if got := connectivityMonitoringSpec(nil); got != nil {
-		t.Fatalf("connectivityMonitoringSpec(nil) = %v, want nil (telemetry disabled)", got)
+	if got := connectivityMonitoringSpec(nil, false); got != nil {
+		t.Fatalf("connectivityMonitoringSpec(nil, false) = %v, want nil (telemetry and json logging disabled)", got)
+	}
+}
+
+func TestConnectivityMonitoringSpecCarriesJSONLogFormatWithoutTelemetry(t *testing.T) {
+	// logging.json is independent of telemetry: with no OTEL configuration the
+	// block must still exist to carry logs.format, and must enable no exporter.
+	got := connectivityMonitoringSpec(nil, true)
+	if got == nil {
+		t.Fatal("connectivityMonitoringSpec(nil, true) = nil, want a block carrying the json log format")
+	}
+	logs, _ := got["logs"].(map[string]any)
+	if logs["format"] != "json" {
+		t.Errorf("logs.format = %v, want json", logs["format"])
+	}
+	if _, found := logs["enabled"]; found {
+		t.Error("logs.enabled must not be set when only the log encoding is configured")
+	}
+	for _, signal := range []string{"traces", "metrics"} {
+		if _, found := got[signal]; found {
+			t.Errorf("%s must be absent when telemetry is disabled", signal)
+		}
+	}
+}
+
+func TestConnectivityMonitoringSpecKeepsLogExporterWhenJSONLogging(t *testing.T) {
+	// logs.format rides alongside the OTLP log signal rather than replacing it.
+	got := connectivityMonitoringSpec(&settings.OpenTelemetryConfiguration{
+		Logs: &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Mode: "http"},
+	}, true)
+	logs, _ := got["logs"].(map[string]any)
+	if logs["format"] != "json" {
+		t.Errorf("logs.format = %v, want json", logs["format"])
+	}
+	if logs["enabled"] != true {
+		t.Errorf("logs.enabled = %v, want the OTLP log exporter to remain enabled", logs["enabled"])
+	}
+	if logs["endpoint"] != "otel-collector.stack0" {
+		t.Errorf("logs.endpoint = %v, want otel-collector.stack0", logs["endpoint"])
+	}
+}
+
+func TestConnectivityMonitoringSpecOmitsLogFormatWhenTextLogging(t *testing.T) {
+	// The CRD defaults the format to "text", so the operator leaves it unset
+	// rather than writing the default explicitly.
+	got := connectivityMonitoringSpec(&settings.OpenTelemetryConfiguration{
+		Logs: &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Mode: "http"},
+	}, false)
+	logs, _ := got["logs"].(map[string]any)
+	if _, found := logs["format"]; found {
+		t.Errorf("logs.format must be omitted when logging.json is false, got %v", logs["format"])
+	}
+}
+
+func TestApplyConnectivityMonitoringPrunesJSONLogFormatWhenDisabled(t *testing.T) {
+	object := &unstructured.Unstructured{Object: map[string]any{}}
+	if err := applyConnectivityMonitoring(object, nil, true); err != nil {
+		t.Fatalf("applyConnectivityMonitoring(json): %v", err)
+	}
+	if format, _, _ := unstructured.NestedString(object.Object, "spec", "monitoring", "logs", "format"); format != "json" {
+		t.Fatalf("spec.monitoring.logs.format = %q, want json", format)
+	}
+
+	// Turning the Setting back off must drop the whole block, not leave a stale
+	// json encoding behind.
+	if err := applyConnectivityMonitoring(object, nil, false); err != nil {
+		t.Fatalf("applyConnectivityMonitoring(text): %v", err)
+	}
+	if _, found, _ := unstructured.NestedMap(object.Object, "spec", "monitoring"); found {
+		t.Error("spec.monitoring must be pruned once telemetry and json logging are both disabled")
 	}
 }
 
@@ -417,7 +486,7 @@ func TestApplyConnectivityMonitoringEmbedsSignalsInline(t *testing.T) {
 	}
 
 	object := &unstructured.Unstructured{Object: map[string]any{}}
-	if err := applyConnectivityMonitoring(object, cfg); err != nil {
+	if err := applyConnectivityMonitoring(object, cfg, false); err != nil {
 		t.Fatalf("applyConnectivityMonitoring: %v", err)
 	}
 
@@ -471,7 +540,7 @@ func TestConnectivityMonitoringSpecDropsUnresolvableAttributes(t *testing.T) {
 			"pod-name": "$(POD_NAME)",
 			"team":     "connectivity",
 		},
-	})
+	}, false)
 	if attrs := got["attributes"]; attrs != "stack=stack0,team=connectivity" {
 		t.Errorf("attributes = %q, want the placeholder stripped and literals kept, sorted", attrs)
 	}
@@ -480,7 +549,7 @@ func TestConnectivityMonitoringSpecDropsUnresolvableAttributes(t *testing.T) {
 	// must be omitted entirely rather than set to an empty string.
 	onlyPlaceholder := connectivityMonitoringSpec(&settings.OpenTelemetryConfiguration{
 		Attributes: map[string]string{"pod-name": "$(POD_NAME)"},
-	})
+	}, false)
 	if _, found := onlyPlaceholder["attributes"]; found {
 		t.Errorf("attributes must be omitted when every attribute is unresolvable, got %v", onlyPlaceholder["attributes"])
 	}
@@ -492,7 +561,7 @@ func TestApplyConnectivityMonitoringOmitsUnconfiguredSignals(t *testing.T) {
 		Metrics: &settings.OpenTelemetrySignalConfiguration{Endpoint: "otel-collector.stack0", Port: "4318", Mode: "http"},
 	}
 	object := &unstructured.Unstructured{Object: map[string]any{}}
-	if err := applyConnectivityMonitoring(object, cfg); err != nil {
+	if err := applyConnectivityMonitoring(object, cfg, false); err != nil {
 		t.Fatalf("applyConnectivityMonitoring: %v", err)
 	}
 	if _, found, _ := unstructured.NestedMap(object.Object, "spec", "monitoring", "traces"); found {
@@ -514,14 +583,14 @@ func TestApplyConnectivityMonitoringIsIdempotent(t *testing.T) {
 	}
 
 	first := &unstructured.Unstructured{Object: map[string]any{}}
-	if err := applyConnectivityMonitoring(first, cfg); err != nil {
+	if err := applyConnectivityMonitoring(first, cfg, false); err != nil {
 		t.Fatalf("first apply: %v", err)
 	}
 
 	// Re-applying the same configuration onto the already-populated object must
 	// yield a byte-for-byte identical spec (idempotent reconcile).
 	second := first.DeepCopy()
-	if err := applyConnectivityMonitoring(second, cfg); err != nil {
+	if err := applyConnectivityMonitoring(second, cfg, false); err != nil {
 		t.Fatalf("second apply: %v", err)
 	}
 	if !reflect.DeepEqual(first.Object, second.Object) {
@@ -536,7 +605,7 @@ func TestApplyConnectivityMonitoringPrunesStaleBlockWhenDisabled(t *testing.T) {
 		t.Fatalf("seed stale monitoring: %v", err)
 	}
 
-	if err := applyConnectivityMonitoring(object, nil); err != nil {
+	if err := applyConnectivityMonitoring(object, nil, false); err != nil {
 		t.Fatalf("applyConnectivityMonitoring(nil): %v", err)
 	}
 	if _, found, _ := unstructured.NestedMap(object.Object, "spec", "monitoring"); found {
@@ -1421,6 +1490,57 @@ func TestConnectivityReconcileClearsAPIAuthWhenStackHasNoAuth(t *testing.T) {
 	}
 	if _, found, _ := unstructured.NestedMap(updated.Object, "spec", "api", "auth"); found {
 		t.Fatal("spec.api.auth still present, want it cleared when the stack has no Auth module")
+	}
+}
+
+func TestConnectivityReconcileHonorsJSONLoggingSetting(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+	jsonLogging := settings.New("json-logging", "logging.json", "true", "stack0")
+
+	ctx := newReconcileTestContext(t, ledger, credentials, jsonLogging)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the delegated resource has no Ready status", err)
+	}
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, delegated); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	if format, _, _ := unstructured.NestedString(delegated.Object, "spec", "monitoring", "logs", "format"); format != "json" {
+		t.Fatalf("spec.monitoring.logs.format = %q, want json from the logging.json Setting", format)
+	}
+}
+
+func TestConnectivityReconcileLeavesLogFormatUnsetWithoutJSONLoggingSetting(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+
+	ctx := newReconcileTestContext(t, ledger, credentials)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the delegated resource has no Ready status", err)
+	}
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, delegated); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	if format, found, _ := unstructured.NestedString(delegated.Object, "spec", "monitoring", "logs", "format"); found {
+		t.Fatalf("spec.monitoring.logs.format = %q, want it unset so the CRD default (text) applies", format)
 	}
 }
 

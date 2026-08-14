@@ -223,6 +223,16 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return err
 	}
 
+	// Console log encoding, from the platform-wide logging.json Setting the
+	// other modules honour. The connectivity CRD exposes it as
+	// spec.monitoring.logs.format, which the connectivity operator turns into
+	// JSON_FORMATTING_LOGGER on the core, api and connector workloads.
+	jsonLogging, err := settings.GetBoolOrFalse(ctx, stack.Name, "logging", "json")
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LoggingResolveFailed", err.Error())
+		return err
+	}
+
 	// OIDC protection for the connectivity-api, following the same convention
 	// as the other stack modules (ledger, payments): nil when the stack has no
 	// Auth module, otherwise the stack auth issuer plus the scope-checking
@@ -296,7 +306,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		} else {
 			unstructured.RemoveNestedField(object.Object, "spec", "api", "auth")
 		}
-		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
+		if err := applyConnectivityMonitoring(object, monitoringConfiguration, jsonLogging); err != nil {
 			return err
 		}
 		// Ledger auth: connectivity-core signs its gRPC tokens with the Ed25519
@@ -460,9 +470,10 @@ func pullSecretsToUnstructured(secrets []corev1.LocalObjectReference) []any {
 }
 
 // applyConnectivityMonitoring sets spec.monitoring from the resolved OTEL
-// configuration, or prunes it when telemetry is disabled (idempotent).
-func applyConnectivityMonitoring(object *unstructured.Unstructured, configuration *settings.OpenTelemetryConfiguration) error {
-	monitoring := connectivityMonitoringSpec(configuration)
+// configuration and the console log encoding, or prunes it when both are
+// disabled (idempotent).
+func applyConnectivityMonitoring(object *unstructured.Unstructured, configuration *settings.OpenTelemetryConfiguration, jsonLogging bool) error {
+	monitoring := connectivityMonitoringSpec(configuration, jsonLogging)
 	if monitoring == nil {
 		unstructured.RemoveNestedField(object.Object, "spec", "monitoring")
 		return nil
@@ -471,59 +482,78 @@ func applyConnectivityMonitoring(object *unstructured.Unstructured, configuratio
 }
 
 // connectivityMonitoringSpec maps the OTEL configuration to the connectivity
-// MonitoringConfig JSON shape, mirroring the Ledger v3 mapping.
-func connectivityMonitoringSpec(configuration *settings.OpenTelemetryConfiguration) map[string]any {
-	if configuration == nil {
+// MonitoringConfig JSON shape, mirroring the Ledger v3 mapping, and carries the
+// console log encoding in logs.format.
+func connectivityMonitoringSpec(configuration *settings.OpenTelemetryConfiguration, jsonLogging bool) map[string]any {
+	if configuration == nil && !jsonLogging {
 		return nil
 	}
 
+	// logs.format is independent of telemetry, so with only json logging enabled
+	// the block exists to carry it alone: no signal is set, and the connectivity
+	// operator emits the log encoding without turning on any exporter.
 	monitoring := map[string]any{
 		"serviceName": "connectivity",
 	}
-	if len(configuration.Attributes) > 0 {
-		attributes := make([]string, 0, len(configuration.Attributes))
-		for key, value := range configuration.Attributes {
-			// GetOpenTelemetryConfiguration injects pod-name=$(POD_NAME), which
-			// only resolves when a downward-API POD_NAME env var is defined ahead
-			// of OTEL_RESOURCE_ATTRIBUTES on the workload. Unlike this operator's
-			// own env-var path (settings.otelEnvVars/collectorEnvVars), the
-			// connectivity operator emits OTEL_RESOURCE_ATTRIBUTES verbatim from
-			// spec.monitoring.attributes and defines no such env var, so any
-			// $(...) placeholder would surface literally in the telemetry. Forward
-			// only attributes with resolvable (literal) values.
-			if strings.Contains(value, "$(") {
-				continue
+
+	if configuration != nil {
+		if len(configuration.Attributes) > 0 {
+			attributes := make([]string, 0, len(configuration.Attributes))
+			for key, value := range configuration.Attributes {
+				// GetOpenTelemetryConfiguration injects pod-name=$(POD_NAME), which
+				// only resolves when a downward-API POD_NAME env var is defined ahead
+				// of OTEL_RESOURCE_ATTRIBUTES on the workload. Unlike this operator's
+				// own env-var path (settings.otelEnvVars/collectorEnvVars), the
+				// connectivity operator emits OTEL_RESOURCE_ATTRIBUTES verbatim from
+				// spec.monitoring.attributes and defines no such env var, so any
+				// $(...) placeholder would surface literally in the telemetry. Forward
+				// only attributes with resolvable (literal) values.
+				if strings.Contains(value, "$(") {
+					continue
+				}
+				attributes = append(attributes, key+"="+value)
 			}
-			attributes = append(attributes, key+"="+value)
+			if len(attributes) > 0 {
+				slices.Sort(attributes)
+				monitoring["attributes"] = strings.Join(attributes, ",")
+			}
 		}
-		if len(attributes) > 0 {
-			slices.Sort(attributes)
-			monitoring["attributes"] = strings.Join(attributes, ",")
+
+		signal := func(cfg *settings.OpenTelemetrySignalConfiguration, extra map[string]any) map[string]any {
+			out := map[string]any{
+				"enabled":  true,
+				"exporter": "otlp",
+				"endpoint": cfg.Endpoint,
+				"port":     cfg.Port,
+				"insecure": strconv.FormatBool(cfg.Insecure),
+				"mode":     cfg.Mode,
+			}
+			maps.Copy(out, extra)
+			return out
+		}
+
+		if configuration.Traces != nil {
+			monitoring["traces"] = signal(configuration.Traces, map[string]any{"batch": "true"})
+		}
+		if configuration.Metrics != nil {
+			monitoring["metrics"] = signal(configuration.Metrics, map[string]any{"runtime": true})
+		}
+		if configuration.Logs != nil {
+			monitoring["logs"] = signal(configuration.Logs, nil)
 		}
 	}
 
-	signal := func(cfg *settings.OpenTelemetrySignalConfiguration, extra map[string]any) map[string]any {
-		out := map[string]any{
-			"enabled":  true,
-			"exporter": "otlp",
-			"endpoint": cfg.Endpoint,
-			"port":     cfg.Port,
-			"insecure": strconv.FormatBool(cfg.Insecure),
-			"mode":     cfg.Mode,
+	// Only the "json" encoding is forwarded: the CRD defaults the field to the
+	// human-readable "text", so leaving it unset keeps the platform default.
+	if jsonLogging {
+		logs, _ := monitoring["logs"].(map[string]any)
+		if logs == nil {
+			logs = map[string]any{}
+			monitoring["logs"] = logs
 		}
-		maps.Copy(out, extra)
-		return out
+		logs["format"] = "json"
 	}
 
-	if configuration.Traces != nil {
-		monitoring["traces"] = signal(configuration.Traces, map[string]any{"batch": "true"})
-	}
-	if configuration.Metrics != nil {
-		monitoring["metrics"] = signal(configuration.Metrics, map[string]any{"runtime": true})
-	}
-	if configuration.Logs != nil {
-		monitoring["logs"] = signal(configuration.Logs, nil)
-	}
 	return monitoring
 }
 
