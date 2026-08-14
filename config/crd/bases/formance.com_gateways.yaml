@@ -82,7 +82,7 @@ spec:
                   host:
                     description: |-
                       Indicates the hostname on which the stack will be served.
-                      Example: `formance.example.com`
+                      Example: `stack.example.com`
                     type: string
                   hosts:
                     description: Additional hosts for the ingress. Combined with Host.

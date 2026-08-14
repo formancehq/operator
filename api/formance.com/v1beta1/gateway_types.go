@@ -28,7 +28,7 @@ type GatewayIngressTLS struct {
 // GatewayIngress represents the ingress configuration for the gateway.
 type GatewayIngress struct {
 	// Indicates the hostname on which the stack will be served.
-	// Example: `formance.example.com`
+	// Example: `stack.example.com`
 	//+required
 	Host string `json:"host"`
 	// Additional hosts for the ingress. Combined with Host.
