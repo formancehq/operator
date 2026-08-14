@@ -150,7 +150,7 @@ jobs:
 
   Deploy:
     runs-on: namespace-profile-linux-amd64-2vcpu
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'deploy-staging')
     environment: staging
     permissions:
       contents: read
