@@ -34,10 +34,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -219,6 +223,17 @@ func (c credsTestContext) GetScheme() *runtime.Scheme  { return c.scheme }
 func (c credsTestContext) GetAPIReader() client.Reader { return c.client }
 func (c credsTestContext) GetPlatform() core.Platform  { return core.Platform{} }
 
+type connectivityWatchTestManager struct {
+	ctrl.Manager
+	client client.Client
+	scheme *runtime.Scheme
+}
+
+func (m connectivityWatchTestManager) GetClient() client.Client    { return m.client }
+func (m connectivityWatchTestManager) GetAPIReader() client.Reader { return m.client }
+func (m connectivityWatchTestManager) GetScheme() *runtime.Scheme  { return m.scheme }
+func (m connectivityWatchTestManager) GetPlatform() core.Platform  { return core.Platform{} }
+
 func newCredsTestContext(t *testing.T, objs ...client.Object) credsTestContext {
 	t.Helper()
 	s := runtime.NewScheme()
@@ -364,6 +379,59 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 	got.SetGroupVersionKind(ledgerCredentialsGVK)
 	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: existing.GetName()}, got); err != nil {
 		t.Fatalf("Stack disable must keep ledger Credentials for re-enable: %v", err)
+	}
+}
+
+func TestAuthCreateEventEnqueuesMatchingConnectivity(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := v1beta1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add v1beta1 to scheme: %v", err)
+	}
+
+	connectivity := newConnectivity("stack0-connectivity", "stack0")
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithIndex(&v1beta1.Connectivity{}, "stack", unstructuredStackIndex).
+		WithObjects(connectivity).
+		Build()
+	manager := connectivityWatchTestManager{client: fakeClient, scheme: scheme}
+
+	options := core.ReconcilerOptions[*v1beta1.Connectivity]{
+		Owns:     map[client.Object][]builder.OwnsOption{},
+		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
+	}
+	for _, option := range connectivityReconcilerOptions() {
+		option(&options)
+	}
+
+	var authWatch core.ReconcilerOptionsWatch
+	found := false
+	for watched, watch := range options.Watchers {
+		if _, ok := watched.(*v1beta1.Auth); ok {
+			authWatch = watch
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("Connectivity controller has no Auth event watch")
+	}
+
+	handler, _ := authWatch.Handler(manager, nil, &v1beta1.Connectivity{})
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+	defer queue.ShutDown()
+	handler.Create(context.Background(), event.CreateEvent{Object: &v1beta1.Auth{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack0-auth"},
+		Spec:       v1beta1.AuthSpec{StackDependency: v1beta1.StackDependency{Stack: "stack0"}},
+	}}, queue)
+
+	if queue.Len() != 1 {
+		t.Fatalf("Auth create event queued %d reconciles, want 1", queue.Len())
+	}
+	request, _ := queue.Get()
+	defer queue.Done(request)
+	if request.Name != connectivity.Name {
+		t.Fatalf("Auth create event queued Connectivity %q, want %q", request.Name, connectivity.Name)
 	}
 }
 

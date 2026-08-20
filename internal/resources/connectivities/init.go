@@ -840,6 +840,7 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
+		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Auth{}),
 	}
 }
 
