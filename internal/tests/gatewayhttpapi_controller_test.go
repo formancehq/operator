@@ -100,6 +100,26 @@ var _ = Describe("GatewayHTTPAPI", func() {
 				Expect(apierrors.IsNotFound(LoadResource(stack.Name, "ledger", &corev1.Service{}))).To(BeTrue())
 			})
 		})
+		Context("Given every rule carries a backendRef but no root rule replaces the health-check backend", func() {
+			BeforeEach(func() {
+				httpAPI.Spec.Rules = []v1beta1.GatewayHTTPAPIRule{{
+					Path:       "/v1",
+					BackendRef: &v1beta1.GatewayBackendRef{Name: "ledger-cluster", Port: 8081},
+				}}
+			})
+			It("keeps the default Service when the GatewayHTTPAPI reconciles", func() {
+				By("When the GatewayHTTPAPI becomes ready")
+				Eventually(func(g Gomega) bool {
+					g.Expect(LoadResource("", httpAPI.Name, httpAPI)).To(Succeed())
+					return httpAPI.Status.Ready
+				}).Should(BeTrue())
+
+				By("Then the Service used by /versions health checks still exists")
+				service := &corev1.Service{}
+				Expect(LoadResource(stack.Name, "ledger", service)).To(Succeed())
+				Expect(service).To(BeControlledBy(httpAPI))
+			})
+		})
 		Context("With user defined annotations", func() {
 			var (
 				annotationsSettings *v1beta1.Settings

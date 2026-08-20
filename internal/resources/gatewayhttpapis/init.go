@@ -33,10 +33,11 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=gatewayhttpapis/finalizers,verbs=update
 
 func Reconcile(ctx Context, _ *v1beta1.Stack, httpAPI *v1beta1.GatewayHTTPAPI) error {
-	// When every rule routes through an explicit backendRef, the gateway never
-	// targets the default Service; leave the name free for the delegated
-	// operator owning the backends (its own resources may legitimately claim it).
-	if allRulesCarryBackendRef(httpAPI) {
+	// When every rule routes through an explicit backendRef and a root rule also
+	// replaces the gateway health-check backend, the gateway never targets the
+	// default Service. Leave the name free for the delegated operator owning the
+	// backends (its own resources may legitimately claim it).
+	if defaultServiceUnused(httpAPI) {
 		return deleteOwnedDefaultService(ctx, httpAPI)
 	}
 
@@ -48,16 +49,20 @@ func Reconcile(ctx Context, _ *v1beta1.Stack, httpAPI *v1beta1.GatewayHTTPAPI) e
 	return nil
 }
 
-func allRulesCarryBackendRef(httpAPI *v1beta1.GatewayHTTPAPI) bool {
+func defaultServiceUnused(httpAPI *v1beta1.GatewayHTTPAPI) bool {
 	if len(httpAPI.Spec.Rules) == 0 {
 		return false
 	}
+	hasRootBackend := false
 	for _, rule := range httpAPI.Spec.Rules {
 		if rule.BackendRef == nil {
 			return false
 		}
+		if rule.Path == "" {
+			hasRootBackend = true
+		}
 	}
-	return true
+	return hasRootBackend
 }
 
 func deleteOwnedDefaultService(ctx Context, httpAPI *v1beta1.GatewayHTTPAPI) error {
