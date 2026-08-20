@@ -942,6 +942,7 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 		WithUnsatisfiedRequirementsHandler(handleUnsatisfiedLedgerRequirement),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Auth{}),
+		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Gateway{}),
 	}
 }
 

@@ -435,6 +435,59 @@ func TestAuthCreateEventEnqueuesMatchingConnectivity(t *testing.T) {
 	}
 }
 
+func TestGatewayCreateEventEnqueuesMatchingConnectivity(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := v1beta1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add v1beta1 to scheme: %v", err)
+	}
+
+	connectivity := newConnectivity("stack0-connectivity", "stack0")
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithIndex(&v1beta1.Connectivity{}, "stack", unstructuredStackIndex).
+		WithObjects(connectivity).
+		Build()
+	manager := connectivityWatchTestManager{client: fakeClient, scheme: scheme}
+
+	options := core.ReconcilerOptions[*v1beta1.Connectivity]{
+		Owns:     map[client.Object][]builder.OwnsOption{},
+		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
+	}
+	for _, option := range connectivityReconcilerOptions() {
+		option(&options)
+	}
+
+	var gatewayWatch core.ReconcilerOptionsWatch
+	found := false
+	for watched, watch := range options.Watchers {
+		if _, ok := watched.(*v1beta1.Gateway); ok {
+			gatewayWatch = watch
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("Connectivity controller has no Gateway event watch")
+	}
+
+	handler, _ := gatewayWatch.Handler(manager, nil, &v1beta1.Connectivity{})
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[reconcile.Request]())
+	defer queue.ShutDown()
+	handler.Create(context.Background(), event.CreateEvent{Object: &v1beta1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack0-gateway"},
+		Spec:       v1beta1.GatewaySpec{StackDependency: v1beta1.StackDependency{Stack: "stack0"}},
+	}}, queue)
+
+	if queue.Len() != 1 {
+		t.Fatalf("Gateway create event queued %d reconciles, want 1", queue.Len())
+	}
+	request, _ := queue.Get()
+	defer queue.Done(request)
+	if request.Name != connectivity.Name {
+		t.Fatalf("Gateway create event queued Connectivity %q, want %q", request.Name, connectivity.Name)
+	}
+}
+
 func TestDeleteLedgerCredentialsFinalizerIsNoOpWhenAlreadyGone(t *testing.T) {
 	// No Credentials seeded: the finalizer must be idempotent and not error when
 	// the credential has already been removed.
