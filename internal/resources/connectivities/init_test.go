@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -45,6 +47,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/auths"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -214,14 +217,20 @@ func TestConnectivityMissingPermissionDisablesCapabilityWithoutFailing(t *testin
 // exercising ensureLedgerCredentials.
 type credsTestContext struct {
 	context.Context
-	client client.Client
-	scheme *runtime.Scheme
+	client    client.Client
+	apiReader client.Reader
+	scheme    *runtime.Scheme
 }
 
-func (c credsTestContext) GetClient() client.Client    { return c.client }
-func (c credsTestContext) GetScheme() *runtime.Scheme  { return c.scheme }
-func (c credsTestContext) GetAPIReader() client.Reader { return c.client }
-func (c credsTestContext) GetPlatform() core.Platform  { return core.Platform{} }
+func (c credsTestContext) GetClient() client.Client   { return c.client }
+func (c credsTestContext) GetScheme() *runtime.Scheme { return c.scheme }
+func (c credsTestContext) GetAPIReader() client.Reader {
+	if c.apiReader != nil {
+		return c.apiReader
+	}
+	return c.client
+}
+func (c credsTestContext) GetPlatform() core.Platform { return core.Platform{} }
 
 type connectivityWatchTestManager struct {
 	ctrl.Manager
@@ -321,13 +330,15 @@ func TestDeleteLedgerCredentialsFinalizerDeletesCredential(t *testing.T) {
 	existing.SetName("connectivity-stack0")
 	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
 
-	ctx := newCredsTestContext(t, existing)
 	connectivity := &v1beta1.Connectivity{}
 	connectivity.Name = "stack0"
 	connectivity.Spec.Stack = "stack0"
 	now := metav1.Now()
 	connectivity.DeletionTimestamp = &now
 	connectivity.Finalizers = []string{"delete-ledger-credentials"}
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	setStackOwnedLedgerCredentials(stack, connectivity, existing)
+	ctx := newCredsTestContext(t, existing)
 
 	if err := deleteLedgerCredentials(ctx, connectivity); err != nil {
 		t.Fatalf("deleteLedgerCredentials: %v", err)
@@ -339,6 +350,24 @@ func TestDeleteLedgerCredentialsFinalizerDeletesCredential(t *testing.T) {
 	err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-stack0"}, got)
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("Credentials must be deleted by the finalizer, got err=%v", err)
+	}
+}
+
+func TestDeleteLedgerCredentialsFinalizerPreservesOwnerlessCredential(t *testing.T) {
+	existing := newLedgerCredentialsForStack("stack0")
+	existing.SetUID(types.UID("ownerless-credentials-uid"))
+	ctx := newCredsTestContext(t, existing)
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = "stack0"
+
+	if err := deleteLedgerCredentials(ctx, connectivity); err != nil {
+		t.Fatalf("deleteLedgerCredentials() returned %v", err)
+	}
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Fatal("ownerless Credentials was deleted by fixed name")
 	}
 }
 
@@ -516,6 +545,10 @@ func TestDeleteLedgerCredentialsFinalizerToleratesMissingCRD(t *testing.T) {
 }
 
 type noMatchDeleteClient struct{ client.Client }
+
+func (noMatchDeleteClient) Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
+	return &apimeta.NoKindMatchError{GroupKind: ledgerCredentialsGVK.GroupKind()}
+}
 
 func (noMatchDeleteClient) Delete(context.Context, client.Object, ...client.DeleteOption) error {
 	return &apimeta.NoKindMatchError{GroupKind: ledgerCredentialsGVK.GroupKind()}
@@ -839,6 +872,9 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 	if err := corev1.AddToScheme(s); err != nil {
 		t.Fatalf("add core v1 to scheme: %v", err)
 	}
+	if err := appsv1.AddToScheme(s); err != nil {
+		t.Fatalf("add apps v1 to scheme: %v", err)
+	}
 	s.AddKnownTypeWithName(connectivityGVK, &unstructured.Unstructured{})
 	s.AddKnownTypeWithName(connectivityGVK.GroupVersion().WithKind(connectivityGVK.Kind+"List"), &unstructured.UnstructuredList{})
 	s.AddKnownTypeWithName(ledgerCredentialsGVK, &unstructured.Unstructured{})
@@ -887,6 +923,49 @@ func newDelegatedConnectivity(stackName string) *unstructured.Unstructured {
 	return object
 }
 
+func connectivityAPITestLabels() map[string]string {
+	return map[string]string{
+		"app.kubernetes.io/name":           "connectivity-api",
+		"app.kubernetes.io/instance":       "connectivity-api",
+		"connectivity.formance.com/parent": connectivityDelegatedName,
+	}
+}
+
+func makeConnectivityAPIDeploymentRoutable(deployment *appsv1.Deployment) {
+	deployment.Spec.Template.Labels = connectivityAPITestLabels()
+	for i := range deployment.Spec.Template.Spec.Containers {
+		if deployment.Spec.Template.Spec.Containers[i].Name == "api" {
+			deployment.Spec.Template.Spec.Containers[i].Ports = []corev1.ContainerPort{{
+				Name:          "http",
+				ContainerPort: connectivityAPIPort,
+				Protocol:      corev1.ProtocolTCP,
+			}}
+			return
+		}
+	}
+}
+
+func newConnectivityAPIService(delegated *unstructured.Unstructured) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: delegated.GetNamespace(),
+			Name:      connectivityDelegatedName + "-api",
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(delegated, connectivityGVK),
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: connectivityAPITestLabels(),
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       connectivityAPIPort,
+				Protocol:   corev1.ProtocolTCP,
+				TargetPort: intstr.FromString("http"),
+			}},
+		},
+	}
+}
+
 // delegatedConnectivityExists reports whether the delegated Connectivity for the
 // stack is still present in the cluster.
 func delegatedConnectivityExists(t *testing.T, ctx credsTestContext, stackName string) bool {
@@ -915,6 +994,17 @@ func newLedgerCredentialsForStack(stackName string) *unstructured.Unstructured {
 	return cred
 }
 
+func setStackOwnedLedgerCredentials(
+	stack *v1beta1.Stack,
+	connectivity *v1beta1.Connectivity,
+	credentials *unstructured.Unstructured,
+) {
+	stackRef := *metav1.NewControllerRef(stack, v1beta1.GroupVersion.WithKind("Stack"))
+	connectivity.SetOwnerReferences([]metav1.OwnerReference{stackRef})
+	credentials.SetUID(types.UID(credentials.GetName() + "-uid"))
+	credentials.SetOwnerReferences([]metav1.OwnerReference{stackRef})
+}
+
 // credentialsExist reports whether the cluster-scoped god-mode Credentials for
 // the stack is still present in the cluster.
 func credentialsExist(t *testing.T, ctx credsTestContext, stackName string) bool {
@@ -937,20 +1027,31 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3(t *testing.T) {
 	ledger.Spec.Version = "v2.0.0"
 	ledger.Status.Ready = true
 
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+
 	// Pre-provisioned delegated resources, as if connectivity had been running
 	// before the ledger was downgraded.
-	delegated := newDelegatedConnectivity("stack0")
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
-	cred := newLedgerCredentialsForStack("stack0")
+	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	cred := newLedgerCredentialsForStack(stack.Name)
+	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 
 	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, cred)
-
-	stack := &v1beta1.Stack{}
-	stack.Name = "stack0"
-	connectivity := &v1beta1.Connectivity{}
-	connectivity.Name = "stack0"
-	connectivity.Spec.Stack = "stack0"
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if err == nil {
@@ -974,6 +1075,65 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3(t *testing.T) {
 	}
 }
 
+func TestConnectivityReconcilePreservesForeignFixedNameResourcesOnHardGate(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v2.0.0"
+	ledger.Status.Ready = true
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	foreignConnectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "foreign",
+		UID:  types.UID("foreign-connectivity-uid"),
+	}}
+	foreignStack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{
+		Name: "foreign",
+		UID:  types.UID("foreign-stack-uid"),
+	}}
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetUID(types.UID("foreign-delegated-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(foreignConnectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("foreign-gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(foreignConnectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	credentials := newLedgerCredentialsForStack(stack.Name)
+	credentials.SetUID(types.UID("foreign-credentials-uid"))
+	credentials.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(foreignStack, v1beta1.GroupVersion.WithKind("Stack")),
+	})
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, credentials)
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); err == nil {
+		t.Fatal("Reconcile() returned nil on a non-v3 hard gate")
+	}
+	if !delegatedConnectivityExists(t, ctx, stack.Name) {
+		t.Error("foreign-owned delegated Connectivity was deleted by name")
+	}
+	if !gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Error("foreign-owned GatewayHTTPAPI was deleted by name")
+	}
+	if !credentialsExist(t, ctx, stack.Name) {
+		t.Error("foreign-owned ledger Credentials was deleted by name")
+	}
+}
+
 func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolutionFails(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = true
@@ -985,10 +1145,26 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 	ledger.Spec.Version = "v2.0.0"
 	ledger.Status.Ready = true
 
-	delegated := newDelegatedConnectivity("stack0")
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
-	cred := newLedgerCredentialsForStack("stack0")
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	cred := newLedgerCredentialsForStack(stack.Name)
+	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 
 	base := newReconcileTestContext(t, ledger, delegated, httpAPI, cred)
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
@@ -1000,10 +1176,6 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 		},
 	})
 	ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
-
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
-	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
-	connectivity.Spec.Stack = stack.Name
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
@@ -1036,18 +1208,55 @@ func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
 	ledger.Spec.Version = "v3.0.0"
 	ledger.Status.Ready = false
 
-	delegated := newDelegatedConnectivity("stack0")
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	replicas := int32(1)
+	apiDeployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:  stack.Name,
+			Name:       "connectivity-api",
+			Generation: 1,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(delegated, connectivityGVK),
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+				Name: "api",
+				Env:  []corev1.EnvVar{{Name: "AUTH_ENABLED", Value: "false"}},
+			}}}},
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+			Replicas:           1,
+			UpdatedReplicas:    1,
+			ReadyReplicas:      1,
+			AvailableReplicas:  1,
+		},
+	}
+	makeConnectivityAPIDeploymentRoutable(apiDeployment)
+	apiService := newConnectivityAPIService(delegated)
 	cred := newLedgerCredentialsForStack("stack0")
 
-	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, cred)
-
-	stack := &v1beta1.Stack{}
-	stack.Name = "stack0"
-	connectivity := &v1beta1.Connectivity{}
-	connectivity.Name = "stack0"
-	connectivity.Spec.Stack = "stack0"
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, apiDeployment, apiService, cred)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if err == nil {
@@ -1116,6 +1325,638 @@ func TestConnectivityReconcileUpdatesAPIAuthWhenLedgerV3NotReady(t *testing.T) {
 	}
 	if checkScopes, found, _ := unstructured.NestedBool(updated.Object, "spec", "api", "auth", "checkScopes"); !found || checkScopes {
 		t.Fatalf("spec.api.auth.checkScopes = %v (found=%v), want an explicit false", checkScopes, found)
+	}
+}
+
+func TestConnectivityReconcileRevokesGatewayWhileUpdatingAPIAuthWhenLedgerV3NotReady(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = false
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	_ = unstructured.SetNestedField(delegated.Object, true, "spec", "api", "enabled")
+
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	auth := &v1beta1.Auth{}
+	auth.Name = "stack0-auth"
+	auth.Spec.Stack = stack.Name
+	gateway := &v1beta1.Gateway{}
+	gateway.Name = "stack0-gateway"
+	gateway.Spec.Stack = stack.Name
+	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
+
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, auth, gateway)
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the ledger is not ready", err)
+	}
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("GatewayHTTPAPI remains exposed while auth is updated behind a transient ledger gate")
+	}
+	if !delegatedConnectivityExists(t, ctx, stack.Name) {
+		t.Fatal("delegated Connectivity was torn down on a transient ledger gate")
+	}
+}
+
+func TestConnectivityReconcileSynchronizesAuthAndRevokesGatewayBeforeCredentialsReady(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = true
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+
+	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	_ = unstructured.SetNestedField(delegated.Object, true, "spec", "api", "enabled")
+
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	auth := &v1beta1.Auth{}
+	auth.Name = "stack0-auth"
+	auth.Spec.Stack = stack.Name
+	gateway := &v1beta1.Gateway{}
+	gateway.Name = "stack0-gateway"
+	gateway.Spec.Stack = stack.Name
+	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
+	credentials := newLedgerCredentialsForStack(stack.Name)
+	_ = unstructured.SetNestedField(credentials.Object, "Pending", "status", "phase")
+
+	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, auth, gateway, credentials)
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while credentials or the auth rollout is pending", err)
+	}
+	updated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(updated), updated); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	if issuer, _, _ := unstructured.NestedString(updated.Object, "spec", "api", "auth", "issuer"); issuer != "https://stack0.example.com/api/auth" {
+		t.Fatalf("spec.api.auth.issuer = %q, want auth synchronized before the credential gate", issuer)
+	}
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("GatewayHTTPAPI remains exposed while auth changes before the credential gate")
+	}
+}
+
+func TestConnectivityReconcileRevokesGatewayWhenAuthRolloutCannotBeProvenBehindLedgerNotReady(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		deployment bool
+	}{
+		{name: "Deployment absent"},
+		{name: "Deployment still unauthenticated", deployment: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			previous := connectivityAvailable
+			connectivityAvailable = true
+			t.Cleanup(func() { connectivityAvailable = previous })
+
+			ledger := &v1beta1.Ledger{}
+			ledger.Name = "stack0-ledger"
+			ledger.Spec.Stack = "stack0"
+			ledger.Spec.Version = "v3.0.0"
+			ledger.Status.Ready = false
+
+			stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+			connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+				Name: "stack0",
+				UID:  types.UID("connectivity-uid"),
+			}}
+			connectivity.Spec.Stack = stack.Name
+
+			delegated := newDelegatedConnectivity(stack.Name)
+			delegated.SetUID(types.UID("delegated-connectivity-uid"))
+			delegated.SetOwnerReferences([]metav1.OwnerReference{
+				*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+			})
+			_ = unstructured.SetNestedField(delegated.Object, "https://stack0.example.com/api/auth", "spec", "api", "auth", "issuer")
+			_ = unstructured.SetNestedField(delegated.Object, false, "spec", "api", "auth", "checkScopes")
+
+			httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+				Name: "stack0-connectivity",
+				UID:  types.UID("gateway-http-api-uid"),
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+				},
+			}}
+			auth := &v1beta1.Auth{}
+			auth.Name = "stack0-auth"
+			auth.Spec.Stack = stack.Name
+			gateway := &v1beta1.Gateway{}
+			gateway.Name = "stack0-gateway"
+			gateway.Spec.Stack = stack.Name
+			gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
+
+			objects := []client.Object{ledger, delegated, httpAPI, auth, gateway}
+			if tc.deployment {
+				replicas := int32(1)
+				objects = append(objects, &appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:  stack.Name,
+						Name:       "connectivity-api",
+						Generation: 1,
+						OwnerReferences: []metav1.OwnerReference{
+							*metav1.NewControllerRef(delegated, connectivityGVK),
+						},
+					},
+					Spec: appsv1.DeploymentSpec{
+						Replicas: &replicas,
+						Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+							Name: "api",
+							Env:  []corev1.EnvVar{{Name: "AUTH_ENABLED", Value: "false"}},
+						}}}},
+					},
+					Status: appsv1.DeploymentStatus{
+						ObservedGeneration: 1,
+						Replicas:           1,
+						UpdatedReplicas:    1,
+						ReadyReplicas:      1,
+						AvailableReplicas:  1,
+					},
+				})
+			}
+			ctx := newReconcileTestContext(t, objects...)
+
+			if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+				t.Fatalf("Reconcile() returned %v, want pending while the ledger is not ready", err)
+			}
+			if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "LedgerNotReady" {
+				t.Fatalf("condition = %+v, want reason LedgerNotReady", condition)
+			}
+			if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+				t.Fatal("GatewayHTTPAPI remains exposed without a proven authenticated API rollout")
+			}
+		})
+	}
+}
+
+func TestConnectivityAPIAuthRolloutRejectsForeignOwnedDelegatedConnectivity(t *testing.T) {
+	expectedConnectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	expectedConnectivity.Spec.Stack = "stack0"
+	foreignConnectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "foreign",
+		UID:  types.UID("foreign-connectivity-uid"),
+	}}
+
+	delegated := newDelegatedConnectivity("stack0")
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(foreignConnectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	_ = unstructured.SetNestedField(delegated.Object, "https://stack0.example.com/api/auth", "spec", "api", "auth", "issuer")
+	_ = unstructured.SetNestedField(delegated.Object, false, "spec", "api", "auth", "checkScopes")
+
+	replicas := int32(1)
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:  "stack0",
+			Name:       "connectivity-api",
+			Generation: 1,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(delegated, connectivityGVK),
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+				Name: "api",
+				Env: []corev1.EnvVar{
+					{Name: "AUTH_ENABLED", Value: "true"},
+					{Name: "AUTH_ISSUER", Value: "https://stack0.example.com/api/auth"},
+					{Name: "AUTH_CHECK_SCOPES", Value: "false"},
+				},
+			}}}},
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+			Replicas:           1,
+			UpdatedReplicas:    1,
+			ReadyReplicas:      1,
+			AvailableReplicas:  1,
+		},
+	}
+	ctx := newReconcileTestContext(t, delegated, deployment)
+
+	ready, _, err := connectivityAPIAuthRolloutReady(ctx, "stack0", expectedConnectivity, &auths.ProtectedAuthConfiguration{
+		Issuer: "https://stack0.example.com/api/auth",
+	})
+	if ready {
+		t.Fatal("foreign-owned delegated Connectivity allowed gateway reopening")
+	}
+	if err == nil {
+		t.Fatalf("foreign ownership was not reported for expected Connectivity UID %q", expectedConnectivity.UID)
+	}
+}
+
+func TestConnectivityAPIAuthRolloutRejectsForeignOwnedService(t *testing.T) {
+	expectedConnectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	expectedConnectivity.Spec.Stack = "stack0"
+
+	delegated := newDelegatedConnectivity("stack0")
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(expectedConnectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	_ = unstructured.SetNestedField(delegated.Object, "https://stack0.example.com/api/auth", "spec", "api", "auth", "issuer")
+	_ = unstructured.SetNestedField(delegated.Object, false, "spec", "api", "auth", "checkScopes")
+
+	replicas := int32(1)
+	podLabels := map[string]string{"app.kubernetes.io/name": "connectivity-api"}
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:  "stack0",
+			Name:       "connectivity-api",
+			Generation: 1,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(delegated, connectivityGVK),
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: podLabels},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{
+					Name: "api",
+					Env: []corev1.EnvVar{
+						{Name: "AUTH_ENABLED", Value: "true"},
+						{Name: "AUTH_ISSUER", Value: "https://stack0.example.com/api/auth"},
+						{Name: "AUTH_CHECK_SCOPES", Value: "false"},
+					},
+				}}},
+			},
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+			Replicas:           1,
+			UpdatedReplicas:    1,
+			ReadyReplicas:      1,
+			AvailableReplicas:  1,
+		},
+	}
+	foreignDelegated := newDelegatedConnectivity("stack0")
+	foreignDelegated.SetName("foreign")
+	foreignDelegated.SetUID(types.UID("foreign-delegated-connectivity-uid"))
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "stack0",
+		Name:      "connectivity-api",
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(foreignDelegated, connectivityGVK),
+		},
+	}, Spec: corev1.ServiceSpec{
+		Selector: podLabels,
+		Ports:    []corev1.ServicePort{{Port: connectivityAPIPort}},
+	}}
+	ctx := newReconcileTestContext(t, delegated, deployment, service)
+
+	ready, _, err := connectivityAPIAuthRolloutReady(ctx, "stack0", expectedConnectivity, &auths.ProtectedAuthConfiguration{
+		Issuer: "https://stack0.example.com/api/auth",
+	})
+	if ready {
+		t.Fatal("foreign-owned connectivity API Service allowed gateway reopening")
+	}
+	if err == nil {
+		t.Fatal("foreign Service ownership was not reported")
+	}
+}
+
+func TestConnectivityAPIServiceRoutesOnlyToExpectedDeployment(t *testing.T) {
+	delegated := newDelegatedConnectivity("stack0")
+	deployment := &appsv1.Deployment{Spec: appsv1.DeploymentSpec{
+		Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "api"}}}},
+	}}
+	makeConnectivityAPIDeploymentRoutable(deployment)
+	service := newConnectivityAPIService(delegated)
+	if !connectivityAPIServiceRoutesToDeployment(service, deployment) {
+		t.Fatal("official connectivity API Service shape was rejected")
+	}
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*corev1.Service)
+	}{
+		{
+			name: "empty selector",
+			mutate: func(service *corev1.Service) {
+				service.Spec.Selector = nil
+			},
+		},
+		{
+			name: "selector misses API pods",
+			mutate: func(service *corev1.Service) {
+				service.Spec.Selector["app.kubernetes.io/name"] = "foreign-api"
+			},
+		},
+		{
+			name: "gateway backend port missing",
+			mutate: func(service *corev1.Service) {
+				service.Spec.Ports[0].Port = 9090
+			},
+		},
+		{
+			name: "target port misses API container",
+			mutate: func(service *corev1.Service) {
+				service.Spec.Ports[0].TargetPort = intstr.FromString("foreign-http")
+			},
+		},
+		{
+			name: "external name bypasses selector",
+			mutate: func(service *corev1.Service) {
+				service.Spec.Type = corev1.ServiceTypeExternalName
+				service.Spec.ExternalName = "unauthenticated.example.com"
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			unsafeService := service.DeepCopy()
+			tc.mutate(unsafeService)
+			if connectivityAPIServiceRoutesToDeployment(unsafeService, deployment) {
+				t.Fatal("unsafe connectivity API Service was accepted")
+			}
+		})
+	}
+}
+
+func TestReconcileExistingConnectivityAPIAuthRevokesGatewayBeforePatch(t *testing.T) {
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = "stack0"
+	delegated := newDelegatedConnectivity(connectivity.Spec.Stack)
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+
+	base := newReconcileTestContext(t, delegated, httpAPI)
+	operations := make([]string, 0, 2)
+	orderedClient := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Delete: func(ctx context.Context, c client.WithWatch, object client.Object, opts ...client.DeleteOption) error {
+			if _, ok := object.(*v1beta1.GatewayHTTPAPI); ok {
+				operations = append(operations, "delete gateway")
+			}
+			return c.Delete(ctx, object, opts...)
+		},
+		Patch: func(ctx context.Context, c client.WithWatch, object client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			if object.GetObjectKind().GroupVersionKind() == connectivityGVK {
+				operations = append(operations, "patch delegated")
+			}
+			return c.Patch(ctx, object, patch, opts...)
+		},
+	})
+	ctx := credsTestContext{
+		Context:   context.Background(),
+		client:    orderedClient,
+		apiReader: base.client,
+		scheme:    base.scheme,
+	}
+
+	changed, err := reconcileExistingConnectivityAPIAuth(ctx, connectivity.Spec.Stack, connectivity,
+		&auths.ProtectedAuthConfiguration{Issuer: "https://stack0.example.com/api/auth"})
+	if err != nil {
+		t.Fatalf("reconcileExistingConnectivityAPIAuth() returned %v", err)
+	}
+	if !changed {
+		t.Fatal("reconcileExistingConnectivityAPIAuth() did not report the auth change")
+	}
+	want := []string{"delete gateway", "patch delegated"}
+	if !reflect.DeepEqual(operations, want) {
+		t.Fatalf("operations = %v, want %v", operations, want)
+	}
+}
+
+func TestConnectivityReconcileAdoptsOwnerlessDelegatedWhenAPIAuthAlreadyMatches(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Spec.Version = "v3.0.0"
+	ledger.Status.Ready = false
+
+	delegated := newDelegatedConnectivity("stack0")
+	_ = unstructured.SetNestedField(delegated.Object, "https://stack0.example.com/api/auth", "spec", "api", "auth", "issuer")
+	_ = unstructured.SetNestedField(delegated.Object, false, "spec", "api", "auth", "checkScopes")
+
+	auth := &v1beta1.Auth{}
+	auth.Name = "stack0-auth"
+	auth.Spec.Stack = "stack0"
+	gateway := &v1beta1.Gateway{}
+	gateway.Name = "stack0-gateway"
+	gateway.Spec.Stack = "stack0"
+	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
+
+	ctx := newReconcileTestContext(t, ledger, delegated, auth, gateway)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the ledger is not ready", err)
+	}
+
+	updated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, updated); err != nil {
+		t.Fatalf("get adopted delegated Connectivity: %v", err)
+	}
+	owner := metav1.GetControllerOf(updated)
+	if owner == nil || owner.UID != connectivity.UID {
+		t.Fatalf("controller owner = %+v, want Connectivity UID %q", owner, connectivity.UID)
+	}
+}
+
+func TestUpdateExistingConnectivityAPIAuthRejectsSameNameReplacement(t *testing.T) {
+	controller := true
+	delegated := newDelegatedConnectivity("stack0")
+	delegated.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: v1beta1.GroupVersion.String(),
+		Kind:       "Connectivity",
+		Name:       "stack0",
+		UID:        types.UID("connectivity-uid"),
+		Controller: &controller,
+	}})
+	_ = unstructured.SetNestedField(delegated.Object, "https://old.example.com/api/auth", "spec", "api", "auth", "issuer")
+
+	base := newReconcileTestContext(t, delegated)
+	replaced := false
+	replacingClient := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Patch: func(ctx context.Context, c client.WithWatch, object client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			if !replaced && object.GetObjectKind().GroupVersionKind() == connectivityGVK {
+				replaced = true
+				current := newDelegatedConnectivity("stack0")
+				if err := c.Get(ctx, client.ObjectKeyFromObject(current), current); err != nil {
+					return err
+				}
+				if err := c.Delete(ctx, current); err != nil {
+					return err
+				}
+
+				replacement := newDelegatedConnectivity("stack0")
+				replacement.SetOwnerReferences([]metav1.OwnerReference{{
+					APIVersion: v1beta1.GroupVersion.String(),
+					Kind:       "Connectivity",
+					Name:       "foreign-connectivity",
+					UID:        types.UID("foreign-connectivity-uid"),
+					Controller: &controller,
+				}})
+				_ = unstructured.SetNestedField(replacement.Object, "https://foreign.example.com/api/auth", "spec", "api", "auth", "issuer")
+				if err := c.Create(ctx, replacement); err != nil {
+					return err
+				}
+			}
+			return c.Patch(ctx, object, patch, opts...)
+		},
+	})
+	ctx := credsTestContext{Context: context.Background(), client: replacingClient, scheme: base.scheme}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+
+	_, err := updateExistingConnectivityAPIAuth(ctx, "stack0", connectivity, &auths.ProtectedAuthConfiguration{
+		Issuer: "https://stack0.example.com/api/auth",
+	})
+	if !apierrors.IsConflict(err) {
+		t.Fatalf("updateExistingConnectivityAPIAuth() returned %v, want conflict after same-name replacement", err)
+	}
+
+	replacement := newDelegatedConnectivity("stack0")
+	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(replacement), replacement); err != nil {
+		t.Fatalf("get same-name replacement: %v", err)
+	}
+	if issuer, _, _ := unstructured.NestedString(replacement.Object, "spec", "api", "auth", "issuer"); issuer != "https://foreign.example.com/api/auth" {
+		t.Fatalf("replacement auth issuer = %q, want foreign issuer unchanged", issuer)
+	}
+}
+
+func TestConnectivityReconcileAvoidsCachedReadAfterEarlyAPIAuthWrite(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+	base := newReconcileTestContext(t, ledger, credentials)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(base, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("initial Reconcile() returned %v, want pending after creating the delegated resource", err)
+	}
+	stale := newDelegatedConnectivity(stack.Name)
+	if err := base.GetClient().Get(base, client.ObjectKeyFromObject(stale), stale); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	_ = unstructured.SetNestedField(stale.Object, "Ready", "status", "phase")
+	if err := base.GetClient().Update(base, stale); err != nil {
+		t.Fatalf("mark delegated Connectivity ready: %v", err)
+	}
+	if err := base.GetClient().Get(base, client.ObjectKeyFromObject(stale), stale); err != nil {
+		t.Fatalf("refresh delegated Connectivity before auth change: %v", err)
+	}
+
+	auth := &v1beta1.Auth{}
+	auth.Name = "stack0-auth"
+	auth.Spec.Stack = stack.Name
+	if err := base.GetClient().Create(base, auth); err != nil {
+		t.Fatalf("create Auth: %v", err)
+	}
+	gateway := &v1beta1.Gateway{}
+	gateway.Name = "stack0-gateway"
+	gateway.Spec.Stack = stack.Name
+	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
+	if err := base.GetClient().Create(base, gateway); err != nil {
+		t.Fatalf("create Gateway: %v", err)
+	}
+
+	patched := false
+	servedStaleRead := false
+	staleCacheClient := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, object client.Object, opts ...client.GetOption) error {
+			if patched && !servedStaleRead && object.GetObjectKind().GroupVersionKind() == connectivityGVK && key == client.ObjectKeyFromObject(stale) {
+				servedStaleRead = true
+				stale.DeepCopyInto(object.(*unstructured.Unstructured))
+				return nil
+			}
+			return c.Get(ctx, key, object, opts...)
+		},
+		Patch: func(ctx context.Context, c client.WithWatch, object client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			if object.GetObjectKind().GroupVersionKind() == connectivityGVK {
+				if err := c.Patch(ctx, object, patch, opts...); err != nil {
+					return err
+				}
+				patched = true
+				return nil
+			}
+			return c.Patch(ctx, object, patch, opts...)
+		},
+	})
+	ctx := credsTestContext{Context: context.Background(), client: staleCacheClient, scheme: base.scheme}
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending after applying the auth change once", err)
+	}
+	if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "ConnectivityAPIPending" {
+		t.Fatalf("condition = %+v, want ConnectivityAPIPending rather than a cached-write conflict", condition)
 	}
 }
 
@@ -1257,17 +2098,23 @@ func TestConnectivityReconcileTearsDownWhenCapabilityUnavailableAndLedgerGateClo
 	t.Cleanup(func() { connectivityAvailable = previous })
 
 	// No ledger on the stack: the hard gate is closed.
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
-	cred := newLedgerCredentialsForStack("stack0")
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	cred := newLedgerCredentialsForStack(stack.Name)
+	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 
 	ctx := newReconcileTestContext(t, httpAPI, cred)
-
-	stack := &v1beta1.Stack{}
-	stack.Name = "stack0"
-	connectivity := &v1beta1.Connectivity{}
-	connectivity.Name = "stack0"
-	connectivity.Spec.Stack = "stack0"
 
 	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
@@ -1285,10 +2132,22 @@ func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbid
 	connectivityAvailable = false
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	delegated := newDelegatedConnectivity("stack0")
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
-	cred := newLedgerCredentialsForStack("stack0")
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	delegated := newDelegatedConnectivity(stack.Name)
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	cred := newLedgerCredentialsForStack(stack.Name)
+	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 	base := newReconcileTestContext(t, delegated, httpAPI, cred)
 	forbidden := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
@@ -1301,10 +2160,6 @@ func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbid
 		},
 	})
 	ctx := credsTestContext{Context: context.Background(), client: forbidden, scheme: base.scheme}
-
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
-	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
-	connectivity.Spec.Stack = stack.Name
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
@@ -1321,9 +2176,10 @@ func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbid
 	}
 }
 
-// A transient connectivity-operator outage with a healthy v3 ledger (gate still
-// open) must NOT flap the already-provisioned resources.
-func TestConnectivityReconcileKeepsResourcesWhenCapabilityUnavailableButLedgerV3(t *testing.T) {
+// When the connectivity capability cannot be inspected, keep the workload and
+// its ledger Credentials but close the public route: the authenticated rollout
+// cannot be proven while discovery/RBAC is unavailable.
+func TestConnectivityReconcileRevokesGatewayWhenCapabilityUnavailableButLedgerV3(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = false
 	t.Cleanup(func() { connectivityAvailable = previous })
@@ -1334,26 +2190,80 @@ func TestConnectivityReconcileKeepsResourcesWhenCapabilityUnavailableButLedgerV3
 	ledger.Spec.Version = "v3.0.0"
 	ledger.Status.Ready = true
 
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("stack-uid"),
+	}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
 	cred := newLedgerCredentialsForStack("stack0")
 
 	ctx := newReconcileTestContext(t, ledger, httpAPI, cred)
 
-	stack := &v1beta1.Stack{}
-	stack.Name = "stack0"
-	connectivity := &v1beta1.Connectivity{}
-	connectivity.Name = "stack0"
-	connectivity.Spec.Stack = "stack0"
-
 	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
 	}
-	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
-		t.Error("GatewayHTTPAPI must be kept while the ledger gate is still open")
+	if gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI remains exposed while the authenticated rollout cannot be proven")
 	}
 	if !credentialsExist(t, ctx, "stack0") {
 		t.Error("Credentials must be kept while the ledger gate is still open")
+	}
+}
+
+func TestConnectivityReconcileRevokesGatewayWhenLedgerLookupFails(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("stack-uid"),
+	}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+
+	base := newReconcileTestContext(t, httpAPI)
+	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*v1beta1.LedgerList); ok {
+				return errors.New("ledger list forbidden by test")
+			}
+			return c.List(ctx, list, opts...)
+		},
+	})
+	ctx := credsTestContext{
+		Context:   context.Background(),
+		client:    failing,
+		apiReader: base.client,
+		scheme:    base.scheme,
+	}
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); err == nil || core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want the ledger lookup error", err)
+	}
+	if gatewayHTTPAPIExists(t, base, stack.Name) {
+		t.Fatal("GatewayHTTPAPI remains exposed after the ledger lookup became unverifiable")
 	}
 }
 
@@ -1362,11 +2272,28 @@ func TestConnectivityReconcileKeepsResourcesWhenCapabilityUnavailableButLedgerV3
 // have to be removed even when the delegated Connectivity delete fails (e.g. its
 // CRD/API was removed after startup), and the failure must surface.
 func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
-	cred := newLedgerCredentialsForStack("stack0")
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	cred := newLedgerCredentialsForStack(stack.Name)
+	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 
-	base := newReconcileTestContext(t, httpAPI, cred)
+	base := newReconcileTestContext(t, delegated, httpAPI, cred)
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
 			if obj.GetObjectKind().GroupVersionKind() == connectivityGVK {
@@ -1376,12 +2303,6 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 		},
 	})
 	ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
-
-	stack := &v1beta1.Stack{}
-	stack.Name = "stack0"
-	connectivity := &v1beta1.Connectivity{}
-	connectivity.Name = "stack0"
-	connectivity.Spec.Stack = "stack0"
 
 	if err := teardownDelegated(ctx, stack, connectivity); err == nil {
 		t.Fatal("teardownDelegated must surface the delegated Connectivity delete failure")
@@ -1579,11 +2500,14 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "old-ledger:9999", "spec", "ledgerAddress")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
-
-	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
+	delegated.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+	})
+
+	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
@@ -1714,6 +2638,248 @@ func TestConnectivityReconcileFailsWhenAPIAuthResolutionFails(t *testing.T) {
 	condition := connectivity.GetConditions().Get(connectivityReadyCondition)
 	if condition == nil || condition.Reason != "APIAuthResolveFailed" {
 		t.Fatalf("condition = %+v, want reason APIAuthResolveFailed", condition)
+	}
+}
+
+func TestConnectivityReconcileRevokesOwnedGatewayWhenAPIAuthResolutionFails(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+	controller := true
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: v1beta1.GroupVersion.String(),
+			Kind:       "Connectivity",
+			Name:       "stack0",
+			UID:        types.UID("connectivity-uid"),
+			Controller: &controller,
+		}},
+	}}
+
+	base := newReconcileTestContext(t, ledger, credentials, httpAPI)
+	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if strings.HasPrefix(list.GetObjectKind().GroupVersionKind().Kind, "Auth") {
+				return errors.New("auth list forbidden by test")
+			}
+			return c.List(ctx, list, opts...)
+		},
+	})
+	ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if err == nil || core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want a hard auth-resolution error", err)
+	}
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("owned GatewayHTTPAPI remains exposed after auth resolution failed")
+	}
+}
+
+func TestRevokeGatewayHTTPAPIUsesDirectReadAndUIDPrecondition(t *testing.T) {
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = "stack0"
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	base := newReconcileTestContext(t, httpAPI)
+	deleteCalled := false
+	staleCache := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, object client.Object, opts ...client.GetOption) error {
+			if _, ok := object.(*v1beta1.GatewayHTTPAPI); ok {
+				return apierrors.NewNotFound(schema.GroupResource{Group: v1beta1.GroupVersion.Group, Resource: "gatewayhttpapis"}, key.Name)
+			}
+			return c.Get(ctx, key, object, opts...)
+		},
+		Delete: func(ctx context.Context, c client.WithWatch, object client.Object, opts ...client.DeleteOption) error {
+			if _, ok := object.(*v1beta1.GatewayHTTPAPI); ok {
+				deleteCalled = true
+				options := (&client.DeleteOptions{}).ApplyOptions(opts)
+				if options.Preconditions == nil || options.Preconditions.UID == nil ||
+					*options.Preconditions.UID != httpAPI.UID {
+					t.Fatalf("delete UID precondition = %+v, want %q", options.Preconditions, httpAPI.UID)
+				}
+			}
+			return c.Delete(ctx, object, opts...)
+		},
+	})
+	ctx := credsTestContext{
+		Context:   context.Background(),
+		client:    staleCache,
+		apiReader: base.client,
+		scheme:    base.scheme,
+	}
+
+	if err := revokeGatewayHTTPAPI(ctx, connectivity); err != nil {
+		t.Fatalf("revokeGatewayHTTPAPI() returned %v", err)
+	}
+	if !deleteCalled {
+		t.Fatal("revokeGatewayHTTPAPI trusted a stale cached NotFound instead of the direct reader")
+	}
+	if gatewayHTTPAPIExists(t, base, connectivity.Spec.Stack) {
+		t.Fatal("GatewayHTTPAPI still exists after direct-read revocation")
+	}
+}
+
+func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+	ctx := newReconcileTestContext(t, ledger, credentials)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("initial Reconcile() returned %v, want pending after creating the delegated resource", err)
+	}
+	delegated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(delegated), delegated); err != nil {
+		t.Fatalf("get delegated Connectivity: %v", err)
+	}
+	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	if err := ctx.GetClient().Update(ctx, delegated); err != nil {
+		t.Fatalf("mark delegated Connectivity ready: %v", err)
+	}
+
+	controller := true
+	replicas := int32(1)
+	apiDeployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:  stack.Name,
+			Name:       "connectivity-api",
+			UID:        types.UID("connectivity-api-deployment-uid"),
+			Generation: 1,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: connectivityGVK.GroupVersion().String(),
+				Kind:       connectivityGVK.Kind,
+				Name:       connectivityDelegatedName,
+				UID:        delegated.GetUID(),
+				Controller: &controller,
+			}},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+				Name: "api",
+				Env:  []corev1.EnvVar{{Name: "AUTH_ENABLED", Value: "false"}},
+			}}}},
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+			Replicas:           1,
+			UpdatedReplicas:    1,
+			ReadyReplicas:      1,
+			AvailableReplicas:  1,
+		},
+	}
+	makeConnectivityAPIDeploymentRoutable(apiDeployment)
+	if err := ctx.GetClient().Create(ctx, apiDeployment); err != nil {
+		t.Fatalf("create ready unauthenticated API Deployment: %v", err)
+	}
+	if err := ctx.GetClient().Create(ctx, newConnectivityAPIService(delegated)); err != nil {
+		t.Fatalf("create connectivity API Service: %v", err)
+	}
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); err != nil {
+		t.Fatalf("Reconcile() with a converged unauthenticated API returned %v", err)
+	}
+
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: stack.Name + "-connectivity"}, httpAPI); err != nil {
+		t.Fatalf("get initial GatewayHTTPAPI: %v", err)
+	}
+	httpAPI.SetUID(types.UID("gateway-http-api-uid"))
+	if err := ctx.GetClient().Update(ctx, httpAPI); err != nil {
+		t.Fatalf("assign GatewayHTTPAPI test UID: %v", err)
+	}
+
+	auth := &v1beta1.Auth{}
+	auth.Name = "stack0-auth"
+	auth.Spec.Stack = stack.Name
+	if err := ctx.GetClient().Create(ctx, auth); err != nil {
+		t.Fatalf("create Auth: %v", err)
+	}
+	gateway := &v1beta1.Gateway{}
+	gateway.Name = "stack0-gateway"
+	gateway.Spec.Stack = stack.Name
+	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
+	if err := ctx.GetClient().Create(ctx, gateway); err != nil {
+		t.Fatalf("create Gateway: %v", err)
+	}
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending after enabling API auth", err)
+	}
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("GatewayHTTPAPI remains exposed while API auth is changing")
+	}
+
+	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(apiDeployment), apiDeployment); err != nil {
+		t.Fatalf("get API Deployment before rollout: %v", err)
+	}
+	apiDeployment.Generation = 2
+	apiDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
+		{Name: "AUTH_ENABLED", Value: "true"},
+		{Name: "AUTH_ISSUER", Value: "https://stack0.example.com/api/auth"},
+		{Name: "AUTH_CHECK_SCOPES", Value: "false"},
+	}
+	if err := ctx.GetClient().Update(ctx, apiDeployment); err != nil {
+		t.Fatalf("apply authenticated API Deployment template: %v", err)
+	}
+	apiDeployment.Status = appsv1.DeploymentStatus{
+		ObservedGeneration: 1,
+		Replicas:           2,
+		UpdatedReplicas:    1,
+		ReadyReplicas:      1,
+		AvailableReplicas:  1,
+	}
+	if err := ctx.GetClient().Status().Update(ctx, apiDeployment); err != nil {
+		t.Fatalf("start authenticated API rollout: %v", err)
+	}
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending during API auth rollout", err)
+	}
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("GatewayHTTPAPI was reopened before the authenticated rollout completed")
+	}
+
+	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(apiDeployment), apiDeployment); err != nil {
+		t.Fatalf("get API Deployment to complete rollout: %v", err)
+	}
+	apiDeployment.Status = appsv1.DeploymentStatus{
+		ObservedGeneration: apiDeployment.Generation,
+		Replicas:           1,
+		UpdatedReplicas:    1,
+		ReadyReplicas:      1,
+		AvailableReplicas:  1,
+	}
+	if err := ctx.GetClient().Status().Update(ctx, apiDeployment); err != nil {
+		t.Fatalf("complete authenticated API rollout: %v", err)
+	}
+
+	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); err != nil {
+		t.Fatalf("Reconcile() after authenticated rollout returned %v", err)
+	}
+	if !gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("GatewayHTTPAPI was not restored after the authenticated rollout completed")
 	}
 }
 
