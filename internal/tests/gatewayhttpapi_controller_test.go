@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
@@ -68,6 +69,57 @@ var _ = Describe("GatewayHTTPAPI", func() {
 				"app.kubernetes.io/name": httpAPI.Spec.Name,
 			}))
 		})
+		It("Should delete its default service when every rule switches to a backendRef", func() {
+			Eventually(func() error {
+				return LoadResource(stack.Name, "ledger", &corev1.Service{})
+			}).Should(BeNil())
+
+			Eventually(func(g Gomega) error {
+				g.Expect(LoadResource("", httpAPI.Name, httpAPI)).To(Succeed())
+				httpAPI.Spec.Rules = []v1beta1.GatewayHTTPAPIRule{{
+					BackendRef: &v1beta1.GatewayBackendRef{Name: "ledger-cluster", Port: 8081},
+				}}
+				return Update(httpAPI)
+			}).Should(Succeed())
+
+			Eventually(func() bool {
+				return apierrors.IsNotFound(LoadResource(stack.Name, "ledger", &corev1.Service{}))
+			}).Should(BeTrue())
+		})
+		Context("With every rule carrying a backendRef", func() {
+			BeforeEach(func() {
+				httpAPI.Spec.Rules = []v1beta1.GatewayHTTPAPIRule{{
+					BackendRef: &v1beta1.GatewayBackendRef{Name: "ledger-cluster", Port: 8081},
+				}}
+			})
+			It("Should not create the default service", func() {
+				Eventually(func(g Gomega) bool {
+					g.Expect(LoadResource("", httpAPI.Name, httpAPI)).To(Succeed())
+					return httpAPI.Status.Ready
+				}).Should(BeTrue())
+				Expect(apierrors.IsNotFound(LoadResource(stack.Name, "ledger", &corev1.Service{}))).To(BeTrue())
+			})
+		})
+		Context("Given every rule carries a backendRef but no root rule replaces the health-check backend", func() {
+			BeforeEach(func() {
+				httpAPI.Spec.Rules = []v1beta1.GatewayHTTPAPIRule{{
+					Path:       "/v1",
+					BackendRef: &v1beta1.GatewayBackendRef{Name: "ledger-cluster", Port: 8081},
+				}}
+			})
+			It("keeps the default Service when the GatewayHTTPAPI reconciles", func() {
+				By("When the GatewayHTTPAPI becomes ready")
+				Eventually(func(g Gomega) bool {
+					g.Expect(LoadResource("", httpAPI.Name, httpAPI)).To(Succeed())
+					return httpAPI.Status.Ready
+				}).Should(BeTrue())
+
+				By("Then the Service used by /versions health checks still exists")
+				service := &corev1.Service{}
+				Expect(LoadResource(stack.Name, "ledger", service)).To(Succeed())
+				Expect(service).To(BeControlledBy(httpAPI))
+			})
+		})
 		Context("With user defined annotations", func() {
 			var (
 				annotationsSettings *v1beta1.Settings
@@ -86,6 +138,55 @@ var _ = Describe("GatewayHTTPAPI", func() {
 					return service.Annotations
 				}).Should(HaveKeyWithValue("foo", "bar"))
 			})
+		})
+	})
+	Context("When every rule carries a backendRef and a same-named service owned by another controller pre-exists", func() {
+		var (
+			stack          *v1beta1.Stack
+			httpAPI        *v1beta1.GatewayHTTPAPI
+			foreignService *corev1.Service
+		)
+		BeforeEach(func() {
+			stack = &v1beta1.Stack{
+				ObjectMeta: RandObjectMeta(),
+				Spec:       v1beta1.StackSpec{Version: "v99.0.0"},
+			}
+			httpAPI = &v1beta1.GatewayHTTPAPI{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.GatewayHTTPAPISpec{
+					StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+					Name:            "connectivity",
+					Rules: []v1beta1.GatewayHTTPAPIRule{{
+						BackendRef: &v1beta1.GatewayBackendRef{Name: "connectivity-api", Port: 8080},
+					}},
+				},
+			}
+			foreignService = &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "connectivity", Namespace: stack.Name},
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{{Name: "grpc", Port: 15200}},
+				},
+			}
+			Expect(Create(stack)).To(Succeed())
+			Eventually(func() error {
+				return Create(foreignService)
+			}).Should(Succeed())
+			Expect(Create(httpAPI)).To(Succeed())
+		})
+		AfterEach(func() {
+			Expect(Delete(httpAPI)).To(Succeed())
+			Expect(Delete(stack)).To(BeNil())
+		})
+		It("Should leave the foreign service untouched and still become ready", func() {
+			Eventually(func(g Gomega) bool {
+				g.Expect(LoadResource("", httpAPI.Name, httpAPI)).To(Succeed())
+				return httpAPI.Status.Ready
+			}).Should(BeTrue())
+			service := &corev1.Service{}
+			Expect(LoadResource(stack.Name, "connectivity", service)).To(Succeed())
+			Expect(service).NotTo(BeControlledBy(httpAPI))
+			Expect(service.Spec.Ports).To(HaveLen(1))
+			Expect(service.Spec.Ports[0].Name).To(Equal("grpc"))
 		})
 	})
 })

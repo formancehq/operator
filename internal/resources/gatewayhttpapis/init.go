@@ -18,6 +18,10 @@ package gatewayhttpapis
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
@@ -29,8 +33,51 @@ import (
 //+kubebuilder:rbac:groups=formance.com,resources=gatewayhttpapis/finalizers,verbs=update
 
 func Reconcile(ctx Context, _ *v1beta1.Stack, httpAPI *v1beta1.GatewayHTTPAPI) error {
+	// When every rule routes through an explicit backendRef and a root rule also
+	// replaces the gateway health-check backend, the gateway never targets the
+	// default Service. Leave the name free for the delegated operator owning the
+	// backends (its own resources may legitimately claim it).
+	if defaultServiceUnused(httpAPI) {
+		return deleteOwnedDefaultService(ctx, httpAPI)
+	}
+
 	_, err := services.Create(ctx, httpAPI, httpAPI.Spec.Name, services.WithDefault(httpAPI.Spec.Name))
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func defaultServiceUnused(httpAPI *v1beta1.GatewayHTTPAPI) bool {
+	if len(httpAPI.Spec.Rules) == 0 {
+		return false
+	}
+	hasRootBackend := false
+	for _, rule := range httpAPI.Spec.Rules {
+		if rule.BackendRef == nil {
+			return false
+		}
+		if rule.Path == "" {
+			hasRootBackend = true
+		}
+	}
+	return hasRootBackend
+}
+
+func deleteOwnedDefaultService(ctx Context, httpAPI *v1beta1.GatewayHTTPAPI) error {
+	service := &corev1.Service{}
+	err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		Namespace: httpAPI.Spec.Stack,
+		Name:      httpAPI.Spec.Name,
+	}, service)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if !metav1.IsControlledBy(service, httpAPI) {
+		return nil
+	}
+	if err := ctx.GetClient().Delete(ctx, service); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
