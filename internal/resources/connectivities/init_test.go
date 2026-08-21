@@ -999,10 +999,19 @@ func setStackOwnedLedgerCredentials(
 	connectivity *v1beta1.Connectivity,
 	credentials *unstructured.Unstructured,
 ) {
-	stackRef := *metav1.NewControllerRef(stack, v1beta1.GroupVersion.WithKind("Stack"))
-	connectivity.SetOwnerReferences([]metav1.OwnerReference{stackRef})
+	// ForModule uses SetOwnerReference rather than SetControllerReference for a
+	// module's Stack owner. Mirror that production shape here: only the
+	// cluster-scoped Credentials has the Stack as its controller owner.
+	connectivity.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: v1beta1.GroupVersion.String(),
+		Kind:       "Stack",
+		Name:       stack.Name,
+		UID:        stack.UID,
+	}})
 	credentials.SetUID(types.UID(credentials.GetName() + "-uid"))
-	credentials.SetOwnerReferences([]metav1.OwnerReference{stackRef})
+	credentials.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(stack, v1beta1.GroupVersion.WithKind("Stack")),
+	})
 }
 
 // credentialsExist reports whether the cluster-scoped god-mode Credentials for

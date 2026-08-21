@@ -807,9 +807,18 @@ func deleteLedgerCredentials(ctx Context, connectivity *v1beta1.Connectivity) er
 	if owner == nil {
 		return nil
 	}
-	expectedOwner := metav1.GetControllerOf(connectivity)
-	if expectedOwner == nil || owner.APIVersion != expectedOwner.APIVersion || owner.Kind != expectedOwner.Kind ||
-		owner.Name != expectedOwner.Name || owner.UID != expectedOwner.UID {
+	stackGVK := v1beta1.GroupVersion.WithKind("Stack")
+	if owner.APIVersion != stackGVK.GroupVersion().String() || owner.Kind != stackGVK.Kind ||
+		owner.Name != connectivity.GetStack() || owner.UID == "" {
+		return nil
+	}
+	// ForModule attaches the Stack to module resources with SetOwnerReference,
+	// so it is intentionally not a controller owner. Match the Credentials'
+	// controller Stack against that exact production-shaped owner reference.
+	if !slices.ContainsFunc(connectivity.GetOwnerReferences(), func(ref metav1.OwnerReference) bool {
+		return ref.APIVersion == owner.APIVersion && ref.Kind == owner.Kind &&
+			ref.Name == owner.Name && ref.UID == owner.UID
+	}) {
 		return nil
 	}
 	uid := cred.GetUID()
