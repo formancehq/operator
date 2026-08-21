@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -146,18 +147,11 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 
 	// Resolve the ledger's effective version through the same path the module
 	// reconcilers use (module override, stack version, or the referenced
-	// Versions file), so the v3 gate also works for versionsFromFile stacks.
+	// Versions file), so the v3 gate also works for versionsFromFile stacks. A
+	// resolved non-v3 version is a hard gate and must be handled before any
+	// unrelated, fallible auth lookup so teardown cannot be skipped.
 	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
-	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionUnresolved", err.Error())
-		// Transient: we could not resolve the ledger version (e.g. a referenced
-		// Versions file not yet present). This is an error *resolving* the
-		// prerequisite, not a definitive downgrade below v3, so we deliberately do
-		// NOT tear down the delegated resources here — flapping the workload on a
-		// transient resolution hiccup would be worse than briefly keeping it up.
-		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", err.Error())
-	}
-	if !ledgers.IsV3(ledgerVersion) {
+	if err == nil && !ledgers.IsV3(ledgerVersion) {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
 			fmt.Sprintf("connectivity requires a Ledger v3 (found %q)", ledgerVersion))
 		// Hard gate: the ledger version resolved but is not v3 (i.e. a real
@@ -169,6 +163,36 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		}
 		return NewPendingError().WithMessage("connectivity requires a Ledger v3")
 	}
+
+	// OIDC protection for the connectivity-api, following the same convention
+	// as the other stack modules (ledger, payments): nil when the stack has no
+	// Auth module, otherwise the stack auth issuer plus the scope-checking
+	// policy from the auth.connectivity.check-scopes Setting. Resolve and apply
+	// it before any transient prerequisite gate below: an already-running API
+	// must not remain unauthenticated while its Ledger version is temporarily
+	// unresolved or the Ledger itself is unready. The connectivity CRD only
+	// models a single trusted issuer, so additional Settings-declared issuers
+	// (auth.issuers) are not propagated.
+	apiAuth, authErr := auths.GetProtectedConfiguration(ctx, stack, "connectivity", nil)
+	if authErr != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "APIAuthResolveFailed", authErr.Error())
+		return authErr
+	}
+	if authErr := updateExistingConnectivityAPIAuth(ctx, stack.Name, connectivity, apiAuth); authErr != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "APIAuthReconcileFailed", authErr.Error())
+		return authErr
+	}
+
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionUnresolved", err.Error())
+		// Transient: we could not resolve the ledger version (e.g. a referenced
+		// Versions file not yet present). This is an error *resolving* the
+		// prerequisite, not a definitive downgrade below v3, so we deliberately do
+		// NOT tear down the delegated resources here — flapping the workload on a
+		// transient resolution hiccup would be worse than briefly keeping it up.
+		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", err.Error())
+	}
+
 	if !ledger.IsReady() {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotReady", "waiting for the ledger to be ready")
 		// Transient: the ledger exists and is v3 but is momentarily not ready.
@@ -223,18 +247,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return err
 	}
 
-	// OIDC protection for the connectivity-api, following the same convention
-	// as the other stack modules (ledger, payments): nil when the stack has no
-	// Auth module, otherwise the stack auth issuer plus the scope-checking
-	// policy from the auth.connectivity.check-scopes Setting. The connectivity
-	// CRD only models a single trusted issuer, so additional Settings-declared
-	// issuers (auth.issuers) are not propagated.
-	apiAuth, err := auths.GetProtectedConfiguration(ctx, stack, "connectivity", nil)
-	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "APIAuthResolveFailed", err.Error())
-		return err
-	}
-
 	// Reuse the single source of truth for the ledger v3 gRPC connection: same
 	// service, port and backend TLS material (self-signed CA secret + SNI) that
 	// the gateway uses to reach the ledger. The port is resolved from the stack's
@@ -283,18 +295,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(apiImage.PullSecrets), "spec", "api", "imagePullSecrets"); err != nil {
 			return err
 		}
-		// checkScopes is always set explicitly: the connectivity CRD defaults it
-		// to true while the platform convention (shouldCheckScopes) defaults to
-		// false, so omitting the field would flip the semantics.
-		if apiAuth != nil {
-			if err := unstructured.SetNestedField(object.Object, apiAuth.Issuer, "spec", "api", "auth", "issuer"); err != nil {
-				return err
-			}
-			if err := unstructured.SetNestedField(object.Object, apiAuth.CheckScopes, "spec", "api", "auth", "checkScopes"); err != nil {
-				return err
-			}
-		} else {
-			unstructured.RemoveNestedField(object.Object, "spec", "api", "auth")
+		if _, err := applyConnectivityAPIAuth(object, apiAuth); err != nil {
+			return err
 		}
 		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err
@@ -457,6 +459,67 @@ func pullSecretsToUnstructured(secrets []corev1.LocalObjectReference) []any {
 		out = append(out, map[string]any{"name": ps.Name})
 	}
 	return out
+}
+
+// updateExistingConnectivityAPIAuth applies auth changes to an already
+// provisioned delegated resource without creating one. This keeps the running
+// API protected even when a later transient prerequisite gate prevents the full
+// reconciliation from proceeding.
+func updateExistingConnectivityAPIAuth(
+	ctx Context,
+	stackName string,
+	connectivity *v1beta1.Connectivity,
+	apiAuth *auths.ProtectedAuthConfiguration,
+) error {
+	object := &unstructured.Unstructured{}
+	object.SetGroupVersionKind(connectivityGVK)
+	key := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}
+	if err := ctx.GetClient().Get(ctx, key, object); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	before := object.DeepCopy()
+	// Match the normal CreateOrUpdate path's ownership check before mutating the
+	// fixed-name delegated resource. SetControllerReference returns an
+	// AlreadyOwnedError without changing the object when another controller owns
+	// it; when an unowned object needs an auth change, the same patch claims it
+	// for Connectivity.
+	if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
+		return err
+	}
+	changed, err := applyConnectivityAPIAuth(object, apiAuth)
+	if err != nil || !changed {
+		return err
+	}
+	return client.IgnoreNotFound(ctx.GetClient().Patch(ctx, object, client.MergeFrom(before)))
+}
+
+// applyConnectivityAPIAuth mutates spec.api.auth and reports whether it changed.
+func applyConnectivityAPIAuth(object *unstructured.Unstructured, apiAuth *auths.ProtectedAuthConfiguration) (bool, error) {
+	before, beforeFound, err := unstructured.NestedMap(object.Object, "spec", "api", "auth")
+	if err != nil {
+		return false, err
+	}
+
+	// checkScopes is always set explicitly: the connectivity CRD defaults it to
+	// true while the platform convention defaults to false, so omitting the field
+	// would flip the semantics.
+	if apiAuth != nil {
+		if err := unstructured.SetNestedField(object.Object, apiAuth.Issuer, "spec", "api", "auth", "issuer"); err != nil {
+			return false, err
+		}
+		if err := unstructured.SetNestedField(object.Object, apiAuth.CheckScopes, "spec", "api", "auth", "checkScopes"); err != nil {
+			return false, err
+		}
+	} else {
+		unstructured.RemoveNestedField(object.Object, "spec", "api", "auth")
+	}
+
+	after, afterFound, err := unstructured.NestedMap(object.Object, "spec", "api", "auth")
+	if err != nil {
+		return false, err
+	}
+	return beforeFound != afterFound || !reflect.DeepEqual(before, after), nil
 }
 
 // applyConnectivityMonitoring sets spec.monitoring from the resolved OTEL
