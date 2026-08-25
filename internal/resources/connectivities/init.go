@@ -161,6 +161,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	// resolved non-v3 version is a hard gate and must be handled before any
 	// unrelated, fallible auth lookup so teardown cannot be skipped.
 	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
+	if err != nil && !errors.Is(err, ErrNoVersionFound) {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionResolveFailed", err.Error())
+		return err
+	}
 	if err == nil && !ledgers.IsV3(ledgerVersion) {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
 			fmt.Sprintf("connectivity requires a Ledger v3 (found %q)", ledgerVersion))

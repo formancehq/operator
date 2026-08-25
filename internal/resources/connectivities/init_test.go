@@ -2073,6 +2073,42 @@ func TestConnectivityReconcileUpdatesAPIAuthWhenLedgerVersionUnresolved(t *testi
 	}
 }
 
+func TestConnectivityReconcilePropagatesUnexpectedLedgerVersionError(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = "stack0-ledger"
+	ledger.Spec.Stack = "stack0"
+	ledger.Status.Ready = true
+
+	base := newReconcileTestContext(t, ledger)
+	versionErr := errors.New("versions lookup unavailable")
+	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*v1beta1.Versions); ok {
+				return versionErr
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+	})
+	ctx := credsTestContext{Context: context.Background(), client: failing, scheme: base.scheme}
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	stack.Spec.VersionsFromFile = "v3.0.0"
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	connectivity.Spec.Stack = stack.Name
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !errors.Is(err, versionErr) {
+		t.Fatalf("Reconcile() returned %v, want the unexpected version lookup error", err)
+	}
+	if core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned an application error for an unexpected version lookup failure: %v", err)
+	}
+}
+
 func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = false
