@@ -202,7 +202,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	ledgerVersion, ledgerVersionErr := ResolveModuleVersion(ctx, stack, ledger)
 	if ledgerVersionErr != nil && !errors.Is(ledgerVersionErr, ErrNoVersionFound) {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionResolveFailed", ledgerVersionErr.Error())
-		return ledgerVersionErr
+		return errors.Join(ledgerVersionErr, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
 	var moduleIsV3, hasV3 bool
 	var ledgerV3PreviewErr error
