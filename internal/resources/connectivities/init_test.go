@@ -2082,8 +2082,20 @@ func TestConnectivityReconcilePropagatesUnexpectedLedgerVersionError(t *testing.
 	ledger.Name = "stack0-ledger"
 	ledger.Spec.Stack = "stack0"
 	ledger.Status.Ready = true
+	controller := true
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: v1beta1.GroupVersion.String(),
+			Kind:       "Connectivity",
+			Name:       "stack0",
+			UID:        types.UID("connectivity-uid"),
+			Controller: &controller,
+		}},
+	}}
 
-	base := newReconcileTestContext(t, ledger)
+	base := newReconcileTestContext(t, ledger, httpAPI)
 	versionErr := errors.New("versions lookup unavailable")
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
@@ -2097,7 +2109,7 @@ func TestConnectivityReconcilePropagatesUnexpectedLedgerVersionError(t *testing.
 
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
 	stack.Spec.VersionsFromFile = "v3.0.0"
-	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
@@ -2106,6 +2118,9 @@ func TestConnectivityReconcilePropagatesUnexpectedLedgerVersionError(t *testing.
 	}
 	if core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned an application error for an unexpected version lookup failure: %v", err)
+	}
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("owned GatewayHTTPAPI remains exposed after an unexpected version lookup failure")
 	}
 }
 
