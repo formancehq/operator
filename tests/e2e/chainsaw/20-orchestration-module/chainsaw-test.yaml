@@ -27,6 +27,8 @@ spec:
             file: resources/broker.yaml
         - apply:
             file: resources/auth.yaml
+        - apply:
+            file: resources/ledger.yaml
         - script:
             timeout: 5m
             content: |
@@ -80,7 +82,7 @@ spec:
               grep -Fx 'TEMPORAL_INIT_SEARCH_ATTRIBUTES=true' /tmp/chainsaw-orchestration-env
               grep -Fx 'TEMPORAL_MAX_PARALLEL_ACTIVITIES=17' /tmp/chainsaw-orchestration-env
               grep -Fx 'WORKER=true' /tmp/chainsaw-orchestration-env
-              grep -Fx 'TOPICS=' /tmp/chainsaw-orchestration-env
+              grep -Fx 'TOPICS=chainsaw-orchestration.ledger' /tmp/chainsaw-orchestration-env
               grep -Fx 'BROKER=nats' /tmp/chainsaw-orchestration-env
               grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-orchestration-env
               grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-orchestration.svc.cluster.local:4222' /tmp/chainsaw-orchestration-env
@@ -116,8 +118,10 @@ spec:
 
               for resource in \
                 orchestration/orchestration \
+                ledger/ledger \
                 auth/auth \
                 broker/chainsaw-orchestration \
+                database/chainsaw-orchestration-ledger \
                 database/chainsaw-orchestration-orchestration \
                 stack/chainsaw-orchestration; do
                 if kubectl get "$resource" >/dev/null 2>&1; then

@@ -64,6 +64,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, mcp *v1beta1.MCP, version stri
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			NoRequirements(),
 			WithOwn[*v1beta1.MCP](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.MCP](&corev1.Service{}),
 			WithOwn[*v1beta1.MCP](&v1beta1.GatewayHTTPAPI{}),

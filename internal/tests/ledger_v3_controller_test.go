@@ -743,8 +743,8 @@ var _ = Describe("Ledger v3 controller", func() {
 			}).Should(ContainSubstring("migration required"))
 		})
 
-		It("rejects a preview version at or below the v3 threshold", func() {
-			previewSettings := settings.New(uuid.NewString(), "ledger.v3.preview-version", "v3.0.0-alpha", stack.Name)
+		It("rejects a preview version below the v3 threshold", func() {
+			previewSettings := settings.New(uuid.NewString(), "ledger.v3.preview-version", "v2.99.0", stack.Name)
 			Expect(Create(previewSettings)).To(Succeed())
 			DeferCleanup(func() {
 				Expect(client.IgnoreNotFound(Delete(previewSettings))).To(Succeed())
@@ -758,7 +758,7 @@ var _ = Describe("Ledger v3 controller", func() {
 			Eventually(func(g Gomega) string {
 				g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
 				return ledger.Status.Info
-			}).Should(ContainSubstring("ledger.v3.preview-version must be greater than v3.0.0-alpha"))
+			}).Should(ContainSubstring("ledger.v3.preview-version must be at least v3.0.0-0"))
 		})
 
 		Context("with a Ledger v3 preview version", func() {

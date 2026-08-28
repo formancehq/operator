@@ -107,7 +107,7 @@ func TestForModulePassesRefreshedLicenceState(t *testing.T) {
 	}
 
 	called := false
-	controller := ForModule(func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[*v1beta1.Search], req *v1beta1.Search, version string) error {
+	controller := ForModule(NoRequirements(), func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[*v1beta1.Search], req *v1beta1.Search, version string) error {
 		called = true
 		require.Equal(t, LicenceStateValid, ctx.GetPlatform().LicenceState)
 		require.Empty(t, ctx.GetPlatform().LicenceMessage)
@@ -166,7 +166,7 @@ func TestForModuleDisablesOwnedResourcesWithoutRunningFinalizers(t *testing.T) {
 		scheme:    scheme,
 	}
 
-	controller := ForModule(func(_ Context, _ *v1beta1.Stack, _ *ReconcilerOptions[*v1beta1.Search], _ *v1beta1.Search, _ string) error {
+	controller := ForModule(NoRequirements(), func(_ Context, _ *v1beta1.Stack, _ *ReconcilerOptions[*v1beta1.Search], _ *v1beta1.Search, _ string) error {
 		t.Fatal("underlying controller must not run for a disabled Stack")
 		return nil
 	})

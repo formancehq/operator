@@ -73,6 +73,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.TransactionPlane, v
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			Requirements(
+				Require(&v1beta1.Ledger{}, VersionAtLeast(v1beta1.LedgerV3Version)),
+			),
 			WithOwn[*v1beta1.TransactionPlane](&v1beta1.BrokerConsumer{}),
 			WithOwn[*v1beta1.TransactionPlane](&v1beta1.AuthClient{}),
 			WithOwn[*v1beta1.TransactionPlane](&appsv1.Deployment{}),
@@ -80,7 +83,6 @@ func init() {
 			WithOwn[*v1beta1.TransactionPlane](&batchv1.Job{}),
 			WithOwn[*v1beta1.TransactionPlane](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.TransactionPlane](),
-			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Ledger{}),
 			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Payments{}),
 			brokertopics.Watch[*v1beta1.TransactionPlane]("transactionplane"),

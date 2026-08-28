@@ -99,6 +99,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, o *v1beta1.Orchestration, vers
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			Requirements(
+				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
+			),
 			WithOwn[*v1beta1.Orchestration](&v1beta1.BrokerConsumer{}),
 			WithOwn[*v1beta1.Orchestration](&v1beta1.AuthClient{}),
 			WithOwn[*v1beta1.Orchestration](&appsv1.Deployment{}),
@@ -106,7 +109,6 @@ func init() {
 			WithOwn[*v1beta1.Orchestration](&v1beta1.ResourceReference{}),
 			WithOwn[*v1beta1.Orchestration](&batchv1.Job{}),
 			WithWatchSettings[*v1beta1.Orchestration](),
-			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Ledger{}),
 			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Payments{}),
 			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Wallets{}),

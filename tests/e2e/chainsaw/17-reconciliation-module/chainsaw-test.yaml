@@ -20,6 +20,8 @@ spec:
             file: resources/settings.yaml
         - apply:
             file: resources/database.yaml
+        - apply:
+            file: resources/ledger.yaml
         - script:
             timeout: 5m
             content: |

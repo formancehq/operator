@@ -150,6 +150,7 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			NoRequirements(),
 			WithOwn[*v1beta1.Ledger](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.Job{}),
 			WithOwn[*v1beta1.Ledger](&corev1.Service{}),

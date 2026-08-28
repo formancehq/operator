@@ -332,6 +332,16 @@ func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity
 	)
 }
 
+func handleUnsatisfiedLedgerRequirement(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
+	if !ledgerGateClosed(ctx, stack) {
+		return nil
+	}
+	if !connectivityAvailable {
+		return teardownAccessibleResources(ctx, connectivity)
+	}
+	return teardownDelegated(ctx, stack, connectivity)
+}
+
 // teardownDelegated deletes the delegated Connectivity resource and the
 // GatewayHTTPAPI provisioned for the stack. It is invoked when a hard/persistent
 // ledger gate closes (the Ledger module was removed, or its version resolved to
@@ -813,10 +823,15 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),
-		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
+		WithUnsatisfiedRequirementsHandler(handleUnsatisfiedLedgerRequirement),
 	}
 }
 
 func init() {
-	Init(WithModuleReconciler(Reconcile, connectivityReconcilerOptions()...))
+	Init(WithModuleReconciler(Reconcile,
+		Requirements(
+			Require(&v1beta1.Ledger{}, VersionAtLeast(v1beta1.LedgerV3Version)),
+		),
+		connectivityReconcilerOptions()...,
+	))
 }

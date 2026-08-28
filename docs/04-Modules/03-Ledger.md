@@ -2,12 +2,12 @@ Formance Ledger is a real-time money tracking microservice that lets you model a
 
 ## Requirements
 
-Ledger versions up to and including `v3.0.0-alpha` require:
+Ledger versions before `v3.0.0-0` require:
 
 - See the [PostgreSQL configuration](../05-Infrastructure%20services/01-PostgreSQL.md).
 - (Optional) See the [message broker configuration](../05-Infrastructure%20services/02-Message%20broker.md).
 
-Ledger versions newer than `v3.0.0-alpha` require the Ledger Operator and its
+Ledger versions at or after `v3.0.0-0` require the Ledger Operator and its
 `ledger.formance.com/v1alpha1` CRDs, plus cert-manager with its `Issuer` and
 `Certificate` CRDs, to be installed in the cluster. They use Ledger v3 native
 storage and do not require a PostgreSQL `Database` resource.
@@ -29,7 +29,7 @@ spec:
 
 ## Ledger v3 delegation
 
-When the stack version is strictly newer than `v3.0.0-alpha`, the Formance
+When the effective Ledger version is at or after `v3.0.0-0`, the Formance
 Operator delegates Ledger provisioning to the Ledger Operator. It creates a
 `ledger.formance.com/v1alpha1` `Cluster` with the same name and namespace as the
 stack instead of creating the legacy Ledger Deployments, Database, migration
@@ -61,7 +61,7 @@ spec:
   value: "v3.0.0-alpha.11"
 ```
 
-The value must be a Ledger version strictly newer than `v3.0.0-alpha`. In this
+The value must be a Ledger version at or after `v3.0.0-0`. In this
 mode, the Operator keeps all v2 Deployments and the v2 Database running, and
 creates an isolated v3 `Cluster`. Gateway exposes the preview through:
 

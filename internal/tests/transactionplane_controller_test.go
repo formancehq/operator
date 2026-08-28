@@ -56,6 +56,7 @@ var _ = Describe("TransactionPlaneController", func() {
 					StackDependency: v1beta1.StackDependency{
 						Stack: stack.Name,
 					},
+					ModuleProperties: v1beta1.ModuleProperties{Version: "v3.0.0-alpha.1"},
 				},
 			}
 			payments = &v1beta1.Payments{
@@ -179,6 +180,7 @@ var _ = Describe("TransactionPlaneController", func() {
 					StackDependency: v1beta1.StackDependency{
 						Stack: stack.Name,
 					},
+					ModuleProperties: v1beta1.ModuleProperties{Version: "v3.0.0-alpha.1"},
 				},
 			}
 			payments = &v1beta1.Payments{
@@ -280,6 +282,7 @@ var _ = Describe("TransactionPlaneController", func() {
 					StackDependency: v1beta1.StackDependency{
 						Stack: stack.Name,
 					},
+					ModuleProperties: v1beta1.ModuleProperties{Version: "v3.0.0-alpha.1"},
 				},
 			}
 			payments = &v1beta1.Payments{

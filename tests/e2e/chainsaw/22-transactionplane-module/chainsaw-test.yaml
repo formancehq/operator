@@ -26,6 +26,8 @@ spec:
             file: resources/broker.yaml
         - apply:
             file: resources/auth.yaml
+        - apply:
+            file: resources/ledger.yaml
         - script:
             timeout: 5m
             content: |
@@ -87,7 +89,7 @@ spec:
               assert_jsonpath deployment/transactionplane '{.spec.template.spec.serviceAccountName}' 'chainsaw-transactionplane-sa'
               assert_jsonpath pdb/transactionplane '{.spec.minAvailable}' '1'
               assert_jsonpath service/transactionplane '{.metadata.annotations.chainsaw\.formance\.com/service}' 'transactionplane'
-              test "$(kubectl get brokerconsumer transactionplane-transactionplane -o jsonpath='{.spec.services[*]}')" = "transactionplane"
+              test "$(kubectl get brokerconsumer transactionplane-transactionplane -o jsonpath='{.spec.services[*]}')" = "ledger transactionplane"
               kubectl get deployment transactionplane -n chainsaw-transactionplane -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{"\n"}{end}' > /tmp/chainsaw-transactionplane-env
               grep -Fx 'DEV=true' /tmp/chainsaw-transactionplane-env
               grep -Fx 'STACK=chainsaw-transactionplane' /tmp/chainsaw-transactionplane-env
@@ -95,7 +97,7 @@ spec:
               grep -Fx 'POSTGRES_PORT=5432' /tmp/chainsaw-transactionplane-env
               grep -Fx 'POSTGRES_DATABASE=chainsaw-transactionplane-transactionplane' /tmp/chainsaw-transactionplane-env
               grep -Fx 'POSTGRES_URI=$(POSTGRES_NO_DATABASE_URI)/$(POSTGRES_DATABASE)?sslmode=disable' /tmp/chainsaw-transactionplane-env
-              grep -Fx 'TOPICS=chainsaw-transactionplane.transactionplane' /tmp/chainsaw-transactionplane-env
+              grep -Fx 'TOPICS=chainsaw-transactionplane.ledger chainsaw-transactionplane.transactionplane' /tmp/chainsaw-transactionplane-env
               grep -Fx 'BROKER=nats' /tmp/chainsaw-transactionplane-env
               grep -Fx 'PUBLISHER_NATS_ENABLED=true' /tmp/chainsaw-transactionplane-env
               grep -Fx 'PUBLISHER_NATS_URL=nats.chainsaw-transactionplane.svc.cluster.local:4222' /tmp/chainsaw-transactionplane-env
