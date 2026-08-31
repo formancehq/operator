@@ -28,7 +28,7 @@ type StargateAuthSpec struct {
 
 type StargateTLSConfig struct {
 	//+optional
-	// Disable TLS protocol -- use at your own risks, the transmission will be in clear.
+	// Disable TLS protocol -- use at your own risk; the transmission will be in cleartext.
 	Disable bool `json:"disable,omitempty"`
 }
 

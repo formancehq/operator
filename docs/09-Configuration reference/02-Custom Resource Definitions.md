@@ -8,11 +8,11 @@
 
 Package v1beta1 contains API Schema definitions for the formance v1beta1 API group.
 
-It allow to configure a Formance stack.
+These definitions let you configure a Formance stack.
 
 A stack is composed of a [Stack](#stack) resource and some [modules](#modules).
 
-Each module can create multiple resources following its needs. See [Other resources](#other-resources).
+Each module can create multiple resources as needed. See [Other resources](#other-resources).
 
 Various parts of the stack can be configured either using the CRD properties or using some [Settings](#settings).
 
@@ -59,9 +59,9 @@ creates a namespace if not already existing.
 
 To do more, you need to create some [modules](#modules).
 
-The Stack resource allow to specify the version of the stack.
+The Stack resource specifies the version of the stack.
 
-It can be specified using either the field `.spec.version` or the `.spec.versionsFromFile` field (Refer to the documentation of [Versions](#versions) resource.
+It can be specified using either the field `.spec.version` or the `.spec.versionsFromFile` field (see the documentation for the [Versions](#versions) resource).
 
 The `version` field will have priority over `versionFromFile`.
 
@@ -113,12 +113,12 @@ If `versions` and `versionsFromFile` are not specified, modules will fail to rec
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to specify the version of the components<br />Must be a valid docker tag |  |  |
-| `versionsFromFile` _string_ | VersionsFromFile allow to specify a formance.com/Versions object which contains individual versions<br />for each component.<br />Must reference a valid formance.com/Versions object |  |  |
-| `enableAudit` _boolean_ | EnableAudit enable audit at the stack level.<br />Actually, it enables audit on [Gateway](#gateway)<br />deprecated | false |  |
-| `disabled` _boolean_ | Disabled indicate the stack is disabled.<br />A disabled stack disable everything<br />It just keeps the namespace and the [Database](#database) resources. | false |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version specifies the version of the components<br />Must be a valid Docker tag |  |  |
+| `versionsFromFile` _string_ | VersionsFromFile references a formance.com/Versions object which contains individual versions<br />for each component.<br />Must reference a valid formance.com/Versions object |  |  |
+| `enableAudit` _boolean_ | EnableAudit enables auditing at the stack level.<br />Currently, it enables auditing on [Gateway](#gateway)<br />deprecated | false |  |
+| `disabled` _boolean_ | Disabled indicates that the stack is disabled.<br />A disabled stack disables its modules.<br />It keeps the namespace and the [Database](#database) resources. | false |  |
 
 
 
@@ -147,7 +147,7 @@ If `versions` and `versionsFromFile` are not specified, modules will fail to rec
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `modules` _string array_ | Modules register detected modules |  |  |
 
 
@@ -157,9 +157,9 @@ If `versions` and `versionsFromFile` are not specified, modules will fail to rec
 
 Settings represents a configurable piece of the stacks.
 
-The purpose of this resource is to be able to configure some common settings between a set of stacks.
+The purpose of this resource is to configure settings shared across a set of stacks.
 
-Example :
+Example:
 ```yaml
 apiVersion: formance.com/v1beta1
 kind: Settings
@@ -176,13 +176,13 @@ spec:
 
 ```
 
-This example create a setting named `postgres-uri` targeting the stack named `stack0` and the service `ledger` (see the key `postgres.ledger.uri`).
+This example creates a setting named `postgres-uri` targeting the stack named `stack0` and the service `ledger` (see the key `postgres.ledger.uri`).
 
-Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the uri `postgresql://postgresql.formance.svc.cluster.local:5432`.
+Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the URI `postgresql://postgresql.formance.svc.cluster.local:5432`.
 
-Settings allow to use wildcards in keys and in stacks list.
+Settings supports wildcards in keys and in the stacks list.
 
-For example, if you want to use the same database server for all the modules of a specific stack, you can write :
+For example, if you want to use the same database server for all the modules of a specific stack, you can write:
 ```yaml
 apiVersion: formance.com/v1beta1
 kind: Settings
@@ -199,7 +199,7 @@ spec:
 
 ```
 
-Also, we could use that setting for all of our stacks using :
+Also, we could use that setting for all of our stacks using:
 ```yaml
 apiVersion: formance.com/v1beta1
 kind: Settings
@@ -216,7 +216,7 @@ spec:
 
 ```
 
-Some settings are really global, while some are used by specific module.
+Some settings are truly global, while others are used by a specific module.
 
 Refer to the documentation of each module and resource to discover available Settings.
 
@@ -225,7 +225,7 @@ Refer to the documentation of each module and resource to discover available Set
 
 A stack can use an AWS account for authentication.
 
-It can be used to connect to any AWS service we could use.
+It can be used to connect to any AWS service.
 
 It includes RDS, OpenSearch and MSK. To do so, you can create the following setting:
 ```yaml
@@ -243,11 +243,11 @@ spec:
 	value: aws-access
 
 ```
-This setting instruct the operator than there is somewhere on the cluster a service account named `aws-access`.
+This setting tells the operator that a service account named `aws-access` exists somewhere on the cluster.
 
 So, each time a service has the capability to use AWS, the operator will use this service account.
 
-The service account could look like that :
+The service account could look like this:
 ```yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -260,14 +260,14 @@ metadata:
 	name: aws-access
 
 ```
-You can note two things :
- 1. We have an annotation indicating the role arn used to connect to AWS. Refer to the AWS documentation to create this role
+You can note two things:
+ 1. We have an annotation indicating the role ARN used to connect to AWS. Refer to the AWS documentation to create this role
  2. We have a label `formance.com/stack=any` indicating we are targeting all stacks.
     Refer to the documentation of [ResourceReference](#resourcereference) for further information.
 
 ###### JSON logging
 
-You can use the setting `logging.json` with the value `true` to configure elligible service to log as json.
+You can use the setting `logging.json` with the value `true` to configure eligible services to log as JSON.
 Example:
 ```yaml
 apiVersion: formance.com/v1beta1
@@ -373,7 +373,7 @@ Note: The `auth.checkScopes` field in module specifications takes priority over 
 | --- | --- | --- | --- |
 | `stacks` _string array_ | Stacks on which the setting is applied. Can contain `*` to indicate a wildcard. |  |  |
 | `key` _string_ | The setting Key. See the documentation of each module or [global settings](#global-settings) to discover them. |  |  |
-| `value` _string_ | The value. It must have a specific format following the Key. |  |  |
+| `value` _string_ | Value is the setting value. Its required format depends on the Key. |  |  |
 
 
 
@@ -384,11 +384,11 @@ Note: The `auth.checkScopes` field in module specifications takes priority over 
 
 
 
-Auth represent the authentication module of a stack.
+Auth represents the authentication module of a stack.
 
-It is an OIDC compliant server.
+It is an OIDC-compliant server.
 
-Creating it for a stack automatically add authentication on all supported modules.
+Creating it for a stack automatically adds authentication to all supported modules.
 
 The auth service is basically a proxy to another OIDC compliant server.
 
@@ -438,14 +438,14 @@ The auth service is basically a proxy to another OIDC compliant server.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `delegatedOIDCServer` _[DelegatedOIDCServerConfiguration](#delegatedoidcserverconfiguration)_ | Contains information about a delegated authentication server to use to delegate authentication |  |  |
-| `signingKey` _string_ | Allow to override the default signing key used to sign JWT tokens. |  |  |
-| `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Allow to override the default signing key used to sign JWT tokens using a k8s secret |  |  |
-| `enableScopes` _boolean_ | Allow to enable scopes usage on authentication.<br />If not enabled, each service will check the authentication but will not restrict access following scopes.<br />in this case, if authenticated, it is ok. | false |  |
+| `signingKey` _string_ | Overrides the default signing key used to sign JWT tokens. |  |  |
+| `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Overrides the default signing key used to sign JWT tokens, using a k8s secret |  |  |
+| `enableScopes` _boolean_ | Enables scope checking during authentication.<br />If not enabled, each service will check the authentication but will not restrict access according to scopes.<br />In that case, being authenticated is sufficient. | false |  |
 
 ###### DelegatedOIDCServerConfiguration
 
@@ -501,7 +501,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `clients` _string array_ | Clients contains the list of clients created using [AuthClient](#authclient) |  |  |
 
 
@@ -509,7 +509,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 
 
 
-Connectivity is the module allowing to install a connectivity instance.
+Connectivity declares the connectivity module on a stack. Creating it makes the operator deploy a connectivity instance.
 
 Connectivity ingests data from external sources (blockchains, payment
 providers, ...) through a plugin system and writes double-entry
@@ -563,9 +563,9 @@ Ledger v3 gRPC endpoint.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 
 
@@ -595,7 +595,7 @@ Ledger v3 gRPC endpoint.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### Gateway
@@ -651,10 +651,10 @@ Gateway is the Schema for the gateways API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
-| `ingress` _[GatewayIngress](#gatewayingress)_ | Allow to customize the generated ingress |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
+| `ingress` _[GatewayIngress](#gatewayingress)_ | Customizes the generated ingress |  |  |
 
 ###### GatewayIngress
 
@@ -678,12 +678,12 @@ GatewayIngress represents the ingress configuration for the gateway.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example : `formance.example.com` |  |  |
+| `host` _string_ | Indicates the hostname on which the stack will be served.<br />Example: `stack.example.com` |  |  |
 | `hosts` _string array_ | Additional hosts for the ingress. Combined with Host. |  |  |
-| `scheme` _string_ | Indicate the scheme.<br />Actually, It should be `https` unless you know what you are doing. | https |  |
+| `scheme` _string_ | Indicates the scheme.<br />It should be `https` unless you know what you are doing. | https |  |
 | `ingressClassName` _string_ | Ingress class to use |  |  |
 | `annotations` _object (keys:string, values:string)_ | Custom annotations to add on the ingress |  |  |
-| `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Allow to customize the tls part of the ingress |  |  |
+| `tls` _[GatewayIngressTLS](#gatewayingresstls)_ | Customizes the TLS part of the ingress |  |  |
 
 ###### GatewayIngressTLS
 
@@ -736,7 +736,7 @@ GatewayIngress represents the ingress configuration for the gateway.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `syncHTTPAPIs` _string array_ | Detected http apis. See [GatewayHTTPAPI](#gatewayhttpapi) |  |  |
 | `syncGRPCAPIs` _string array_ | Detected grpc apis. See [GatewayGRPCAPI](#gatewaygrpcapi) |  |  |
 
@@ -745,7 +745,7 @@ GatewayIngress represents the ingress configuration for the gateway.
 
 
 
-Ledger is the module allowing to install a ledger instance.
+Ledger declares the ledger module on a stack. Creating it makes the operator deploy a ledger instance.
 
 The ledger is a stateful application that manages financial transactions
 and maintains an immutable audit trail.
@@ -796,9 +796,9 @@ and maintains an immutable audit trail.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 
 
@@ -828,7 +828,7 @@ and maintains an immutable audit trail.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### MCP
@@ -886,9 +886,9 @@ backend services using the caller bearer token.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 
 
@@ -918,7 +918,7 @@ backend services using the caller bearer token.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### Orchestration
@@ -974,9 +974,9 @@ Orchestration is the Schema for the orchestrations API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 
 
 
@@ -1005,7 +1005,7 @@ Orchestration is the Schema for the orchestrations API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `temporalURI` _string_ |  |  | Type: string <br /> |
 
 
@@ -1062,9 +1062,9 @@ Payments is the Schema for the payments API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `encryptionKey` _string_ |  |  |  |
 
 
@@ -1094,7 +1094,7 @@ Payments is the Schema for the payments API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### Reconciliation
@@ -1150,9 +1150,9 @@ Reconciliation is the Schema for the reconciliations API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 
 
 
@@ -1181,7 +1181,7 @@ Reconciliation is the Schema for the reconciliations API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### Search
@@ -1237,9 +1237,9 @@ Search is the Schema for the searches API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 
 
 
@@ -1268,7 +1268,7 @@ Search is the Schema for the searches API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `elasticSearchURI` _string_ |  |  | Type: string <br /> |
 
 
@@ -1324,9 +1324,9 @@ Stargate is the Schema for the stargates API
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `serverURL` _string_ |  |  |  |
 | `organizationID` _string_ |  |  |  |
@@ -1382,7 +1382,7 @@ Stargate is the Schema for the stargates API
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `disable` _boolean_ | Disable TLS protocol -- use at your own risks, the transmission will be in clear. |  |  |
+| `disable` _boolean_ | Disable TLS protocol -- use at your own risk; the transmission will be in cleartext. |  |  |
 
 
 
@@ -1411,7 +1411,7 @@ StargateStatus defines the observed state of Stargate
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### TransactionPlane
@@ -1467,9 +1467,9 @@ TransactionPlane is the Schema for the transactionplanes API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 
 
 
@@ -1498,7 +1498,7 @@ TransactionPlane is the Schema for the transactionplanes API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### Wallets
@@ -1553,9 +1553,9 @@ Wallets is the Schema for the wallets API
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 
 
@@ -1585,7 +1585,7 @@ WalletsStatus defines the observed state of Wallets
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### Webhooks
@@ -1641,9 +1641,9 @@ Webhooks is the Schema for the webhooks API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
-| `version` _string_ | Version allow to override global version defined at stack level for a specific module |  |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
+| `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 
 
 
@@ -1672,7 +1672,7 @@ Webhooks is the Schema for the webhooks API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 ### Other resources
@@ -1681,7 +1681,7 @@ Webhooks is the Schema for the webhooks API
 
 
 
-AuthClient allow to create OAuth2/OIDC clients on the auth server (see [Auth](#auth))
+AuthClient creates OAuth2/OIDC clients on the auth server (see [Auth](#auth))
 
 
 
@@ -1731,12 +1731,12 @@ AuthClient allow to create OAuth2/OIDC clients on the auth server (see [Auth](#a
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `id` _string_ | ID indicates the client id<br />It must be used with oauth2 `client_id` parameter |  |  |
-| `public` _boolean_ | Public indicate whether a client is confidential or not.<br />Confidential clients are clients which the secret can be kept secret...<br />As opposed to public clients which cannot have a secret (application single page for example) | false |  |
+| `public` _boolean_ | Public indicates whether the client is a public client.<br />Confidential clients (the default) are clients whose secret can be kept secret.<br />Public clients cannot hold a secret (a single-page application, for example) | false |  |
 | `description` _string_ | Description represents an optional description of the client |  |  |
-| `redirectUris` _string array_ | RedirectUris allow to list allowed redirect uris for the client |  |  |
-| `postLogoutRedirectUris` _string array_ | RedirectUris allow to list allowed post logout redirect uris for the client |  |  |
-| `scopes` _string array_ | Scopes allow to five some scope to the client |  |  |
-| `secret` _string_ | Secret allow to configure a secret for the client.<br />It is not required as some client could use some oauth2 flows which does not requires a client secret |  |  |
+| `redirectUris` _string array_ | RedirectUris lists the allowed redirect URIs for the client |  |  |
+| `postLogoutRedirectUris` _string array_ | PostLogoutRedirectUris lists the allowed post-logout redirect URIs for the client |  |  |
+| `scopes` _string array_ | Scopes lists the scopes granted to the client |  |  |
+| `secret` _string_ | Secret configures a secret for the client.<br />It is not required, since some clients use oauth2 flows that do not require a client secret |  |  |
 | `secretFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ |  |  |  |
 
 
@@ -1766,7 +1766,7 @@ AuthClient allow to create OAuth2/OIDC clients on the auth server (see [Auth](#a
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `hash` _string_ |  |  |  |
 
 
@@ -1823,8 +1823,8 @@ Benthos is the Schema for the benthos API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `debug` _boolean_ | Allow to enable debug mode on the module | false |  |
-| `dev` _boolean_ | Allow to enable dev mode on the module<br />Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example) | false |  |
+| `debug` _boolean_ | Enables debug mode on the module | false |  |
+| `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `resourceRequirements` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#resourcerequirements-v1-core)_ |  |  |  |
 | `initContainers` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#container-v1-core) array_ |  |  |  |
 | `imagePullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#localobjectreference-v1-core) array_ |  |  |  |
@@ -1859,7 +1859,7 @@ Benthos is the Schema for the benthos API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `elasticSearchURI` _string_ |  |  | Type: string <br /> |
 
 
@@ -1946,7 +1946,7 @@ BenthosStream is the Schema for the benthosstreams API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `configMapHash` _string_ |  |  |  |
 
 
@@ -2031,16 +2031,16 @@ Broker is the Schema for the brokers API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `uri` _string_ |  |  | Type: string <br /> |
-| `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined :<br />* ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />* ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
+| `mode` _[Mode](#mode)_ | Mode indicating the configuration of the NATS streams<br />Two modes are defined:<br />- ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />- ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
 | `streams` _string array_ | Streams list streams created when Mode == ModeOneStreamByService |  |  |
 
 ###### Mode
 
 _Underlying type:_ _string_
 
-Mode defined how streams are created on the broker (mainly nats)
+Mode defines how streams are created on the broker (mainly NATS)
 
 
 
@@ -2142,7 +2142,7 @@ BrokerConsumer is the Schema for the brokerconsumers API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### BrokerTopic
@@ -2227,34 +2227,35 @@ BrokerTopic is the Schema for the brokertopics API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### Database
 
 
 
-Database represent a concrete database on a PostgreSQL server, it is created by modules requiring a database ([Ledger](#ledger) for example).
+Database represents a concrete database on a PostgreSQL server. Modules that require a database create it ([Ledger](#ledger), for example).
 
-It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
-Additionally, the uri can define a query param `secret` indicating a k8s secret, than must be used to retrieve database credentials.
+It uses the settings `postgres.<module-name>.uri` which must have the following URI format: `postgresql://[<username>:<password>@]<host>[:<port>]`.
+The database name is not part of the setting: the operator derives it from the stack and the service.
+Additionally, the URI can define a query param `secret` indicating a k8s secret that must be used to retrieve database credentials.
 Credentials in the secret are expected to be URL-encoded by default. Set `secretCredentialsEncoding=raw` to let the operator encode them.
 
 On creation, the reconciler behind the Database object will create the database on the postgresql server using a k8s job.
-On Deletion, by default, the reconciler will let the database untouched.
+On Deletion, by default, the reconciler leaves the database untouched.
 You can allow the reconciler to drop the database on the server by using the [Settings](#settings) `clear-database` with the value `true`.
 If you use that setting, the reconciler will use another job to drop the database.
-Be careful, no backup are performed!
+Be careful: no backup is performed!
 
 Database resource honors `aws.service-account` setting, so, you can create databases on an AWS server if you need.
 See [AWS accounts](#aws-account)
 
-Once a database is fully configured, it retains the postgres uri used.
-If the setting indicating the server uri changed, the Database object will set the field `.status.outOfSync` to true
+Once a database is fully configured, it retains the postgres URI used.
+If the setting that specifies the server URI changes, the Database object will set the field `.status.outOfSync` to true
 and will not change anything.
 
 Therefore, to switch to a new server, you must change the setting value, then drop the Database object.
-It will be recreated with correct uri.
+It will be recreated with the correct URI.
 
 
 
@@ -2303,7 +2304,7 @@ It will be recreated with correct uri.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
-| `service` _string_ | Service is a discriminator for the created database.<br />Actually, it will be the module name (ledger, payments...).<br />Therefore, the created database will be named `<stack-name><service>` |  |  |
+| `service` _string_ | Service is a discriminator for the created database.<br />In practice, it is the module name (ledger, payments...).<br />Therefore, the created database will be named `<stack-name>-<service>` |  |  |
 | `debug` _boolean_ |  | false |  |
 
 
@@ -2333,10 +2334,10 @@ It will be recreated with correct uri.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `uri` _string_ |  |  | Type: string <br /> |
 | `database` _string_ | The generated database name |  |  |
-| `outOfSync` _boolean_ | OutOfSync indicates than a settings changed the uri of the postgres server<br />The Database object need to be removed to be recreated |  |  |
+| `outOfSync` _boolean_ | OutOfSync indicates that a setting changed the URI of the postgres server<br />The Database object must be removed so that it can be recreated |  |  |
 
 
 #### GatewayGRPCAPI
@@ -2477,7 +2478,7 @@ GatewayBackendTLS configures TLS when Gateway connects to a backend.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### GatewayHTTPAPI
@@ -2591,7 +2592,7 @@ GatewayHTTPAPI is the Schema for the HTTPAPIs API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 
 
 #### LedgerConfiguration
@@ -2793,7 +2794,7 @@ OtelExporterEndpointStatus represents the observed state of an OtelExporterEndpo
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `stacks` _string array_ | Stacks is a sorted list of stack names currently targeted by this endpoint.<br />Includes stacks with successful reconciliation and stacks with transient errors or pending cleanup.<br />Used by the finalizer to find previously matched stacks during deletion. |  |  |
 
 
@@ -2801,19 +2802,18 @@ OtelExporterEndpointStatus represents the observed state of an OtelExporterEndpo
 
 
 
-ResourceReference is a special resources used to refer to externally created resources.
+ResourceReference gives a stack access to a Kubernetes object created outside the operator — for example a secret
+holding the credentials of an existing Postgres server, or a service account granting access to AWS.
 
-It includes k8s service accounts and secrets.
+The indirection is needed because the operator gives each stack its own namespace, and a stack cannot read secrets
+or service accounts that live in another namespace.
 
-Why? Because the operator create a namespace by stack, so, a stack does not have access to secrets and service
-accounts created externally.
-
-A ResourceReference is created by other resource who need to use a specific secret or service account.
-For example, if you want to use a secret for your database connection (see [Database](#database), you will
+A ResourceReference is created by another resource that needs a specific secret or service account.
+For example, if you want to use a secret for your database connection (see [Database](#database)), you will
 create a setting indicating a secret name. You will need to create this secret yourself, and you will put this
 secret inside the namespace you want (`default` maybe).
 
-The Database reconciler will create a ResourceReference looking like that :
+The Database reconciler creates a ResourceReference with the following shape:
 ```
 apiVersion: formance.com/v1beta1
 kind: ResourceReference
@@ -2842,10 +2842,10 @@ status:
 	...
 
 ```
-This reconciler behind this ResourceReference will search, in all namespaces, for a secret named "postgres".
+The ResourceReference reconciler then searches every namespace for a secret named `postgres`.
 The secret must have a label `formance.com/stack` with the value matching either a specific stack or `any` to target any stack.
 
-Once the reconciler has found the secret, it will copy it inside the stack namespace, allowing the ResourceReconciler owner to use it.
+Once the reconciler has found the secret, it copies it into the stack namespace, so the owner of the ResourceReference can use it.
 
 
 
@@ -2924,7 +2924,7 @@ Once the reconciler has found the secret, it will copy it inside the stack names
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
-| `info` _string_ | Info can contain any additional like reconciliation errors |  |  |
+| `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
 | `syncedResource` _string_ |  |  |  |
 | `hash` _string_ |  |  |  |
 

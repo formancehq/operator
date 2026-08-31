@@ -40,16 +40,16 @@ type AuthSpec struct {
 	// Contains information about a delegated authentication server to use to delegate authentication
 	DelegatedOIDCServer *DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer,omitempty"`
 	//+optional
-	// Allow to override the default signing key used to sign JWT tokens.
+	// Overrides the default signing key used to sign JWT tokens.
 	SigningKey string `json:"signingKey,omitempty"`
 	//+optional
-	// Allow to override the default signing key used to sign JWT tokens using a k8s secret
+	// Overrides the default signing key used to sign JWT tokens, using a k8s secret
 	SigningKeyFromSecret *v1.SecretKeySelector `json:"signingKeyFromSecret,omitempty"`
 	//+optional
-	// Allow to enable scopes usage on authentication.
+	// Enables scope checking during authentication.
 	//
-	// If not enabled, each service will check the authentication but will not restrict access following scopes.
-	// in this case, if authenticated, it is ok.
+	// If not enabled, each service will check the authentication but will not restrict access according to scopes.
+	// In that case, being authenticated is sufficient.
 	// +kubebuilder:default:=false
 	EnableScopes bool `json:"enableScopes"`
 }
@@ -61,11 +61,11 @@ type AuthStatus struct {
 	Clients []string `json:"clients"`
 }
 
-// Auth represent the authentication module of a stack.
+// Auth represents the authentication module of a stack.
 //
-// It is an OIDC compliant server.
+// It is an OIDC-compliant server.
 //
-// Creating it for a stack automatically add authentication on all supported modules.
+// Creating it for a stack automatically adds authentication to all supported modules.
 //
 // The auth service is basically a proxy to another OIDC compliant server.
 // +kubebuilder:object:root=true

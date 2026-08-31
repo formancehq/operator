@@ -69,13 +69,13 @@ spec:
                 type: object
               debug:
                 default: false
-                description: Allow to enable debug mode on the module
+                description: Enables debug mode on the module
                 type: boolean
               dev:
                 default: false
                 description: |-
-                  Allow to enable dev mode on the module
-                  Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
+                  Enables dev mode on the module
+                  Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example)
                 type: boolean
               encryptionKey:
                 type: string
@@ -83,8 +83,8 @@ spec:
                 description: Stack indicates the stack on which the module is installed
                 type: string
               version:
-                description: Version allow to override global version defined at stack
-                  level for a specific module
+                description: Version overrides, for a specific module, the global
+                  version defined at stack level
                 type: string
             type: object
           status:
@@ -144,7 +144,8 @@ spec:
                   type: object
                 type: array
               info:
-                description: Info can contain any additional like reconciliation errors
+                description: Info can contain any additional detail, such as reconciliation
+                  errors
                 type: string
               ready:
                 description: Ready indicates if the resource is seen as completely

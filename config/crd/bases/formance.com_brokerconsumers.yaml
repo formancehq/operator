@@ -126,7 +126,8 @@ spec:
                   type: object
                 type: array
               info:
-                description: Info can contain any additional like reconciliation errors
+                description: Info can contain any additional detail, such as reconciliation
+                  errors
                 type: string
               ready:
                 description: Ready indicates if the resource is seen as completely

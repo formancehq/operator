@@ -23,8 +23,8 @@ import (
 type DatabaseSpec struct {
 	StackDependency `json:",inline"`
 	// Service is a discriminator for the created database.
-	// Actually, it will be the module name (ledger, payments...).
-	// Therefore, the created database will be named `<stack-name><service>`
+	// In practice, it is the module name (ledger, payments...).
+	// Therefore, the created database will be named `<stack-name>-<service>`
 	Service string `json:"service"`
 	// +kubebuilder:default:=false
 	Debug bool `json:"debug,omitempty"`
@@ -38,32 +38,33 @@ type DatabaseStatus struct {
 	// The generated database name
 	Database string `json:"database,omitempty"`
 	//+optional
-	// OutOfSync indicates than a settings changed the uri of the postgres server
-	// The Database object need to be removed to be recreated
+	// OutOfSync indicates that a setting changed the URI of the postgres server
+	// The Database object must be removed so that it can be recreated
 	OutOfSync bool `json:"outOfSync,omitempty"`
 }
 
-// Database represent a concrete database on a PostgreSQL server, it is created by modules requiring a database ([Ledger](#ledger) for example).
+// Database represents a concrete database on a PostgreSQL server. Modules that require a database create it ([Ledger](#ledger), for example).
 //
-// It uses the settings `postgres.<module-name>.uri` which must have the following uri format: `postgresql://[<username>@<password>]@<host>/<db-name>`
-// Additionally, the uri can define a query param `secret` indicating a k8s secret, than must be used to retrieve database credentials.
+// It uses the settings `postgres.<module-name>.uri` which must have the following URI format: `postgresql://[<username>:<password>@]<host>[:<port>]`.
+// The database name is not part of the setting: the operator derives it from the stack and the service.
+// Additionally, the URI can define a query param `secret` indicating a k8s secret that must be used to retrieve database credentials.
 // Credentials in the secret are expected to be URL-encoded by default. Set `secretCredentialsEncoding=raw` to let the operator encode them.
 //
 // On creation, the reconciler behind the Database object will create the database on the postgresql server using a k8s job.
-// On Deletion, by default, the reconciler will let the database untouched.
+// On Deletion, by default, the reconciler leaves the database untouched.
 // You can allow the reconciler to drop the database on the server by using the [Settings](#settings) `clear-database` with the value `true`.
 // If you use that setting, the reconciler will use another job to drop the database.
-// Be careful, no backup are performed!
+// Be careful: no backup is performed!
 //
 // Database resource honors `aws.service-account` setting, so, you can create databases on an AWS server if you need.
 // See [AWS accounts](#aws-account)
 //
-// Once a database is fully configured, it retains the postgres uri used.
-// If the setting indicating the server uri changed, the Database object will set the field `.status.outOfSync` to true
+// Once a database is fully configured, it retains the postgres URI used.
+// If the setting that specifies the server URI changes, the Database object will set the field `.status.outOfSync` to true
 // and will not change anything.
 //
 // Therefore, to switch to a new server, you must change the setting value, then drop the Database object.
-// It will be recreated with correct uri.
+// It will be recreated with the correct URI.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
