@@ -28,7 +28,7 @@ func ledgerV3EventSinks(
 ) (*ledgerv1alpha1.EventSinksSpec, error) {
 	// Preview clusters must not duplicate events emitted by the active Ledger.
 	if preview {
-		return mergeLedgerV3EventSinks(configured, nil), nil
+		return &ledgerv1alpha1.EventSinksSpec{}, nil
 	}
 
 	topic := &v1beta1.BrokerTopic{}

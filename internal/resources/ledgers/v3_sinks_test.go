@@ -4,9 +4,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
+
+	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
+
+func TestLedgerV3EventSinksDisablesAllPreviewSinks(t *testing.T) {
+	t.Parallel()
+
+	configured := &ledgerv1alpha1.EventSinksSpec{NATS: []ledgerv1alpha1.NATSEventSinkSpec{{
+		Name: "audit", URL: "nats://audit:4222", Topic: "audit",
+	}}}
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+
+	actual, err := ledgerV3EventSinks(newExportsContext(t), stack, configured, true)
+	require.NoError(t, err)
+	require.Empty(t, actual.NATS)
+	require.Len(t, configured.NATS, 1)
+}
 
 func TestMergeLedgerV3EventSinks(t *testing.T) {
 	t.Parallel()
