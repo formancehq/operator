@@ -48,3 +48,32 @@ func TestGetBrokerEnvVarsCircuitBreakerIsOptIn(t *testing.T) {
 		})
 	}
 }
+
+func TestGetPublisherTopic(t *testing.T) {
+	t.Parallel()
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+
+	tests := []struct {
+		name     string
+		mode     v1beta1.Mode
+		expected string
+	}{
+		{name: "one stream by service", mode: v1beta1.ModeOneStreamByService, expected: "stack0-ledger"},
+		{name: "one stream by stack", mode: v1beta1.ModeOneStreamByStack, expected: "stack0.ledger"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			broker := &v1beta1.Broker{Status: v1beta1.BrokerStatus{Mode: test.mode}}
+			require.Equal(t, test.expected, GetPublisherTopic(stack, broker, "ledger"))
+		})
+	}
+}
+
+func TestNatsSubjects(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, []string{"stack0.ledger", "stack0.ledger.>"}, NatsSubjects("stack0.ledger"))
+}

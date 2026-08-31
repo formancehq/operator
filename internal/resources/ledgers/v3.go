@@ -385,6 +385,10 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	if err != nil {
 		return nil, nil, err
 	}
+	eventSinks, err := ledgerV3EventSinks(ctx, stack, baseSpec.Sinks, preview)
+	if err != nil {
+		return nil, nil, err
+	}
 	desiredSpec, err := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
 		ImageRepository:           imageRepository(image),
 		ImageTag:                  image.Version,
@@ -401,6 +405,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		Auth:                      authConfiguration,
 		ServiceAccountName:        serviceAccountName,
 		TopologySpreadConstraints: topologySpreadConstraints,
+		Sinks:                     eventSinks,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("composing Ledger v3 Cluster spec: %w", err)

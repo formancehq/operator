@@ -19,6 +19,8 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
+const natsNestedSubjectsRevision = "ns1"
+
 func Reconcile(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker) error {
 
 	brokerURI, err := settings.RequireURL(ctx, stack.Name, "broker", "dsn")
@@ -173,17 +175,16 @@ func deleteBroker(ctx core.Context, broker *v1beta1.Broker) error {
 }
 
 func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, uri *v1beta1.URI) error {
-
-	if broker.Status.Ready {
-		return nil
-	}
-
 	const script = `
-	if ! nats --server "$NATS_URI" stream info "$STREAM" --no-select >/dev/null 2>&1; then
+	if nats --server "$NATS_URI" stream info "$STREAM" --no-select >/dev/null 2>&1; then
+		nats --server "$NATS_URI" stream edit "$STREAM" \
+			--subjects "$STREAM.>" \
+			--force
+	else
 		nats stream add \
 			--server "$NATS_URI" \
 			--retention interest \
-			--subjects "$STREAM.*" \
+			--subjects "$STREAM.>" \
 			--defaults \
 			--replicas "$REPLICAS" \
 			--no-allow-direct \
@@ -195,7 +196,7 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 		return err
 	}
 
-	return jobs.Handle(ctx, broker, "create-stream", corev1.Container{
+	return jobs.Handle(ctx, broker, "cs-"+natsNestedSubjectsRevision, corev1.Container{
 		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-topic",
 		Args:  core.ShellScript(script),
@@ -224,10 +225,10 @@ func createOneStreamByTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 
 	for _, item := range l.Items {
 		item := item
+		if err := createNatsTopic(ctx, stack, broker, &item, brokerURI); err != nil {
+			return err
+		}
 		if !collectionutils.Contains(broker.Status.Streams, item.Spec.Service) {
-			if err := createNatsTopic(ctx, stack, broker, &item, brokerURI); err != nil {
-				return err
-			}
 			broker.Status.Streams = append(broker.Status.Streams, item.Spec.Service)
 		}
 	}
@@ -239,16 +240,21 @@ func createOneStreamByTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 
 func createNatsTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, topic *v1beta1.BrokerTopic, brokerURI *v1beta1.URI) error {
 	const script = `
-	index=$(nats --server $NATS_URI stream ls -j | jq "index(\"$SUBJECT\")")
-	if [ "$index" = "null" ]; then
+	if nats --server "$NATS_URI" stream info "$STREAM" --no-select >/dev/null 2>&1; then
+		nats --server "$NATS_URI" stream edit "$STREAM" \
+			--subjects "$SUBJECT" \
+			--subjects "$SUBJECT.>" \
+			--force
+	else
 		nats stream add \
-			--server $NATS_URI \
+			--server "$NATS_URI" \
 			--retention interest \
-			--subjects $SUBJECT \
+			--subjects "$SUBJECT" \
+			--subjects "$SUBJECT.>" \
 			--defaults \
-			--replicas $REPLICAS \
+			--replicas "$REPLICAS" \
 			--no-allow-direct \
-			$STREAM
+			"$STREAM"
 	fi`
 
 	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
@@ -256,7 +262,7 @@ func createNatsTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Bro
 		return err
 	}
 
-	return jobs.Handle(ctx, broker, "create-topic-"+topic.Spec.Service, corev1.Container{
+	return jobs.Handle(ctx, broker, "ct-"+natsNestedSubjectsRevision+"-"+topic.Spec.Service, corev1.Container{
 		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-topic",
 		Args:  core.ShellScript(script),

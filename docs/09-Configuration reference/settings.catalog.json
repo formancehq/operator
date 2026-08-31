@@ -33,7 +33,7 @@
       "key": "broker.dsn",
       "valueType": "uri",
       "sources": [
-        "internal/resources/brokers/reconcile.go:24",
+        "internal/resources/brokers/reconcile.go:26",
         "internal/resources/webhooks/deployment.go:30"
       ]
     },

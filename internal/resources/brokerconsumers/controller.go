@@ -28,10 +28,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	collectionutils "github.com/formancehq/go-libs/v5/pkg/types/collections"
-
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/brokers"
 	"github.com/formancehq/operator/v3/internal/resources/jobs"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
@@ -41,6 +40,8 @@ const (
 	ConditionTypeBrokerTopicCreated         = "BrokerTopicCreated"
 	ConditionTypeNatsStackConsumerCreated   = "NatsStackConsumerCreated"
 	ConditionTypeNatsServiceConsumerCreated = "NatsServiceConsumerCreated"
+	natsConsumerConfigurationRevision       = "NestedSubjectsV1"
+	natsConsumerJobRevision                 = "ns1"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=brokerconsumers,verbs=get;list;watch;create;update;patch;delete
@@ -134,6 +135,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerC
 				v1beta1.AndConditions(
 					v1beta1.ConditionTypeMatch(ConditionTypeNatsStackConsumerCreated),
 					v1beta1.ConditionGenerationMatch(consumer.Generation),
+					v1beta1.ConditionReasonMatch(natsConsumerConfigurationRevision),
 				),
 			) {
 				if err := createStackNatsConsumer(ctx, stack, consumer, broker); err != nil {
@@ -146,7 +148,7 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerC
 					v1beta1.AndConditions(
 						v1beta1.ConditionTypeMatch(ConditionTypeNatsServiceConsumerCreated),
 						v1beta1.ConditionGenerationMatch(consumer.Generation),
-						v1beta1.ConditionReasonMatch(service),
+						v1beta1.ConditionReasonMatch(natsServiceConditionReason(service)),
 					),
 				) {
 					if err := createServiceNatsConsumer(ctx, stack, consumer, broker, service); err != nil {
@@ -170,16 +172,21 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerC
 
 func createServiceNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v1beta1.BrokerConsumer, broker *v1beta1.Broker, service string) error {
 	const script = `
-	if ! nats --server "$NATS_URI" consumer info "$STACK-$SERVICE" "$NAME" --no-select >/dev/null 2>&1; then
-		nats --server "$NATS_URI" consumer add "$STACK-$SERVICE" "$NAME" \
+	filters=""
+	for f in $SUBJECTS; do
+		filters="$filters --filter $f"
+	done
+	if nats --server "$NATS_URI" consumer info "$STREAM" "$NAME" --no-select >/dev/null 2>&1; then
+		nats --server "$NATS_URI" consumer edit "$STREAM" "$NAME" --force $filters
+	else
+		nats --server "$NATS_URI" consumer add "$STREAM" "$NAME" \
 			--deliver-group "$NAME" \
 			--deliver all \
 			--max-pending 1024 \
 			--ack explicit \
 			--target "$STACK-$NAME" \
 			--replay instant \
-			--filter "$STACK-$SERVICE" \
-			--defaults
+			--defaults $filters
 	fi`
 
 	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
@@ -187,7 +194,8 @@ func createServiceNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer 
 		return err
 	}
 
-	err = jobs.Handle(ctx, consumer, "cc-"+service, corev1.Container{
+	topic := brokers.GetPublisherTopic(stack, broker, service)
+	err = jobs.Handle(ctx, consumer, "cc-"+natsConsumerJobRevision+"-"+service, corev1.Container{
 		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-consumer",
 		Args:  core.ShellScript(script),
@@ -195,18 +203,19 @@ func createServiceNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer 
 			core.Env("NATS_URI", fmt.Sprintf("nats://%s", broker.Status.URI.Host)),
 			core.Env("STACK", stack.Name),
 			core.Env("NAME", consumer.Spec.QueriedBy),
-			core.Env("SERVICE", service),
+			core.Env("STREAM", topic),
+			core.Env("SUBJECTS", strings.Join(natsConsumerSubjects(stack, broker, service), " ")),
 		},
 	},
 		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
 	)
 
 	condition := v1beta1.NewCondition(ConditionTypeNatsServiceConsumerCreated, consumer.Generation).
-		SetReason(service)
+		SetReason(natsServiceConditionReason(service))
 	defer func() {
 		consumer.Status.Conditions.AppendOrReplace(*condition, v1beta1.AndConditions(
 			v1beta1.ConditionTypeMatch(ConditionTypeNatsServiceConsumerCreated),
-			v1beta1.ConditionReasonMatch(service),
+			v1beta1.ConditionReasonMatch(natsServiceConditionReason(service)),
 		))
 	}()
 
@@ -225,14 +234,18 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 	for f in $SUBJECTS; do
 		filters="$filters --filter $f"
 	done
-	nats --server $NATS_URI consumer add $STREAM $NAME \
-		--deliver-group $DELIVER \
-		--deliver all \
-		--max-pending 1024 \
-		--ack explicit \
-		--target $STREAM-$NAME \
-		--replay instant \
-		--defaults $filters
+	if nats --server "$NATS_URI" consumer info "$STREAM" "$NAME" --no-select >/dev/null 2>&1; then
+		nats --server "$NATS_URI" consumer edit "$STREAM" "$NAME" --force $filters
+	else
+		nats --server "$NATS_URI" consumer add "$STREAM" "$NAME" \
+			--deliver-group "$DELIVER" \
+			--deliver all \
+			--max-pending 1024 \
+			--ack explicit \
+			--target "$STREAM-$NAME" \
+			--replay instant \
+			--defaults $filters
+	fi
 	`
 
 	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
@@ -245,7 +258,7 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 		consumerName += "_" + consumer.Spec.Name
 	}
 
-	err = jobs.Handle(ctx, consumer, "create-consumer", corev1.Container{
+	err = jobs.Handle(ctx, consumer, "cc-"+natsConsumerJobRevision, corev1.Container{
 		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-consumer",
 		Args:  core.ShellScript(script),
@@ -254,11 +267,7 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 			core.Env("STREAM", stack.Name),
 			core.Env("NAME", consumerName),
 			core.Env("DELIVER", consumer.Spec.QueriedBy),
-			core.Env("SUBJECTS", strings.Join(
-				collectionutils.Map(consumer.Spec.Services, func(from string) string {
-					return fmt.Sprintf("%s.%s", stack.Name, from)
-				}), " ",
-			)),
+			core.Env("SUBJECTS", strings.Join(natsConsumerSubjects(stack, broker, consumer.Spec.Services...), " ")),
 		},
 	},
 		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
@@ -267,6 +276,7 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 		consumer.GetConditions().AppendOrReplace(v1beta1.Condition{
 			Type:               ConditionTypeNatsStackConsumerCreated,
 			Status:             metav1.ConditionFalse,
+			Reason:             natsConsumerConfigurationRevision,
 			ObservedGeneration: consumer.Generation,
 			LastTransitionTime: metav1.Now(),
 			Message:            fmt.Sprintf("Error creating consumer on nats: %s", err),
@@ -276,6 +286,7 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 		consumer.GetConditions().AppendOrReplace(v1beta1.Condition{
 			Type:               ConditionTypeNatsStackConsumerCreated,
 			Status:             metav1.ConditionTrue,
+			Reason:             natsConsumerConfigurationRevision,
 			ObservedGeneration: consumer.Generation,
 			LastTransitionTime: metav1.Now(),
 			Message:            "Nats consumer created",
@@ -283,4 +294,17 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 	}
 
 	return nil
+}
+
+func natsServiceConditionReason(service string) string {
+	return service + ":" + natsConsumerConfigurationRevision
+}
+
+func natsConsumerSubjects(stack *v1beta1.Stack, broker *v1beta1.Broker, services ...string) []string {
+	subjects := make([]string, 0, len(services)*2)
+	for _, service := range services {
+		topic := brokers.GetPublisherTopic(stack, broker, service)
+		subjects = append(subjects, brokers.NatsSubjects(topic)...)
+	}
+	return subjects
 }
