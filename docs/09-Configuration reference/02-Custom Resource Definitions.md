@@ -2035,6 +2035,7 @@ Broker is the Schema for the brokers API
 | `uri` _string_ |  |  | Type: string <br /> |
 | `mode` _[Mode](#mode)_ | Mode indicating the configuration of the nats streams<br />Two modes are defined :<br />* ModeOneStreamByService: In this case, each service will have a dedicated stream created<br />* ModeOneStreamByStack: In this case, a stream will be created for the stack and each service will use a specific subject inside this stream |  | Enum: [OneStreamByService OneStreamByStack] <br /> |
 | `streams` _string array_ | Streams list streams created when Mode == ModeOneStreamByService |  |  |
+| `streamSubjectsRevision` _string_ | StreamSubjectsRevision records the subject-layout migration applied to the<br />NATS streams. It prevents completed migration Jobs from being recreated<br />after their TTL expires. |  |  |
 
 ###### Mode
 

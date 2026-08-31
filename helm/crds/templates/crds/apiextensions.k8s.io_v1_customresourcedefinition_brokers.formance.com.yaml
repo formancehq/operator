@@ -131,6 +131,12 @@ spec:
                 description: Ready indicates if the resource is seen as completely
                   reconciled
                 type: boolean
+              streamSubjectsRevision:
+                description: |-
+                  StreamSubjectsRevision records the subject-layout migration applied to the
+                  NATS streams. It prevents completed migration Jobs from being recreated
+                  after their TTL expires.
+                type: string
               streams:
                 description: Streams list streams created when Mode == ModeOneStreamByService
                 items:

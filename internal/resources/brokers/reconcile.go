@@ -175,6 +175,10 @@ func deleteBroker(ctx core.Context, broker *v1beta1.Broker) error {
 }
 
 func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, uri *v1beta1.URI) error {
+	if broker.Status.StreamSubjectsRevision == natsNestedSubjectsRevision {
+		return nil
+	}
+
 	const script = `
 	if nats --server "$NATS_URI" stream info "$STREAM" --no-select >/dev/null 2>&1; then
 		nats --server "$NATS_URI" stream edit "$STREAM" \
@@ -196,7 +200,7 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 		return err
 	}
 
-	return jobs.Handle(ctx, broker, "cs-"+natsNestedSubjectsRevision, corev1.Container{
+	if err := jobs.Handle(ctx, broker, "cs-"+natsNestedSubjectsRevision, corev1.Container{
 		Image: natsBoxImage.GetFullImageName(),
 		Name:  "create-topic",
 		Args:  core.ShellScript(script),
@@ -212,7 +216,13 @@ func createOneStreamByStack(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 		},
 	},
 		jobs.WithImagePullSecrets(natsBoxImage.PullSecrets),
-	)
+	); err != nil {
+		return err
+	}
+
+	broker.Status.StreamSubjectsRevision = natsNestedSubjectsRevision
+
+	return nil
 }
 
 func createOneStreamByTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, brokerURI *v1beta1.URI) error {
@@ -225,8 +235,10 @@ func createOneStreamByTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 
 	for _, item := range l.Items {
 		item := item
-		if err := createNatsTopic(ctx, stack, broker, &item, brokerURI); err != nil {
-			return err
+		if brokerNeedsStreamSubjectsMigration(broker, item.Spec.Service) {
+			if err := createNatsTopic(ctx, stack, broker, &item, brokerURI); err != nil {
+				return err
+			}
 		}
 		if !collectionutils.Contains(broker.Status.Streams, item.Spec.Service) {
 			broker.Status.Streams = append(broker.Status.Streams, item.Spec.Service)
@@ -234,8 +246,14 @@ func createOneStreamByTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1be
 	}
 
 	sort.Strings(broker.Status.Streams)
+	broker.Status.StreamSubjectsRevision = natsNestedSubjectsRevision
 
 	return nil
+}
+
+func brokerNeedsStreamSubjectsMigration(broker *v1beta1.Broker, service string) bool {
+	return broker.Status.StreamSubjectsRevision != natsNestedSubjectsRevision ||
+		!collectionutils.Contains(broker.Status.Streams, service)
 }
 
 func createNatsTopic(ctx core.Context, stack *v1beta1.Stack, broker *v1beta1.Broker, topic *v1beta1.BrokerTopic, brokerURI *v1beta1.URI) error {
