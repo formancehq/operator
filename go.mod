@@ -2,6 +2,8 @@ module github.com/formancehq/operator/v3
 
 go 1.26.0
 
+godebug urlstrictcolons=0
+
 toolchain go1.26.1
 
 require (
