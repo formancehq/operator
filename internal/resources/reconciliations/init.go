@@ -28,6 +28,7 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/brokertopics"
 	"github.com/formancehq/operator/v3/internal/resources/databases"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
@@ -119,6 +120,10 @@ func init() {
 			Requirements(
 				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
 			),
+			WithUnsatisfiedRequirementsHandler(ledgers.CleanupLegacyModuleOnV3[*v1beta1.Reconciliation](
+				&v1beta1.GatewayHTTPAPI{}, &v1beta1.AuthClient{},
+				&appsv1.Deployment{}, &batchv1.Job{},
+			)),
 			WithOwn[*v1beta1.Reconciliation](&v1beta1.Database{}),
 			WithOwn[*v1beta1.Reconciliation](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Reconciliation](&v1beta1.AuthClient{}),

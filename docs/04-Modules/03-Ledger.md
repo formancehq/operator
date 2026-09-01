@@ -45,6 +45,18 @@ Ledger reports that an explicit migration is required and does not create the
 v3 `Cluster`. The reverse transition is guarded in the same way: legacy
 resources are not created while a v3 `Cluster` still exists.
 
+MCP, Orchestration, Reconciliation, TransactionPlane, Wallets, and Webhooks
+currently support only Ledger versions before `v3.0.0-0`. During a v2 to v3
+transition, their custom resources block creation of the primary Ledger v3
+`Cluster`, while their existing v2 runtimes keep running. Disable these modules
+before completing the Ledger migration.
+
+If a primary v3 `Cluster` is already present with one of these incompatible
+module objects, the Operator removes that module's active workloads, jobs,
+broker consumers, credentials, and Gateway exposure. It preserves databases,
+broker topics, and other durable resources for explicit migration or recovery.
+This cleanup does not apply to a Ledger v3 preview cluster.
+
 ### Ledger v3 preview alongside Ledger v2
 
 For migration preparation, a stack that still runs Ledger v2 can start a

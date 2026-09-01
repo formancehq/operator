@@ -226,6 +226,20 @@ An unsatisfied requirement blocks the normal module reconciler, but it does not 
 
 Modules such as Connectivity may need explicit cleanup after a certain incompatibility, while retaining resources for transient states such as an unresolved version or temporary unready status. `WithUnsatisfiedRequirementsHandler` provides this module-specific hook and invokes it for every definite `False` evaluation. The handler must filter the reasons that are destructive in its own domain. Connectivity reuses `ledgerGateClosed` so cleanup occurs only when Ledger is missing or resolves below the v3 boundary, never for an unresolved version, multiple Ledger objects, or temporary unready status.
 
+Legacy Ledger consumers require an additional transition guard. Changing the
+desired Ledger version to v3 does not immediately delete their working v2
+runtimes. Instead, the Ledger reconciler refuses to materialize the primary v3
+`Cluster` while MCP, Orchestration, Reconciliation, TransactionPlane, Wallets,
+or Webhooks objects still exist. The module objects are watched, so deleting the
+last incompatible module automatically resumes Ledger reconciliation.
+
+If a primary Ledger v3 `Cluster` already exists alongside one of these legacy
+modules, its unsatisfied-requirements handler removes only active runtime and
+exposure resources, such as Deployments, Jobs, Gateway routes, consumers, and
+credentials. Databases, broker topics, and other durable resources are retained
+for an explicit migration or recovery. A v3 preview cluster does not trigger
+this cleanup and can continue to run alongside Ledger v2.
+
 Finalizers continue to run even when requirements are unsatisfied, so removing an incompatible module can always unblock a Stack.
 
 A pre-reconcile requirement must not target an object that can only be created by the blocked reconciler. Such a declaration would deadlock a fresh Stack. Webhooks and Orchestration currently create `BrokerConsumer` and `BrokerTopic` resources before waiting for Broker-dependent work. Migrating those relationships requires a separate preparation phase before the requirements gate, or proof that Broker provisioning is independent of the consumer.
@@ -248,7 +262,7 @@ For example, a future ready `Broker` requirement could remove the repeated prese
 
 1. Implement and unit-test the requirements model.
 2. Integrate it into `WithModuleReconciler` and require every module registration to choose `Requirements(...)` or `NoRequirements()`.
-3. Declare the four confirmed Ledger version relationships for Connectivity, TransactionPlane, Orchestration, and Reconciliation.
+3. Declare the confirmed Ledger version relationships for Connectivity, MCP, TransactionPlane, Orchestration, Reconciliation, Wallets, and Webhooks.
 4. Demonstrate Broker presence/readiness and Ledger version constraints with focused core tests.
 5. Add focused tests for effective-version overrides, `Versions` lookup, invalid SemVer, range boundaries, generated dependency watches, and module-specific cleanup hooks.
 6. Separate preparation from gating before migrating Broker readiness or another dependency provisioned by its consumer.
@@ -281,5 +295,7 @@ The design is demonstrated when:
 - conditions distinguish missing, unready, mismatched, and unresolved dependencies;
 - an unsatisfied requirement never triggers generic workload deletion;
 - Connectivity cleanup runs only for definite requirement failures;
-- Connectivity, TransactionPlane, Orchestration, and Reconciliation declare their confirmed Ledger ranges;
+- a Ledger v2 to v3 transition keeps legacy module runtimes active while blocking primary v3 Cluster materialization;
+- an already materialized primary Ledger v3 Cluster removes incompatible module runtimes and exposure without deleting durable data;
+- Connectivity, MCP, TransactionPlane, Orchestration, Reconciliation, Wallets, and Webhooks declare their confirmed Ledger ranges;
 - existing module tests continue to pass.

@@ -23,6 +23,7 @@ import (
 	. "github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/authclients"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 )
 
 //+kubebuilder:rbac:groups=formance.com,resources=wallets,verbs=get;list;watch;create;update;patch;delete
@@ -62,6 +63,9 @@ func init() {
 			Requirements(
 				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
 			),
+			WithUnsatisfiedRequirementsHandler(ledgers.CleanupLegacyModuleOnV3[*v1beta1.Wallets](
+				&v1beta1.GatewayHTTPAPI{}, &v1beta1.AuthClient{}, &appsv1.Deployment{},
+			)),
 			WithWatchSettings[*v1beta1.Wallets](),
 			WithWatchDependency[*v1beta1.Wallets](&v1beta1.Auth{}),
 			WithOwn[*v1beta1.Wallets](&v1beta1.AuthClient{}),

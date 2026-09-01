@@ -195,6 +195,9 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "OperatorUnavailable", "Ledger v3 Cluster CRD is not installed")
 		return core.NewPendingError().WithMessage("Ledger v3 operator unavailable: Cluster CRD is not installed")
 	}
+	if err := blockV3TransitionWithIncompatibleModules(ctx, stack, ledger); err != nil {
+		return err
+	}
 
 	clearLegacyLedgerConditions(ledger)
 

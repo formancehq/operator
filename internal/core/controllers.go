@@ -258,6 +258,22 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingCont
 }
 
 func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[client.Object][]builder.OwnsOption) error {
+	objects := make([]client.Object, 0, len(owns))
+	for object := range owns {
+		if _, ok := object.(v1beta1.Resource); ok {
+			// Resources must not be deleted when disabling a Stack because they may
+			// contain durable state needed when it is enabled again.
+			continue
+		}
+		objects = append(objects, object)
+	}
+	return DeleteOwnedObjects(ctx, owner, objects...)
+}
+
+// DeleteOwnedObjects deletes the objects of the requested kinds controlled by
+// owner. Callers explicitly select the kinds because lifecycle and data
+// retention policy is module-specific.
+func DeleteOwnedObjects(ctx Context, owner client.Object, objects ...client.Object) error {
 	logger := log.FromContext(ctx)
 	stackName := ""
 	if dep, ok := owner.(v1beta1.Dependent); ok {
@@ -269,12 +285,7 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 		return err
 	}
 
-	for object := range owns {
-		if _, ok := object.(v1beta1.Resource); ok {
-			// Resources must not be deleted
-			continue
-		}
-
+	for _, object := range objects {
 		gvk, err := apiutil.GVKForObject(object, ctx.GetScheme())
 		if err != nil {
 			return err
