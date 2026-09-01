@@ -9,6 +9,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/brokerconsumers"
 )
 
 var ledgerV3IncompatibleModules = []struct {
@@ -45,6 +46,18 @@ func CleanupLegacyModuleOnV3[T v1beta1.Module](objects ...client.Object) core.Un
 		}
 		if !active {
 			return nil
+		}
+		for _, object := range objects {
+			if _, ok := object.(*v1beta1.BrokerConsumer); !ok {
+				continue
+			}
+			ready, err := brokerconsumers.EnsureDeletionFinalizers(ctx, module)
+			if err != nil {
+				return err
+			}
+			if !ready {
+				return core.NewPendingError().WithMessage("waiting for BrokerConsumer cleanup finalizers")
+			}
 		}
 		return core.DeleteOwnedObjects(ctx, module, objects...)
 	}

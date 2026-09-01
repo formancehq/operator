@@ -54,8 +54,8 @@ before completing the Ledger migration.
 If a primary v3 `Cluster` is already present with one of these incompatible
 module objects, the Operator removes that module's active workloads, jobs,
 broker consumers, credentials, and Gateway exposure. It preserves databases,
-broker topics, and other durable resources for explicit migration or recovery.
-This cleanup does not apply to a Ledger v3 preview cluster.
+underlying broker streams, and other durable data for explicit migration or
+recovery. This cleanup does not apply to a Ledger v3 preview cluster.
 
 ### Ledger v3 preview alongside Ledger v2
 

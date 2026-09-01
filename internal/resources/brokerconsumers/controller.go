@@ -284,3 +284,90 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 
 	return nil
 }
+
+func deleteNatsConsumers(ctx core.Context, consumer *v1beta1.BrokerConsumer) error {
+	broker := &v1beta1.Broker{}
+	if err := ctx.GetClient().Get(ctx, types.NamespacedName{Name: consumer.Spec.Stack}, broker); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if broker.Status.URI == nil || broker.Status.URI.Scheme != "nats" {
+		return nil
+	}
+
+	stack := &v1beta1.Stack{}
+	if err := ctx.GetClient().Get(ctx, types.NamespacedName{Name: consumer.Spec.Stack}, stack); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
+	if err != nil {
+		return err
+	}
+
+	var script string
+	switch broker.Status.Mode {
+	case v1beta1.ModeOneStreamByStack:
+		script = `
+			name="$QUERIED_BY"
+			if [ -n "$NAME" ]; then
+				name="${name}_${NAME}"
+			fi
+			if nats --server "$NATS_URI" consumer info "$STACK" "$name" --no-select >/dev/null 2>&1; then
+				nats --server "$NATS_URI" consumer rm "$STACK" "$name" -f
+			fi
+		`
+	case v1beta1.ModeOneStreamByService:
+		script = `
+			for service in $SERVICES; do
+				stream="${STACK}-${service}"
+				if nats --server "$NATS_URI" consumer info "$stream" "$QUERIED_BY" --no-select >/dev/null 2>&1; then
+					nats --server "$NATS_URI" consumer rm "$stream" "$QUERIED_BY" -f
+				fi
+			done
+		`
+	default:
+		return nil
+	}
+
+	return jobs.Handle(ctx, consumer, "delete-consumers", corev1.Container{
+		Image: natsBoxImage.GetFullImageName(),
+		Name:  "delete-consumers",
+		Args:  core.ShellScript(script),
+		Env: []corev1.EnvVar{
+			core.Env("NATS_URI", fmt.Sprintf("nats://%s", broker.Status.URI.Host)),
+			core.Env("STACK", consumer.Spec.Stack),
+			core.Env("QUERIED_BY", consumer.Spec.QueriedBy),
+			core.Env("NAME", consumer.Spec.Name),
+			core.Env("SERVICES", strings.Join(consumer.Spec.Services, " ")),
+		},
+	}, jobs.WithImagePullSecrets(natsBoxImage.PullSecrets))
+}
+
+// EnsureDeletionFinalizers makes compatibility cleanup safe for BrokerConsumer
+// objects created before the NATS cleanup finalizer was introduced. The caller
+// must retry after this update reaches the cache before deleting the objects.
+func EnsureDeletionFinalizers(ctx core.Context, owner v1beta1.Dependent) (bool, error) {
+	consumers := &v1beta1.BrokerConsumerList{}
+	if err := ctx.GetClient().List(ctx, consumers, client.MatchingFields{"stack": owner.GetStack()}); err != nil {
+		return false, err
+	}
+
+	ready := true
+	for i := range consumers.Items {
+		consumer := &consumers.Items[i]
+		controlled, err := core.HasControllerReference(ctx, owner, consumer)
+		if err != nil {
+			return false, err
+		}
+		if !controlled || controllerutil.ContainsFinalizer(consumer, deleteNatsConsumersFinalizer) {
+			continue
+		}
+
+		patch := client.MergeFrom(consumer.DeepCopy())
+		controllerutil.AddFinalizer(consumer, deleteNatsConsumersFinalizer)
+		if err := ctx.GetClient().Patch(ctx, consumer, patch); err != nil {
+			return false, err
+		}
+		ready = false
+	}
+	return ready, nil
+}

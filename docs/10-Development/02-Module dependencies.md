@@ -236,9 +236,9 @@ last incompatible module automatically resumes Ledger reconciliation.
 If a primary Ledger v3 `Cluster` already exists alongside one of these legacy
 modules, its unsatisfied-requirements handler removes only active runtime and
 exposure resources, such as Deployments, Jobs, Gateway routes, consumers, and
-credentials. Databases, broker topics, and other durable resources are retained
-for an explicit migration or recovery. A v3 preview cluster does not trigger
-this cleanup and can continue to run alongside Ledger v2.
+credentials. Databases, underlying broker streams, and other durable data are
+retained for an explicit migration or recovery. A v3 preview cluster does not
+trigger this cleanup and can continue to run alongside Ledger v2.
 
 Finalizers continue to run even when requirements are unsatisfied, so removing an incompatible module can always unblock a Stack.
 
