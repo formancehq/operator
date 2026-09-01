@@ -140,6 +140,23 @@ func WithWatchDependency[T client.Object](t v1beta1.Dependent) ReconcilerOption[
 	}
 }
 
+// WithWatchDependencySpecOnly behaves like WithWatchDependency but only enqueues
+// the target on changes to the dependency's spec (metadata.generation), ignoring
+// status-only updates. Use it for dependencies whose spec content (not readiness)
+// drives the target's reconciliation, to avoid re-triggering the target every time
+// the dependency's status flaps.
+func WithWatchDependencySpecOnly[T client.Object](t v1beta1.Dependent) ReconcilerOption[T] {
+	return func(options *ReconcilerOptions[T]) {
+		options.Watchers[t] = ReconcilerOptionsWatch{
+			Handler: func(mgr Manager, b *builder.Builder, target client.Object) (handler.EventHandler, []builder.WatchesOption) {
+				return handler.EnqueueRequestsFromMapFunc(WatchDependents(mgr, target)), []builder.WatchesOption{
+					builder.WithPredicates(predicate.GenerationChangedPredicate{}),
+				}
+			},
+		}
+	}
+}
+
 func WithWatchStack[T client.Object]() ReconcilerOption[T] {
 	return func(options *ReconcilerOptions[T]) {
 		options.Watchers[&v1beta1.Stack{}] = ReconcilerOptionsWatch{

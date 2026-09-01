@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/formancehq/go-libs/v5/pkg/types/pointer"
@@ -507,10 +508,15 @@ func (a Application) handleDeployment(ctx core.Context, deploymentLabels map[str
 		core.WithController[*appsv1.Deployment](ctx.GetScheme(), a.owner),
 	)
 
-	deployment, _, err := core.CreateOrUpdate(ctx, types.NamespacedName{
-		Namespace: a.owner.GetStack(),
-		Name:      a.deploymentTpl.Name,
-	}, mutators...)
+	var deployment *appsv1.Deployment
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var retryErr error
+		deployment, _, retryErr = core.CreateOrUpdate(ctx, types.NamespacedName{
+			Namespace: a.owner.GetStack(),
+			Name:      a.deploymentTpl.Name,
+		}, mutators...)
+		return retryErr
+	})
 	if err != nil {
 		condition.Message = err.Error()
 		condition.Status = metav1.ConditionFalse
