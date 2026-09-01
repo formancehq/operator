@@ -610,6 +610,14 @@ var _ = Describe("Ledger v3 controller", func() {
 				"phase":              "Running",
 				"readyReplicas":      int64(3),
 				"observedGeneration": cluster.GetGeneration(),
+				"conditions": []any{
+					map[string]any{
+						"type":               "SinksSynced",
+						"status":             "True",
+						"reason":             "Synced",
+						"observedGeneration": cluster.GetGeneration(),
+					},
+				},
 			}
 			if err := TestContext().GetClient().Status().Update(TestContext(), cluster); err != nil {
 				return false

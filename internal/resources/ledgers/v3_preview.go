@@ -40,7 +40,6 @@ func ledgerV3PreviewVersion(ctx core.Context, stack *v1beta1.Stack) (string, err
 	if !ledgerV3ClusterAvailable {
 		return "", nil
 	}
-
 	version, err := settings.GetStringOrEmpty(ctx, stack.Name, "ledger", "v3", "preview-version")
 	if err != nil {
 		return "", err
@@ -55,6 +54,17 @@ func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 	if !ledgerV3ClusterAvailable {
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "OperatorUnavailable", "Ledger v3 Cluster CRD is not installed")
 		return core.NewPendingError().WithMessage("Ledger v3 preview unavailable: Cluster CRD is not installed")
+	}
+	sinksSupported, err := ledgerV3ClusterSupportsSinksAtRuntime(ctx)
+	if err != nil {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "OperatorDiscoveryFailed", err.Error())
+		return err
+	}
+	if !sinksSupported {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "OperatorIncompatible", "Ledger v3 Cluster CRD does not support managed event sinks")
+		return core.NewPendingError().
+			WithMessage("Ledger v3 preview incompatible: Cluster CRD does not expose the managed spec.sinks.nats and status.appliedSinks contract").
+			WithRequeueAfter(ledgerV3CRDDiscoveryRetryDelay)
 	}
 
 	tlsReady, tlsMessage, tlsCAHash, err := createOrUpdateV3TLSResources(ctx, stack, ledger, true)

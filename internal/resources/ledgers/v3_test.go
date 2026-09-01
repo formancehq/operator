@@ -3,6 +3,7 @@ package ledgers
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -138,6 +139,197 @@ func TestLedgerV3DiscoveryFailureDisablesCapabilityWithoutFailing(t *testing.T) 
 	}
 	if ledgerV3CertManagerAvailable {
 		t.Fatal("Ledger v3 cert-manager capability remains enabled after discovery failure")
+	}
+}
+
+func validLedgerV3ClusterCRD() apiextensionsv1.CustomResourceDefinition {
+	stringSchema := apiextensionsv1.JSONSchemaProps{Type: "string"}
+	return apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: ledgerV3ClusterCRDName},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: ledgerV3ClusterGVK.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{Kind: ledgerV3ClusterGVK.Kind, Plural: "clusters"},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    ledgerV3ClusterGVK.Version,
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensionsv1.JSONSchemaProps{
+						"spec": {Type: "object", Properties: map[string]apiextensionsv1.JSONSchemaProps{
+							"sinks": {Type: "object", Properties: map[string]apiextensionsv1.JSONSchemaProps{
+								"nats": {
+									Type: "array",
+									Items: &apiextensionsv1.JSONSchemaPropsOrArray{Schema: &apiextensionsv1.JSONSchemaProps{
+										Type:     "object",
+										Required: []string{"name", "topic", "url"},
+										Properties: map[string]apiextensionsv1.JSONSchemaProps{
+											"name": stringSchema, "topic": stringSchema, "url": stringSchema,
+										},
+									}},
+								},
+							}},
+						}},
+						"status": {Type: "object", Properties: map[string]apiextensionsv1.JSONSchemaProps{
+							"appliedSinks": {
+								Type:  "array",
+								Items: &apiextensionsv1.JSONSchemaPropsOrArray{Schema: &stringSchema},
+							},
+						}},
+					},
+				}},
+			}},
+		},
+	}
+}
+
+func TestLedgerV3ClusterSupportsSinks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*apiextensionsv1.CustomResourceDefinition)
+		want   bool
+	}{
+		{name: "complete sink contract", want: true},
+		{name: "version not served", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) { crd.Spec.Versions[0].Served = false }},
+		{name: "missing OpenAPI schema", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) { crd.Spec.Versions[0].Schema.OpenAPIV3Schema = nil }},
+		{name: "missing desired sink schema", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) {
+			delete(crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["spec"].Properties, "sinks")
+		}},
+		{name: "wrong desired sink type", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) {
+			spec := crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["spec"]
+			sinks := spec.Properties["sinks"]
+			sinks.Type = "array"
+			spec.Properties["sinks"] = sinks
+		}},
+		{name: "missing NATS sink schema", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) {
+			spec := crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["spec"]
+			sinks := spec.Properties["sinks"]
+			delete(sinks.Properties, "nats")
+			spec.Properties["sinks"] = sinks
+		}},
+		{name: "missing required NATS field", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) {
+			spec := crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["spec"]
+			sinks := spec.Properties["sinks"]
+			nats := sinks.Properties["nats"]
+			nats.Items.Schema.Required = []string{"name", "url"}
+			sinks.Properties["nats"] = nats
+			spec.Properties["sinks"] = sinks
+		}},
+		{name: "missing ownership status schema", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) {
+			delete(crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["status"].Properties, "appliedSinks")
+		}},
+		{name: "wrong ownership item type", mutate: func(crd *apiextensionsv1.CustomResourceDefinition) {
+			status := crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["status"]
+			applied := status.Properties["appliedSinks"]
+			applied.Items.Schema.Type = "integer"
+			status.Properties["appliedSinks"] = applied
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			crd := validLedgerV3ClusterCRD()
+			if test.mutate != nil {
+				test.mutate(&crd)
+			}
+			crds := &apiextensionsv1.CustomResourceDefinitionList{Items: []apiextensionsv1.CustomResourceDefinition{crd}}
+			if got := ledgerV3ClusterSupportsSinks(crds); got != test.want {
+				t.Fatalf("ledgerV3ClusterSupportsSinks() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
+func TestLedgerV3ClusterSinkContractRefreshesAfterCRDUpgrade(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	crd := validLedgerV3ClusterCRD()
+	spec := crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["spec"]
+	delete(spec.Properties, "sinks")
+	kubernetesClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&crd).Build()
+	ctx := ledgerV3DiscoveryContext{Context: context.Background(), reader: kubernetesClient}
+
+	supported, err := ledgerV3ClusterSupportsSinksAtRuntime(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if supported {
+		t.Fatal("legacy CRD unexpectedly supports managed sinks")
+	}
+
+	updated := validLedgerV3ClusterCRD()
+	updated.ResourceVersion = crd.ResourceVersion
+	if err := kubernetesClient.Update(context.Background(), &updated); err != nil {
+		t.Fatal(err)
+	}
+	supported, err = ledgerV3ClusterSupportsSinksAtRuntime(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !supported {
+		t.Fatal("upgraded CRD sink contract was not discovered at reconciliation time")
+	}
+}
+
+func TestLedgerV3ReconciliationRejectsIncompatibleSinkContract(t *testing.T) {
+	previous := ledgerV3ClusterAvailable
+	ledgerV3ClusterAvailable = true
+	t.Cleanup(func() { ledgerV3ClusterAvailable = previous })
+
+	scheme := runtime.NewScheme()
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	crd := validLedgerV3ClusterCRD()
+	spec := crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties["spec"]
+	delete(spec.Properties, "sinks")
+	kubernetesClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&crd).Build()
+	ctx := ledgerV3DiscoveryContext{Context: context.Background(), reader: kubernetesClient}
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+
+	tests := []struct {
+		name          string
+		conditionType string
+		reconcile     func(*v1beta1.Ledger) error
+	}{
+		{
+			name:          "primary Ledger v3",
+			conditionType: ledgerV3ClusterReadyCondition,
+			reconcile: func(ledger *v1beta1.Ledger) error {
+				return reconcileV3(ctx, stack, ledger, "v3.0.0")
+			},
+		},
+		{
+			name:          "Ledger v3 preview",
+			conditionType: ledgerV3PreviewReadyCondition,
+			reconcile: func(ledger *v1beta1.Ledger) error {
+				return reconcileV3Preview(ctx, stack, ledger, "v3.0.0")
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ledger := &v1beta1.Ledger{ObjectMeta: metav1.ObjectMeta{Name: "ledger0", Generation: 3}}
+			err := test.reconcile(ledger)
+			if err == nil {
+				t.Fatal("reconciliation unexpectedly accepted an incompatible Cluster CRD")
+			}
+			if got := core.ApplicationErrorRequeueAfter(err); got != ledgerV3CRDDiscoveryRetryDelay {
+				t.Fatalf("requeue delay = %s, want %s", got, ledgerV3CRDDiscoveryRetryDelay)
+			}
+			condition := ledger.GetConditions().Get(test.conditionType)
+			if condition == nil {
+				t.Fatalf("missing %s condition", test.conditionType)
+			}
+			if condition.Status != metav1.ConditionFalse || condition.Reason != "OperatorIncompatible" {
+				t.Fatalf("condition = status %s reason %q, want False/OperatorIncompatible", condition.Status, condition.Reason)
+			}
+		})
 	}
 }
 
@@ -342,6 +534,77 @@ func TestNormalizeLedgerV3Replicas(t *testing.T) {
 			}
 			if normalized != test.wantNormalized {
 				t.Fatalf("normalizeLedgerV3Replicas(%d) normalized = %t, want %t", test.configured, normalized, test.wantNormalized)
+			}
+		})
+	}
+}
+
+func TestIsV3ClusterReadyIncludesManagedSinks(t *testing.T) {
+	t.Parallel()
+
+	condition := func(status metav1.ConditionStatus, generation int64, reason, message string) *metav1.Condition {
+		return &metav1.Condition{
+			Type:               ledgerV3SinksSyncedCondition,
+			Status:             status,
+			ObservedGeneration: generation,
+			Reason:             reason,
+			Message:            message,
+		}
+	}
+	tests := []struct {
+		name          string
+		managedSinks  bool
+		condition     *metav1.Condition
+		baseNotReady  bool
+		wantReady     bool
+		messageChecks []string
+	}{
+		{name: "unmanaged sinks preserve legacy readiness", wantReady: true},
+		{name: "managed sinks wait for condition", managedSinks: true, messageChecks: []string{"sinksSynced=Unknown", "ConditionMissing"}},
+		{name: "managed sinks propagate failure", managedSinks: true, condition: condition(metav1.ConditionFalse, 7, "Error", "name conflict"), messageChecks: []string{"sinksSynced=False", "sinksReason=Error", "name conflict"}},
+		{name: "managed sinks reject stale success", managedSinks: true, condition: condition(metav1.ConditionTrue, 6, "Synced", "configured"), messageChecks: []string{"sinksSynced=True", "6/7"}},
+		{name: "managed sinks preserve base readiness", managedSinks: true, condition: condition(metav1.ConditionTrue, 7, "Synced", "configured"), baseNotReady: true, messageChecks: []string{"phase=Pending", "sinksSynced=True"}},
+		{name: "managed sinks accept current success", managedSinks: true, condition: condition(metav1.ConditionTrue, 7, "Synced", "configured"), wantReady: true, messageChecks: []string{"sinksSynced=True", "7/7"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cluster := newV3Cluster()
+			cluster.SetGeneration(7)
+			spec := map[string]interface{}{"replicas": int64(3)}
+			if test.managedSinks {
+				spec["sinks"] = map[string]interface{}{}
+			}
+			status := map[string]interface{}{
+				"phase":              "Running",
+				"readyReplicas":      int64(3),
+				"observedGeneration": int64(7),
+			}
+			if test.baseNotReady {
+				status["phase"] = "Pending"
+			}
+			if test.condition != nil {
+				conditionMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(test.condition)
+				if err != nil {
+					t.Fatal(err)
+				}
+				status["conditions"] = []interface{}{conditionMap}
+			}
+			cluster.Object["spec"] = spec
+			cluster.Object["status"] = status
+
+			ready, message, err := isV3ClusterReady(cluster)
+			if err != nil {
+				t.Fatalf("isV3ClusterReady() returned error: %v", err)
+			}
+			if ready != test.wantReady {
+				t.Fatalf("isV3ClusterReady() ready = %t, want %t; message=%q", ready, test.wantReady, message)
+			}
+			for _, check := range test.messageChecks {
+				if !strings.Contains(message, check) {
+					t.Fatalf("isV3ClusterReady() message %q does not contain %q", message, check)
+				}
 			}
 		})
 	}
