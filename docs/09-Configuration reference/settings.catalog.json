@@ -56,28 +56,28 @@
       "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.env-vars",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/applications/application.go:282"
+        "internal/resources/applications/application.go:283"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.resource-requirements.claims",
       "valueType": "string[]",
       "sources": [
-        "internal/resources/applications/application.go:263"
+        "internal/resources/applications/application.go:264"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.resource-requirements.limits",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/applications/application.go:263"
+        "internal/resources/applications/application.go:264"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.resource-requirements.requests",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/applications/application.go:263"
+        "internal/resources/applications/application.go:264"
       ]
     },
     {
@@ -95,35 +95,35 @@
         }
       ],
       "sources": [
-        "internal/resources/applications/application.go:270"
+        "internal/resources/applications/application.go:271"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.env-vars",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/applications/application.go:253"
+        "internal/resources/applications/application.go:254"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.resource-requirements.claims",
       "valueType": "string[]",
       "sources": [
-        "internal/resources/applications/application.go:238"
+        "internal/resources/applications/application.go:239"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.resource-requirements.limits",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/applications/application.go:238"
+        "internal/resources/applications/application.go:239"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.init-containers.\u003ccontainer-name\u003e.resource-requirements.requests",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/applications/application.go:238"
+        "internal/resources/applications/application.go:239"
       ]
     },
     {
@@ -141,7 +141,7 @@
         }
       ],
       "sources": [
-        "internal/resources/applications/application.go:245"
+        "internal/resources/applications/application.go:246"
       ]
     },
     {
@@ -159,42 +159,42 @@
         }
       ],
       "sources": [
-        "internal/resources/applications/application.go:554"
+        "internal/resources/applications/application.go:560"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.replicas",
       "valueType": "int32",
       "sources": [
-        "internal/resources/applications/application.go:299"
+        "internal/resources/applications/application.go:300"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.semconv-metrics-names",
       "valueType": "bool",
       "sources": [
-        "internal/resources/applications/application.go:419"
+        "internal/resources/applications/application.go:420"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.spec.template.annotations",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/applications/application.go:176"
+        "internal/resources/applications/application.go:177"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.spec.template.spec.termination-grace-period-seconds",
       "valueType": "int64",
       "sources": [
-        "internal/resources/applications/application.go:470"
+        "internal/resources/applications/application.go:471"
       ]
     },
     {
       "key": "deployments.\u003cdeployment-name\u003e.topology-spread-constraints",
       "valueType": "bool",
       "sources": [
-        "internal/resources/applications/application.go:357"
+        "internal/resources/applications/application.go:358"
       ]
     },
     {
@@ -542,7 +542,7 @@
       "key": "logging.json",
       "valueType": "bool",
       "sources": [
-        "internal/resources/applications/application.go:392"
+        "internal/resources/applications/application.go:393"
       ]
     },
     {

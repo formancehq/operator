@@ -93,11 +93,13 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 		return err
 	}
 
-	if err := gatewayhttpapis.Create(ctx, ledger,
-		gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
-		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecured()),
-	); err != nil {
-		return err
+	if previewVersion == "" {
+		if err := gatewayhttpapis.Create(ctx, ledger,
+			gatewayhttpapis.WithHealthCheckEndpoint("_healthcheck"),
+			gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecured()),
+		); err != nil {
+			return err
+		}
 	}
 
 	hasDependency, err := HasDependency(ctx, stack.Name, &v1beta1.Search{})

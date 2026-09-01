@@ -175,8 +175,8 @@ func init() {
 				return nil
 			}),
 			WithWatchSettings[*v1beta1.Gateway](),
-			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
-			WithWatchDependency[*v1beta1.Gateway](&v1beta1.GatewayGRPCAPI{}),
+			WithWatchDependencySpecOnly[*v1beta1.Gateway](&v1beta1.GatewayHTTPAPI{}),
+			WithWatchDependencySpecOnly[*v1beta1.Gateway](&v1beta1.GatewayGRPCAPI{}),
 			WithWatchDependency[*v1beta1.Gateway](&v1beta1.Auth{}),
 			WithWatch[*v1beta1.Gateway](func(ctx Context, secret *corev1.Secret) []reconcile.Request {
 				if secret.Labels[v1beta1.GatewayBackendTLSSecretLabel] != "true" {

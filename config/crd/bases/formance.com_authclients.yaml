@@ -30,8 +30,8 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: AuthClient allow to create OAuth2/OIDC clients on the auth server
-          (see [Auth](#auth))
+        description: AuthClient creates OAuth2/OIDC clients on the auth server (see
+          [Auth](#auth))
         properties:
           apiVersion:
             description: |-
@@ -62,33 +62,33 @@ spec:
                   It must be used with oauth2 `client_id` parameter
                 type: string
               postLogoutRedirectUris:
-                description: RedirectUris allow to list allowed post logout redirect
-                  uris for the client
+                description: PostLogoutRedirectUris lists the allowed post-logout
+                  redirect URIs for the client
                 items:
                   type: string
                 type: array
               public:
                 default: false
                 description: |-
-                  Public indicate whether a client is confidential or not.
-                  Confidential clients are clients which the secret can be kept secret...
-                  As opposed to public clients which cannot have a secret (application single page for example)
+                  Public indicates whether the client is a public client.
+                  Confidential clients (the default) are clients whose secret can be kept secret.
+                  Public clients cannot hold a secret (a single-page application, for example)
                 type: boolean
               redirectUris:
-                description: RedirectUris allow to list allowed redirect uris for
-                  the client
+                description: RedirectUris lists the allowed redirect URIs for the
+                  client
                 items:
                   type: string
                 type: array
               scopes:
-                description: Scopes allow to five some scope to the client
+                description: Scopes lists the scopes granted to the client
                 items:
                   type: string
                 type: array
               secret:
                 description: |-
-                  Secret allow to configure a secret for the client.
-                  It is not required as some client could use some oauth2 flows which does not requires a client secret
+                  Secret configures a secret for the client.
+                  It is not required, since some clients use oauth2 flows that do not require a client secret
                 type: string
               secretFromSecret:
                 description: SecretKeySelector selects a key of a Secret.
@@ -178,7 +178,8 @@ spec:
               hash:
                 type: string
               info:
-                description: Info can contain any additional like reconciliation errors
+                description: Info can contain any additional detail, such as reconciliation
+                  errors
                 type: string
               ready:
                 description: Ready indicates if the resource is seen as completely

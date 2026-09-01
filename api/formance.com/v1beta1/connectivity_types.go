@@ -29,7 +29,7 @@ type ConnectivityStatus struct {
 	Status `json:",inline"`
 }
 
-// Connectivity is the module allowing to install a connectivity instance.
+// Connectivity declares the connectivity module on a stack. Creating it makes the operator deploy a connectivity instance.
 //
 // Connectivity ingests data from external sources (blockchains, payment
 // providers, ...) through a plugin system and writes double-entry

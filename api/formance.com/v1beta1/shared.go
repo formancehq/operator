@@ -30,12 +30,12 @@ type VersionedEventPublisher interface {
 
 type DevProperties struct {
 	// +optional
-	// Allow to enable debug mode on the module
+	// Enables debug mode on the module
 	// +kubebuilder:default:=false
 	Debug bool `json:"debug"`
 	// +optional
-	// Allow to enable dev mode on the module
-	// Dev mode is used to allow some application to do custom setup in development mode (allow insecure certificates for example)
+	// Enables dev mode on the module
+	// Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example)
 	// +kubebuilder:default:=false
 	Dev bool `json:"dev"`
 }
@@ -236,7 +236,7 @@ type Status struct {
 	// Ready indicates if the resource is seen as completely reconciled
 	Ready bool `json:"ready"`
 	//+optional
-	// Info can contain any additional like reconciliation errors
+	// Info can contain any additional detail, such as reconciliation errors
 	Info string `json:"info,omitempty"`
 	//+optional
 	Conditions Conditions `json:"conditions,omitempty"`
@@ -269,7 +269,7 @@ type Module interface {
 type ModuleProperties struct {
 	DevProperties `json:",inline"`
 	//+optional
-	// Version allow to override global version defined at stack level for a specific module
+	// Version overrides, for a specific module, the global version defined at stack level
 	Version string `json:"version,omitempty"`
 }
 

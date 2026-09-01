@@ -26,15 +26,15 @@ type SettingsSpec struct {
 	Stacks []string `json:"stacks,omitempty"`
 	// The setting Key. See the documentation of each module or [global settings](#global-settings) to discover them.
 	Key string `json:"key"`
-	// The value. It must have a specific format following the Key.
+	// Value is the setting value. Its required format depends on the Key.
 	Value string `json:"value"`
 }
 
 // Settings represents a configurable piece of the stacks.
 //
-// The purpose of this resource is to be able to configure some common settings between a set of stacks.
+// The purpose of this resource is to configure settings shared across a set of stacks.
 //
-// Example :
+// Example:
 // ```yaml
 // apiVersion: formance.com/v1beta1
 // kind: Settings
@@ -51,13 +51,13 @@ type SettingsSpec struct {
 //
 // ```
 //
-// This example create a setting named `postgres-uri` targeting the stack named `stack0` and the service `ledger` (see the key `postgres.ledger.uri`).
+// This example creates a setting named `postgres-uri` targeting the stack named `stack0` and the service `ledger` (see the key `postgres.ledger.uri`).
 //
-// Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the uri `postgresql://postgresql.formance.svc.cluster.local:5432`.
+// Therefore, a [Database](#database) created for the stack `stack0` and the service named 'ledger' will use the URI `postgresql://postgresql.formance.svc.cluster.local:5432`.
 //
-// Settings allow to use wildcards in keys and in stacks list.
+// Settings supports wildcards in keys and in the stacks list.
 //
-// For example, if you want to use the same database server for all the modules of a specific stack, you can write :
+// For example, if you want to use the same database server for all the modules of a specific stack, you can write:
 // ```yaml
 // apiVersion: formance.com/v1beta1
 // kind: Settings
@@ -74,7 +74,7 @@ type SettingsSpec struct {
 //
 // ```
 //
-// Also, we could use that setting for all of our stacks using :
+// Also, we could use that setting for all of our stacks using:
 // ```yaml
 // apiVersion: formance.com/v1beta1
 // kind: Settings
@@ -91,7 +91,7 @@ type SettingsSpec struct {
 //
 // ```
 //
-// Some settings are really global, while some are used by specific module.
+// Some settings are truly global, while others are used by a specific module.
 //
 // Refer to the documentation of each module and resource to discover available Settings.
 //
@@ -100,7 +100,7 @@ type SettingsSpec struct {
 //
 // A stack can use an AWS account for authentication.
 //
-// It can be used to connect to any AWS service we could use.
+// It can be used to connect to any AWS service.
 //
 // It includes RDS, OpenSearch and MSK. To do so, you can create the following setting:
 // ```yaml
@@ -118,11 +118,11 @@ type SettingsSpec struct {
 //	value: aws-access
 //
 // ```
-// This setting instruct the operator than there is somewhere on the cluster a service account named `aws-access`.
+// This setting tells the operator that a service account named `aws-access` exists somewhere on the cluster.
 //
 // So, each time a service has the capability to use AWS, the operator will use this service account.
 //
-// The service account could look like that :
+// The service account could look like this:
 // ```yaml
 // apiVersion: v1
 // kind: ServiceAccount
@@ -135,14 +135,14 @@ type SettingsSpec struct {
 //	name: aws-access
 //
 // ```
-// You can note two things :
-//  1. We have an annotation indicating the role arn used to connect to AWS. Refer to the AWS documentation to create this role
+// You can note two things:
+//  1. We have an annotation indicating the role ARN used to connect to AWS. Refer to the AWS documentation to create this role
 //  2. We have a label `formance.com/stack=any` indicating we are targeting all stacks.
 //     Refer to the documentation of [ResourceReference](#resourcereference) for further information.
 //
 // ###### JSON logging
 //
-// You can use the setting `logging.json` with the value `true` to configure elligible service to log as json.
+// You can use the setting `logging.json` with the value `true` to configure eligible services to log as JSON.
 // Example:
 // ```yaml
 // apiVersion: formance.com/v1beta1
