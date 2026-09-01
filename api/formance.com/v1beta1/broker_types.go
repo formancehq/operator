@@ -46,6 +46,11 @@ type BrokerStatus struct {
 	// Streams list streams created when Mode == ModeOneStreamByService
 	//+optional
 	Streams []string `json:"streams,omitempty"`
+	// StreamSubjectsRevision records the subject-layout migration applied to the
+	// NATS streams. It prevents completed migration Jobs from being recreated
+	// after their TTL expires.
+	//+optional
+	StreamSubjectsRevision string `json:"streamSubjectsRevision,omitempty"`
 }
 
 //+kubebuilder:object:root=true

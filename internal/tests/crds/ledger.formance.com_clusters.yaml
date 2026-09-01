@@ -34,8 +34,31 @@ spec:
                   x-kubernetes-validations:
                     - rule: oldSelf == '' || self == oldSelf
                       message: bindAddr is immutable once set
+                sinks:
+                  type: object
+                  properties:
+                    nats:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - topic
+                          - url
+                        properties:
+                          name:
+                            type: string
+                          topic:
+                            type: string
+                          url:
+                            type: string
             status:
               type: object
               x-kubernetes-preserve-unknown-fields: true
+              properties:
+                appliedSinks:
+                  type: array
+                  items:
+                    type: string
       subresources:
         status: {}

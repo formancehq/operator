@@ -27,6 +27,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/brokers"
 	"github.com/formancehq/operator/v3/internal/resources/brokertopics"
 	"github.com/formancehq/operator/v3/internal/resources/databases"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
@@ -166,6 +167,7 @@ func init() {
 			WithWatchSettings[*v1beta1.Ledger](),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Search{}),
+			brokers.Watch[*v1beta1.Ledger](),
 			brokertopics.Watch[*v1beta1.Ledger]("ledger"),
 			databases.Watch[*v1beta1.Ledger](),
 		),

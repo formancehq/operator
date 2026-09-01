@@ -32,6 +32,7 @@ type ledgerV3SpecOverrides struct {
 	Auth                      *auths.ProtectedAuthConfiguration
 	ServiceAccountName        string
 	TopologySpreadConstraints *bool
+	Sinks                     *ledgerv1alpha1.EventSinksSpec
 }
 
 // composeLedgerV3ClusterSpec applies the values owned by the Formance Operator
@@ -107,6 +108,9 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 		} else {
 			spec.TopologySpreadConstraints = nil
 		}
+	}
+	if overrides.Sinks != nil {
+		spec.Sinks = overrides.Sinks.DeepCopy()
 	}
 
 	return spec, nil

@@ -214,3 +214,22 @@ func TestComposeLedgerV3ClusterSpecRejectsOversizedAuthRetries(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "must fit in int32")
 }
+
+func TestComposeLedgerV3ClusterSpecAppliesSinkOverrideWithoutMutation(t *testing.T) {
+	t.Parallel()
+
+	base := &ledgerv1alpha1.ClusterSpec{Sinks: &ledgerv1alpha1.EventSinksSpec{
+		NATS: []ledgerv1alpha1.NATSEventSinkSpec{{Name: "configured", URL: "nats://configured:4222", Topic: "configured"}},
+	}}
+	override := &ledgerv1alpha1.EventSinksSpec{
+		NATS: []ledgerv1alpha1.NATSEventSinkSpec{{Name: ledgerV3BrokerSinkName, URL: "nats://broker:4222", Topic: "stack0.ledger"}},
+	}
+
+	actual, err := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{Sinks: override})
+	require.NoError(t, err)
+	require.Equal(t, override, actual.Sinks)
+
+	actual.Sinks.NATS[0].Topic = "mutated"
+	require.Equal(t, "stack0.ledger", override.NATS[0].Topic)
+	require.Equal(t, "configured", base.Sinks.NATS[0].Topic)
+}

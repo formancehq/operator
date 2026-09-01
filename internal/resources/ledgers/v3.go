@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,13 +36,16 @@ import (
 )
 
 const (
-	ledgerV3Threshold             = "v3.0.0-alpha"
-	ledgerV3ClusterReadyCondition = "LedgerV3ClusterReady"
-	ledgerV3PreviewReadyCondition = "LedgerV3PreviewReady"
-	ledgerV3PreviewLabel          = "formance.com/ledger-v3-preview"
-	ledgerV3GRPCPort              = int32(8888)
-	ledgerV3HTTPPort              = int32(9000)
-	ledgerV3PublicGRPCService     = "ledger.BucketService"
+	ledgerV3Threshold              = "v3.0.0-alpha"
+	ledgerV3ClusterReadyCondition  = "LedgerV3ClusterReady"
+	ledgerV3PreviewReadyCondition  = "LedgerV3PreviewReady"
+	ledgerV3SinksSyncedCondition   = "SinksSynced"
+	ledgerV3PreviewLabel           = "formance.com/ledger-v3-preview"
+	ledgerV3ClusterCRDName         = "clusters.ledger.formance.com"
+	ledgerV3CRDDiscoveryRetryDelay = time.Minute
+	ledgerV3GRPCPort               = int32(8888)
+	ledgerV3HTTPPort               = int32(9000)
+	ledgerV3PublicGRPCService      = "ledger.BucketService"
 )
 
 var (
@@ -87,12 +91,70 @@ func withLedgerV3ClusterWatch() core.ReconcilerOption[*v1beta1.Ledger] {
 			}
 
 			ledgerV3ClusterAvailable = watchLedgerV3Resource(ctx, b, options, crds, ledgerV3ClusterGVK)
+			if ledgerV3ClusterAvailable && !ledgerV3ClusterSupportsSinks(crds) {
+				log.FromContext(ctx).Info("Ledger v3 Cluster sink contract is not available")
+			}
 			issuerAvailable := watchLedgerV3Resource(ctx, b, options, crds, ledgerV3IssuerGVK)
 			certificateAvailable := watchLedgerV3Resource(ctx, b, options, crds, ledgerV3CertificateGVK)
 			ledgerV3CertManagerAvailable = issuerAvailable && certificateAvailable
 			return nil
 		})
 	}
+}
+
+func ledgerV3ClusterSupportsSinks(crds *apiextensionsv1.CustomResourceDefinitionList) bool {
+	for _, crd := range crds.Items {
+		if crd.Spec.Group != ledgerV3ClusterGVK.Group || crd.Spec.Names.Kind != ledgerV3ClusterGVK.Kind {
+			continue
+		}
+		for _, version := range crd.Spec.Versions {
+			if version.Name != ledgerV3ClusterGVK.Version || !version.Served || version.Schema == nil || version.Schema.OpenAPIV3Schema == nil {
+				continue
+			}
+
+			specSchema, hasSpec := version.Schema.OpenAPIV3Schema.Properties["spec"]
+			statusSchema, hasStatus := version.Schema.OpenAPIV3Schema.Properties["status"]
+			if !hasSpec || specSchema.Type != "object" || !hasStatus || statusSchema.Type != "object" {
+				return false
+			}
+			sinksSchema, hasSinks := specSchema.Properties["sinks"]
+			appliedSinksSchema, hasAppliedSinks := statusSchema.Properties["appliedSinks"]
+			if !hasSinks || sinksSchema.Type != "object" || !hasAppliedSinks || appliedSinksSchema.Type != "array" ||
+				appliedSinksSchema.Items == nil || appliedSinksSchema.Items.Schema == nil || appliedSinksSchema.Items.Schema.Type != "string" {
+				return false
+			}
+
+			natsSchema, hasNATS := sinksSchema.Properties["nats"]
+			if !hasNATS || natsSchema.Type != "array" || natsSchema.Items == nil || natsSchema.Items.Schema == nil || natsSchema.Items.Schema.Type != "object" {
+				return false
+			}
+			natsItemSchema := natsSchema.Items.Schema
+			for _, field := range []string{"name", "url", "topic"} {
+				fieldSchema, found := natsItemSchema.Properties[field]
+				if !found || fieldSchema.Type != "string" || !slices.Contains(natsItemSchema.Required, field) {
+					return false
+				}
+			}
+
+			return true
+		}
+	}
+
+	return false
+}
+
+func ledgerV3ClusterSupportsSinksAtRuntime(ctx core.Context) (bool, error) {
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Name: ledgerV3ClusterCRDName}, crd); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("reading Ledger v3 Cluster CRD: %w", err)
+	}
+
+	return ledgerV3ClusterSupportsSinks(&apiextensionsv1.CustomResourceDefinitionList{
+		Items: []apiextensionsv1.CustomResourceDefinition{*crd},
+	}), nil
 }
 
 func withLedgerConfigurationWatch() core.ReconcilerOption[*v1beta1.Ledger] {
@@ -194,6 +256,17 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 	if !ledgerV3ClusterAvailable {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "OperatorUnavailable", "Ledger v3 Cluster CRD is not installed")
 		return core.NewPendingError().WithMessage("Ledger v3 operator unavailable: Cluster CRD is not installed")
+	}
+	sinksSupported, err := ledgerV3ClusterSupportsSinksAtRuntime(ctx)
+	if err != nil {
+		setLedgerV3Condition(ledger, metav1.ConditionFalse, "OperatorDiscoveryFailed", err.Error())
+		return err
+	}
+	if !sinksSupported {
+		setLedgerV3Condition(ledger, metav1.ConditionFalse, "OperatorIncompatible", "Ledger v3 Cluster CRD does not support managed event sinks")
+		return core.NewPendingError().
+			WithMessage("Ledger v3 operator incompatible: Cluster CRD does not expose the managed spec.sinks.nats and status.appliedSinks contract").
+			WithRequeueAfter(ledgerV3CRDDiscoveryRetryDelay)
 	}
 
 	clearLegacyLedgerConditions(ledger)
@@ -385,6 +458,10 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	if err != nil {
 		return nil, nil, err
 	}
+	eventSinks, err := ledgerV3EventSinks(ctx, stack, baseSpec.Sinks, preview)
+	if err != nil {
+		return nil, nil, err
+	}
 	desiredSpec, err := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
 		ImageRepository:           imageRepository(image),
 		ImageTag:                  image.Version,
@@ -401,6 +478,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		Auth:                      authConfiguration,
 		ServiceAccountName:        serviceAccountName,
 		TopologySpreadConstraints: topologySpreadConstraints,
+		Sinks:                     eventSinks,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("composing Ledger v3 Cluster spec: %w", err)
@@ -511,6 +589,65 @@ func isV3ClusterReady(cluster *unstructured.Unstructured) (bool, string, error) 
 		replicas = 3
 	}
 
+	ready := phase == "Running" && readyReplicas == replicas && observedGeneration == cluster.GetGeneration()
 	message := fmt.Sprintf("phase=%s readyReplicas=%d/%d observedGeneration=%d/%d", phase, readyReplicas, replicas, observedGeneration, cluster.GetGeneration())
-	return phase == "Running" && readyReplicas == replicas && observedGeneration == cluster.GetGeneration(), message, nil
+
+	sinks, sinksManaged, err := unstructured.NestedFieldNoCopy(cluster.Object, "spec", "sinks")
+	if err != nil {
+		return false, "", err
+	}
+	if !sinksManaged || sinks == nil {
+		return ready, message, nil
+	}
+
+	conditions, conditionsFound, err := unstructured.NestedSlice(cluster.Object, "status", "conditions")
+	if err != nil {
+		return false, "", err
+	}
+	if !conditionsFound {
+		return false, message + " sinksSynced=Unknown reason=ConditionMissing", nil
+	}
+
+	for _, item := range conditions {
+		condition, ok := item.(map[string]interface{})
+		if !ok {
+			return false, "", fmt.Errorf("invalid Ledger v3 Cluster status condition type %T", item)
+		}
+		conditionType, _, err := unstructured.NestedString(condition, "type")
+		if err != nil {
+			return false, "", err
+		}
+		if conditionType != ledgerV3SinksSyncedCondition {
+			continue
+		}
+
+		status, _, err := unstructured.NestedString(condition, "status")
+		if err != nil {
+			return false, "", err
+		}
+		sinksObservedGeneration, _, err := unstructured.NestedInt64(condition, "observedGeneration")
+		if err != nil {
+			return false, "", err
+		}
+		reason, _, err := unstructured.NestedString(condition, "reason")
+		if err != nil {
+			return false, "", err
+		}
+		conditionMessage, _, err := unstructured.NestedString(condition, "message")
+		if err != nil {
+			return false, "", err
+		}
+
+		message += fmt.Sprintf(" sinksSynced=%s sinksObservedGeneration=%d/%d", status, sinksObservedGeneration, cluster.GetGeneration())
+		if reason != "" {
+			message += " sinksReason=" + reason
+		}
+		if conditionMessage != "" {
+			message += " sinksMessage=" + conditionMessage
+		}
+
+		return ready && status == string(metav1.ConditionTrue) && sinksObservedGeneration == cluster.GetGeneration(), message, nil
+	}
+
+	return false, message + " sinksSynced=Unknown reason=ConditionMissing", nil
 }

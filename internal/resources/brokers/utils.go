@@ -69,16 +69,14 @@ func GetBrokerEnvVars(ctx core.Context, brokerURI *v1beta1.URI, stackName, servi
 }
 
 func GetPublisherEnvVars(stack *v1beta1.Stack, broker *v1beta1.Broker, service string) []v1.EnvVar {
+	ret := []v1.EnvVar{
+		core.Env("PUBLISHER_TOPIC_MAPPING", "*:"+GetPublisherTopic(stack, broker, service)),
+	}
+
 	switch broker.Status.Mode {
 	case v1beta1.ModeOneStreamByService:
-		return []v1.EnvVar{
-			core.Env("PUBLISHER_TOPIC_MAPPING", "*:"+core.GetObjectName(stack.Name, service)),
-		}
+		return ret
 	case v1beta1.ModeOneStreamByStack:
-		ret := []v1.EnvVar{
-			core.Env("PUBLISHER_TOPIC_MAPPING", fmt.Sprintf("*:%s.%s", stack.Name, service)),
-		}
-
 		if broker.Status.URI.Scheme == "nats" {
 			ret = append(ret, core.Env("PUBLISHER_NATS_AUTO_PROVISION", "false"))
 		}
@@ -86,6 +84,21 @@ func GetPublisherEnvVars(stack *v1beta1.Stack, broker *v1beta1.Broker, service s
 	default:
 		panic(fmt.Sprintf("mode '%s' not handled", broker.Status.Mode))
 	}
+}
+
+func GetPublisherTopic(stack *v1beta1.Stack, broker *v1beta1.Broker, service string) string {
+	switch broker.Status.Mode {
+	case v1beta1.ModeOneStreamByService:
+		return core.GetObjectName(stack.Name, service)
+	case v1beta1.ModeOneStreamByStack:
+		return fmt.Sprintf("%s.%s", stack.Name, service)
+	default:
+		panic(fmt.Sprintf("mode '%s' not handled", broker.Status.Mode))
+	}
+}
+
+func NatsSubjects(topic string) []string {
+	return []string{topic, topic + ".>"}
 }
 
 func GetTopicsEnvVars(ctx core.Context, stack *v1beta1.Stack, key string, services ...string) ([]v1.EnvVar, error) {
