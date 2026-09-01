@@ -2,6 +2,8 @@ package ledgers
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,6 +14,7 @@ import (
 	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 func newExportsContext(t *testing.T, objects ...client.Object) ledgerV3DiscoveryContext {
@@ -105,6 +108,100 @@ func TestV3GRPCBackendRefHonoursConfiguredGrpcPort(t *testing.T) {
 			}
 			if wantServerName := "ledger-" + stackName + "." + stackName + ".svc.cluster.local"; backend.TLS.ServerName != wantServerName {
 				t.Fatalf("V3GRPCBackendRef() server name = %q, want %q", backend.TLS.ServerName, wantServerName)
+			}
+		})
+	}
+}
+
+// newHasV3Context builds a context whose fake client carries the Settings
+// indexes the settings package lists with, so the v3 preview Setting lookup
+// resolves.
+func newHasV3Context(t *testing.T, objects ...client.Object) ledgerV3DiscoveryContext {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	if err := v1beta1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	kubernetesClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithIndex(&v1beta1.Settings{}, "stack", func(object client.Object) []string {
+			return object.(*v1beta1.Settings).GetStacks()
+		}).
+		WithIndex(&v1beta1.Settings{}, "keylen", func(object client.Object) []string {
+			return []string{strconv.Itoa(len(strings.Split(object.(*v1beta1.Settings).Spec.Key, ".")))}
+		}).
+		WithObjects(objects...).
+		Build()
+	return ledgerV3DiscoveryContext{Context: context.Background(), client: kubernetesClient}
+}
+
+// TestHasV3 proves the connectivity-facing gate accepts both a v3 module
+// version and a v2 ledger running the v3 preview, while mirroring the ledger
+// reconciler's own decision to ignore the preview Setting when the Ledger
+// Operator CRD is unavailable.
+func TestHasV3(t *testing.T) {
+	previous := ledgerV3ClusterAvailable
+	t.Cleanup(func() { ledgerV3ClusterAvailable = previous })
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	previewSetting := settings.New("preview", "ledger.v3.preview-version", "v3.0.0-alpha.11", stack.Name)
+
+	tests := []struct {
+		name             string
+		ledgerVersion    string
+		clusterAvailable bool
+		objects          []client.Object
+		want             bool
+		wantErr          bool
+	}{
+		{
+			name:          "v3 module version needs no preview nor cluster capability",
+			ledgerVersion: "v3.0.0",
+			want:          true,
+		},
+		{
+			name:             "v2 module version with the v3 preview enabled",
+			ledgerVersion:    "v2.2.19",
+			clusterAvailable: true,
+			objects:          []client.Object{previewSetting},
+			want:             true,
+		},
+		{
+			name:             "v2 module version without a preview Setting",
+			ledgerVersion:    "v2.2.19",
+			clusterAvailable: true,
+			want:             false,
+		},
+		{
+			name:          "preview Setting is ignored when the Ledger Operator CRD is unavailable",
+			ledgerVersion: "v2.2.19",
+			objects:       []client.Object{previewSetting},
+			want:          false,
+		},
+		{
+			name:             "invalid preview Setting surfaces an error",
+			ledgerVersion:    "v2.2.19",
+			clusterAvailable: true,
+			objects:          []client.Object{settings.New("preview", "ledger.v3.preview-version", "v2.5.0", stack.Name)},
+			wantErr:          true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ledgerV3ClusterAvailable = tt.clusterAvailable
+
+			got, err := HasV3(newHasV3Context(t, tt.objects...), stack, tt.ledgerVersion)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("HasV3() must surface the invalid preview Setting")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("HasV3() returned error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("HasV3() = %v, want %v", got, tt.want)
 			}
 		})
 	}

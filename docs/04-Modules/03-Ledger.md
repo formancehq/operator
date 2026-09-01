@@ -86,6 +86,12 @@ The Operator creates and mounts a cert-manager-managed CA for the Gateway to
 verify the v3 gRPC backend. The gRPC route is published only after both the
 `Certificate` and its TLS `Secret` are ready.
 
+The preview also satisfies the Connectivity module's Ledger v3 requirement:
+Connectivity binds to the preview cluster's gRPC endpoint exactly as it would
+to a full v3 Ledger, so both modules can be enabled on a stack that still runs
+Ledger v2. Removing the Setting closes that gate again and tears down the
+delegated connectivity resources.
+
 This preview mode does not start or supervise data mirroring. Mirroring and
 client validation remain explicit migration steps. Changing the Ledger module
 version to v3 is still blocked while legacy resources exist, even when the
