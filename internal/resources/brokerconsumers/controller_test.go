@@ -32,7 +32,7 @@ func (d deletionTestContext) GetScheme() *runtime.Scheme  { return d.scheme }
 func (d deletionTestContext) GetAPIReader() client.Reader { return d.kubernetesClient }
 func (d deletionTestContext) GetPlatform() core.Platform  { return core.Platform{} }
 
-func TestDeleteNatsConsumersCreatesModeSpecificCleanupJob(t *testing.T) {
+func TestCleanupNatsConsumersCreatesModeSpecificCleanupJob(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -77,6 +77,16 @@ func TestDeleteNatsConsumersCreatesModeSpecificCleanupJob(t *testing.T) {
 					Mode: test.mode,
 				},
 			}
+			module := &v1beta1.Webhooks{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: v1beta1.GroupVersion.String(),
+					Kind:       "Webhooks",
+				},
+				ObjectMeta: metav1.ObjectMeta{Name: "webhooks", UID: types.UID("webhooks-uid")},
+				Spec: v1beta1.WebhooksSpec{
+					StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+				},
+			}
 			consumer := &v1beta1.BrokerConsumer{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: v1beta1.GroupVersion.String(),
@@ -90,10 +100,14 @@ func TestDeleteNatsConsumersCreatesModeSpecificCleanupJob(t *testing.T) {
 					Name:            "instance",
 				},
 			}
+			require.NoError(t, controllerutil.SetControllerReference(module, consumer, scheme))
 
 			kubernetesClient := fake.NewClientBuilder().
 				WithScheme(scheme).
-				WithObjects(stack, broker, consumer).
+				WithObjects(stack, broker, module, consumer).
+				WithIndex(&v1beta1.BrokerConsumer{}, "stack", func(object client.Object) []string {
+					return []string{object.(*v1beta1.BrokerConsumer).Spec.Stack}
+				}).
 				WithIndex(&v1beta1.Settings{}, "stack", func(object client.Object) []string {
 					return object.(*v1beta1.Settings).Spec.Stacks
 				}).
@@ -107,14 +121,14 @@ func TestDeleteNatsConsumersCreatesModeSpecificCleanupJob(t *testing.T) {
 				scheme:           scheme,
 			}
 
-			err = deleteNatsConsumers(ctx, consumer)
+			err = CleanupNatsConsumers(ctx, module)
 			require.Error(t, err)
 			require.True(t, core.IsApplicationError(err))
 
 			job := &batchv1.Job{}
 			require.NoError(t, kubernetesClient.Get(ctx, types.NamespacedName{
 				Namespace: stack.Name,
-				Name:      string(consumer.UID) + "-delete-consumers",
+				Name:      string(module.UID) + "-delete-consumers-0",
 			}, job))
 			require.Equal(t, "docker.io/natsio/nats-box:0.19.2", job.Spec.Template.Spec.Containers[0].Image)
 			require.Contains(t, job.Spec.Template.Spec.Containers[0].Args[2], test.expectedCommand)
@@ -128,15 +142,16 @@ func TestDeleteNatsConsumersCreatesModeSpecificCleanupJob(t *testing.T) {
 			require.Equal(t, "webhooks", environment["QUERIED_BY"])
 			require.Equal(t, "instance", environment["NAME"])
 			require.Equal(t, "ledger payments", environment["SERVICES"])
-			require.True(t, metav1.IsControlledBy(job, consumer))
+			require.True(t, metav1.IsControlledBy(job, module))
 		})
 	}
 }
 
-func TestEnsureDeletionFinalizersProtectsExistingOwnedConsumers(t *testing.T) {
+func TestCleanupNatsConsumersIgnoresUnownedConsumers(t *testing.T) {
 	t.Parallel()
 
 	scheme := runtime.NewScheme()
+	require.NoError(t, batchv1.AddToScheme(scheme))
 	require.NoError(t, v1beta1.AddToScheme(scheme))
 
 	module := &v1beta1.Webhooks{
@@ -151,8 +166,6 @@ func TestEnsureDeletionFinalizersProtectsExistingOwnedConsumers(t *testing.T) {
 			StackDependency: v1beta1.StackDependency{Stack: module.GetStack()},
 		},
 	}
-	require.NoError(t, controllerutil.SetControllerReference(module, consumer, scheme))
-
 	kubernetesClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(module, consumer).
@@ -166,15 +179,10 @@ func TestEnsureDeletionFinalizersProtectsExistingOwnedConsumers(t *testing.T) {
 		scheme:           scheme,
 	}
 
-	ready, err := EnsureDeletionFinalizers(ctx, module)
+	err := CleanupNatsConsumers(ctx, module)
 	require.NoError(t, err)
-	require.False(t, ready)
 
-	updated := &v1beta1.BrokerConsumer{}
-	require.NoError(t, kubernetesClient.Get(ctx, types.NamespacedName{Name: consumer.Name}, updated))
-	require.True(t, controllerutil.ContainsFinalizer(updated, deleteNatsConsumersFinalizer))
-
-	ready, err = EnsureDeletionFinalizers(ctx, module)
-	require.NoError(t, err)
-	require.True(t, ready)
+	jobs := &batchv1.JobList{}
+	require.NoError(t, kubernetesClient.List(ctx, jobs))
+	require.Empty(t, jobs.Items)
 }

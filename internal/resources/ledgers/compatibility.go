@@ -51,12 +51,8 @@ func CleanupLegacyModuleOnV3[T v1beta1.Module](objects ...client.Object) core.Un
 			if _, ok := object.(*v1beta1.BrokerConsumer); !ok {
 				continue
 			}
-			ready, err := brokerconsumers.EnsureDeletionFinalizers(ctx, module)
-			if err != nil {
+			if err := brokerconsumers.CleanupNatsConsumers(ctx, module); err != nil {
 				return err
-			}
-			if !ready {
-				return core.NewPendingError().WithMessage("waiting for BrokerConsumer cleanup finalizers")
 			}
 		}
 		return core.DeleteOwnedObjects(ctx, module, objects...)

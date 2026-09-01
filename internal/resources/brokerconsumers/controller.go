@@ -18,6 +18,7 @@ package brokerconsumers
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -285,7 +286,12 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 	return nil
 }
 
-func deleteNatsConsumers(ctx core.Context, consumer *v1beta1.BrokerConsumer) error {
+func deleteNatsConsumer(
+	ctx core.Context,
+	owner v1beta1.Dependent,
+	consumer *v1beta1.BrokerConsumer,
+	jobName string,
+) error {
 	broker := &v1beta1.Broker{}
 	if err := ctx.GetClient().Get(ctx, types.NamespacedName{Name: consumer.Spec.Stack}, broker); err != nil {
 		return client.IgnoreNotFound(err)
@@ -328,7 +334,7 @@ func deleteNatsConsumers(ctx core.Context, consumer *v1beta1.BrokerConsumer) err
 		return nil
 	}
 
-	return jobs.Handle(ctx, consumer, "delete-consumers", corev1.Container{
+	return jobs.Handle(ctx, owner, jobName, corev1.Container{
 		Image: natsBoxImage.GetFullImageName(),
 		Name:  "delete-consumers",
 		Args:  core.ShellScript(script),
@@ -342,32 +348,33 @@ func deleteNatsConsumers(ctx core.Context, consumer *v1beta1.BrokerConsumer) err
 	}, jobs.WithImagePullSecrets(natsBoxImage.PullSecrets))
 }
 
-// EnsureDeletionFinalizers makes compatibility cleanup safe for BrokerConsumer
-// objects created before the NATS cleanup finalizer was introduced. The caller
-// must retry after this update reaches the cache before deleting the objects.
-func EnsureDeletionFinalizers(ctx core.Context, owner v1beta1.Dependent) (bool, error) {
+// CleanupNatsConsumers removes the external NATS consumers controlled by owner
+// before compatibility cleanup deletes their Kubernetes representations. The
+// cleanup jobs belong to the module so the normal BrokerConsumer deletion
+// lifecycle remains unchanged outside this explicit migration path.
+func CleanupNatsConsumers(ctx core.Context, owner v1beta1.Dependent) error {
 	consumers := &v1beta1.BrokerConsumerList{}
 	if err := ctx.GetClient().List(ctx, consumers, client.MatchingFields{"stack": owner.GetStack()}); err != nil {
-		return false, err
+		return err
 	}
+	sort.Slice(consumers.Items, func(i, j int) bool {
+		return consumers.Items[i].Name < consumers.Items[j].Name
+	})
 
-	ready := true
+	cleanupIndex := 0
 	for i := range consumers.Items {
 		consumer := &consumers.Items[i]
 		controlled, err := core.HasControllerReference(ctx, owner, consumer)
 		if err != nil {
-			return false, err
+			return err
 		}
-		if !controlled || controllerutil.ContainsFinalizer(consumer, deleteNatsConsumersFinalizer) {
+		if !controlled {
 			continue
 		}
-
-		patch := client.MergeFrom(consumer.DeepCopy())
-		controllerutil.AddFinalizer(consumer, deleteNatsConsumersFinalizer)
-		if err := ctx.GetClient().Patch(ctx, consumer, patch); err != nil {
-			return false, err
+		if err := deleteNatsConsumer(ctx, owner, consumer, fmt.Sprintf("delete-consumers-%d", cleanupIndex)); err != nil {
+			return err
 		}
-		ready = false
+		cleanupIndex++
 	}
-	return ready, nil
+	return nil
 }
