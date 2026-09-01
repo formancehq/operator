@@ -17,6 +17,8 @@ spec:
         - apply:
             file: resources/gateway.yaml
         - apply:
+            file: resources/ledger.yaml
+        - apply:
             file: resources/mcp.yaml
         - script:
             timeout: 5m
@@ -91,3 +93,20 @@ spec:
         - script:
             timeout: 2m
             content: ../../scripts/dump-diagnostics.sh mcp-module
+    - name: cleanup-ledger-finalizers
+      try:
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              kubectl patch stack chainsaw-mcp --type=merge -p '{"spec":{"disabled":true}}'
+              for resource in ledger/ledger database/chainsaw-mcp-ledger; do
+                if kubectl get "$resource" >/dev/null 2>&1; then
+                  kubectl patch "$resource" --type=merge -p '{"metadata":{"finalizers":[]}}'
+                  kubectl delete "$resource" --wait=false --ignore-not-found=true
+                fi
+              done
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh mcp-module-cleanup

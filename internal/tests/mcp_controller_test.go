@@ -19,6 +19,7 @@ var _ = Describe("MCPController", func() {
 		var (
 			stack           *v1beta1.Stack
 			gateway         *v1beta1.Gateway
+			ledger          *v1beta1.Ledger
 			mcp             *v1beta1.MCP
 			otelTracesDSN   *v1beta1.Settings
 			otelMetricsDSN  *v1beta1.Settings
@@ -42,6 +43,13 @@ var _ = Describe("MCPController", func() {
 					},
 				},
 			}
+			ledger = &v1beta1.Ledger{
+				ObjectMeta: RandObjectMeta(),
+				Spec: v1beta1.LedgerSpec{
+					StackDependency:  v1beta1.StackDependency{Stack: stack.Name},
+					ModuleProperties: v1beta1.ModuleProperties{Version: "v2.99.0"},
+				},
+			}
 			mcp = &v1beta1.MCP{
 				ObjectMeta: RandObjectMeta(),
 				Spec: v1beta1.MCPSpec{
@@ -61,11 +69,13 @@ var _ = Describe("MCPController", func() {
 			Expect(Create(otelTracesDSN)).To(Succeed())
 			Expect(Create(otelMetricsDSN)).To(Succeed())
 			Expect(Create(serviceAccounts)).To(Succeed())
+			Expect(Create(ledger)).To(Succeed())
 			Expect(Create(mcp)).To(Succeed())
 		})
 
 		AfterEach(func() {
 			Expect(Delete(mcp)).To(Succeed())
+			Expect(Delete(ledger)).To(Succeed())
 			Expect(Delete(serviceAccounts)).To(Succeed())
 			Expect(Delete(otelMetricsDSN)).To(Succeed())
 			Expect(Delete(otelTracesDSN)).To(Succeed())

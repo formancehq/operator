@@ -12,14 +12,12 @@ Some module reconcilers currently coordinate with another object in the same Sta
 - Connectivity requires a ready Ledger whose effective version supports the Ledger v3 integration;
 - future versions of a module may support only a bounded range of another module's versions.
 
-The first implementation declares four confirmed compatibility requirements:
+The first implementation declares seven confirmed compatibility requirements:
 
 - Connectivity requires Ledger `>= v3.0.0-0`;
-- TransactionPlane requires Ledger `>= v3.0.0-0`;
-- Orchestration (Flows) requires Ledger `< v3.0.0-0`;
-- Reconciliation requires Ledger `< v3.0.0-0`.
+- MCP, Orchestration (Flows), Reconciliation, TransactionPlane, Wallets, and Webhooks require Ledger `< v3.0.0-0`.
 
-These declarations require presence and version compatibility. They do not enforce Ledger readiness. Connectivity retains its existing Ledger readiness check; the other three modules do not add one in this change.
+These declarations require presence and version compatibility. They do not enforce Ledger readiness. Connectivity retains its existing Ledger readiness check; the other six modules do not add one in this change.
 
 These rules are currently implicit in individual reconcilers. Each caller is responsible for finding the dependency, resolving versions, checking readiness, installing watches, reporting errors, and deciding whether reconciliation can continue. The resulting behaviour is difficult to discover and is not consistent across modules.
 

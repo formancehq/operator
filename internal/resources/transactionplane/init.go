@@ -74,7 +74,7 @@ func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
 			Requirements(
-				Require(&v1beta1.Ledger{}, VersionAtLeast(v1beta1.LedgerV3Version)),
+				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
 			),
 			WithOwn[*v1beta1.TransactionPlane](&v1beta1.BrokerConsumer{}),
 			WithOwn[*v1beta1.TransactionPlane](&v1beta1.AuthClient{}),

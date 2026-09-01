@@ -123,7 +123,9 @@ func usesSeparateWorkerDeployment(version string) bool {
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
-			NoRequirements(),
+			Requirements(
+				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
+			),
 			WithOwn[*v1beta1.Webhooks](&v1beta1.BrokerConsumer{}),
 			WithOwn[*v1beta1.Webhooks](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Webhooks](&v1beta1.GatewayHTTPAPI{}),

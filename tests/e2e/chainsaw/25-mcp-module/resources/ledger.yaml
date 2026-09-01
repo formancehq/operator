@@ -3,5 +3,5 @@ kind: Ledger
 metadata:
   name: ledger
 spec:
-  stack: chainsaw-transactionplane
+  stack: chainsaw-mcp
   version: v2.99.0
