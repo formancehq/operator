@@ -94,6 +94,13 @@ var (
 	ledgerCredentialsWatchAvailable bool
 )
 
+// ledgerHasV3 resolves whether the stack runs a Ledger v3 workload the
+// connectivity module can bind to (a v3 module version, or the v3 preview
+// enabled through the ledger.v3.preview-version Setting). Package variable so
+// tests can stub the preview branch, which depends on the ledger controller's
+// startup capability discovery.
+var ledgerHasV3 = ledgers.HasV3
+
 var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
 
 //+kubebuilder:rbac:groups=formance.com,resources=connectivities,verbs=get;list;watch;create;update;patch;delete
@@ -124,8 +131,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	}
 
 	// Connectivity ingests into the stack's Ledger v3 gRPC endpoint, so it can
-	// only be provisioned once that ledger is present, on a v3 version, and
-	// ready.
+	// only be provisioned once that ledger is present, running a v3 (as its
+	// module version, or as the v3 preview alongside a v2 ledger), and ready.
 	ledger, err := getStackLedger(ctx, stack.Name)
 	if err != nil {
 		return err
@@ -156,13 +163,22 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// transient resolution hiccup would be worse than briefly keeping it up.
 		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", err.Error())
 	}
-	if !ledgers.IsV3(ledgerVersion) {
+	hasV3, err := ledgerHasV3(ctx, stack, ledgerVersion)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewUnresolved", err.Error())
+		// Transient: the ledger.v3.preview-version Setting could not be read or
+		// carries an invalid value. Like an unresolvable module version above, this
+		// is an error *resolving* the prerequisite, not a definitive downgrade
+		// below v3 — do NOT tear down the delegated resources.
+		return NewPendingError().WithMessage("cannot resolve the ledger v3 preview: %s", err.Error())
+	}
+	if !hasV3 {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
-			fmt.Sprintf("connectivity requires a Ledger v3 (found %q)", ledgerVersion))
-		// Hard gate: the ledger version resolved but is not v3 (i.e. a real
-		// downgrade). Connectivity binds to the ledger v3 gRPC surface, so the
-		// prerequisite no longer holds — tear down the delegated Connectivity +
-		// GatewayHTTPAPI before returning pending.
+			fmt.Sprintf("connectivity requires a Ledger v3 (found %q and no v3 preview)", ledgerVersion))
+		// Hard gate: the ledger version resolved but is not v3 and no v3 preview
+		// runs alongside (i.e. a real downgrade). Connectivity binds to the ledger
+		// v3 gRPC surface, so the prerequisite no longer holds — tear down the
+		// delegated Connectivity + GatewayHTTPAPI before returning pending.
 		if err := teardownDelegated(ctx, stack, connectivity); err != nil {
 			return err
 		}
@@ -405,10 +421,11 @@ func ignoreAbsent(err error) error {
 }
 
 // ledgerGateClosed reports whether the ledger prerequisite is definitively gone
-// — the module was removed, or resolves to a non-v3 version — which are the hard
-// gates that warrant tearing down the delegated resources. It mirrors the gate
-// decisions in Reconcile and deliberately returns false on transient states (an
-// unresolvable version, a not-yet-ready ledger) and on any lookup error, so the
+// — the module was removed, or resolves to a non-v3 version with no v3 preview
+// running alongside — which are the hard gates that warrant tearing down the
+// delegated resources. It mirrors the gate decisions in Reconcile and
+// deliberately returns false on transient states (an unresolvable version or
+// preview Setting, a not-yet-ready ledger) and on any lookup error, so the
 // workload is never flapped on a blip.
 func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) bool {
 	ledger, err := getStackLedger(ctx, stack.Name)
@@ -422,7 +439,11 @@ func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) bool {
 	if err != nil {
 		return false
 	}
-	return !ledgers.IsV3(ledgerVersion)
+	hasV3, err := ledgerHasV3(ctx, stack, ledgerVersion)
+	if err != nil {
+		return false
+	}
+	return !hasV3
 }
 
 // connectivityAPIBackendRef points the gateway at the connectivity-api Service

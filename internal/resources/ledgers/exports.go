@@ -28,6 +28,25 @@ func IsV3(version string) bool {
 	return isLedgerV3(version)
 }
 
+// HasV3 reports whether the stack effectively runs a Ledger v3 workload:
+// either the resolved ledger module version is itself v3 (or later), or a v2
+// ledger runs the v3 preview alongside via the ledger.v3.preview-version
+// Setting. The preview lookup mirrors the ledger reconciler's own decision —
+// including ignoring the Setting when the Ledger Operator CRD is unavailable
+// and rejecting values at or below the v3 threshold — so consumers of the v3
+// gRPC surface always agree with the ledger module on whether a v3 cluster
+// exists.
+func HasV3(ctx core.Context, stack *v1beta1.Stack, ledgerVersion string) (bool, error) {
+	if isLedgerV3(ledgerVersion) {
+		return true, nil
+	}
+	previewVersion, err := ledgerV3PreviewVersion(ctx, stack)
+	if err != nil {
+		return false, err
+	}
+	return previewVersion != "", nil
+}
+
 // V3GRPCBackendRef returns the connection details of the ledger v3 gRPC service
 // for the given stack: service name, port, and backend TLS material
 // (self-signed CA secret and SNI server name). It is the single source of
