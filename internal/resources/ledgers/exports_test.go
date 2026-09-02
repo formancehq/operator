@@ -113,10 +113,10 @@ func TestV3GRPCBackendRefHonoursConfiguredGrpcPort(t *testing.T) {
 	}
 }
 
-// newHasV3Context builds a context whose fake client carries the Settings
+// newPreviewContext builds a context whose fake client carries the Settings
 // indexes the settings package lists with, so the v3 preview Setting lookup
 // resolves.
-func newHasV3Context(t *testing.T, objects ...client.Object) ledgerV3DiscoveryContext {
+func newPreviewContext(t *testing.T, objects ...client.Object) ledgerV3DiscoveryContext {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	if err := v1beta1.AddToScheme(scheme); err != nil {
@@ -135,11 +135,10 @@ func newHasV3Context(t *testing.T, objects ...client.Object) ledgerV3DiscoveryCo
 	return ledgerV3DiscoveryContext{Context: context.Background(), client: kubernetesClient}
 }
 
-// TestHasV3 proves the connectivity-facing gate accepts both a v3 module
-// version and a v2 ledger running the v3 preview, while mirroring the ledger
-// reconciler's own decision to ignore the preview Setting when the Ledger
-// Operator CRD is unavailable.
-func TestHasV3(t *testing.T) {
+// TestV3PreviewActive proves the connectivity-facing preview lookup mirrors
+// the ledger reconciler's own decision, including ignoring the Setting when
+// the Ledger Operator CRD is unavailable.
+func TestV3PreviewActive(t *testing.T) {
 	previous := ledgerV3ClusterAvailable
 	t.Cleanup(func() { ledgerV3ClusterAvailable = previous })
 
@@ -148,39 +147,29 @@ func TestHasV3(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		ledgerVersion    string
 		clusterAvailable bool
 		objects          []client.Object
 		want             bool
 		wantErr          bool
 	}{
 		{
-			name:          "v3 module version needs no preview nor cluster capability",
-			ledgerVersion: "v3.0.0",
-			want:          true,
-		},
-		{
-			name:             "v2 module version with the v3 preview enabled",
-			ledgerVersion:    "v2.2.19",
+			name:             "preview Setting enables the preview",
 			clusterAvailable: true,
 			objects:          []client.Object{previewSetting},
 			want:             true,
 		},
 		{
-			name:             "v2 module version without a preview Setting",
-			ledgerVersion:    "v2.2.19",
+			name:             "no preview Setting",
 			clusterAvailable: true,
 			want:             false,
 		},
 		{
-			name:          "preview Setting is ignored when the Ledger Operator CRD is unavailable",
-			ledgerVersion: "v2.2.19",
-			objects:       []client.Object{previewSetting},
-			want:          false,
+			name:    "preview Setting is ignored when the Ledger Operator CRD is unavailable",
+			objects: []client.Object{previewSetting},
+			want:    false,
 		},
 		{
 			name:             "invalid preview Setting surfaces an error",
-			ledgerVersion:    "v2.2.19",
 			clusterAvailable: true,
 			objects:          []client.Object{settings.New("preview", "ledger.v3.preview-version", "v2.5.0", stack.Name)},
 			wantErr:          true,
@@ -190,18 +179,52 @@ func TestHasV3(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ledgerV3ClusterAvailable = tt.clusterAvailable
 
-			got, err := HasV3(newHasV3Context(t, tt.objects...), stack, tt.ledgerVersion)
+			got, err := V3PreviewActive(newPreviewContext(t, tt.objects...), stack)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatal("HasV3() must surface the invalid preview Setting")
+					t.Fatal("V3PreviewActive() must surface the invalid preview Setting")
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("HasV3() returned error: %v", err)
+				t.Fatalf("V3PreviewActive() returned error: %v", err)
 			}
 			if got != tt.want {
-				t.Fatalf("HasV3() = %v, want %v", got, tt.want)
+				t.Fatalf("V3PreviewActive() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestV3PreviewReady proves consumers can distinguish a reconciled, running
+// preview from a Ledger whose status predates the preview Setting.
+func TestV3PreviewReady(t *testing.T) {
+	tests := []struct {
+		name       string
+		conditions v1beta1.Conditions
+		want       bool
+	}{
+		{
+			name: "no preview condition (stale v2-only status)",
+			want: false,
+		},
+		{
+			name:       "preview condition pending",
+			conditions: v1beta1.Conditions{{Type: ledgerV3PreviewReadyCondition, Status: metav1.ConditionFalse}},
+			want:       false,
+		},
+		{
+			name:       "preview condition running",
+			conditions: v1beta1.Conditions{{Type: ledgerV3PreviewReadyCondition, Status: metav1.ConditionTrue}},
+			want:       true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ledger := &v1beta1.Ledger{}
+			ledger.Status.Conditions = tt.conditions
+			if got := V3PreviewReady(ledger); got != tt.want {
+				t.Fatalf("V3PreviewReady() = %v, want %v", got, tt.want)
 			}
 		})
 	}
