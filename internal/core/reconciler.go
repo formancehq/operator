@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -53,16 +54,19 @@ type ReconcilerOptionsWatch struct {
 
 type Finalizer[T client.Object] func(ctx Context, t T) error
 
+type UnsatisfiedRequirementsHandler[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, module T) error
+
 type finalizerConfig[T client.Object] struct {
 	name string
 	fn   Finalizer[T]
 }
 
 type ReconcilerOptions[T client.Object] struct {
-	Owns       map[client.Object][]builder.OwnsOption
-	Watchers   map[client.Object]ReconcilerOptionsWatch
-	Finalizers []finalizerConfig[T]
-	Raws       []func(Context, *builder.Builder) error
+	Owns                          map[client.Object][]builder.OwnsOption
+	Watchers                      map[client.Object]ReconcilerOptionsWatch
+	Finalizers                    []finalizerConfig[T]
+	Raws                          []func(Context, *builder.Builder) error
+	UnsatisfiedRequirementsHandle func(Context, *v1beta1.Stack, T) error
 }
 
 type ReconcilerOption[T client.Object] func(*ReconcilerOptions[T])
@@ -105,6 +109,15 @@ func WithFinalizer[T client.Object](name string, callback Finalizer[T]) Reconcil
 	}
 }
 
+// WithUnsatisfiedRequirementsHandler registers module-specific cleanup that is
+// invoked only for a definite requirements failure. Unknown and transient
+// dependency states never invoke it.
+func WithUnsatisfiedRequirementsHandler[T v1beta1.Module](handler UnsatisfiedRequirementsHandler[T]) ReconcilerOption[T] {
+	return func(options *ReconcilerOptions[T]) {
+		options.UnsatisfiedRequirementsHandle = handler
+	}
+}
+
 func WithWatchSettings[T client.Object]() ReconcilerOption[T] {
 	return func(options *ReconcilerOptions[T]) {
 		options.Watchers[&v1beta1.Settings{}] = ReconcilerOptionsWatch{
@@ -132,6 +145,11 @@ func WithWatchSettings[T client.Object]() ReconcilerOption[T] {
 
 func WithWatchDependency[T client.Object](t v1beta1.Dependent) ReconcilerOption[T] {
 	return func(options *ReconcilerOptions[T]) {
+		for watched := range options.Watchers {
+			if reflect.TypeOf(watched) == reflect.TypeOf(t) {
+				delete(options.Watchers, watched)
+			}
+		}
 		options.Watchers[t] = ReconcilerOptionsWatch{
 			Handler: func(mgr Manager, b *builder.Builder, target client.Object) (handler.EventHandler, []builder.WatchesOption) {
 				return handler.EnqueueRequestsFromMapFunc(WatchDependents(mgr, target)), nil
@@ -408,79 +426,117 @@ func WithResourceReconciler[T v1beta1.Dependent](fn func(ctx Context, stack *v1b
 		opts...)
 }
 
-func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, opts ...ReconcilerOption[T]) Initializer {
-	opts = append(opts, WithWatchVersions[T])
-	return withStackDependencyReconciler(
+func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
+	opts = withRequirementWatches(requirements, opts)
+	opts = append(opts, WithWatchVersions[T](requirements))
+	initializer := withStackDependencyReconciler(
 		ForStackDependency(
-			ForModule(func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
+			ForModule(requirements, func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
 				return fn(ctx, stack, req, version)
 			}),
 			false,
 		),
 		opts...)
+
+	return func(mgr Manager) error {
+		if err := requirements.validate(mgr.GetScheme()); err != nil {
+			return fmt.Errorf("validating module requirements: %w", err)
+		}
+		return initializer(mgr)
+	}
 }
 
-func WithWatchVersions[T client.Object](options *ReconcilerOptions[T]) {
+func withRequirementWatches[T client.Object](requirements ModuleRequirements, opts []ReconcilerOption[T]) []ReconcilerOption[T] {
+	opts = slices.Clone(opts)
+	for _, dependency := range requirements.dependencies() {
+		opts = append(opts, WithWatchDependency[T](dependency))
+	}
+	return opts
+}
 
-	reconcileModule := func(ctx context.Context, mgr Manager, target client.Object, versionFileName string, limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-		stackList := &v1beta1.StackList{}
-		if err := mgr.GetClient().List(ctx, stackList, client.MatchingFields{
-			".spec.versionsFromFile": versionFileName,
-		}); err != nil {
-			panic(err)
-		}
-
-		kinds, _, err := mgr.GetScheme().ObjectKinds(target)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, stack := range stackList.Items {
-			list := &unstructured.UnstructuredList{}
-			list.SetGroupVersionKind(kinds[0])
-			if err := mgr.GetClient().List(ctx, list, client.MatchingFields{
-				"stack": stack.Name,
+func WithWatchVersions[T client.Object](requirements ModuleRequirements) ReconcilerOption[T] {
+	return func(options *ReconcilerOptions[T]) {
+		reconcileModule := func(ctx context.Context, mgr Manager, target client.Object, versionFileName string, limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			stackList := &v1beta1.StackList{}
+			if err := mgr.GetClient().List(ctx, stackList, client.MatchingFields{
+				".spec.versionsFromFile": versionFileName,
 			}); err != nil {
 				panic(err)
 			}
 
-			for _, item := range list.Items {
-				limitingInterface.Add(reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name: item.GetName(),
-					},
-				})
+			kinds, _, err := mgr.GetScheme().ObjectKinds(target)
+			if err != nil {
+				panic(err)
+			}
+
+			for _, stack := range stackList.Items {
+				list := &unstructured.UnstructuredList{}
+				list.SetGroupVersionKind(kinds[0])
+				if err := mgr.GetClient().List(ctx, list, client.MatchingFields{
+					"stack": stack.Name,
+				}); err != nil {
+					panic(err)
+				}
+
+				for _, item := range list.Items {
+					limitingInterface.Add(reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Name: item.GetName(),
+						},
+					})
+				}
 			}
 		}
+
+		options.Watchers[&v1beta1.Versions{}] = ReconcilerOptionsWatch{
+			Handler: func(mgr Manager, builder *builder.Builder, target client.Object) (handler.EventHandler, []builder.WatchesOption) {
+				versionKeys := moduleRequirementVersionKeys(mgr.GetScheme(), target, requirements)
+				return handler.Funcs{
+					CreateFunc: func(ctx context.Context, createEvent event.TypedCreateEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+						reconcileModule(ctx, mgr, target, createEvent.Object.GetName(), limitingInterface)
+					},
+					UpdateFunc: func(ctx context.Context, updateEvent event.TypedUpdateEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+						oldObject := updateEvent.ObjectOld.(*v1beta1.Versions)
+						newObject := updateEvent.ObjectNew.(*v1beta1.Versions)
+
+						changed := false
+						for key := range versionKeys {
+							if oldObject.Spec[key] != newObject.Spec[key] {
+								changed = true
+								break
+							}
+						}
+						if !changed {
+							return
+						}
+
+						reconcileModule(ctx, mgr, target, updateEvent.ObjectNew.GetName(), limitingInterface)
+					},
+					DeleteFunc: func(ctx context.Context, deleteEvent event.TypedDeleteEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+						reconcileModule(ctx, mgr, target, deleteEvent.Object.GetName(), limitingInterface)
+					},
+				}, nil
+			},
+		}
 	}
+}
 
-	options.Watchers[&v1beta1.Versions{}] = ReconcilerOptionsWatch{
-		Handler: func(mgr Manager, builder *builder.Builder, target client.Object) (handler.EventHandler, []builder.WatchesOption) {
-			return handler.Funcs{
-				CreateFunc: func(ctx context.Context, createEvent event.TypedCreateEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-					reconcileModule(ctx, mgr, target, createEvent.Object.GetName(), limitingInterface)
-				},
-				UpdateFunc: func(ctx context.Context, updateEvent event.TypedUpdateEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-					oldObject := updateEvent.ObjectOld.(*v1beta1.Versions)
-					newObject := updateEvent.ObjectNew.(*v1beta1.Versions)
-
-					kinds, _, err := mgr.GetScheme().ObjectKinds(target)
-					if err != nil {
-						panic(err)
-					}
-					kind := strings.ToLower(kinds[0].Kind)
-					if oldObject.Spec[kind] == newObject.Spec[kind] {
-						return
-					}
-
-					reconcileModule(ctx, mgr, target, updateEvent.ObjectNew.GetName(), limitingInterface)
-				},
-				DeleteFunc: func(ctx context.Context, deleteEvent event.TypedDeleteEvent[client.Object], limitingInterface workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-					reconcileModule(ctx, mgr, target, deleteEvent.Object.GetName(), limitingInterface)
-				},
-			}, nil
-		},
+func moduleRequirementVersionKeys(scheme *runtime.Scheme, target client.Object, requirements ModuleRequirements) map[string]struct{} {
+	keys := map[string]struct{}{}
+	addKind := func(object client.Object) {
+		gvks, _, err := scheme.ObjectKinds(object)
+		if err != nil || len(gvks) == 0 {
+			return
+		}
+		keys[strings.ToLower(gvks[0].Kind)] = struct{}{}
 	}
+	addKind(target)
+	for _, requirement := range requirements.requirements {
+		if requirement.hasVersionConstraint() {
+			addKind(requirement.dependency)
+		}
+	}
+	return keys
 }
 
 func WithIndex[T client.Object](name string, eval func(t T) []string) Initializer {

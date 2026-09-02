@@ -18,6 +18,7 @@ package brokerconsumers
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -282,5 +283,98 @@ func createStackNatsConsumer(ctx core.Context, stack *v1beta1.Stack, consumer *v
 		}, v1beta1.ConditionTypeMatch(ConditionTypeNatsStackConsumerCreated))
 	}
 
+	return nil
+}
+
+func deleteNatsConsumer(
+	ctx core.Context,
+	owner v1beta1.Dependent,
+	consumer *v1beta1.BrokerConsumer,
+	jobName string,
+) error {
+	broker := &v1beta1.Broker{}
+	if err := ctx.GetClient().Get(ctx, types.NamespacedName{Name: consumer.Spec.Stack}, broker); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if broker.Status.URI == nil || broker.Status.URI.Scheme != "nats" {
+		return nil
+	}
+
+	stack := &v1beta1.Stack{}
+	if err := ctx.GetClient().Get(ctx, types.NamespacedName{Name: consumer.Spec.Stack}, stack); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	natsBoxImage, err := registries.GetNatsBoxImage(ctx, stack, "0.19.2")
+	if err != nil {
+		return err
+	}
+
+	var script string
+	switch broker.Status.Mode {
+	case v1beta1.ModeOneStreamByStack:
+		script = `
+			name="$QUERIED_BY"
+			if [ -n "$NAME" ]; then
+				name="${name}_${NAME}"
+			fi
+			if nats --server "$NATS_URI" consumer info "$STACK" "$name" --no-select >/dev/null 2>&1; then
+				nats --server "$NATS_URI" consumer rm "$STACK" "$name" -f
+			fi
+		`
+	case v1beta1.ModeOneStreamByService:
+		script = `
+			for service in $SERVICES; do
+				stream="${STACK}-${service}"
+				if nats --server "$NATS_URI" consumer info "$stream" "$QUERIED_BY" --no-select >/dev/null 2>&1; then
+					nats --server "$NATS_URI" consumer rm "$stream" "$QUERIED_BY" -f
+				fi
+			done
+		`
+	default:
+		return nil
+	}
+
+	return jobs.Handle(ctx, owner, jobName, corev1.Container{
+		Image: natsBoxImage.GetFullImageName(),
+		Name:  "delete-consumers",
+		Args:  core.ShellScript(script),
+		Env: []corev1.EnvVar{
+			core.Env("NATS_URI", fmt.Sprintf("nats://%s", broker.Status.URI.Host)),
+			core.Env("STACK", consumer.Spec.Stack),
+			core.Env("QUERIED_BY", consumer.Spec.QueriedBy),
+			core.Env("NAME", consumer.Spec.Name),
+			core.Env("SERVICES", strings.Join(consumer.Spec.Services, " ")),
+		},
+	}, jobs.WithImagePullSecrets(natsBoxImage.PullSecrets))
+}
+
+// CleanupNatsConsumers removes the external NATS consumers controlled by owner
+// before compatibility cleanup deletes their Kubernetes representations. The
+// cleanup jobs belong to the module so the normal BrokerConsumer deletion
+// lifecycle remains unchanged outside this explicit migration path.
+func CleanupNatsConsumers(ctx core.Context, owner v1beta1.Dependent) error {
+	consumers := &v1beta1.BrokerConsumerList{}
+	if err := ctx.GetClient().List(ctx, consumers, client.MatchingFields{"stack": owner.GetStack()}); err != nil {
+		return err
+	}
+	sort.Slice(consumers.Items, func(i, j int) bool {
+		return consumers.Items[i].Name < consumers.Items[j].Name
+	})
+
+	cleanupIndex := 0
+	for i := range consumers.Items {
+		consumer := &consumers.Items[i]
+		controlled, err := core.HasControllerReference(ctx, owner, consumer)
+		if err != nil {
+			return err
+		}
+		if !controlled {
+			continue
+		}
+		if err := deleteNatsConsumer(ctx, owner, consumer, fmt.Sprintf("delete-consumers-%d", cleanupIndex)); err != nil {
+			return err
+		}
+		cleanupIndex++
+	}
 	return nil
 }

@@ -288,7 +288,8 @@ func TestIsLedgerV3(t *testing.T) {
 		want    bool
 	}{
 		{name: "legacy release", version: "v2.99.0", want: false},
-		{name: "threshold", version: "v3.0.0-alpha", want: false},
+		{name: "threshold", version: "v3.0.0-0", want: true},
+		{name: "first named prerelease", version: "v3.0.0-alpha", want: true},
 		{name: "first alpha release", version: "v3.0.0-alpha.1", want: true},
 		{name: "without v prefix", version: "3.0.0-alpha.1", want: true},
 		{name: "stable v3", version: "v3.0.0", want: true},

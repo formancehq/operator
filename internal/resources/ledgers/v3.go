@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	ledgerV3Threshold             = "v3.0.0-alpha"
+	ledgerV3Threshold             = v1beta1.LedgerV3Version
 	ledgerV3ClusterReadyCondition = "LedgerV3ClusterReady"
 	ledgerV3PreviewReadyCondition = "LedgerV3PreviewReady"
 	ledgerV3PreviewLabel          = "formance.com/ledger-v3-preview"
@@ -65,7 +65,7 @@ func isLedgerV3(version string) bool {
 	if !strings.HasPrefix(normalizedVersion, "v") {
 		normalizedVersion = "v" + normalizedVersion
 	}
-	return semver.IsValid(normalizedVersion) && semver.Compare(normalizedVersion, ledgerV3Threshold) > 0
+	return semver.IsValid(normalizedVersion) && semver.Compare(normalizedVersion, ledgerV3Threshold) >= 0
 }
 
 func newV3Cluster() *unstructured.Unstructured {
@@ -194,6 +194,9 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 	if !ledgerV3ClusterAvailable {
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "OperatorUnavailable", "Ledger v3 Cluster CRD is not installed")
 		return core.NewPendingError().WithMessage("Ledger v3 operator unavailable: Cluster CRD is not installed")
+	}
+	if err := blockV3TransitionWithIncompatibleModules(ctx, stack, ledger); err != nil {
+		return err
 	}
 
 	clearLegacyLedgerConditions(ledger)

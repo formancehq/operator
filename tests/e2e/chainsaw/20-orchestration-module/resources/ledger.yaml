@@ -1,6 +1,7 @@
 apiVersion: formance.com/v1beta1
-kind: Stack
+kind: Ledger
 metadata:
-  name: chainsaw-ledger
+  name: ledger
 spec:
+  stack: chainsaw-orchestration
   version: v2.99.0

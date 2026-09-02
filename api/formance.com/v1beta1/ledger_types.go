@@ -20,7 +20,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const LedgerV3Label = "formance.com/ledger-v3"
+const (
+	LedgerV3Label   = "formance.com/ledger-v3"
+	LedgerV3Version = "v3.0.0-0"
+)
 
 type LedgerSpec struct {
 	ModuleProperties `json:",inline"`

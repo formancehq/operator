@@ -46,7 +46,7 @@ func ledgerV3PreviewVersion(ctx core.Context, stack *v1beta1.Stack) (string, err
 		return "", err
 	}
 	if version != "" && !isLedgerV3(version) {
-		return "", fmt.Errorf("ledger.v3.preview-version must be greater than %s, got %q", ledgerV3Threshold, version)
+		return "", fmt.Errorf("ledger.v3.preview-version must be at least %s, got %q", ledgerV3Threshold, version)
 	}
 	return version, nil
 }

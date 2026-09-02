@@ -33,6 +33,8 @@ spec:
               kubectl wait --for=jsonpath='{.status.ready}'=true database/chainsaw-webhooks-webhooks --timeout=5m
               kubectl wait --for=jsonpath='{.status.ready}'=true broker/chainsaw-webhooks --timeout=5m
         - apply:
+            file: resources/ledger.yaml
+        - apply:
             file: resources/webhooks.yaml
         - script:
             timeout: 5m
@@ -95,16 +97,22 @@ spec:
         - script:
             timeout: 2m
             content: ../../scripts/dump-diagnostics.sh webhooks-module
-    - name: cleanup-broker-finalizer
+    - name: cleanup-finalizers
       try:
         - script:
             timeout: 2m
             content: |
               set -eu
-              if kubectl get broker chainsaw-webhooks >/dev/null 2>&1; then
-                kubectl patch broker chainsaw-webhooks --type=merge -p '{"metadata":{"finalizers":[]}}'
-                kubectl delete broker chainsaw-webhooks --wait=true --timeout=2m
-              fi
+              kubectl patch stack chainsaw-webhooks --type=merge -p '{"spec":{"disabled":true}}'
+              for resource in \
+                ledger/ledger \
+                broker/chainsaw-webhooks \
+                database/chainsaw-webhooks-ledger; do
+                if kubectl get "$resource" >/dev/null 2>&1; then
+                  kubectl patch "$resource" --type=merge -p '{"metadata":{"finalizers":[]}}'
+                  kubectl delete "$resource" --wait=false --ignore-not-found=true
+                fi
+              done
       catch:
         - script:
             timeout: 2m

@@ -2,12 +2,12 @@ Formance Ledger is a real-time money tracking microservice that lets you model a
 
 ## Requirements
 
-Ledger versions up to and including `v3.0.0-alpha` require:
+Ledger versions before `v3.0.0-0` require:
 
 - See the [PostgreSQL configuration](../05-Infrastructure%20services/01-PostgreSQL.md).
 - (Optional) See the [message broker configuration](../05-Infrastructure%20services/02-Message%20broker.md).
 
-Ledger versions newer than `v3.0.0-alpha` require the Ledger Operator and its
+Ledger versions at or after `v3.0.0-0` require the Ledger Operator and its
 `ledger.formance.com/v1alpha1` CRDs, plus cert-manager with its `Issuer` and
 `Certificate` CRDs, to be installed in the cluster. They use Ledger v3 native
 storage and do not require a PostgreSQL `Database` resource.
@@ -29,7 +29,7 @@ spec:
 
 ## Ledger v3 delegation
 
-When the stack version is strictly newer than `v3.0.0-alpha`, the Formance
+When the effective Ledger version is at or after `v3.0.0-0`, the Formance
 Operator delegates Ledger provisioning to the Ledger Operator. It creates a
 `ledger.formance.com/v1alpha1` `Cluster` with the same name and namespace as the
 stack instead of creating the legacy Ledger Deployments, Database, migration
@@ -44,6 +44,18 @@ Deployments or a Database already exist when switching a stack to v3, the
 Ledger reports that an explicit migration is required and does not create the
 v3 `Cluster`. The reverse transition is guarded in the same way: legacy
 resources are not created while a v3 `Cluster` still exists.
+
+MCP, Orchestration, Reconciliation, TransactionPlane, Wallets, and Webhooks
+currently support only Ledger versions before `v3.0.0-0`. During a v2 to v3
+transition, their custom resources block creation of the primary Ledger v3
+`Cluster`, while their existing v2 runtimes keep running. Disable these modules
+before completing the Ledger migration.
+
+If a primary v3 `Cluster` is already present with one of these incompatible
+module objects, the Operator removes that module's active workloads, jobs,
+broker consumers, credentials, and Gateway exposure. It preserves databases,
+underlying broker streams, and other durable data for explicit migration or
+recovery. This cleanup does not apply to a Ledger v3 preview cluster.
 
 ### Ledger v3 preview alongside Ledger v2
 
@@ -61,7 +73,7 @@ spec:
   value: "v3.0.0-alpha.11"
 ```
 
-The value must be a Ledger version strictly newer than `v3.0.0-alpha`. In this
+The value must be a Ledger version at or after `v3.0.0-0`. In this
 mode, the Operator keeps all v2 Deployments and the v2 Database running, and
 creates an isolated v3 `Cluster`. Gateway exposes the preview through:
 

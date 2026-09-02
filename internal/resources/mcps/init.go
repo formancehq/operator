@@ -25,6 +25,7 @@ import (
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
+	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
@@ -64,6 +65,12 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, mcp *v1beta1.MCP, version stri
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
+			Requirements(
+				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
+			),
+			WithUnsatisfiedRequirementsHandler(ledgers.CleanupLegacyModuleOnV3[*v1beta1.MCP](
+				&v1beta1.GatewayHTTPAPI{}, &appsv1.Deployment{}, &corev1.Service{},
+			)),
 			WithOwn[*v1beta1.MCP](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.MCP](&corev1.Service{}),
 			WithOwn[*v1beta1.MCP](&v1beta1.GatewayHTTPAPI{}),

@@ -78,6 +78,7 @@ func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController
 			}
 
 			if stack.GetAnnotations()[v1beta1.SkipLabel] == "true" {
+				t.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
 				t.GetConditions().
 					AppendOrReplace(v1beta1.Condition{
 						Type:               "ReconciledWithStack",
@@ -124,7 +125,7 @@ func ensureStackLabel[T v1beta1.Dependent](ctx Context, t T) error {
 
 type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error
 
-func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) StackDependentObjectController[T] {
+func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingController ModuleController[T]) StackDependentObjectController[T] {
 	return func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], t T) error {
 		hasOwnerReference, err := HasOwnerReference(ctx, stack, t)
 		if err != nil {
@@ -143,6 +144,7 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 		}
 
 		if stack.Spec.Disabled {
+			t.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
 			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
 			// Owned objects must be controlled by the module.
 			// if not, they will not be automatically removed on stack removal.
@@ -153,6 +155,25 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 		moduleVersion, err := GetModuleVersion(ctx, stack, t)
 		if err != nil {
 			return err
+		}
+
+		if requirements.hasRequirements() {
+			evaluation := evaluateModuleRequirements(ctx, stack, requirements)
+			setModuleRequirementsCondition(t, evaluation)
+			if evaluation.status != metav1.ConditionTrue {
+				setRequirementsReconciledWithStackCondition(t, stack, evaluation)
+				if evaluation.status == metav1.ConditionFalse && reconcilerOptions.UnsatisfiedRequirementsHandle != nil {
+					if err := reconcilerOptions.UnsatisfiedRequirementsHandle(ctx, stack, t); err != nil {
+						return err
+					}
+				}
+				if evaluation.cause != nil {
+					return evaluation.cause
+				}
+				return NewPendingError().WithMessage("%s", evaluation.message)
+			}
+		} else {
+			t.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
 		}
 
 		if t.IsEE() {
@@ -237,6 +258,22 @@ func ForModule[T v1beta1.Module](underlyingController ModuleController[T]) Stack
 }
 
 func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[client.Object][]builder.OwnsOption) error {
+	objects := make([]client.Object, 0, len(owns))
+	for object := range owns {
+		if _, ok := object.(v1beta1.Resource); ok {
+			// Resources must not be deleted when disabling a Stack because they may
+			// contain durable state needed when it is enabled again.
+			continue
+		}
+		objects = append(objects, object)
+	}
+	return DeleteOwnedObjects(ctx, owner, objects...)
+}
+
+// DeleteOwnedObjects deletes the objects of the requested kinds controlled by
+// owner. Callers explicitly select the kinds because lifecycle and data
+// retention policy is module-specific.
+func DeleteOwnedObjects(ctx Context, owner client.Object, objects ...client.Object) error {
 	logger := log.FromContext(ctx)
 	stackName := ""
 	if dep, ok := owner.(v1beta1.Dependent); ok {
@@ -248,12 +285,7 @@ func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[cli
 		return err
 	}
 
-	for object := range owns {
-		if _, ok := object.(v1beta1.Resource); ok {
-			// Resources must not be deleted
-			continue
-		}
-
+	for _, object := range objects {
 		gvk, err := apiutil.GVKForObject(object, ctx.GetScheme())
 		if err != nil {
 			return err
