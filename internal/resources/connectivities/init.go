@@ -52,6 +52,10 @@ import (
 const (
 	connectivityReadyCondition  = "ConnectivityClusterReady"
 	ledgerCredentialsRetryDelay = 5 * time.Second
+	// ledgerGateRetryDelay bounds the retry when the ledger v3 preview Setting
+	// cannot be resolved: that failure mode (a cache/API read error) produces no
+	// watch event on recovery, so the pending state must poll.
+	ledgerGateRetryDelay = 5 * time.Second
 	// connectivityDelegatedName is the fixed name of the delegated
 	// connectivity.formance.com/Connectivity resource. It is namespaced (one per
 	// stack namespace), so a constant name stays unique per stack; the connectivity
@@ -94,12 +98,25 @@ var (
 	ledgerCredentialsWatchAvailable bool
 )
 
-// ledgerHasV3 resolves whether the stack runs a Ledger v3 workload the
-// connectivity module can bind to (a v3 module version, or the v3 preview
-// enabled through the ledger.v3.preview-version Setting). Package variable so
-// tests can stub the preview branch, which depends on the ledger controller's
-// startup capability discovery.
-var ledgerHasV3 = ledgers.HasV3
+// ledgerV3PreviewActive resolves whether the stack has the Ledger v3 preview
+// enabled (ledger.v3.preview-version Setting). Package variable so tests can
+// stub it: the real lookup depends on the ledger controller's startup
+// capability discovery.
+var ledgerV3PreviewActive = ledgers.V3PreviewActive
+
+// stackLedgerHasV3 reports whether the stack runs a Ledger v3 workload the
+// connectivity module can bind to: the resolved module version is itself v3,
+// or the v3 preview is enabled alongside a v2 ledger. moduleIsV3 distinguishes
+// the two, since the preview additionally requires the ledger reconciler to
+// have brought the preview Cluster up (ledgers.V3PreviewReady) before
+// provisioning.
+func stackLedgerHasV3(ctx Context, stack *v1beta1.Stack, ledgerVersion string) (moduleIsV3, hasV3 bool, err error) {
+	if ledgers.IsV3(ledgerVersion) {
+		return true, true, nil
+	}
+	previewActive, err := ledgerV3PreviewActive(ctx, stack)
+	return false, previewActive, err
+}
 
 var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
 
@@ -163,14 +180,17 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// transient resolution hiccup would be worse than briefly keeping it up.
 		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", err.Error())
 	}
-	hasV3, err := ledgerHasV3(ctx, stack, ledgerVersion)
+	moduleIsV3, hasV3, err := stackLedgerHasV3(ctx, stack, ledgerVersion)
 	if err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewUnresolved", err.Error())
 		// Transient: the ledger.v3.preview-version Setting could not be read or
 		// carries an invalid value. Like an unresolvable module version above, this
 		// is an error *resolving* the prerequisite, not a definitive downgrade
-		// below v3 — do NOT tear down the delegated resources.
-		return NewPendingError().WithMessage("cannot resolve the ledger v3 preview: %s", err.Error())
+		// below v3 — do NOT tear down the delegated resources. A read failure may
+		// not produce any watch event on recovery, so poll with a bounded delay.
+		return NewPendingError().
+			WithMessage("cannot resolve the ledger v3 preview: %s", err.Error()).
+			WithRequeueAfter(ledgerGateRetryDelay)
 	}
 	if !hasV3 {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
@@ -192,6 +212,20 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// delegated resources — doing so on every ledger readiness blip would flap
 		// the connectivity workload. Leave it in place and just report pending.
 		return NewPendingError().WithMessage("waiting for the ledger to be ready")
+	}
+	if !moduleIsV3 && !ledgers.V3PreviewReady(ledger) {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewNotReady",
+			"waiting for the ledger v3 preview to be ready")
+		// The gate was opened by the preview Setting, but the ledger reconciler
+		// has not (yet) reported the preview Cluster as running: the Ledger's
+		// aggregate status.ready can be stale-true from a v2-only reconcile that
+		// predates the Setting, and the god-mode Credentials below turns Ready
+		// from additionalNamespaces alone, without a matched Cluster. Without
+		// this gate, initial provisioning could bind the delegated workload —
+		// and its public route — to a v3 service that does not exist yet.
+		// Transient like LedgerNotReady: block (initial) provisioning, keep any
+		// already-provisioned resources.
+		return NewPendingError().WithMessage("waiting for the ledger v3 preview to be ready")
 	}
 
 	// Provision a god-mode ledger credential so connectivity-core can
@@ -439,7 +473,7 @@ func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) bool {
 	if err != nil {
 		return false
 	}
-	hasV3, err := ledgerHasV3(ctx, stack, ledgerVersion)
+	_, hasV3, err := stackLedgerHasV3(ctx, stack, ledgerVersion)
 	if err != nil {
 		return false
 	}
@@ -848,11 +882,21 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	}
 }
 
+// connectivityModuleRequirements declares the Ledger requirement as
+// presence-only: a version constraint (VersionAtLeast LedgerV3Version) would
+// reject a v2 ledger running the v3 preview before Reconcile could consult the
+// ledger.v3.preview-version Setting. The effective v3 capability — module
+// version or active preview, including the hard teardown when neither holds —
+// is decided by the stackLedgerHasV3 gate inside Reconcile.
+func connectivityModuleRequirements() ModuleRequirements {
+	return Requirements(
+		Require(&v1beta1.Ledger{}),
+	)
+}
+
 func init() {
 	Init(WithModuleReconciler(Reconcile,
-		Requirements(
-			Require(&v1beta1.Ledger{}, VersionAtLeast(v1beta1.LedgerV3Version)),
-		),
+		connectivityModuleRequirements(),
 		connectivityReconcilerOptions()...,
 	))
 }
