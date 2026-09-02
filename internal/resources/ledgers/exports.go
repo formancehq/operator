@@ -17,8 +17,6 @@ limitations under the License.
 package ledgers
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
 )
@@ -46,16 +44,39 @@ func V3PreviewActive(ctx core.Context, stack *v1beta1.Stack) (bool, error) {
 	return previewVersion != "", nil
 }
 
-// V3PreviewReady reports whether the ledger reconciler has observed the v3
-// preview Setting and brought the preview Cluster to a running state. Unlike
-// the Ledger's aggregate status.ready — which can be stale-true from a
-// v2-only reconcile that predates the preview Setting — the
-// LedgerV3PreviewReady condition only exists once the ledger reconciler has
-// actually processed the preview, so it is the signal consumers must require
-// before provisioning against the preview's v3 gRPC endpoint.
-func V3PreviewReady(ledger *v1beta1.Ledger) bool {
-	condition := ledger.GetConditions().Get(ledgerV3PreviewReadyCondition)
-	return condition != nil && condition.Status == metav1.ConditionTrue
+// V3PreviewReady reports whether the preview Cluster for the currently
+// configured ledger.v3.preview-version is running. It is the signal consumers
+// must require before provisioning against the preview's v3 gRPC endpoint:
+// status carried by the Ledger CR (aggregate status.ready, or the
+// LedgerV3PreviewReady condition) can be stale across Setting changes — a
+// v2-only reconcile predating the Setting, or a previous preview surviving a
+// rapid remove/re-add. Reading the Cluster itself avoids that: a deleting
+// Cluster is not ready, the version annotation ties it to the Setting value
+// currently in force, and readiness requires the ledger operator to have
+// observed the Cluster's current generation.
+func V3PreviewReady(ctx core.Context, stack *v1beta1.Stack) (bool, error) {
+	previewVersion, err := ledgerV3PreviewVersion(ctx, stack)
+	if err != nil {
+		return false, err
+	}
+	if previewVersion == "" {
+		return false, nil
+	}
+	cluster, exists, err := getV3Cluster(ctx, stack)
+	if err != nil {
+		return false, err
+	}
+	if !exists || !isLedgerV3Preview(cluster) || !cluster.GetDeletionTimestamp().IsZero() {
+		return false, nil
+	}
+	if cluster.GetAnnotations()[ledgerV3PreviewVersionAnnotation] != previewVersion {
+		return false, nil
+	}
+	ready, _, err := isV3ClusterReady(cluster)
+	if err != nil {
+		return false, err
+	}
+	return ready, nil
 }
 
 // V3GRPCBackendRef returns the connection details of the ledger v3 gRPC service

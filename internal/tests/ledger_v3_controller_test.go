@@ -786,6 +786,9 @@ var _ = Describe("Ledger v3 controller", func() {
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(found).To(BeTrue())
 					g.Expect(tag).To(Equal("v3.0.0-alpha.11"))
+					// The preview-version annotation binds the Cluster to the Setting
+					// value it was reconciled from; ledgers.V3PreviewReady relies on it.
+					g.Expect(cluster.GetAnnotations()).To(HaveKeyWithValue("formance.com/ledger-v3-preview-version", "v3.0.0-alpha.11"))
 					labels, found, err := unstructured.NestedStringMap(cluster.Object, "spec", "additionalLabels")
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(found).To(BeTrue())

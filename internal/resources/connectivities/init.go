@@ -104,6 +104,11 @@ var (
 // capability discovery.
 var ledgerV3PreviewActive = ledgers.V3PreviewActive
 
+// ledgerV3PreviewReady resolves whether the preview Cluster for the currently
+// configured preview version is running. Package variable for the same
+// testability reason as ledgerV3PreviewActive.
+var ledgerV3PreviewReady = ledgers.V3PreviewReady
+
 // stackLedgerHasV3 reports whether the stack runs a Ledger v3 workload the
 // connectivity module can bind to: the resolved module version is itself v3,
 // or the v3 preview is enabled alongside a v2 ledger. moduleIsV3 distinguishes
@@ -139,7 +144,16 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// this capability check short-circuits before the ledger gates below.
 		// Gated on the gate being closed so a transient operator outage (with a
 		// healthy ledger) does not flap those resources.
-		if ledgerGateClosed(ctx, stack) {
+		gateClosed, err := ledgerGateClosed(ctx, stack)
+		if err != nil {
+			// The gate could not be determined; a possibly-due teardown must not
+			// be skipped forever, and recovery from the lookup failure emits no
+			// watch event — poll with a bounded delay.
+			return NewPendingError().
+				WithMessage("connectivity operator unavailable, and the ledger gate cannot be resolved: %s", err.Error()).
+				WithRequeueAfter(ledgerGateRetryDelay)
+		}
+		if gateClosed {
 			if err := teardownAccessibleResources(ctx, connectivity); err != nil {
 				return err
 			}
@@ -213,19 +227,31 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// the connectivity workload. Leave it in place and just report pending.
 		return NewPendingError().WithMessage("waiting for the ledger to be ready")
 	}
-	if !moduleIsV3 && !ledgers.V3PreviewReady(ledger) {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewNotReady",
-			"waiting for the ledger v3 preview to be ready")
-		// The gate was opened by the preview Setting, but the ledger reconciler
-		// has not (yet) reported the preview Cluster as running: the Ledger's
-		// aggregate status.ready can be stale-true from a v2-only reconcile that
-		// predates the Setting, and the god-mode Credentials below turns Ready
-		// from additionalNamespaces alone, without a matched Cluster. Without
-		// this gate, initial provisioning could bind the delegated workload —
-		// and its public route — to a v3 service that does not exist yet.
-		// Transient like LedgerNotReady: block (initial) provisioning, keep any
-		// already-provisioned resources.
-		return NewPendingError().WithMessage("waiting for the ledger v3 preview to be ready")
+	if !moduleIsV3 {
+		previewReady, err := ledgerV3PreviewReady(ctx, stack)
+		if err != nil {
+			setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewUnresolved", err.Error())
+			// Same transient handling (and polling, since recovery emits no watch
+			// event) as the preview Setting lookup above.
+			return NewPendingError().
+				WithMessage("cannot resolve the ledger v3 preview readiness: %s", err.Error()).
+				WithRequeueAfter(ledgerGateRetryDelay)
+		}
+		if !previewReady {
+			setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewNotReady",
+				"waiting for the ledger v3 preview to be ready")
+			// The gate was opened by the preview Setting, but the preview Cluster
+			// for the currently configured version is not running: status carried
+			// by the Ledger CR can be stale across Setting changes (a v2-only
+			// reconcile predating the Setting, or a previous preview surviving a
+			// rapid remove/re-add), and the god-mode Credentials below turns Ready
+			// from additionalNamespaces alone, without a matched Cluster. Without
+			// this gate, initial provisioning could bind the delegated workload —
+			// and its public route — to a v3 service that does not exist (yet or
+			// any more). Transient like LedgerNotReady: block (initial)
+			// provisioning, keep any already-provisioned resources.
+			return NewPendingError().WithMessage("waiting for the ledger v3 preview to be ready")
+		}
 	}
 
 	// Provision a god-mode ledger credential so connectivity-core can
@@ -383,7 +409,13 @@ func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity
 }
 
 func handleUnsatisfiedLedgerRequirement(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
-	if !ledgerGateClosed(ctx, stack) {
+	gateClosed, err := ledgerGateClosed(ctx, stack)
+	if err != nil {
+		// Surface the lookup failure so the reconcile is retried; silently
+		// skipping the teardown would leave it skipped until an unrelated event.
+		return err
+	}
+	if !gateClosed {
 		return nil
 	}
 	if !connectivityAvailable {
@@ -458,26 +490,29 @@ func ignoreAbsent(err error) error {
 // — the module was removed, or resolves to a non-v3 version with no v3 preview
 // running alongside — which are the hard gates that warrant tearing down the
 // delegated resources. It mirrors the gate decisions in Reconcile and
-// deliberately returns false on transient states (an unresolvable version or
-// preview Setting, a not-yet-ready ledger) and on any lookup error, so the
-// workload is never flapped on a blip.
-func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) bool {
+// deliberately returns closed=false on transient states (an unresolvable
+// version or preview Setting, a not-yet-ready ledger), so the workload is
+// never flapped on a blip. A lookup error is surfaced rather than collapsed
+// into "open": the caller must schedule a retry, because recovery from a
+// cache/API read failure emits no watch event and a silently skipped teardown
+// would otherwise be skipped forever.
+func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) (bool, error) {
 	ledger, err := getStackLedger(ctx, stack.Name)
 	if err != nil {
-		return false
+		return false, err
 	}
 	if ledger == nil {
-		return true
+		return true, nil
 	}
 	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
 	if err != nil {
-		return false
+		return false, err
 	}
 	_, hasV3, err := stackLedgerHasV3(ctx, stack, ledgerVersion)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return !hasV3
+	return !hasV3, nil
 }
 
 // connectivityAPIBackendRef points the gateway at the connectivity-api Service

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -114,14 +115,17 @@ func TestV3GRPCBackendRefHonoursConfiguredGrpcPort(t *testing.T) {
 }
 
 // newPreviewContext builds a context whose fake client carries the Settings
-// indexes the settings package lists with, so the v3 preview Setting lookup
-// resolves.
+// indexes the settings package lists with (so the v3 preview Setting lookup
+// resolves) and knows the ledger Cluster GVK as unstructured (so the preview
+// Cluster lookup resolves).
 func newPreviewContext(t *testing.T, objects ...client.Object) ledgerV3DiscoveryContext {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	if err := v1beta1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
+	scheme.AddKnownTypeWithName(ledgerV3ClusterGVK, &unstructured.Unstructured{})
+	scheme.AddKnownTypeWithName(ledgerV3ClusterGVK.GroupVersion().WithKind(ledgerV3ClusterGVK.Kind+"List"), &unstructured.UnstructuredList{})
 	kubernetesClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithIndex(&v1beta1.Settings{}, "stack", func(object client.Object) []string {
@@ -196,34 +200,129 @@ func TestV3PreviewActive(t *testing.T) {
 	}
 }
 
-// TestV3PreviewReady proves consumers can distinguish a reconciled, running
-// preview from a Ledger whose status predates the preview Setting.
+// previewClusterOption mutates the canonical running preview Cluster used by
+// TestV3PreviewReady to build its negative cases.
+type previewClusterOption func(*unstructured.Unstructured)
+
+// newRunningPreviewCluster returns the preview Cluster as createOrUpdateV3Cluster
+// provisions it once the ledger operator has brought it up: preview label,
+// preview-version annotation, and a Running status observed at the current
+// generation.
+func newRunningPreviewCluster(stackName, version string, options ...previewClusterOption) *unstructured.Unstructured {
+	cluster := newV3Cluster()
+	cluster.SetNamespace(stackName)
+	cluster.SetName(stackName)
+	cluster.SetGeneration(2)
+	cluster.SetLabels(map[string]string{ledgerV3PreviewLabel: "true"})
+	cluster.SetAnnotations(map[string]string{ledgerV3PreviewVersionAnnotation: version})
+	_ = unstructured.SetNestedField(cluster.Object, int64(3), "spec", "replicas")
+	_ = unstructured.SetNestedField(cluster.Object, "Running", "status", "phase")
+	_ = unstructured.SetNestedField(cluster.Object, int64(3), "status", "readyReplicas")
+	_ = unstructured.SetNestedField(cluster.Object, int64(2), "status", "observedGeneration")
+	for _, option := range options {
+		option(cluster)
+	}
+	return cluster
+}
+
+// TestV3PreviewReady proves the ready signal identifies the preview Cluster of
+// the currently configured preview version, so status surviving a Setting
+// remove/re-add (or predating the Setting entirely) never lets provisioning
+// through against a deleting, not-yet-recreated, or older-version preview.
 func TestV3PreviewReady(t *testing.T) {
+	previous := ledgerV3ClusterAvailable
+	t.Cleanup(func() { ledgerV3ClusterAvailable = previous })
+
+	const version = "v3.0.0-alpha.11"
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	previewSetting := settings.New("preview", "ledger.v3.preview-version", version, stack.Name)
+
 	tests := []struct {
-		name       string
-		conditions v1beta1.Conditions
-		want       bool
+		name             string
+		clusterAvailable bool
+		objects          []client.Object
+		want             bool
+		wantErr          bool
 	}{
 		{
-			name: "no preview condition (stale v2-only status)",
+			name:             "running preview cluster for the configured version",
+			clusterAvailable: true,
+			objects:          []client.Object{previewSetting, newRunningPreviewCluster("stack0", version)},
+			want:             true,
+		},
+		{
+			name:             "no preview Setting",
+			clusterAvailable: true,
+			objects:          []client.Object{newRunningPreviewCluster("stack0", version)},
+			want:             false,
+		},
+		{
+			name:             "no cluster yet (ledger reconciler has not observed the Setting)",
+			clusterAvailable: true,
+			objects:          []client.Object{previewSetting},
+			want:             false,
+		},
+		{
+			name:             "cluster is not a preview (module-version v3 cluster)",
+			clusterAvailable: true,
+			objects: []client.Object{previewSetting, newRunningPreviewCluster("stack0", version, func(cluster *unstructured.Unstructured) {
+				cluster.SetLabels(nil)
+			})},
 			want: false,
 		},
 		{
-			name:       "preview condition pending",
-			conditions: v1beta1.Conditions{{Type: ledgerV3PreviewReadyCondition, Status: metav1.ConditionFalse}},
-			want:       false,
+			name:             "cluster is being deleted (Setting removed then re-added)",
+			clusterAvailable: true,
+			objects: []client.Object{previewSetting, newRunningPreviewCluster("stack0", version, func(cluster *unstructured.Unstructured) {
+				now := metav1.Now()
+				cluster.SetDeletionTimestamp(&now)
+				cluster.SetFinalizers([]string{"test/keep"})
+			})},
+			want: false,
 		},
 		{
-			name:       "preview condition running",
-			conditions: v1beta1.Conditions{{Type: ledgerV3PreviewReadyCondition, Status: metav1.ConditionTrue}},
-			want:       true,
+			name:             "cluster still carries a previous preview version",
+			clusterAvailable: true,
+			objects: []client.Object{previewSetting, newRunningPreviewCluster("stack0", version, func(cluster *unstructured.Unstructured) {
+				cluster.SetAnnotations(map[string]string{ledgerV3PreviewVersionAnnotation: "v3.0.0-alpha.10"})
+			})},
+			want: false,
+		},
+		{
+			name:             "cluster spec not yet observed by the ledger operator",
+			clusterAvailable: true,
+			objects: []client.Object{previewSetting, newRunningPreviewCluster("stack0", version, func(cluster *unstructured.Unstructured) {
+				_ = unstructured.SetNestedField(cluster.Object, int64(1), "status", "observedGeneration")
+			})},
+			want: false,
+		},
+		{
+			name:    "preview Setting ignored when the Ledger Operator CRD is unavailable",
+			objects: []client.Object{previewSetting, newRunningPreviewCluster("stack0", version)},
+			want:    false,
+		},
+		{
+			name:             "invalid preview Setting surfaces an error",
+			clusterAvailable: true,
+			objects:          []client.Object{settings.New("preview", "ledger.v3.preview-version", "v2.5.0", stack.Name)},
+			wantErr:          true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ledger := &v1beta1.Ledger{}
-			ledger.Status.Conditions = tt.conditions
-			if got := V3PreviewReady(ledger); got != tt.want {
+			ledgerV3ClusterAvailable = tt.clusterAvailable
+
+			got, err := V3PreviewReady(newPreviewContext(t, tt.objects...), stack)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("V3PreviewReady() must surface the invalid preview Setting")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("V3PreviewReady() returned error: %v", err)
+			}
+			if got != tt.want {
 				t.Fatalf("V3PreviewReady() = %v, want %v", got, tt.want)
 			}
 		})
