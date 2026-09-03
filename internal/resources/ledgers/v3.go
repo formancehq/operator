@@ -46,9 +46,9 @@ const (
 	// or one whose spec the ledger reconciler has not re-stamped yet after a
 	// rapid Setting change — is not mistaken for the configured one.
 	ledgerV3PreviewVersionAnnotation = "formance.com/ledger-v3-preview-version"
-	ledgerV3GRPCPort              = int32(8888)
-	ledgerV3HTTPPort              = int32(9000)
-	ledgerV3PublicGRPCService     = "ledger.BucketService"
+	ledgerV3GRPCPort                 = int32(8888)
+	ledgerV3HTTPPort                 = int32(9000)
+	ledgerV3PublicGRPCService        = "ledger.BucketService"
 )
 
 var (
