@@ -39,9 +39,16 @@ const (
 	ledgerV3ClusterReadyCondition = "LedgerV3ClusterReady"
 	ledgerV3PreviewReadyCondition = "LedgerV3PreviewReady"
 	ledgerV3PreviewLabel          = "formance.com/ledger-v3-preview"
-	ledgerV3GRPCPort              = int32(8888)
-	ledgerV3HTTPPort              = int32(9000)
-	ledgerV3PublicGRPCService     = "ledger.BucketService"
+	// ledgerV3PreviewVersionAnnotation records, on the preview Cluster, the
+	// ledger.v3.preview-version value it was reconciled from. Consumers gating
+	// on the preview (ledgers.V3PreviewReady) compare it to the currently
+	// resolved Setting so a running Cluster from a previous preview version —
+	// or one whose spec the ledger reconciler has not re-stamped yet after a
+	// rapid Setting change — is not mistaken for the configured one.
+	ledgerV3PreviewVersionAnnotation = "formance.com/ledger-v3-preview-version"
+	ledgerV3GRPCPort                 = int32(8888)
+	ledgerV3HTTPPort                 = int32(9000)
+	ledgerV3PublicGRPCService        = "ledger.BucketService"
 )
 
 var (
@@ -443,6 +450,17 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 			delete(labels, ledgerV3PreviewLabel)
 		}
 		cluster.SetLabels(labels)
+
+		annotations := cluster.GetAnnotations()
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		if preview {
+			annotations[ledgerV3PreviewVersionAnnotation] = version
+		} else {
+			delete(annotations, ledgerV3PreviewVersionAnnotation)
+		}
+		cluster.SetAnnotations(annotations)
 
 		if err := controllerutil.SetControllerReference(ledger, cluster, ctx.GetScheme()); err != nil {
 			return err

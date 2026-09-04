@@ -726,8 +726,18 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 		Context: context.Background(),
 		scheme:  s,
 		client: fake.NewClientBuilder().WithScheme(s).
+			// The requirements framework (GetSingleDependency) lists Ledgers as
+			// unstructured, so the fake index must serve both shapes.
 			WithIndex(&v1beta1.Ledger{}, "stack", func(obj client.Object) []string {
-				return []string{obj.(*v1beta1.Ledger).Spec.Stack}
+				switch ledger := obj.(type) {
+				case *v1beta1.Ledger:
+					return []string{ledger.Spec.Stack}
+				case *unstructured.Unstructured:
+					stackName, _, _ := unstructured.NestedString(ledger.Object, "spec", "stack")
+					return []string{stackName}
+				default:
+					return nil
+				}
 			}).
 			WithIndex(&v1beta1.Settings{}, "stack", func(obj client.Object) []string {
 				return obj.(*v1beta1.Settings).GetStacks()
@@ -837,6 +847,335 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3(t *testing.T) {
 	}
 	if credentialsExist(t, ctx, "stack0") {
 		t.Error("god-mode Credentials must be torn down when the ledger is not v3")
+	}
+}
+
+// stubPreviewActive stubs the preview Setting lookup (whose real
+// implementation depends on the ledger controller's startup capability
+// discovery) for the duration of a test. The preview logic itself is covered
+// by the ledgers package tests.
+func stubPreviewActive(t *testing.T, active bool, err error) {
+	t.Helper()
+	previous := ledgerV3PreviewActive
+	ledgerV3PreviewActive = func(core.Context, *v1beta1.Stack) (bool, error) {
+		return active, err
+	}
+	t.Cleanup(func() { ledgerV3PreviewActive = previous })
+}
+
+// stubPreviewReady stubs the preview Cluster readiness lookup, for the same
+// reason as stubPreviewActive.
+func stubPreviewReady(t *testing.T, ready bool, err error) {
+	t.Helper()
+	previous := ledgerV3PreviewReady
+	ledgerV3PreviewReady = func(core.Context, *v1beta1.Stack) (bool, error) {
+		return ready, err
+	}
+	t.Cleanup(func() { ledgerV3PreviewReady = previous })
+}
+
+// newPreviewLedger returns a ready v2 ledger for the stack, as it looks on a
+// stack running the v3 preview (the preview Cluster's state is resolved
+// separately, through ledgers.V3PreviewReady).
+func newPreviewLedger(stackName string) *v1beta1.Ledger {
+	ledger := &v1beta1.Ledger{}
+	ledger.Name = stackName + "-ledger"
+	ledger.Spec.Stack = stackName
+	ledger.Spec.Version = "v2.0.0"
+	ledger.Status.Ready = true
+	return ledger
+}
+
+// A v2 ledger with the v3 preview active and reconciled to Ready satisfies the
+// connectivity prerequisite: the gate must pass and the delegated resources
+// must not be torn down, with the reconcile proceeding to the credentials
+// provisioning.
+func TestConnectivityReconcilePassesGateWhenLedgerV3PreviewActive(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+	stubPreviewActive(t, true, nil)
+	stubPreviewReady(t, true, nil)
+
+	delegated := newDelegatedConnectivity("stack0")
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+
+	ctx := newReconcileTestContext(t, newPreviewLedger("stack0"), delegated, httpAPI)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending on the freshly created credentials", err)
+	}
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerCredentialsPending" {
+		t.Fatalf("expected the gate to pass through to LedgerCredentialsPending, got %#v", connectivity.Status.Conditions)
+	}
+
+	if !delegatedConnectivityExists(t, ctx, "stack0") {
+		t.Error("delegated Connectivity must NOT be torn down while the v3 preview is active")
+	}
+	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must NOT be torn down while the v3 preview is active")
+	}
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Error("god-mode Credentials must have been provisioned while the v3 preview is active")
+	}
+}
+
+// A preview whose Cluster is not running for the currently configured version
+// — never provisioned yet (stale Ready=true from a v2-only reconcile), being
+// deleted after the Setting was removed and rapidly re-added, or running an
+// older preview version — must NOT let initial provisioning bind the workload
+// to a v3 service that does not exist (yet or any more); the god-mode
+// Credentials turns Ready from additionalNamespaces alone, so the credentials
+// gate cannot be relied upon to block it. Already-provisioned resources are
+// retained (transient).
+func TestConnectivityReconcileBlocksProvisioningUntilPreviewReady(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+	stubPreviewActive(t, true, nil)
+	stubPreviewReady(t, false, nil)
+
+	t.Run("initial provisioning is blocked", func(t *testing.T) {
+		ctx := newReconcileTestContext(t, newPreviewLedger("stack0"))
+
+		stack := &v1beta1.Stack{}
+		stack.Name = "stack0"
+		connectivity := &v1beta1.Connectivity{}
+		connectivity.Name = "stack0"
+		connectivity.Spec.Stack = "stack0"
+
+		err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+		if !core.IsApplicationError(err) {
+			t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+		}
+		if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerV3PreviewNotReady" {
+			t.Fatalf("expected a LedgerV3PreviewNotReady condition, got %#v", connectivity.Status.Conditions)
+		}
+		if delegatedConnectivityExists(t, ctx, "stack0") {
+			t.Error("delegated Connectivity must NOT be provisioned before the preview is reconciled to Ready")
+		}
+		if gatewayHTTPAPIExists(t, ctx, "stack0") {
+			t.Error("GatewayHTTPAPI must NOT be provisioned before the preview is reconciled to Ready")
+		}
+	})
+
+	t.Run("existing resources are retained", func(t *testing.T) {
+		delegated := newDelegatedConnectivity("stack0")
+		httpAPI := &v1beta1.GatewayHTTPAPI{}
+		httpAPI.Name = "stack0-connectivity"
+		cred := newLedgerCredentialsForStack("stack0")
+		ctx := newReconcileTestContext(t, newPreviewLedger("stack0"), delegated, httpAPI, cred)
+
+		stack := &v1beta1.Stack{}
+		stack.Name = "stack0"
+		connectivity := &v1beta1.Connectivity{}
+		connectivity.Name = "stack0"
+		connectivity.Spec.Stack = "stack0"
+
+		if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
+			t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+		}
+		if !delegatedConnectivityExists(t, ctx, "stack0") {
+			t.Error("delegated Connectivity must NOT be torn down while the preview is transiently not ready")
+		}
+		if !gatewayHTTPAPIExists(t, ctx, "stack0") {
+			t.Error("GatewayHTTPAPI must NOT be torn down while the preview is transiently not ready")
+		}
+		if !credentialsExist(t, ctx, "stack0") {
+			t.Error("god-mode Credentials must NOT be torn down while the preview is transiently not ready")
+		}
+	})
+}
+
+// An error resolving the v3 preview Setting is transient (like an unresolvable
+// module version): the reconcile must stay pending without tearing down the
+// delegated resources — and must poll, because a Settings read failure
+// produces no watch event on recovery.
+func TestConnectivityReconcileKeepsDelegatedWhenPreviewGateUnresolved(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+	stubPreviewActive(t, false, errors.New("cannot read the preview Setting"))
+
+	delegated := newDelegatedConnectivity("stack0")
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
+
+	ctx := newReconcileTestContext(t, newPreviewLedger("stack0"), delegated, httpAPI, cred)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	if core.ApplicationErrorRequeueAfter(err) <= 0 {
+		t.Fatalf("an unresolved preview Setting must request a delayed requeue (no watch event fires on recovery), got %v", err)
+	}
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerV3PreviewUnresolved" {
+		t.Fatalf("expected a LedgerV3PreviewUnresolved condition, got %#v", connectivity.Status.Conditions)
+	}
+
+	if !delegatedConnectivityExists(t, ctx, "stack0") {
+		t.Error("delegated Connectivity must NOT be torn down on a transient preview resolution error")
+	}
+	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must NOT be torn down on a transient preview resolution error")
+	}
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Error("god-mode Credentials must NOT be torn down on a transient preview resolution error")
+	}
+}
+
+// An error resolving the preview readiness (Setting or Cluster read failure)
+// gets the same transient handling as an unresolved preview Setting: pending
+// with a bounded requeue, nothing torn down, nothing provisioned.
+func TestConnectivityReconcileRetriesWhenPreviewReadinessUnresolved(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+	stubPreviewActive(t, true, nil)
+	stubPreviewReady(t, false, errors.New("cannot read the preview Cluster"))
+
+	delegated := newDelegatedConnectivity("stack0")
+	ctx := newReconcileTestContext(t, newPreviewLedger("stack0"), delegated)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	if core.ApplicationErrorRequeueAfter(err) <= 0 {
+		t.Fatalf("unresolved preview readiness must request a delayed requeue, got %v", err)
+	}
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerV3PreviewUnresolved" {
+		t.Fatalf("expected a LedgerV3PreviewUnresolved condition, got %#v", connectivity.Status.Conditions)
+	}
+	if !delegatedConnectivityExists(t, ctx, "stack0") {
+		t.Error("delegated Connectivity must NOT be torn down on a transient readiness resolution error")
+	}
+}
+
+// When the connectivity capability is unavailable AND the ledger gate cannot
+// be resolved (transient Settings lookup failure), the possibly-due teardown
+// must not be skipped forever: recovery emits no watch event, so the pending
+// error must carry a bounded requeue. Resources are kept in the meantime.
+func TestConnectivityReconcileRetriesUnavailableCapabilityWhenGateUnresolved(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = false
+	t.Cleanup(func() { connectivityAvailable = previous })
+	stubPreviewActive(t, false, errors.New("cannot read the preview Setting"))
+
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	httpAPI.Name = "stack0-connectivity"
+	cred := newLedgerCredentialsForStack("stack0")
+	ctx := newReconcileTestContext(t, newPreviewLedger("stack0"), httpAPI, cred)
+
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
+	}
+	if core.ApplicationErrorRequeueAfter(err) <= 0 {
+		t.Fatalf("an unresolved ledger gate on the capability-unavailable path must request a delayed requeue, got %v", err)
+	}
+	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
+		t.Error("GatewayHTTPAPI must be kept while the gate is unresolved")
+	}
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Error("god-mode Credentials must be kept while the gate is unresolved")
+	}
+}
+
+// The unsatisfied-requirements handler must surface a gate lookup failure so
+// the reconcile is retried, rather than silently skipping a possibly-due
+// teardown.
+func TestHandleUnsatisfiedLedgerRequirementSurfacesGateLookupFailure(t *testing.T) {
+	stubPreviewActive(t, false, errors.New("cannot read the preview Setting"))
+
+	ctx := newReconcileTestContext(t, newPreviewLedger("stack0"))
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack0"
+	connectivity := &v1beta1.Connectivity{}
+	connectivity.Name = "stack0"
+	connectivity.Spec.Stack = "stack0"
+
+	if err := handleUnsatisfiedLedgerRequirement(ctx, stack, connectivity); err == nil {
+		t.Fatal("handleUnsatisfiedLedgerRequirement must surface the gate lookup failure for retry")
+	}
+}
+
+// The module registration must let a v2-with-preview stack through to the
+// Reconcile gate: a VersionAtLeast(LedgerV3Version) requirement would fail
+// with DependencyVersionMismatch in ForModule before Reconcile could consult
+// the preview Setting. Exercise the full module-controller path with the real
+// registration's requirements.
+func TestConnectivityModuleControllerReachesGateOnPreviewStack(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+	stubPreviewActive(t, true, nil)
+	stubPreviewReady(t, false, nil)
+
+	stack := &v1beta1.Stack{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack0-uid")},
+		Spec:       v1beta1.StackSpec{Version: "v2.0.0"},
+	}
+	connectivity := &v1beta1.Connectivity{
+		ObjectMeta: metav1.ObjectMeta{Name: "stack0"},
+		Spec: v1beta1.ConnectivitySpec{
+			StackDependency: v1beta1.StackDependency{Stack: stack.Name},
+		},
+	}
+	ctx := newReconcileTestContext(t, newPreviewLedger("stack0"), stack, connectivity)
+
+	options := &core.ReconcilerOptions[*v1beta1.Connectivity]{
+		Owns:     map[client.Object][]builder.OwnsOption{},
+		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
+	}
+	for _, option := range connectivityReconcilerOptions() {
+		option(options)
+	}
+	controller := core.ForModule(connectivityModuleRequirements(),
+		func(ctx core.Context, stack *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], connectivity *v1beta1.Connectivity, version string) error {
+			return Reconcile(ctx, stack, connectivity, version)
+		})
+
+	err := controller(ctx, stack, options, connectivity)
+	if !core.IsApplicationError(err) {
+		t.Fatalf("module controller returned %v, want the module gate's pending error", err)
+	}
+
+	dependencies := connectivity.GetConditions().Get("DependenciesSatisfied")
+	if dependencies == nil || dependencies.Status != metav1.ConditionTrue {
+		t.Fatalf("the presence-only Ledger requirement must be satisfied by a v2 ledger, got %#v", dependencies)
+	}
+	gate := connectivity.GetConditions().Get(connectivityReadyCondition)
+	if gate == nil || gate.Reason != "LedgerV3PreviewNotReady" {
+		t.Fatalf("Reconcile's preview gate must be reached on a v2-with-preview stack, got %#v", connectivity.Status.Conditions)
 	}
 }
 
