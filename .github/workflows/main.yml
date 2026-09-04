@@ -7,7 +7,7 @@ on:
       - releases/*
       - release/*
   pull_request:
-    types: [assigned, opened, synchronize, reopened, labeled]
+    types: [assigned, opened, synchronize, reopened, labeled, edited]
 
 permissions:
   contents: write
@@ -20,66 +20,38 @@ concurrency:
 jobs:
   PR:
     if: github.event_name == 'pull_request'
-    uses: formancehq/ci/.github/workflows/go-pr.yml@main
+    uses: formancehq/ci/.github/workflows/go-pr.yml@v1
     permissions:
       pull-requests: read
       statuses: write
 
   Dirty:
-    runs-on: namespace-profile-linux-amd64-4vcpu
+    uses: formancehq/ci/.github/workflows/go-dirty.yml@v1
+    with:
+      nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
+    secrets:
+      SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+
+  AutoMerge-Dependabot:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    needs: [Dirty, Tests]
+    runs-on: namespace-profile-linux-amd64-2vcpu
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v9
-        with:
-          fetch-depth: 0
-          dissociate: true
-
-      - uses: formancehq/ci/actions/setup-nix@main
-        with:
-          nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
-
-      - run: nix develop --extra-experimental-features "nix-command" --extra-experimental-features "flakes" --impure --command just pre-commit
-        env:
-          SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
-
-      - name: Get changed files
-        shell: bash
-        run: |
-          hasChanged=$(git status --porcelain)
-          if (( $(echo ${#hasChanged}) != 0 )); then
-            git status
-            echo "There are changes in the repository"
-            exit 1
-          fi
-
-      - name: Validate Dependabot PR
-        if: github.event.pull_request.user.login == 'dependabot[bot]'
-        run: gh pr review $PR_URL --approve -b "Auto approve dependencies bump PR"
+      - run: gh pr review $PR_URL --approve -b "Auto approve dependencies bump PR"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Merge Dependabot PR
-        if: github.event.pull_request.user.login == 'dependabot[bot]'
-        run: gh pr merge $PR_URL
+      - run: gh pr merge $PR_URL
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.NUMARY_GITHUB_TOKEN }}
 
   Tests:
-    runs-on: namespace-profile-linux-amd64-8vcpu
-    steps:
-      - uses: namespacelabs/nscloud-checkout-action@v9
-        with:
-          fetch-depth: 0
-          dissociate: true
-
-      - uses: formancehq/ci/actions/setup-nix@main
-        with:
-          nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
-
-      - run: nix develop --extra-experimental-features "nix-command" --extra-experimental-features "flakes" --impure --command just tests
-        env:
-          SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
+    uses: formancehq/ci/.github/workflows/go-test.yml@v1
+    with:
+      nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
+    secrets:
+      SPEAKEASY_API_KEY: ${{ secrets.SPEAKEASY_API_KEY }}
 
   E2E:
     name: E2E (Kubernetes ${{ matrix.kubernetes.version }})
@@ -110,7 +82,7 @@ jobs:
           fetch-depth: 0
           dissociate: true
 
-      - uses: formancehq/ci/actions/setup-nix@main
+      - uses: formancehq/ci/actions/setup-nix@v1
         with:
           nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
 
@@ -137,7 +109,7 @@ jobs:
           fetch-depth: 0
           dissociate: true
 
-      - uses: formancehq/ci/actions/setup-nix@main
+      - uses: formancehq/ci/actions/setup-nix@v1
         with:
           nix-extra-flags: '--extra-experimental-features "nix-command" --extra-experimental-features "flakes"'
 
@@ -161,7 +133,7 @@ jobs:
       - GoReleaser
       - Tests
     steps:
-      - uses: formancehq/ci/actions/deploy-staging@main
+      - uses: formancehq/ci/actions/deploy-staging@v1
         with:
           application: staging-eu-west-1-hosting-operator
           parameter: |
