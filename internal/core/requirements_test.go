@@ -317,6 +317,10 @@ func TestForModuleGatesReconcilerOnRequirements(t *testing.T) {
 					if err == nil && found {
 						return []string{value}
 					}
+					return nil
+				}
+				if dependent, ok := object.(v1beta1.Dependent); ok {
+					return []string{dependent.GetStack()}
 				}
 				return nil
 			}
@@ -435,10 +439,15 @@ func TestWithWatchVersionsRequeuesConsumerForRelevantCatalogEntryChange(t *testi
 		return []string{object.(*v1beta1.Stack).Spec.VersionsFromFile}
 	}
 	consumerIndex := func(object client.Object) []string {
-		unstructuredObject := object.(*unstructured.Unstructured)
-		value, found, err := unstructured.NestedString(unstructuredObject.Object, "spec", "stack")
-		if err == nil && found {
-			return []string{value}
+		if unstructuredObject, ok := object.(*unstructured.Unstructured); ok {
+			value, found, err := unstructured.NestedString(unstructuredObject.Object, "spec", "stack")
+			if err == nil && found {
+				return []string{value}
+			}
+			return nil
+		}
+		if dependent, ok := object.(v1beta1.Dependent); ok {
+			return []string{dependent.GetStack()}
 		}
 		return nil
 	}
@@ -519,10 +528,15 @@ func TestRequirementWatchRequeuesConsumerInDependencyStack(t *testing.T) {
 		},
 	}
 	consumerIndex := func(object client.Object) []string {
-		unstructuredObject := object.(*unstructured.Unstructured)
-		value, found, err := unstructured.NestedString(unstructuredObject.Object, "spec", "stack")
-		if err == nil && found {
-			return []string{value}
+		if unstructuredObject, ok := object.(*unstructured.Unstructured); ok {
+			value, found, err := unstructured.NestedString(unstructuredObject.Object, "spec", "stack")
+			if err == nil && found {
+				return []string{value}
+			}
+			return nil
+		}
+		if dependent, ok := object.(v1beta1.Dependent); ok {
+			return []string{dependent.GetStack()}
 		}
 		return nil
 	}
