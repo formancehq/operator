@@ -148,7 +148,11 @@ var _ = Describe("Ledger v3 module compatibility", func() {
 			Eventually(func() error {
 				return Get(types.NamespacedName{Name: stack.Name}, &corev1.Namespace{})
 			}).Should(Succeed())
-			Expect(Create(ledger, module, cluster)).To(Succeed())
+			// Materialize the Cluster before the Ledger exists: the Ledger
+			// reconciler creates that very object as soon as it sees a v3 stack,
+			// and would otherwise race this creation to it.
+			Expect(Create(cluster)).To(Succeed())
+			Expect(Create(ledger, module)).To(Succeed())
 			Expect(LoadResource("", module.GetName(), module)).To(Succeed())
 
 			labels := map[string]string{"app": module.GetName()}
