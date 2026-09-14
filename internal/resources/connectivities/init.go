@@ -21,11 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/mod/semver"
+	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -43,6 +46,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/auths"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
@@ -52,9 +56,10 @@ import (
 const (
 	connectivityReadyCondition  = "ConnectivityClusterReady"
 	ledgerCredentialsRetryDelay = 5 * time.Second
-	// ledgerGateRetryDelay bounds the retry when the ledger v3 preview Setting
-	// cannot be resolved: that failure mode (a cache/API read error) produces no
-	// watch event on recovery, so the pending state must poll.
+	connectivityAPIRetryDelay   = 5 * time.Second
+	// ledgerGateRetryDelay bounds the retry when the Ledger gate cannot be
+	// resolved. A cache/API read error produces no watch event on recovery, so
+	// the pending state must poll.
 	ledgerGateRetryDelay = 5 * time.Second
 	// connectivityDelegatedName is the fixed name of the delegated
 	// connectivity.formance.com/Connectivity resource. It is namespaced (one per
@@ -98,29 +103,16 @@ var (
 	ledgerCredentialsWatchAvailable bool
 )
 
-// ledgerV3PreviewActive resolves whether the stack has the Ledger v3 preview
-// enabled (ledger.v3.preview-version Setting). Package variable so tests can
-// stub it: the real lookup depends on the ledger controller's startup
-// capability discovery.
-var ledgerV3PreviewActive = ledgers.V3PreviewActive
-
-// ledgerV3PreviewReady resolves whether the preview Cluster for the currently
-// configured preview version is running. Package variable for the same
-// testability reason as ledgerV3PreviewActive.
-var ledgerV3PreviewReady = ledgers.V3PreviewReady
-
-// stackLedgerHasV3 reports whether the stack runs a Ledger v3 workload the
-// connectivity module can bind to: the resolved module version is itself v3,
-// or the v3 preview is enabled alongside a v2 ledger. moduleIsV3 distinguishes
-// the two, since the preview additionally requires the ledger reconciler to
-// have brought the preview Cluster up (ledgers.V3PreviewReady) before
-// provisioning.
-func stackLedgerHasV3(ctx Context, stack *v1beta1.Stack, ledgerVersion string) (moduleIsV3, hasV3 bool, err error) {
-	if ledgers.IsV3(ledgerVersion) {
-		return true, true, nil
+// ledgerVersionIsV3 mirrors the Ledger reconciler's SemVer classification but
+// additionally limits Connectivity to major v3. Opaque development references
+// remain legacy in the Ledger reconciler and therefore cannot safely be bound
+// to the v3 gRPC backend here.
+func ledgerVersionIsV3(ledgerVersion string) bool {
+	normalizedVersion := ledgerVersion
+	if !strings.HasPrefix(normalizedVersion, "v") {
+		normalizedVersion = "v" + normalizedVersion
 	}
-	previewActive, err := ledgerV3PreviewActive(ctx, stack)
-	return false, previewActive, err
+	return semver.IsValid(normalizedVersion) && semver.Major(normalizedVersion) == "v3"
 }
 
 var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "update", "patch", "delete"}
@@ -132,6 +124,8 @@ var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "upda
 //+kubebuilder:rbac:groups=authorization.k8s.io,resources=selfsubjectaccessreviews,verbs=create
 //+kubebuilder:rbac:groups=ledger.formance.com,resources=credentials,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ledger.formance.com,resources=credentials/status,verbs=get
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity, version string) error {
 	if !connectivityAvailable {
@@ -142,31 +136,42 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// closed we must still tear down the god-mode Credentials and the gateway
 		// route we own, otherwise a closed gate leaves them behind just because
 		// this capability check short-circuits before the ledger gates below.
-		// Gated on the gate being closed so a transient operator outage (with a
-		// healthy ledger) does not flap those resources.
+		// A closed ledger gate additionally revokes the god-mode Credentials. When
+		// that gate is still open, keep the workload and Credentials but close its
+		// public route: without the delegated API we cannot prove that the currently
+		// serving rollout enforces the desired authentication configuration.
 		gateClosed, err := ledgerGateClosed(ctx, stack)
 		if err != nil {
 			// The gate could not be determined; a possibly-due teardown must not
-			// be skipped forever, and recovery from the lookup failure emits no
-			// watch event — poll with a bounded delay.
-			return NewPendingError().
+			// be skipped forever, and recovery from the lookup failure emits no watch
+			// event. Revoke the route while the API auth state cannot be proven.
+			pending := NewPendingError().
 				WithMessage("connectivity operator unavailable, and the ledger gate cannot be resolved: %s", err.Error()).
 				WithRequeueAfter(ledgerGateRetryDelay)
+			return pendingAfterGatewayRevocation(ctx, connectivity, pending, err)
 		}
 		if gateClosed {
 			if err := teardownAccessibleResources(ctx, connectivity); err != nil {
 				return err
 			}
+		} else if err := revokeGatewayHTTPAPI(ctx, connectivity); err != nil {
+			return err
 		}
 		return NewPendingError().WithMessage("connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
 	}
 
 	// Connectivity ingests into the stack's Ledger v3 gRPC endpoint, so it can
-	// only be provisioned once that ledger is present, running a v3 (as its
-	// module version, or as the v3 preview alongside a v2 ledger), and ready.
+	// only be provisioned once that ledger is present, running its primary v3
+	// topology, and ready. A v3 migration preview beside Ledger v2 is not a
+	// compatible primary topology.
 	ledger, err := getStackLedger(ctx, stack.Name)
 	if err != nil {
-		return err
+		// A failed lookup is not evidence that the prerequisite disappeared, so do
+		// not tear down the workload or Credentials. It is also not evidence that
+		// the exposed API still has the desired auth, though: fail closed until the
+		// ledger and the downstream rollout can be inspected again.
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerLookupFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
 	if ledger == nil {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotFound", "stack has no Ledger module")
@@ -183,75 +188,60 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 
 	// Resolve the ledger's effective version through the same path the module
 	// reconcilers use (module override, stack version, or the referenced
-	// Versions file), so the v3 gate also works for versionsFromFile stacks.
+	// Versions file), so the v3 gate also works for versionsFromFile stacks. A
+	// resolved non-v3 version is a hard gate and must be handled before any
+	// unrelated, fallible auth lookup so teardown cannot be skipped.
 	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
 	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionUnresolved", err.Error())
-		// Transient: we could not resolve the ledger version (e.g. a referenced
-		// Versions file not yet present). This is an error *resolving* the
-		// prerequisite, not a definitive downgrade below v3, so we deliberately do
-		// NOT tear down the delegated resources here — flapping the workload on a
-		// transient resolution hiccup would be worse than briefly keeping it up.
-		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", err.Error())
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionResolveFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
-	moduleIsV3, hasV3, err := stackLedgerHasV3(ctx, stack, ledgerVersion)
-	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewUnresolved", err.Error())
-		// Transient: the ledger.v3.preview-version Setting could not be read or
-		// carries an invalid value. Like an unresolvable module version above, this
-		// is an error *resolving* the prerequisite, not a definitive downgrade
-		// below v3 — do NOT tear down the delegated resources. A read failure may
-		// not produce any watch event on recovery, so poll with a bounded delay.
-		return NewPendingError().
-			WithMessage("cannot resolve the ledger v3 preview: %s", err.Error()).
-			WithRequeueAfter(ledgerGateRetryDelay)
-	}
-	if !hasV3 {
+	if !ledgerVersionIsV3(ledgerVersion) {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
-			fmt.Sprintf("connectivity requires a Ledger v3 (found %q and no v3 preview)", ledgerVersion))
-		// Hard gate: the ledger version resolved but is not v3 and no v3 preview
-		// runs alongside (i.e. a real downgrade). Connectivity binds to the ledger
-		// v3 gRPC surface, so the prerequisite no longer holds — tear down the
-		// delegated Connectivity + GatewayHTTPAPI before returning pending.
+			fmt.Sprintf("connectivity requires a semantic Ledger v3 version (found %q)", ledgerVersion))
+		// Hard gate: Connectivity binds to the primary Ledger v3 gRPC surface, so
+		// any other topology requires tearing down the delegated resources before
+		// returning pending.
 		if err := teardownDelegated(ctx, stack, connectivity); err != nil {
 			return err
 		}
 		return NewPendingError().WithMessage("connectivity requires a Ledger v3")
 	}
+
+	// OIDC protection for the connectivity-api, following the same convention
+	// as the other stack modules (ledger, payments): nil when the stack has no
+	// Auth module, otherwise the stack auth issuer plus the scope-checking
+	// policy from the auth.connectivity.check-scopes Setting. Resolve and apply
+	// it before the transient readiness gates below: an already-running API must
+	// not remain unauthenticated while its Ledger is temporarily unready. The
+	// connectivity CRD only
+	// models a single trusted issuer, so additional Settings-declared issuers
+	// (auth.issuers) are not propagated.
+	apiAuth, authErr := auths.GetProtectedConfiguration(ctx, stack, "connectivity", nil)
+	if authErr != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "APIAuthResolveFailed", authErr.Error())
+		return errors.Join(authErr, revokeGatewayHTTPAPI(ctx, connectivity))
+	}
+	existingChanged, authErr := reconcileExistingConnectivityAPIAuth(ctx, stack.Name, connectivity, apiAuth)
+	if authErr != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "APIAuthReconcileFailed", authErr.Error())
+		return authErr
+	}
+
 	if !ledger.IsReady() {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotReady", "waiting for the ledger to be ready")
 		// Transient: the ledger exists and is v3 but is momentarily not ready.
 		// Unlike the hard gates above (LedgerNotFound / LedgerNotV3), the
 		// prerequisite still holds, so we deliberately do NOT tear down the
-		// delegated resources — doing so on every ledger readiness blip would flap
-		// the connectivity workload. Leave it in place and just report pending.
+		// delegated workload or Credentials on every readiness blip. The auth
+		// preflight above may still revoke its public route when the authenticated
+		// API rollout cannot be proven.
 		return NewPendingError().WithMessage("waiting for the ledger to be ready")
 	}
-	if !moduleIsV3 {
-		previewReady, err := ledgerV3PreviewReady(ctx, stack)
-		if err != nil {
-			setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewUnresolved", err.Error())
-			// Same transient handling (and polling, since recovery emits no watch
-			// event) as the preview Setting lookup above.
-			return NewPendingError().
-				WithMessage("cannot resolve the ledger v3 preview readiness: %s", err.Error()).
-				WithRequeueAfter(ledgerGateRetryDelay)
-		}
-		if !previewReady {
-			setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewNotReady",
-				"waiting for the ledger v3 preview to be ready")
-			// The gate was opened by the preview Setting, but the preview Cluster
-			// for the currently configured version is not running: status carried
-			// by the Ledger CR can be stale across Setting changes (a v2-only
-			// reconcile predating the Setting, or a previous preview surviving a
-			// rapid remove/re-add), and the god-mode Credentials below turns Ready
-			// from additionalNamespaces alone, without a matched Cluster. Without
-			// this gate, initial provisioning could bind the delegated workload —
-			// and its public route — to a v3 service that does not exist (yet or
-			// any more). Transient like LedgerNotReady: block (initial)
-			// provisioning, keep any already-provisioned resources.
-			return NewPendingError().WithMessage("waiting for the ledger v3 preview to be ready")
-		}
+	if existingChanged {
+		message := "waiting for the delegated Connectivity update to become visible"
+		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityAPIPending", message)
+		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
 	}
 
 	// Provision a god-mode ledger credential so connectivity-core can
@@ -346,6 +336,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := unstructured.SetNestedSlice(object.Object, pullSecretsToUnstructured(apiImage.PullSecrets), "spec", "api", "imagePullSecrets"); err != nil {
 			return err
 		}
+		if _, err := applyConnectivityAPIAuth(object, apiAuth); err != nil {
+			return err
+		}
 		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err
 		}
@@ -369,25 +362,47 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return err
 	}
 
-	// Expose the connectivity-api through the stack gateway: routes
-	// /api/connectivity to the connectivity-api Service (named "connectivity-api")
-	// the connectivity operator provisions for the delegated Connectivity.
+	if operation != controllerutil.OperationResultNone {
+		message := "waiting for the delegated Connectivity to observe its updated specification"
+		if err := revokeGatewayHTTPAPI(ctx, connectivity); err != nil {
+			setCondition(connectivity, metav1.ConditionFalse, "GatewayRevokeFailed", err.Error())
+			return err
+		}
+		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityPending", message)
+		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
+	}
+
+	ready, message := connectivityResourceReady(object)
+	if !ready {
+		if err := revokeGatewayHTTPAPI(ctx, connectivity); err != nil {
+			setCondition(connectivity, metav1.ConditionFalse, "GatewayRevokeFailed", err.Error())
+			return err
+		}
+		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityPending", message)
+		return NewPendingError().WithMessage("%s", message)
+	}
+
+	apiReady, message, err := connectivityAPIAuthRolloutReady(ctx, stack.Name, connectivity, apiAuth)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityAPIRolloutFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
+	}
+	if !apiReady {
+		if err := revokeGatewayHTTPAPI(ctx, connectivity); err != nil {
+			setCondition(connectivity, metav1.ConditionFalse, "GatewayRevokeFailed", err.Error())
+			return err
+		}
+		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityAPIPending", message)
+		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
+	}
+
+	// Expose the connectivity-api only after its Deployment has converged to the
+	// desired authentication configuration and no old replica can still serve.
 	if err := gatewayhttpapis.Create(ctx, connectivity,
 		gatewayhttpapis.WithRules(gatewayhttpapis.RuleSecuredWithBackend("", connectivityAPIBackendRef())),
 	); err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "GatewayReconcileFailed", err.Error())
 		return err
-	}
-	if operation != controllerutil.OperationResultNone {
-		message := "waiting for the delegated Connectivity to observe its updated specification"
-		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityPending", message)
-		return NewPendingError().WithMessage("%s", message)
-	}
-
-	ready, message := connectivityResourceReady(object)
-	if !ready {
-		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityPending", message)
-		return NewPendingError().WithMessage("%s", message)
 	}
 
 	setCondition(connectivity, metav1.ConditionTrue, "Ready", "Connectivity is ready")
@@ -400,10 +415,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 // leave that CR untouched and independently remove the public route and the
 // god-mode ledger credential that remain accessible to this controller.
 func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity) error {
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.SetName(GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity)))
 	return errors.Join(
-		ignoreAbsent(ctx.GetClient().Delete(ctx, httpAPI)),
+		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
 	)
 }
@@ -424,6 +437,98 @@ func handleUnsatisfiedLedgerRequirement(ctx Context, stack *v1beta1.Stack, conne
 	return teardownDelegated(ctx, stack, connectivity)
 }
 
+// getOwnedGatewayHTTPAPI reads directly from the API server and rejects a
+// same-name route belonging to another controller.
+func getOwnedGatewayHTTPAPI(
+	ctx Context,
+	connectivity *v1beta1.Connectivity,
+) (*v1beta1.GatewayHTTPAPI, bool, error) {
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	key := client.ObjectKey{Name: GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity))}
+	if err := ctx.GetAPIReader().Get(ctx, key, httpAPI); err != nil {
+		if apierrors.IsNotFound(err) || apimeta.IsNoMatchError(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	owner := metav1.GetControllerOf(httpAPI)
+	if !controllerRefMatches(owner, v1beta1.GroupVersion.WithKind("Connectivity"), connectivity) {
+		return nil, false, fmt.Errorf("GatewayHTTPAPI %q is not controlled by Connectivity UID %q",
+			httpAPI.Name, connectivity.UID)
+	}
+	return httpAPI, true, nil
+}
+
+func deleteGatewayHTTPAPI(ctx Context, httpAPI *v1beta1.GatewayHTTPAPI) error {
+	// The UID precondition closes the delete/recreate race between the direct GET
+	// and this mutation.
+	uid := httpAPI.GetUID()
+	return ignoreAbsent(ctx.GetClient().Delete(ctx, httpAPI, client.Preconditions{UID: &uid}))
+}
+
+func deleteOwnedGatewayHTTPAPI(ctx Context, connectivity *v1beta1.Connectivity) error {
+	httpAPI := &v1beta1.GatewayHTTPAPI{}
+	key := client.ObjectKey{Name: GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity))}
+	if err := ctx.GetAPIReader().Get(ctx, key, httpAPI); err != nil {
+		return ignoreAbsent(err)
+	}
+	owner := metav1.GetControllerOf(httpAPI)
+	if !controllerRefMatches(owner, v1beta1.GroupVersion.WithKind("Connectivity"), connectivity) {
+		return nil
+	}
+	return deleteGatewayHTTPAPI(ctx, httpAPI)
+}
+
+func revokeGatewayHTTPAPI(ctx Context, connectivity *v1beta1.Connectivity) error {
+	httpAPI, found, err := getOwnedGatewayHTTPAPI(ctx, connectivity)
+	if err != nil || !found {
+		return err
+	}
+	return deleteGatewayHTTPAPI(ctx, httpAPI)
+}
+
+func pendingAfterGatewayRevocation(
+	ctx Context,
+	connectivity *v1beta1.Connectivity,
+	pending *ApplicationError,
+	cause error,
+) error {
+	if revokeErr := revokeGatewayHTTPAPI(ctx, connectivity); revokeErr != nil {
+		// A cleanup failure must remain a hard reconciler error. Joining it to the
+		// pending ApplicationError would make IsApplicationError classify the whole
+		// result as pending and suppress both hard failures from controller-runtime.
+		return errors.Join(cause, revokeErr)
+	}
+	return pending
+}
+
+// reconcileExistingConnectivityAPIAuth updates an already-provisioned delegated
+// resource before any later prerequisite can return early. If the public route
+// exists, direct API reads must prove the desired auth has completed its
+// Deployment rollout; otherwise the route is revoked before reconciliation
+// continues.
+func reconcileExistingConnectivityAPIAuth(
+	ctx Context,
+	stackName string,
+	connectivity *v1beta1.Connectivity,
+	apiAuth *auths.ProtectedAuthConfiguration,
+) (bool, error) {
+	changed, syncErr := updateExistingConnectivityAPIAuth(ctx, stackName, connectivity, apiAuth)
+	if syncErr != nil {
+		return changed, errors.Join(syncErr, revokeGatewayHTTPAPI(ctx, connectivity))
+	}
+
+	httpAPI, exposed, err := getOwnedGatewayHTTPAPI(ctx, connectivity)
+	if err != nil || !exposed {
+		return changed, err
+	}
+	ready, _, rolloutErr := connectivityAPIAuthRolloutReady(ctx, stackName, connectivity, apiAuth)
+	if ready {
+		return changed, nil
+	}
+	return changed, errors.Join(rolloutErr, deleteGatewayHTTPAPI(ctx, httpAPI))
+}
+
 // teardownDelegated deletes the delegated Connectivity resource and the
 // GatewayHTTPAPI provisioned for the stack. It is invoked when a hard/persistent
 // ledger gate closes (the Ledger module was removed, or its version resolved to
@@ -433,20 +538,11 @@ func handleUnsatisfiedLedgerRequirement(ctx Context, stack *v1beta1.Stack, conne
 // early-return — controller-runtime garbage collection only removes them when
 // the Connectivity CR itself is deleted — so the teardown must be explicit.
 //
-// Deletes use client.IgnoreNotFound so the helper is idempotent and safe to call
-// on every reconcile while the gate stays closed (including when the resources
-// were never created). The names/scopes mirror how they are provisioned in
-// Reconcile: the delegated Connectivity is named "connectivity" in the stack
-// namespace and the GatewayHTTPAPI is cluster-scoped ("<stack>-connectivity").
+// Direct GETs plus exact controller references and UID-preconditioned deletes
+// make the helper idempotent without deleting ownerless, foreign-owned, or
+// same-name replacement objects. The names/scopes mirror how they are
+// provisioned in Reconcile.
 func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
-	delegated := &unstructured.Unstructured{}
-	delegated.SetGroupVersionKind(connectivityGVK)
-	delegated.SetNamespace(stack.Name)
-	delegated.SetName(connectivityDelegatedName)
-
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.SetName(GetObjectName(connectivity.GetStack(), LowerCaseKind(ctx, connectivity)))
-
 	// Attempt every deletion independently rather than bailing on the first
 	// error: a failure to delete one resource must not leave the public gateway
 	// route or the god-mode Credentials behind, since the point of the hard
@@ -455,10 +551,34 @@ func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.
 	// Credentials also cascades the ledger operator's key deregistration and the
 	// distributed private-key Secret, which stack-namespace GC never reclaims.
 	return errors.Join(
-		ignoreAbsent(ctx.GetClient().Delete(ctx, delegated)),
-		ignoreAbsent(ctx.GetClient().Delete(ctx, httpAPI)),
+		deleteOwnedDelegatedConnectivity(ctx, stack.Name, connectivity),
+		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
 	)
+}
+
+func deleteOwnedDelegatedConnectivity(
+	ctx Context,
+	stackName string,
+	connectivity *v1beta1.Connectivity,
+) error {
+	delegated := &unstructured.Unstructured{}
+	delegated.SetGroupVersionKind(connectivityGVK)
+	key := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}
+	if err := ctx.GetAPIReader().Get(ctx, key, delegated); err != nil {
+		return ignoreAbsent(err)
+	}
+	owner := metav1.GetControllerOf(delegated)
+	if !controllerRefMatches(owner, v1beta1.GroupVersion.WithKind("Connectivity"), connectivity) {
+		return nil
+	}
+	uid := delegated.GetUID()
+	return ignoreAbsent(ctx.GetClient().Delete(ctx, delegated, client.Preconditions{UID: &uid}))
+}
+
+func controllerRefMatches(ref *metav1.OwnerReference, gvk schema.GroupVersionKind, owner client.Object) bool {
+	return ref != nil && ref.APIVersion == gvk.GroupVersion().String() && ref.Kind == gvk.Kind &&
+		ref.Name == owner.GetName() && ref.UID == owner.GetUID()
 }
 
 func ledgerCredentialsPendingError(message string, args ...any) *ApplicationError {
@@ -487,12 +607,12 @@ func ignoreAbsent(err error) error {
 }
 
 // ledgerGateClosed reports whether the ledger prerequisite is definitively gone
-// — the module was removed, or resolves to a non-v3 version with no v3 preview
-// running alongside — which are the hard gates that warrant tearing down the
-// delegated resources. It mirrors the gate decisions in Reconcile and
+// — the module was removed, or does not resolve to semantic major v3 — which
+// are the hard gates that warrant tearing down the delegated resources. It
+// mirrors the gate decisions in Reconcile and
 // deliberately returns closed=false on transient states (an unresolvable
-// version or preview Setting, a not-yet-ready ledger), so the workload is
-// never flapped on a blip. A lookup error is surfaced rather than collapsed
+// version or a not-yet-ready ledger), so the workload is never flapped on a
+// blip. A lookup error is surfaced rather than collapsed
 // into "open": the caller must schedule a retry, because recovery from a
 // cache/API read failure emits no watch event and a silently skipped teardown
 // would otherwise be skipped forever.
@@ -508,11 +628,7 @@ func ledgerGateClosed(ctx Context, stack *v1beta1.Stack) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	_, hasV3, err := stackLedgerHasV3(ctx, stack, ledgerVersion)
-	if err != nil {
-		return false, err
-	}
-	return !hasV3, nil
+	return !ledgerVersionIsV3(ledgerVersion), nil
 }
 
 // connectivityAPIBackendRef points the gateway at the connectivity-api Service
@@ -531,6 +647,77 @@ func pullSecretsToUnstructured(secrets []corev1.LocalObjectReference) []any {
 		out = append(out, map[string]any{"name": ps.Name})
 	}
 	return out
+}
+
+// updateExistingConnectivityAPIAuth applies auth changes to an already
+// provisioned delegated resource without creating one. This keeps the running
+// API protected even when a later transient prerequisite gate prevents the full
+// reconciliation from proceeding.
+func updateExistingConnectivityAPIAuth(
+	ctx Context,
+	stackName string,
+	connectivity *v1beta1.Connectivity,
+	apiAuth *auths.ProtectedAuthConfiguration,
+) (bool, error) {
+	object := &unstructured.Unstructured{}
+	object.SetGroupVersionKind(connectivityGVK)
+	key := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}
+	if err := ctx.GetClient().Get(ctx, key, object); err != nil {
+		return false, client.IgnoreNotFound(err)
+	}
+
+	before := object.DeepCopy()
+	// Match the normal CreateOrUpdate path's ownership check before mutating the
+	// fixed-name delegated resource. SetControllerReference returns an
+	// AlreadyOwnedError without changing the object when another controller owns
+	// it; when an unowned object needs an auth change, the same patch claims it
+	// for Connectivity.
+	if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
+		return false, err
+	}
+	ownerChanged := !reflect.DeepEqual(before.GetOwnerReferences(), object.GetOwnerReferences())
+	authChanged, err := applyConnectivityAPIAuth(object, apiAuth)
+	if err != nil || (!authChanged && !ownerChanged) {
+		return false, err
+	}
+	// Close the route before changing the delegated auth desired state. Otherwise
+	// the external operator could start serving the new (notably disabled) auth
+	// configuration while the old GatewayHTTPAPI is still active.
+	if authChanged {
+		if err := revokeGatewayHTTPAPI(ctx, connectivity); err != nil {
+			return false, err
+		}
+	}
+	return true, client.IgnoreNotFound(ctx.GetClient().Patch(ctx, object,
+		client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})))
+}
+
+// applyConnectivityAPIAuth mutates spec.api.auth and reports whether it changed.
+func applyConnectivityAPIAuth(object *unstructured.Unstructured, apiAuth *auths.ProtectedAuthConfiguration) (bool, error) {
+	before, beforeFound, err := unstructured.NestedMap(object.Object, "spec", "api", "auth")
+	if err != nil {
+		return false, err
+	}
+
+	// checkScopes is always set explicitly: the connectivity CRD defaults it to
+	// true while the platform convention defaults to false, so omitting the field
+	// would flip the semantics.
+	if apiAuth != nil {
+		if err := unstructured.SetNestedField(object.Object, apiAuth.Issuer, "spec", "api", "auth", "issuer"); err != nil {
+			return false, err
+		}
+		if err := unstructured.SetNestedField(object.Object, apiAuth.CheckScopes, "spec", "api", "auth", "checkScopes"); err != nil {
+			return false, err
+		}
+	} else {
+		unstructured.RemoveNestedField(object.Object, "spec", "api", "auth")
+	}
+
+	after, afterFound, err := unstructured.NestedMap(object.Object, "spec", "api", "auth")
+	if err != nil {
+		return false, err
+	}
+	return beforeFound != afterFound || !reflect.DeepEqual(before, after), nil
 }
 
 // applyConnectivityMonitoring sets spec.monitoring from the resolved OTEL
@@ -665,17 +852,36 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 }
 
 // The Credentials is cluster-scoped and owned by the Stack, so neither GC on
-// Connectivity deletion nor namespace deletion reclaims it — hence this finalizer.
-// Deleting it cascades in the ledger operator (key + distributed Secret).
+// Connectivity deletion nor namespace deletion reclaims it — hence this
+// finalizer. Delete only when its Stack owner exactly matches the Connectivity's
+// Stack owner; ownerless or replacement objects are left untouched.
 func deleteLedgerCredentials(ctx Context, connectivity *v1beta1.Connectivity) error {
 	cred := &unstructured.Unstructured{}
 	cred.SetGroupVersionKind(ledgerCredentialsGVK)
 	cred.SetName("connectivity-" + connectivity.GetStack())
-	// IsNoMatchError: without the ledger CRD, Delete errors and would block deletion forever.
-	if err := ctx.GetClient().Delete(ctx, cred); client.IgnoreNotFound(err) != nil && !apimeta.IsNoMatchError(err) {
-		return err
+	if err := ctx.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(cred), cred); err != nil {
+		return ignoreAbsent(err)
 	}
-	return nil
+	owner := metav1.GetControllerOf(cred)
+	if owner == nil {
+		return nil
+	}
+	stackGVK := v1beta1.GroupVersion.WithKind("Stack")
+	if owner.APIVersion != stackGVK.GroupVersion().String() || owner.Kind != stackGVK.Kind ||
+		owner.Name != connectivity.GetStack() || owner.UID == "" {
+		return nil
+	}
+	// ForModule attaches the Stack to module resources with SetOwnerReference,
+	// so it is intentionally not a controller owner. Match the Credentials'
+	// controller Stack against that exact production-shaped owner reference.
+	if !slices.ContainsFunc(connectivity.GetOwnerReferences(), func(ref metav1.OwnerReference) bool {
+		return ref.APIVersion == owner.APIVersion && ref.Kind == owner.Kind &&
+			ref.Name == owner.Name && ref.UID == owner.UID
+	}) {
+		return nil
+	}
+	uid := cred.GetUID()
+	return ignoreAbsent(ctx.GetClient().Delete(ctx, cred, client.Preconditions{UID: &uid}))
 }
 
 func connectivityResourceReady(object *unstructured.Unstructured) (bool, string) {
@@ -688,6 +894,194 @@ func connectivityResourceReady(object *unstructured.Unstructured) (bool, string)
 		message = fmt.Sprintf("connectivity resource phase is %q", phase)
 	}
 	return false, message
+}
+
+func connectivityAPIAuthRolloutReady(
+	ctx Context,
+	stackName string,
+	connectivity *v1beta1.Connectivity,
+	apiAuth *auths.ProtectedAuthConfiguration,
+) (bool, string, error) {
+	delegated := &unstructured.Unstructured{}
+	delegated.SetGroupVersionKind(connectivityGVK)
+	delegatedKey := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}
+	if err := ctx.GetAPIReader().Get(ctx, delegatedKey, delegated); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, "waiting for the delegated Connectivity", nil
+		}
+		return false, "", err
+	}
+	owner := metav1.GetControllerOf(delegated)
+	if !controllerRefMatches(owner, v1beta1.GroupVersion.WithKind("Connectivity"), connectivity) {
+		return false, "", fmt.Errorf("delegated Connectivity %s/%s is not controlled by Connectivity UID %q",
+			delegated.GetNamespace(), delegated.GetName(), connectivity.UID)
+	}
+	if !connectivityAPIAuthMatches(delegated, apiAuth) {
+		return false, "waiting for the delegated Connectivity to persist API authentication", nil
+	}
+
+	deployment := &appsv1.Deployment{}
+	deploymentKey := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName + "-api"}
+	if err := ctx.GetAPIReader().Get(ctx, deploymentKey, deployment); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, "waiting for the connectivity API Deployment", nil
+		}
+		return false, "", err
+	}
+	if !deployment.DeletionTimestamp.IsZero() {
+		return false, "waiting for the connectivity API Deployment to be recreated", nil
+	}
+	owner = metav1.GetControllerOf(deployment)
+	if !controllerRefMatches(owner, connectivityGVK, delegated) {
+		return false, "", fmt.Errorf("Deployment %s/%s is not controlled by delegated Connectivity UID %q",
+			deployment.Namespace, deployment.Name, delegated.GetUID())
+	}
+
+	service := &corev1.Service{}
+	serviceKey := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName + "-api"}
+	if err := ctx.GetAPIReader().Get(ctx, serviceKey, service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, "waiting for the connectivity API Service", nil
+		}
+		return false, "", err
+	}
+	if !service.DeletionTimestamp.IsZero() {
+		return false, "waiting for the connectivity API Service to be recreated", nil
+	}
+	owner = metav1.GetControllerOf(service)
+	if !controllerRefMatches(owner, connectivityGVK, delegated) {
+		return false, "", fmt.Errorf("Service %s/%s is not controlled by delegated Connectivity UID %q",
+			service.Namespace, service.Name, delegated.GetUID())
+	}
+	if !connectivityAPIServiceRoutesToDeployment(service, deployment) {
+		return false, "waiting for the connectivity API Service to target the authenticated Deployment", nil
+	}
+	if !connectivityAPIContainerAuthMatches(deployment, apiAuth) {
+		return false, "waiting for the connectivity API Deployment to apply authentication", nil
+	}
+	if deployment.Spec.Replicas == nil || *deployment.Spec.Replicas <= 0 {
+		return false, "waiting for the connectivity API Deployment replicas", nil
+	}
+	desired := *deployment.Spec.Replicas
+	if deployment.Status.ObservedGeneration != deployment.Generation ||
+		deployment.Status.Replicas != desired ||
+		deployment.Status.UpdatedReplicas != desired ||
+		deployment.Status.ReadyReplicas < desired ||
+		deployment.Status.AvailableReplicas < desired ||
+		deployment.Status.UnavailableReplicas != 0 {
+		return false, "waiting for the authenticated connectivity API rollout", nil
+	}
+	return true, "connectivity API authentication is ready", nil
+}
+
+func connectivityAPIServiceRoutesToDeployment(service *corev1.Service, deployment *appsv1.Deployment) bool {
+	// ExternalName Services bypass selectors entirely and resolve to an external
+	// hostname, so accepting one would not prove that gateway traffic reaches the
+	// authenticated Deployment inspected below.
+	if (service.Spec.Type != "" && service.Spec.Type != corev1.ServiceTypeClusterIP) ||
+		service.Spec.ExternalName != "" {
+		return false
+	}
+	if len(service.Spec.Selector) == 0 {
+		return false
+	}
+	for key, value := range service.Spec.Selector {
+		if deployment.Spec.Template.Labels[key] != value {
+			return false
+		}
+	}
+
+	apiContainer := connectivityAPIContainer(deployment)
+	if apiContainer == nil {
+		return false
+	}
+	for _, servicePort := range service.Spec.Ports {
+		if servicePort.Port != connectivityAPIPort ||
+			(servicePort.Protocol != "" && servicePort.Protocol != corev1.ProtocolTCP) {
+			continue
+		}
+
+		if servicePort.TargetPort.StrVal != "" {
+			for _, containerPort := range apiContainer.Ports {
+				if containerPort.Name == servicePort.TargetPort.StrVal &&
+					(containerPort.Protocol == "" || containerPort.Protocol == corev1.ProtocolTCP) {
+					return true
+				}
+			}
+			continue
+		}
+
+		targetPort := servicePort.TargetPort.IntVal
+		if targetPort == 0 {
+			targetPort = servicePort.Port
+		}
+		for _, containerPort := range apiContainer.Ports {
+			if containerPort.ContainerPort == targetPort &&
+				(containerPort.Protocol == "" || containerPort.Protocol == corev1.ProtocolTCP) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func connectivityAPIAuthMatches(object *unstructured.Unstructured, apiAuth *auths.ProtectedAuthConfiguration) bool {
+	auth, found, err := unstructured.NestedMap(object.Object, "spec", "api", "auth")
+	if err != nil {
+		return false
+	}
+	if apiAuth == nil {
+		return !found
+	}
+	return found && reflect.DeepEqual(auth, map[string]any{
+		"issuer":      apiAuth.Issuer,
+		"checkScopes": apiAuth.CheckScopes,
+	})
+}
+
+func connectivityAPIContainerAuthMatches(
+	deployment *appsv1.Deployment,
+	apiAuth *auths.ProtectedAuthConfiguration,
+) bool {
+	apiContainer := connectivityAPIContainer(deployment)
+	if apiContainer == nil {
+		return false
+	}
+
+	expected := map[string]string{"AUTH_ENABLED": strconv.FormatBool(apiAuth != nil)}
+	if apiAuth != nil {
+		expected["AUTH_ISSUER"] = apiAuth.Issuer
+		expected["AUTH_CHECK_SCOPES"] = strconv.FormatBool(apiAuth.CheckScopes)
+	}
+	seen := map[string]bool{}
+	for _, env := range apiContainer.Env {
+		if env.Name != "AUTH_ENABLED" && env.Name != "AUTH_ISSUER" && env.Name != "AUTH_CHECK_SCOPES" {
+			continue
+		}
+		if seen[env.Name] || env.ValueFrom != nil {
+			return false
+		}
+		seen[env.Name] = true
+		value, wanted := expected[env.Name]
+		if !wanted || env.Value != value {
+			return false
+		}
+	}
+	for name := range expected {
+		if !seen[name] {
+			return false
+		}
+	}
+	return true
+}
+
+func connectivityAPIContainer(deployment *appsv1.Deployment) *corev1.Container {
+	for i := range deployment.Spec.Template.Spec.Containers {
+		if deployment.Spec.Template.Spec.Containers[i].Name == "api" {
+			return &deployment.Spec.Template.Spec.Containers[i]
+		}
+	}
+	return nil
 }
 
 func setCondition(connectivity *v1beta1.Connectivity, status metav1.ConditionStatus, reason, message string) {
@@ -914,15 +1308,15 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),
 		WithUnsatisfiedRequirementsHandler(handleUnsatisfiedLedgerRequirement),
+		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Auth{}),
+		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Gateway{}),
 	}
 }
 
-// connectivityModuleRequirements declares the Ledger requirement as
-// presence-only: a version constraint (VersionAtLeast LedgerV3Version) would
-// reject a v2 ledger running the v3 preview before Reconcile could consult the
-// ledger.v3.preview-version Setting. The effective v3 capability — module
-// version or active preview, including the hard teardown when neither holds —
-// is decided by the stackLedgerHasV3 gate inside Reconcile.
+// connectivityModuleRequirements stays presence-only because the shared
+// version requirement treats opaque references as an unknown transient state
+// and does not invoke the cleanup handler. Reconcile owns the exact semantic
+// major-v3 gate so v2, v4, and opaque versions all trigger the hard teardown.
 func connectivityModuleRequirements() ModuleRequirements {
 	return Requirements(
 		Require(&v1beta1.Ledger{}),
