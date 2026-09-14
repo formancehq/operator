@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/mod/semver"
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -120,7 +121,11 @@ var ledgerV3PreviewReady = ledgers.V3PreviewReady
 // have brought the preview Cluster up (ledgers.V3PreviewReady) before
 // provisioning.
 func stackLedgerHasV3(ctx Context, stack *v1beta1.Stack, ledgerVersion string) (moduleIsV3, hasV3 bool, err error) {
-	if ledgers.IsV3(ledgerVersion) {
+	normalizedVersion := ledgerVersion
+	if !strings.HasPrefix(normalizedVersion, "v") {
+		normalizedVersion = "v" + normalizedVersion
+	}
+	if !semver.IsValid(normalizedVersion) || semver.Major(normalizedVersion) == "v3" {
 		return true, true, nil
 	}
 	previewActive, err := ledgerV3PreviewActive(ctx, stack)
@@ -199,17 +204,20 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	// Versions file), so the v3 gate also works for versionsFromFile stacks. A
 	// resolved non-v3 version is a hard gate and must be handled before any
 	// unrelated, fallible auth lookup so teardown cannot be skipped.
-	ledgerVersion, ledgerVersionErr := ResolveModuleVersion(ctx, stack, ledger)
-	if ledgerVersionErr != nil && !errors.Is(ledgerVersionErr, ErrNoVersionFound) {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionResolveFailed", ledgerVersionErr.Error())
-		return errors.Join(ledgerVersionErr, revokeGatewayHTTPAPI(ctx, connectivity))
+	ledgerVersion, err := ResolveModuleVersion(ctx, stack, ledger)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionResolveFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
-	var moduleIsV3, hasV3 bool
-	var ledgerV3PreviewErr error
-	if ledgerVersionErr == nil {
-		moduleIsV3, hasV3, ledgerV3PreviewErr = stackLedgerHasV3(ctx, stack, ledgerVersion)
+	moduleIsV3, hasV3, err := stackLedgerHasV3(ctx, stack, ledgerVersion)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewUnresolved", err.Error())
+		pending := NewPendingError().
+			WithMessage("cannot resolve the ledger v3 preview: %s", err.Error()).
+			WithRequeueAfter(ledgerGateRetryDelay)
+		return errors.Join(pending, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
-	if ledgerVersionErr == nil && ledgerV3PreviewErr == nil && !hasV3 {
+	if !hasV3 {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
 			fmt.Sprintf("connectivity requires a Ledger v3 (found %q and no v3 preview)", ledgerVersion))
 		// Hard gate: the ledger version resolved but is not v3 and no v3 preview
@@ -240,27 +248,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	if authErr != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "APIAuthReconcileFailed", authErr.Error())
 		return authErr
-	}
-
-	if ledgerVersionErr != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerVersionUnresolved", ledgerVersionErr.Error())
-		// Transient: we could not resolve the ledger version (e.g. a referenced
-		// Versions file not yet present). This is an error *resolving* the
-		// prerequisite, not a definitive downgrade below v3, so we deliberately do
-		// NOT tear down the delegated resources here — flapping the workload on a
-		// transient resolution hiccup would be worse than briefly keeping it up.
-		return NewPendingError().WithMessage("cannot resolve the ledger version: %s", ledgerVersionErr.Error())
-	}
-	if ledgerV3PreviewErr != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerV3PreviewUnresolved", ledgerV3PreviewErr.Error())
-		// Transient: the ledger.v3.preview-version Setting could not be read or
-		// carries an invalid value. Like an unresolvable module version above, this
-		// is an error *resolving* the prerequisite, not a definitive downgrade
-		// below v3 — do NOT tear down the delegated resources. A read failure may
-		// not produce any watch event on recovery, so poll with a bounded delay.
-		return NewPendingError().
-			WithMessage("cannot resolve the ledger v3 preview: %s", ledgerV3PreviewErr.Error()).
-			WithRequeueAfter(ledgerGateRetryDelay)
 	}
 
 	if !ledger.IsReady() {

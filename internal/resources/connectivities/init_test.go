@@ -1123,6 +1123,40 @@ func stubPreviewReady(t *testing.T, ready bool, err error) {
 	t.Cleanup(func() { ledgerV3PreviewReady = previous })
 }
 
+func TestStackLedgerHasV3AllowsNonSemverAndOnlyMajorV3(t *testing.T) {
+	previous := ledgerV3PreviewActive
+	ledgerV3PreviewActive = func(core.Context, *v1beta1.Stack) (bool, error) {
+		return false, nil
+	}
+	t.Cleanup(func() { ledgerV3PreviewActive = previous })
+
+	ctx := newReconcileTestContext(t)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	for _, tc := range []struct {
+		version string
+		want    bool
+	}{
+		{version: "main", want: true},
+		{version: "abc123def", want: true},
+		{version: "v3.0.0", want: true},
+		{version: "3.4.0", want: true},
+		{version: "v3.0.0-alpha", want: true},
+		{version: "v2.9.0", want: false},
+		{version: "v4.0.0", want: false},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			moduleIsV3, hasV3, err := stackLedgerHasV3(ctx, stack, tc.version)
+			if err != nil {
+				t.Fatalf("stackLedgerHasV3(%q): %v", tc.version, err)
+			}
+			if moduleIsV3 != tc.want || hasV3 != tc.want {
+				t.Fatalf("stackLedgerHasV3(%q) = (%v, %v), want (%v, %v)",
+					tc.version, moduleIsV3, hasV3, tc.want, tc.want)
+			}
+		})
+	}
+}
+
 // newPreviewLedger returns a ready v2 ledger for the stack, as it looks on a
 // stack running the v3 preview (the preview Cluster's state is resolved
 // separately, through ledgers.V3PreviewReady).
@@ -2399,7 +2433,7 @@ func TestConnectivityReconcileDoesNotPatchAPIAuthOnForeignOwnedDelegatedResource
 	}
 }
 
-func TestConnectivityReconcileUpdatesAPIAuthWhenLedgerVersionUnresolved(t *testing.T) {
+func TestConnectivityReconcileRejectsUnresolvedLedgerVersion(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
@@ -2409,38 +2443,40 @@ func TestConnectivityReconcileUpdatesAPIAuthWhenLedgerVersionUnresolved(t *testi
 	ledger.Spec.Stack = "stack0"
 	ledger.Status.Ready = true
 
-	delegated := newDelegatedConnectivity("stack0")
-	_ = unstructured.SetNestedField(delegated.Object, true, "spec", "api", "enabled")
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	controller := true
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: v1beta1.GroupVersion.String(),
+			Kind:       "Connectivity",
+			Name:       connectivity.Name,
+			UID:        connectivity.UID,
+			Controller: &controller,
+		}},
+	}}
 
-	auth := &v1beta1.Auth{}
-	auth.Name = "stack0-auth"
-	auth.Spec.Stack = "stack0"
-
-	gateway := &v1beta1.Gateway{}
-	gateway.Name = "stack0-gateway"
-	gateway.Spec.Stack = "stack0"
-	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
-
-	ctx := newReconcileTestContext(t, ledger, delegated, auth, gateway)
+	ctx := newReconcileTestContext(t, ledger, httpAPI)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
-	stack.Spec.VersionsFromFile = "v3.0.0"
-	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+	stack.Spec.VersionsFromFile = "missing-versions"
 	connectivity.Spec.Stack = stack.Name
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
-	if !core.IsApplicationError(err) {
-		t.Fatalf("Reconcile() returned %v, want pending while the Ledger version is unresolved", err)
+	if !errors.Is(err, core.ErrNoVersionFound) {
+		t.Fatalf("Reconcile() returned %v, want ErrNoVersionFound", err)
 	}
-	if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "LedgerVersionUnresolved" {
-		t.Fatalf("condition = %+v, want reason LedgerVersionUnresolved", condition)
+	if core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned an application error for an unresolved Ledger version: %v", err)
 	}
-
-	updated := newDelegatedConnectivity(stack.Name)
-	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, updated); err != nil {
-		t.Fatalf("get updated delegated Connectivity: %v", err)
+	if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "LedgerVersionResolveFailed" {
+		t.Fatalf("condition = %+v, want reason LedgerVersionResolveFailed", condition)
 	}
-	if issuer, _, _ := unstructured.NestedString(updated.Object, "spec", "api", "auth", "issuer"); issuer != "https://stack0.example.com/api/auth" {
-		t.Fatalf("spec.api.auth.issuer = %q, want the stack auth issuer while the Ledger version is unresolved", issuer)
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Fatal("owned GatewayHTTPAPI remains exposed after the Ledger version cannot be resolved")
 	}
 }
 

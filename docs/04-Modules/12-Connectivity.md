@@ -1,7 +1,7 @@
 ## Requirements
 
 Formance Connectivity requires:
-- **Ledger v3**: Connectivity ingests double-entry transactions into the stack ledger through its gRPC endpoint. The module stays pending until a ready v3 Ledger is present on the stack.
+- **Ledger v3**: Connectivity ingests double-entry transactions into the stack ledger through its gRPC endpoint. A resolved semantic version must use major v3; non-semantic development references are allowed. A ready Ledger v3 preview also satisfies the requirement on a v2 stack.
 - **Connectivity operator**: the module delegates the actual workload to a `connectivity.formance.com/Connectivity` resource; the Connectivity v1 CRDs (`v1.0.0-alpha.1` or later) must be installed on the cluster.
 
 ## Connectivity Object
