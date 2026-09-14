@@ -125,8 +125,14 @@ func stackLedgerHasV3(ctx Context, stack *v1beta1.Stack, ledgerVersion string) (
 	if !strings.HasPrefix(normalizedVersion, "v") {
 		normalizedVersion = "v" + normalizedVersion
 	}
-	if !semver.IsValid(normalizedVersion) || semver.Major(normalizedVersion) == "v3" {
+	if !semver.IsValid(normalizedVersion) {
 		return true, true, nil
+	}
+	if semver.Major(normalizedVersion) == "v3" {
+		return true, true, nil
+	}
+	if semver.Major(normalizedVersion) != "v2" {
+		return false, false, nil
 	}
 	previewActive, err := ledgerV3PreviewActive(ctx, stack)
 	return false, previewActive, err
@@ -163,7 +169,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 			pending := NewPendingError().
 				WithMessage("connectivity operator unavailable, and the ledger gate cannot be resolved: %s", err.Error()).
 				WithRequeueAfter(ledgerGateRetryDelay)
-			return errors.Join(pending, revokeGatewayHTTPAPI(ctx, connectivity))
+			return pendingAfterGatewayRevocation(ctx, connectivity, pending, err)
 		}
 		if gateClosed {
 			if err := teardownAccessibleResources(ctx, connectivity); err != nil {
@@ -215,7 +221,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		pending := NewPendingError().
 			WithMessage("cannot resolve the ledger v3 preview: %s", err.Error()).
 			WithRequeueAfter(ledgerGateRetryDelay)
-		return errors.Join(pending, revokeGatewayHTTPAPI(ctx, connectivity))
+		return pendingAfterGatewayRevocation(ctx, connectivity, pending, err)
 	}
 	if !hasV3 {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerNotV3",
@@ -234,9 +240,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	// as the other stack modules (ledger, payments): nil when the stack has no
 	// Auth module, otherwise the stack auth issuer plus the scope-checking
 	// policy from the auth.connectivity.check-scopes Setting. Resolve and apply
-	// it before any transient prerequisite gate below: an already-running API
-	// must not remain unauthenticated while its Ledger version is temporarily
-	// unresolved or the Ledger itself is unready. The connectivity CRD only
+	// it before the transient readiness gates below: an already-running API must
+	// not remain unauthenticated while its Ledger is temporarily unready. The
+	// connectivity CRD only
 	// models a single trusted issuer, so additional Settings-declared issuers
 	// (auth.issuers) are not propagated.
 	apiAuth, authErr := auths.GetProtectedConfiguration(ctx, stack, "connectivity", nil)
@@ -533,6 +539,21 @@ func revokeGatewayHTTPAPI(ctx Context, connectivity *v1beta1.Connectivity) error
 		return err
 	}
 	return deleteGatewayHTTPAPI(ctx, httpAPI)
+}
+
+func pendingAfterGatewayRevocation(
+	ctx Context,
+	connectivity *v1beta1.Connectivity,
+	pending *ApplicationError,
+	cause error,
+) error {
+	if revokeErr := revokeGatewayHTTPAPI(ctx, connectivity); revokeErr != nil {
+		// A cleanup failure must remain a hard reconciler error. Joining it to the
+		// pending ApplicationError would make IsApplicationError classify the whole
+		// result as pending and suppress both hard failures from controller-runtime.
+		return errors.Join(cause, revokeErr)
+	}
+	return pending
 }
 
 // reconcileExistingConnectivityAPIAuth updates an already-provisioned delegated
@@ -1345,7 +1366,6 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),
 		WithUnsatisfiedRequirementsHandler(handleUnsatisfiedLedgerRequirement),
-		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Auth{}),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Gateway{}),
 	}

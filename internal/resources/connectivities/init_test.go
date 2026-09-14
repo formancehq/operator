@@ -1157,6 +1157,33 @@ func TestStackLedgerHasV3AllowsNonSemverAndOnlyMajorV3(t *testing.T) {
 	}
 }
 
+func TestStackLedgerHasV3UsesPreviewOnlyForV2(t *testing.T) {
+	previous := ledgerV3PreviewActive
+	ledgerV3PreviewActive = func(core.Context, *v1beta1.Stack) (bool, error) {
+		return true, nil
+	}
+	t.Cleanup(func() { ledgerV3PreviewActive = previous })
+
+	ctx := newReconcileTestContext(t)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0"}}
+
+	moduleIsV3, hasV3, err := stackLedgerHasV3(ctx, stack, "v2.9.0")
+	if err != nil {
+		t.Fatalf("stackLedgerHasV3(v2.9.0): %v", err)
+	}
+	if moduleIsV3 || !hasV3 {
+		t.Fatalf("stackLedgerHasV3(v2.9.0) = (%v, %v), want (false, true) with a v3 preview", moduleIsV3, hasV3)
+	}
+
+	moduleIsV3, hasV3, err = stackLedgerHasV3(ctx, stack, "v4.0.0")
+	if err != nil {
+		t.Fatalf("stackLedgerHasV3(v4.0.0): %v", err)
+	}
+	if moduleIsV3 || hasV3 {
+		t.Fatalf("stackLedgerHasV3(v4.0.0) = (%v, %v), want (false, false) even with a v3 preview", moduleIsV3, hasV3)
+	}
+}
+
 // newPreviewLedger returns a ready v2 ledger for the stack, as it looks on a
 // stack running the v3 preview (the preview Cluster's state is resolved
 // separately, through ledgers.V3PreviewReady).
@@ -1350,6 +1377,56 @@ func TestConnectivityReconcileKeepsDelegatedWhenPreviewGateUnresolved(t *testing
 	}
 }
 
+func TestConnectivityReconcileSurfacesRouteRevocationFailureInsteadOfPending(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+	previewErr := errors.New("cannot read the preview Setting")
+	stubPreviewActive(t, false, previewErr)
+
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+
+	base := newReconcileTestContext(t, newPreviewLedger(stack.Name), httpAPI)
+	revokeErr := errors.New("route revocation failed")
+	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
+		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+			if _, ok := obj.(*v1beta1.GatewayHTTPAPI); ok {
+				return revokeErr
+			}
+			return c.Delete(ctx, obj, opts...)
+		},
+	})
+	ctx := credsTestContext{
+		Context:   context.Background(),
+		client:    failing,
+		apiReader: base.client,
+		scheme:    base.scheme,
+	}
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !errors.Is(err, previewErr) {
+		t.Fatalf("Reconcile() returned %v, want the preview lookup error", err)
+	}
+	if !errors.Is(err, revokeErr) {
+		t.Fatalf("Reconcile() returned %v, want the route revocation error", err)
+	}
+	if core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() masked a route revocation failure as pending: %v", err)
+	}
+}
+
 // An error resolving the preview readiness (Setting or Cluster read failure)
 // gets the same transient handling as an unresolved preview Setting: pending
 // with a bounded requeue, nothing torn down, nothing provisioned.
@@ -1387,23 +1464,29 @@ func TestConnectivityReconcileRetriesWhenPreviewReadinessUnresolved(t *testing.T
 // When the connectivity capability is unavailable AND the ledger gate cannot
 // be resolved (transient Settings lookup failure), the possibly-due teardown
 // must not be skipped forever: recovery emits no watch event, so the pending
-// error must carry a bounded requeue. Resources are kept in the meantime.
+// error must carry a bounded requeue. The route is revoked fail-closed while
+// the Credentials are kept in the meantime.
 func TestConnectivityReconcileRetriesUnavailableCapabilityWhenGateUnresolved(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = false
 	t.Cleanup(func() { connectivityAvailable = previous })
 	stubPreviewActive(t, false, errors.New("cannot read the preview Setting"))
 
-	httpAPI := &v1beta1.GatewayHTTPAPI{}
-	httpAPI.Name = "stack0-connectivity"
-	cred := newLedgerCredentialsForStack("stack0")
-	ctx := newReconcileTestContext(t, newPreviewLedger("stack0"), httpAPI, cred)
-
-	stack := &v1beta1.Stack{}
-	stack.Name = "stack0"
-	connectivity := &v1beta1.Connectivity{}
-	connectivity.Name = "stack0"
-	connectivity.Spec.Stack = "stack0"
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0",
+		UID:  types.UID("connectivity-uid"),
+	}}
+	connectivity.Spec.Stack = stack.Name
+	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
+		Name: "stack0-connectivity",
+		UID:  types.UID("gateway-http-api-uid"),
+		OwnerReferences: []metav1.OwnerReference{
+			*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
+		},
+	}}
+	cred := newLedgerCredentialsForStack(stack.Name)
+	ctx := newReconcileTestContext(t, newPreviewLedger(stack.Name), httpAPI, cred)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
@@ -1412,10 +1495,10 @@ func TestConnectivityReconcileRetriesUnavailableCapabilityWhenGateUnresolved(t *
 	if core.ApplicationErrorRequeueAfter(err) <= 0 {
 		t.Fatalf("an unresolved ledger gate on the capability-unavailable path must request a delayed requeue, got %v", err)
 	}
-	if !gatewayHTTPAPIExists(t, ctx, "stack0") {
-		t.Error("GatewayHTTPAPI must be kept while the gate is unresolved")
+	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
+		t.Error("GatewayHTTPAPI must be revoked while the gate is unresolved")
 	}
-	if !credentialsExist(t, ctx, "stack0") {
+	if !credentialsExist(t, ctx, stack.Name) {
 		t.Error("god-mode Credentials must be kept while the gate is unresolved")
 	}
 }
