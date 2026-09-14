@@ -27,6 +27,8 @@ When the stack has an **Auth** module, the `connectivity-api` is protected like 
 
 The public gateway route is exposed only after the Operator has verified that the delegated API Deployment and Service match the desired authentication state, including an explicitly unauthenticated state. The route is temporarily revoked while that rollout is changing or cannot be verified, so the module fails closed at the cost of brief API unavailability during those transitions.
 
+Lifecycle operations are limited to resources whose controller ownership matches the current Connectivity chain. Same-name foreign or ownerless resources are never adopted or deleted implicitly, and deletes use UID preconditions so a replacement object cannot be removed accidentally. An ownership mismatch therefore fails closed or preserves the object for explicit operator repair; this includes the god-mode Ledger credential.
+
 Connectivity currently accepts only the stack's primary auth issuer. Additional issuers configured through the `auth.issuers` Setting are not propagated to `connectivity-api`, so tokens issued exclusively by one of those additional issuers are rejected.
 
 Scope enforcement (`connectivity:read` / `connectivity:write`) follows the platform convention and is disabled by default. Enable it with the standard check-scopes Setting:

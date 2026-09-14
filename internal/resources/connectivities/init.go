@@ -124,6 +124,8 @@ var connectivityRequiredVerbs = []string{"get", "list", "watch", "create", "upda
 //+kubebuilder:rbac:groups=authorization.k8s.io,resources=selfsubjectaccessreviews,verbs=create
 //+kubebuilder:rbac:groups=ledger.formance.com,resources=credentials,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ledger.formance.com,resources=credentials/status,verbs=get
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get
 
 func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity, version string) error {
 	if !connectivityAvailable {
@@ -168,6 +170,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		// not tear down the workload or Credentials. It is also not evidence that
 		// the exposed API still has the desired auth, though: fail closed until the
 		// ledger and the downstream rollout can be inspected again.
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerLookupFailed", err.Error())
 		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
 	if ledger == nil {

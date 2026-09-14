@@ -2555,6 +2555,11 @@ func TestConnectivityReconcileRevokesGatewayWhenLedgerLookupFails(t *testing.T) 
 		UID:  types.UID("connectivity-uid"),
 	}}
 	connectivity.Spec.Stack = stack.Name
+	connectivity.Status.Conditions = []v1beta1.Condition{{
+		Type:   connectivityReadyCondition,
+		Status: metav1.ConditionTrue,
+		Reason: "Ready",
+	}}
 	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
 		Name: "stack0-connectivity",
 		UID:  types.UID("gateway-http-api-uid"),
@@ -2584,6 +2589,13 @@ func TestConnectivityReconcileRevokesGatewayWhenLedgerLookupFails(t *testing.T) 
 	}
 	if gatewayHTTPAPIExists(t, base, stack.Name) {
 		t.Fatal("GatewayHTTPAPI remains exposed after the ledger lookup became unverifiable")
+	}
+	condition := connectivity.GetConditions().Get(connectivityReadyCondition)
+	if condition == nil || condition.Status != metav1.ConditionFalse || condition.Reason != "LedgerLookupFailed" {
+		t.Fatalf("Connectivity condition after Ledger lookup failure = %#v, want False/LedgerLookupFailed", condition)
+	}
+	if !strings.Contains(condition.Message, "ledger list forbidden by test") {
+		t.Fatalf("Connectivity condition message = %q, want the Ledger lookup error", condition.Message)
 	}
 }
 
