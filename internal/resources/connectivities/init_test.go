@@ -299,15 +299,20 @@ func TestEnsureLedgerCredentialsCreatesScopedCredentialAndReportsPending(t *test
 
 // An existing god-mode Credentials from a previous operator version must
 // converge to the narrowed non-god, scoped spec without silently retaining god
-// privileges.
+// privileges. The pre-existing Ready phase must not be trusted across the spec
+// change: readiness may only be reported again once the ledger operator has
+// re-observed the new generation and re-registered the key with the narrowed
+// rights.
 func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(ledgerCredentialsGVK)
 	existing.SetName("connectivity-stack1")
+	existing.SetGeneration(1)
 	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
 	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
 	_ = unstructured.SetNestedStringSlice(existing.Object, []string{"stack1"}, "spec", "additionalNamespaces")
 	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(existing.Object, int64(1), "status", "observedGeneration")
 	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
 	_ = unstructured.SetNestedSlice(existing.Object, []any{
 		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
@@ -317,18 +322,17 @@ func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack1"
 
+	// First reconcile: the spec is narrowed in place. The stale Ready status must
+	// not be reported as ready — Ledger has not applied the narrowed rights yet.
 	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		t.Fatalf("ensureLedgerCredentials: %v", err)
 	}
-	if !ready {
-		t.Fatal("ready credential must keep reporting ready after convergence")
+	if ready {
+		t.Fatal("credential must not report ready on the reconcile that narrowed its spec")
 	}
-	if keyID != "2ba721b2866686f6" {
-		t.Errorf("keyID = %q, want 2ba721b2866686f6", keyID)
-	}
-	if secret != "ledger-connectivity-stack1-credentials-keys" {
-		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
+	if keyID != "" || secret != "" {
+		t.Fatalf("stale key/secret must not be reported while the narrowed spec is unobserved, got keyID=%q secret=%q", keyID, secret)
 	}
 
 	got := &unstructured.Unstructured{}
@@ -350,16 +354,82 @@ func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
 	if ns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "additionalNamespaces"); len(ns) != 1 || ns[0] != "stack1" {
 		t.Errorf("additionalNamespaces = %v, want [stack1]", ns)
 	}
+
+	// Simulate the ledger operator re-observing the new generation: phase stays
+	// Ready and observedGeneration catches up to the current generation.
+	_ = unstructured.SetNestedField(got.Object, got.GetGeneration(), "status", "observedGeneration")
+	if err := ctx.GetClient().Update(ctx, got); err != nil {
+		t.Fatalf("updating observedGeneration: %v", err)
+	}
+
+	// Second reconcile: with the new generation observed, the converged
+	// credential reports the same key ID and stack-namespace Secret again.
+	keyID, secret, ready, err = ensureLedgerCredentials(ctx, stack)
+	if err != nil {
+		t.Fatalf("ensureLedgerCredentials after convergence: %v", err)
+	}
+	if !ready {
+		t.Fatal("credential must report ready once the new generation is observed")
+	}
+	if keyID != "2ba721b2866686f6" {
+		t.Errorf("keyID = %q, want 2ba721b2866686f6", keyID)
+	}
+	if secret != "ledger-connectivity-stack1-credentials-keys" {
+		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
+	}
 }
 
+// A Ready phase observed for an older generation proves nothing about the
+// current spec: whoever changed the spec (this operator or otherwise), the
+// ledger operator must re-observe the new generation before the credential is
+// reported ready.
+func TestEnsureLedgerCredentialsRejectsStaleReadyPhase(t *testing.T) {
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(ledgerCredentialsGVK)
+	existing.SetName("connectivity-stack1")
+	existing.SetGeneration(2)
+	_ = unstructured.SetNestedField(existing.Object, false, "spec", "god")
+	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
+	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(existing.Object, int64(1), "status", "observedGeneration")
+	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
+	_ = unstructured.SetNestedSlice(existing.Object, []any{
+		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
+	}, "status", "distributedSecretRefs")
+
+	ctx := newCredsTestContext(t, existing)
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack1"
+
+	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	if err != nil {
+		t.Fatalf("ensureLedgerCredentials: %v", err)
+	}
+	if ready {
+		t.Fatal("Ready phase from an older generation must not be reported ready")
+	}
+	if keyID != "" || secret != "" {
+		t.Fatalf("stale key/secret must not be reported while the spec is unobserved, got keyID=%q secret=%q", keyID, secret)
+	}
+}
+
+// An already-converged, unchanged credential (spec matches the desired state,
+// and the ledger operator observed this generation) reports its key and Secret.
 func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(ledgerCredentialsGVK)
 	existing.SetName("connectivity-stack1")
-	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+	existing.SetGeneration(7)
+	_ = unstructured.SetNestedField(existing.Object, false, "spec", "god")
+	_ = unstructured.SetNestedStringSlice(existing.Object, connectivityLedgerScopes, "spec", "scopes")
 	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
 	_ = unstructured.SetNestedStringSlice(existing.Object, []string{"stack1"}, "spec", "additionalNamespaces")
+	// Already owned by the Stack, exactly as SetControllerReference would leave
+	// it, so the reconcile below is a no-op on the object.
+	stackRef := metav1.NewControllerRef(&v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack1"}}, v1beta1.GroupVersion.WithKind("Stack"))
+	existing.SetOwnerReferences([]metav1.OwnerReference{*stackRef})
 	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(existing.Object, int64(7), "status", "observedGeneration")
 	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
 	_ = unstructured.SetNestedSlice(existing.Object, []any{
 		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
@@ -1062,8 +1132,9 @@ func gatewayHTTPAPIExists(t *testing.T, ctx credsTestContext, stackName string) 
 	return err == nil
 }
 
-// newLedgerCredentialsForStack returns the cluster-scoped god-mode Credentials
-// as ensureLedgerCredentials provisions it: named "connectivity-<stack>".
+// newLedgerCredentialsForStack returns an empty cluster-scoped ledger
+// Credentials as ensureLedgerCredentials provisions it: named
+// "connectivity-<stack>".
 func newLedgerCredentialsForStack(stackName string) *unstructured.Unstructured {
 	cred := &unstructured.Unstructured{}
 	cred.SetGroupVersionKind(ledgerCredentialsGVK)
@@ -2844,12 +2915,7 @@ func TestConnectivityReconcileDialsLedgerServiceAndKeepsSNIForTLS(t *testing.T) 
 	ledger.Spec.Version = "v3.0.0"
 	ledger.Status.Ready = true
 
-	credentials := newLedgerCredentialsForStack("stack0")
-	_ = unstructured.SetNestedField(credentials.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(credentials.Object, "key-id", "status", "keyID")
-	_ = unstructured.SetNestedSlice(credentials.Object, []any{
-		map[string]any{"namespace": "stack0", "name": "connectivity-ledger-key"},
-	}, "status", "distributedSecretRefs")
+	ledger, credentials := newReadyLedgerPrerequisites()
 
 	ctx := newReconcileTestContext(t, ledger, credentials)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
@@ -2884,12 +2950,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	ledger.Spec.Version = "v3.0.0"
 	ledger.Status.Ready = true
 
-	credentials := newLedgerCredentialsForStack("stack0")
-	_ = unstructured.SetNestedField(credentials.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(credentials.Object, "key-id", "status", "keyID")
-	_ = unstructured.SetNestedSlice(credentials.Object, []any{
-		map[string]any{"namespace": "stack0", "name": "connectivity-ledger-key"},
-	}, "status", "distributedSecretRefs")
+	_, credentials := newReadyLedgerPrerequisites()
 
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "old-ledger:9999", "spec", "ledgerAddress")
@@ -2917,8 +2978,13 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 }
 
 // newReadyLedgerPrerequisites returns a ready v3 Ledger and its provisioned
-// god-mode Credentials for stack0, the common prerequisites of a Reconcile
-// reaching the delegated-resource provisioning.
+// Credentials for stack0, the common prerequisites of a Reconcile reaching the
+// delegated-resource provisioning. The Credentials is in the fully converged
+// state this operator desires: desired spec (non-god, scoped), Stack controller
+// owner, and a Ready status whose observedGeneration matches the generation. A
+// credential whose spec is about to change (e.g. a god-mode leftover) must
+// instead report pending until the ledger operator re-observes the new
+// generation.
 func newReadyLedgerPrerequisites() (*v1beta1.Ledger, *unstructured.Unstructured) {
 	ledger := &v1beta1.Ledger{}
 	ledger.Name = "stack0-ledger"
@@ -2926,8 +2992,19 @@ func newReadyLedgerPrerequisites() (*v1beta1.Ledger, *unstructured.Unstructured)
 	ledger.Spec.Version = "v3.0.0"
 	ledger.Status.Ready = true
 
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	credentials := newLedgerCredentialsForStack("stack0")
+	credentials.SetGeneration(1)
+	_ = unstructured.SetNestedField(credentials.Object, false, "spec", "god")
+	_ = unstructured.SetNestedStringSlice(credentials.Object, connectivityLedgerScopes, "spec", "scopes")
+	_ = unstructured.SetNestedStringMap(credentials.Object,
+		map[string]string{"formance.com/stack": "stack0"}, "spec", "selector", "matchLabels")
+	_ = unstructured.SetNestedStringSlice(credentials.Object, []string{"stack0"}, "spec", "additionalNamespaces")
+	credentials.SetOwnerReferences([]metav1.OwnerReference{
+		*metav1.NewControllerRef(stack, v1beta1.GroupVersion.WithKind("Stack")),
+	})
 	_ = unstructured.SetNestedField(credentials.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(credentials.Object, int64(1), "status", "observedGeneration")
 	_ = unstructured.SetNestedField(credentials.Object, "key-id", "status", "keyID")
 	_ = unstructured.SetNestedSlice(credentials.Object, []any{
 		map[string]any{"namespace": "stack0", "name": "connectivity-ledger-key"},
