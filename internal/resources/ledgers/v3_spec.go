@@ -21,7 +21,7 @@ type ledgerV3SpecOverrides struct {
 	ImageTag                  string
 	ImagePullSecrets          []corev1.LocalObjectReference
 	Replicas                  int32
-	ClusterID                 string
+	InstanceName              string
 	Debug                     bool
 	TLSSecretName             string
 	TLSCAHash                 string
@@ -46,7 +46,6 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 		spec.ImagePullSecrets = slices.Clone(overrides.ImagePullSecrets)
 	}
 	spec.Replicas = pointerTo(overrides.Replicas)
-	spec.ClusterID = overrides.ClusterID
 	spec.Debug = overrides.Debug
 	// TLS is configured from the first Cluster revision. Pods may wait for the
 	// cert-manager Secret, but must never bootstrap a plaintext Raft cluster.
@@ -84,7 +83,7 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 	// The Ledger Operator deliberately allows these labels to override its
 	// selectors. Keep the instance label aligned with the Cluster name because
 	// Formance Services and NetworkPolicies rely on that stable selector.
-	spec.AdditionalLabels["app.kubernetes.io/instance"] = overrides.ClusterID
+	spec.AdditionalLabels["app.kubernetes.io/instance"] = overrides.InstanceName
 
 	if hasResourceRequirements(overrides.Resources) {
 		spec.Resources = *overrides.Resources.DeepCopy()

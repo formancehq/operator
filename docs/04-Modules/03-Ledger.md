@@ -35,6 +35,14 @@ Operator delegates Ledger provisioning to the Ledger Operator. It creates a
 stack instead of creating the legacy Ledger Deployments, Database, migration
 jobs, and CronJobs.
 
+The Ledger Operator generates and commits a random `Cluster.spec.clusterID`
+when the shared LedgerConfiguration leaves it empty. Formance reconciliation
+preserves that value; an explicit `LedgerConfiguration.spec.cluster.clusterID`
+is respected. The `app.kubernetes.io/instance` pod label remains the stack
+name for Service and NetworkPolicy selectors and does not follow the random
+identity. The resolved ID is visible on the child Cluster and supplies Ledger's
+default backup namespace unless a backup `bucketId` is configured.
+
 The Ledger Operator must be installed before the Formance Operator starts so
 that the latter can watch `Cluster` resources. If the CRD is unavailable, the
 Ledger remains pending and no legacy resources are created.
