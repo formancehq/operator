@@ -830,7 +830,7 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 	cred := &unstructured.Unstructured{}
 	cred.SetGroupVersionKind(ledgerCredentialsGVK)
 	cred.SetName("connectivity-" + stack.Name)
-	if _, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cred, func() error {
+	operation, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cred, func() error {
 		if err := controllerutil.SetControllerReference(stack, cred, ctx.GetScheme()); err != nil {
 			return err
 		}
@@ -838,7 +838,8 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 		// stays off and the scopes are fixed to connectivityLedgerScopes. Setting
 		// both explicitly (rather than omitting them) also converges an existing
 		// god-mode Credentials from a previous operator version to the narrowed
-		// spec.
+		// spec in place. Readiness is only reported again once the ledger operator
+		// has re-observed the bumped generation (see below).
 		if err := unstructured.SetNestedField(cred.Object, false, "spec", "god"); err != nil {
 			return err
 		}
@@ -850,11 +851,27 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 			return err
 		}
 		return unstructured.SetNestedStringSlice(cred.Object, []string{stack.Name}, "spec", "additionalNamespaces")
-	}); err != nil {
+	})
+	if err != nil {
 		return "", "", false, err
 	}
 
+	// A Ready status written before this reconcile proves nothing about the spec
+	// this reconcile just wrote: when an existing god-mode credential is narrowed
+	// in place (same key ID and Secret), Ledger must re-register the key with the
+	// narrowed rights before the credential can be used. When this reconcile
+	// changed the object, the returned status was read before the change; require
+	// a subsequent reconcile where the spec is unchanged and the ledger operator
+	// has re-observed the current generation (status.observedGeneration catching
+	// up to metadata.generation) before reporting ready. The Credentials watch
+	// re-triggers this reconcile when the ledger operator updates the status.
+	if operation != controllerutil.OperationResultNone {
+		return "", "", false, nil
+	}
 	if phase, _, _ := unstructured.NestedString(cred.Object, "status", "phase"); phase != "Ready" {
+		return "", "", false, nil
+	}
+	if observedGeneration, _, _ := unstructured.NestedInt64(cred.Object, "status", "observedGeneration"); observedGeneration != cred.GetGeneration() {
 		return "", "", false, nil
 	}
 	keyID, _, _ = unstructured.NestedString(cred.Object, "status", "keyID")
