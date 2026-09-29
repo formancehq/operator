@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -260,7 +261,7 @@ func newCredsTestContext(t *testing.T, objs ...client.Object) credsTestContext {
 	}
 }
 
-func TestEnsureLedgerCredentialsCreatesGodCredentialAndReportsPending(t *testing.T) {
+func TestEnsureLedgerCredentialsCreatesScopedCredentialAndReportsPending(t *testing.T) {
 	ctx := newCredsTestContext(t)
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack0"
@@ -273,20 +274,81 @@ func TestEnsureLedgerCredentialsCreatesGodCredentialAndReportsPending(t *testing
 		t.Fatalf("freshly created credential must be pending, got ready=%v keyID=%q secret=%q", ready, keyID, secret)
 	}
 
-	// The Credentials must have been created cluster-scoped with god + selector.
+	// The Credentials must have been created cluster-scoped, non-god, with the
+	// exact scope set Connectivity's ingestion path requires, and the stack
+	// selector.
 	got := &unstructured.Unstructured{}
 	got.SetGroupVersionKind(ledgerCredentialsGVK)
 	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-stack0"}, got); err != nil {
 		t.Fatalf("Credentials was not created: %v", err)
 	}
-	if god, _, _ := unstructured.NestedBool(got.Object, "spec", "god"); !god {
-		t.Error("Credentials must have spec.god=true")
+	if god, _, _ := unstructured.NestedBool(got.Object, "spec", "god"); god {
+		t.Error("Credentials must have spec.god=false")
+	}
+	scopes, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "scopes")
+	if !slices.Equal(scopes, connectivityLedgerScopes) {
+		t.Errorf("spec.scopes = %v, want exactly %v", scopes, connectivityLedgerScopes)
 	}
 	if sel, _, _ := unstructured.NestedStringMap(got.Object, "spec", "selector", "matchLabels"); sel["formance.com/stack"] != "stack0" {
 		t.Errorf("selector.matchLabels[formance.com/stack] = %q, want stack0", sel["formance.com/stack"])
 	}
 	if ns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "additionalNamespaces"); len(ns) != 1 || ns[0] != "stack0" {
 		t.Errorf("additionalNamespaces = %v, want [stack0]", ns)
+	}
+}
+
+// An existing god-mode Credentials from a previous operator version must
+// converge to the narrowed non-god, scoped spec without silently retaining god
+// privileges.
+func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(ledgerCredentialsGVK)
+	existing.SetName("connectivity-stack1")
+	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
+	_ = unstructured.SetNestedStringSlice(existing.Object, []string{"stack1"}, "spec", "additionalNamespaces")
+	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
+	_ = unstructured.SetNestedSlice(existing.Object, []any{
+		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
+	}, "status", "distributedSecretRefs")
+
+	ctx := newCredsTestContext(t, existing)
+	stack := &v1beta1.Stack{}
+	stack.Name = "stack1"
+
+	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	if err != nil {
+		t.Fatalf("ensureLedgerCredentials: %v", err)
+	}
+	if !ready {
+		t.Fatal("ready credential must keep reporting ready after convergence")
+	}
+	if keyID != "2ba721b2866686f6" {
+		t.Errorf("keyID = %q, want 2ba721b2866686f6", keyID)
+	}
+	if secret != "ledger-connectivity-stack1-credentials-keys" {
+		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
+	}
+
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(ledgerCredentialsGVK)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-stack1"}, got); err != nil {
+		t.Fatalf("Credentials vanished: %v", err)
+	}
+	if god, _, _ := unstructured.NestedBool(got.Object, "spec", "god"); god {
+		t.Error("existing god-mode Credentials must converge to spec.god=false")
+	}
+	scopes, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "scopes")
+	if !slices.Equal(scopes, connectivityLedgerScopes) {
+		t.Errorf("spec.scopes = %v, want exactly %v", scopes, connectivityLedgerScopes)
+	}
+	// Unrelated spec fields must be preserved across the convergence.
+	if sel, _, _ := unstructured.NestedStringMap(got.Object, "spec", "selector", "matchLabels"); sel["formance.com/stack"] != "stack1" {
+		t.Errorf("selector.matchLabels[formance.com/stack] = %q, want stack1", sel["formance.com/stack"])
+	}
+	if ns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "additionalNamespaces"); len(ns) != 1 || ns[0] != "stack1" {
+		t.Errorf("additionalNamespaces = %v, want [stack1]", ns)
 	}
 }
 
