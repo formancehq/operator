@@ -84,9 +84,26 @@ var (
 	}
 	connectivityAvailable bool
 
+	// connectivityLedgerScopes is the exact set of Ledger v3 scopes Connectivity's
+	// ingestion path requires for its Core calls: AccountRead (cursor GetAccount),
+	// LedgerWrite (CreateLedger, CreateIndex, SaveNumscript), TransactionWrite and
+	// MetadataWrite (plugin transaction/metadata actions and cursor save in Apply),
+	// and QueryWrite (CreatePreparedQuery). Discovery is public. The list is owned
+	// by the integration contract, not user configuration; update it only when
+	// Core's actual Ledger calls change. See the capability matrix in
+	// connectivity's docs/architecture/ledger-capabilities.md.
+	connectivityLedgerScopes = []string{
+		"ledger:AccountRead",
+		"ledger:LedgerWrite",
+		"ledger:TransactionWrite",
+		"ledger:MetadataWrite",
+		"ledger:QueryWrite",
+	}
+
 	// ledgerCredentialsGVK is the cluster-scoped ledger.formance.com/Credentials
-	// resource. The connectivity module provisions a superuser credential so
-	// connectivity-core can authenticate its gRPC calls to the stack's Ledger v3:
+	// resource. The connectivity module provisions a Stack-bound, non-god Ed25519
+	// credential scoped to connectivityLedgerScopes so connectivity-core can
+	// authenticate its gRPC calls to the stack's Ledger v3:
 	// the ledger operator generates the Ed25519 keypair, registers the public key
 	// on the matched ledger Cluster, and distributes the private seed as a Secret.
 	ledgerCredentialsGVK = schema.GroupVersionKind{
@@ -133,10 +150,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 			"connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
 		// The connectivity operator is gone, so we can neither provision nor
 		// manage the delegated workload — but if the ledger hard gate is also
-		// closed we must still tear down the superuser Credentials and the gateway
+		// closed we must still tear down the ledger Credentials and the gateway
 		// route we own, otherwise a closed gate leaves them behind just because
 		// this capability check short-circuits before the ledger gates below.
-		// A closed ledger gate additionally revokes the superuser Credentials. When
+		// A closed ledger gate additionally revokes the ledger Credentials. When
 		// that gate is still open, keep the workload and Credentials but close its
 		// public route: without the delegated API we cannot prove that the currently
 		// serving rollout enforces the desired authentication configuration.
@@ -244,8 +261,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
 	}
 
-	// Provision a superuser ledger credential so connectivity-core can
-	// authenticate its gRPC calls. The ledger operator registers the public key
+	// Provision a Stack-bound, non-god ledger credential scoped to
+	// connectivityLedgerScopes so connectivity-core can authenticate its gRPC
+	// calls. The ledger operator registers the public key
 	// on the ledger and distributes the private seed as a Secret in the stack
 	// namespace; connectivity-core is wired to it via spec.auth below.
 	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
@@ -413,7 +431,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 // when the external Connectivity API is unavailable. Deleting the delegated CR
 // on this path would turn an RBAC capability gap into a hard Forbidden error;
 // leave that CR untouched and independently remove the public route and the
-// superuser ledger credential that remain accessible to this controller.
+// ledger credential that remain accessible to this controller.
 func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity) error {
 	return errors.Join(
 		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
@@ -545,7 +563,7 @@ func reconcileExistingConnectivityAPIAuth(
 func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
 	// Attempt every deletion independently rather than bailing on the first
 	// error: a failure to delete one resource must not leave the public gateway
-	// route or the superuser Credentials behind, since the point of the hard
+	// route or the ledger Credentials behind, since the point of the hard
 	// teardown is to stop exposing the workload — and its credential — once the
 	// ledger prerequisite no longer holds. Deleting the cluster-scoped
 	// Credentials also cascades the ledger operator's key deregistration and the
@@ -816,9 +834,15 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 		if err := controllerutil.SetControllerReference(stack, cred, ctx.GetScheme()); err != nil {
 			return err
 		}
-		// Remove the legacy field when adopting or updating an existing credential.
-		unstructured.RemoveNestedField(cred.Object, "spec", "god")
-		if err := unstructured.SetNestedField(cred.Object, true, "spec", "superuser"); err != nil {
+		// Connectivity authenticates with a least-privilege credential: god mode
+		// stays off and the scopes are fixed to connectivityLedgerScopes. Setting
+		// both explicitly (rather than omitting them) also converges an existing
+		// god-mode Credentials from a previous operator version to the narrowed
+		// spec.
+		if err := unstructured.SetNestedField(cred.Object, false, "spec", "god"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedStringSlice(cred.Object, connectivityLedgerScopes, "spec", "scopes"); err != nil {
 			return err
 		}
 		if err := unstructured.SetNestedStringMap(cred.Object,
