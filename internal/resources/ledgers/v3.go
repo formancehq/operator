@@ -347,6 +347,23 @@ func normalizeLedgerV3Replicas(configured int32) (int32, bool, error) {
 	return configured, false, nil
 }
 
+// preserveLedgerV3ClusterID keeps the child operator's committed identity when
+// shared configuration leaves it unspecified. An explicit configured value is
+// passed through and Kubernetes enforces the Cluster field's immutability.
+func preserveLedgerV3ClusterID(cluster *unstructured.Unstructured, desired map[string]interface{}, configuredID string) error {
+	if configuredID != "" {
+		return nil
+	}
+	currentID, found, err := unstructured.NestedString(cluster.Object, "spec", "clusterID")
+	if err != nil {
+		return fmt.Errorf("reading child Cluster ID: %w", err)
+	}
+	if found && currentID != "" {
+		desired["clusterID"] = currentID
+	}
+	return nil
+}
+
 func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, version string, preview bool, tlsCAHash string) (*unstructured.Unstructured, *ledgerv1alpha1.ClusterSpec, error) {
 	baseSpec, err := ledgerV3BaseSpec(ctx, stack.Name)
 	if err != nil {
@@ -400,7 +417,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		ImageTag:                  image.Version,
 		ImagePullSecrets:          image.PullSecrets,
 		Replicas:                  replicas,
-		ClusterID:                 stack.Name,
+		InstanceName:              stack.Name,
 		Debug:                     stack.Spec.Debug || ledger.Spec.Debug,
 		TLSSecretName:             ledgerV3TLSName(stack.Name),
 		TLSCAHash:                 tlsCAHash,
@@ -432,6 +449,9 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	cluster.SetNamespace(stack.Name)
 	cluster.SetName(stack.Name)
 	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cluster, func() error {
+		if err := preserveLedgerV3ClusterID(cluster, desiredSpecMap, desiredSpec.ClusterID); err != nil {
+			return err
+		}
 		// Reset the desired spec to the shared configuration on every
 		// reconciliation. Stack-specific values below deliberately override it.
 		if err := unstructured.SetNestedMap(cluster.Object, desiredSpecMap, "spec"); err != nil {

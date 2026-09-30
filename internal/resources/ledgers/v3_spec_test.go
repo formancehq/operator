@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
 
@@ -17,7 +18,8 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	t.Parallel()
 
 	base := &ledgerv1alpha1.ClusterSpec{
-		Image: ledgerv1alpha1.ImageSpec{PullPolicy: corev1.PullAlways},
+		ClusterID: "chosen-id",
+		Image:     ledgerv1alpha1.ImageSpec{PullPolicy: corev1.PullAlways},
 		Monitoring: &ledgerv1alpha1.MonitoringConfig{
 			Pyroscope:      &ledgerv1alpha1.PyroscopeConfig{Enabled: true, ServerAddress: "http://pyroscope"},
 			FlightRecorder: &ledgerv1alpha1.FlightRecorderConfig{Enabled: true, MinAge: "30s"},
@@ -61,7 +63,7 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 		ImageTag:         "v3.0.0",
 		ImagePullSecrets: []corev1.LocalObjectReference{{Name: "registry"}},
 		Replicas:         5,
-		ClusterID:        "stack0",
+		InstanceName:     "stack0",
 		Debug:            true,
 		TLSSecretName:    "stack0-ledger-v3-tls",
 		TLSCAHash:        "ca-hash",
@@ -96,7 +98,7 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	require.Equal(t, "v3.0.0", actual.Image.Tag)
 	require.Equal(t, corev1.PullAlways, actual.Image.PullPolicy)
 	require.Equal(t, int32(5), *actual.Replicas)
-	require.Equal(t, "stack0", actual.ClusterID)
+	require.Equal(t, "chosen-id", actual.ClusterID)
 	require.True(t, actual.Debug)
 	require.Equal(t, "stack0-ledger-v3-tls", actual.TLS.SecretName)
 	require.Equal(t, "ca-hash", actual.PodAnnotations[ledgerV3TLSCAHashAnnotation])
@@ -142,6 +144,20 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	require.Empty(t, base.Image.Repository)
 }
 
+func TestPreserveLedgerV3ClusterID(t *testing.T) {
+	t.Parallel()
+	child := &unstructured.Unstructured{Object: map[string]interface{}{
+		"spec": map[string]interface{}{"clusterID": "generated-id"},
+	}}
+	desired := map[string]interface{}{"replicas": int64(3)}
+	require.NoError(t, preserveLedgerV3ClusterID(child, desired, ""))
+	require.Equal(t, "generated-id", desired["clusterID"])
+
+	explicit := map[string]interface{}{"clusterID": "chosen-id"}
+	require.NoError(t, preserveLedgerV3ClusterID(child, explicit, "chosen-id"))
+	require.Equal(t, "chosen-id", explicit["clusterID"])
+}
+
 func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 	t.Parallel()
 
@@ -170,7 +186,7 @@ func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 		ImageRepository: "ledger",
 		ImageTag:        "latest",
 		Replicas:        3,
-		ClusterID:       "stack0",
+		InstanceName:    "stack0",
 		TLSSecretName:   "tls",
 	})
 	require.NoError(t, err)
@@ -183,6 +199,7 @@ func TestComposeLedgerV3ClusterSpecPreservesOptionalBaseValues(t *testing.T) {
 	require.True(t, actual.Monitoring.Pyroscope.Enabled)
 	require.Equal(t, "ledger", actual.AdditionalLabels["app.kubernetes.io/name"])
 	require.Equal(t, "stack0", actual.AdditionalLabels["app.kubernetes.io/instance"])
+	require.Empty(t, actual.ClusterID)
 	require.NotContains(t, actual.AdditionalLabels, ledgerV3PreviewLabel)
 }
 
@@ -196,7 +213,7 @@ func TestComposeLedgerV3ClusterSpecDisablesConfiguredTopologySpreadConstraints(t
 		ImageRepository:           "ledger",
 		ImageTag:                  "latest",
 		Replicas:                  3,
-		ClusterID:                 "stack0",
+		InstanceName:              "stack0",
 		TLSSecretName:             "tls",
 		TopologySpreadConstraints: pointerTo(false),
 	})
