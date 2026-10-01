@@ -17,7 +17,11 @@ limitations under the License.
 package connectivities
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"reflect"
 	"slices"
@@ -1007,10 +1011,24 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 	if err := appsv1.AddToScheme(s); err != nil {
 		t.Fatalf("add apps v1 to scheme: %v", err)
 	}
+	if err := apiextensionsv1.AddToScheme(s); err != nil {
+		t.Fatalf("add apiextensions v1 to scheme: %v", err)
+	}
 	s.AddKnownTypeWithName(connectivityGVK, &unstructured.Unstructured{})
 	s.AddKnownTypeWithName(connectivityGVK.GroupVersion().WithKind(connectivityGVK.Kind+"List"), &unstructured.UnstructuredList{})
 	s.AddKnownTypeWithName(ledgerCredentialsGVK, &unstructured.Unstructured{})
 	s.AddKnownTypeWithName(ledgerCredentialsGVK.GroupVersion().WithKind(ledgerCredentialsGVK.Kind+"List"), &unstructured.UnstructuredList{})
+	crd := &apiextensionsv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "connectivities.connectivity.formance.com"}}
+	crd.Spec.Versions = []apiextensionsv1.CustomResourceDefinitionVersion{{
+		Name: connectivityGVK.Version, Served: true,
+		Schema: &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+			Properties: map[string]apiextensionsv1.JSONSchemaProps{"spec": {
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{"auth": {
+					Properties: map[string]apiextensionsv1.JSONSchemaProps{"bundleSecretKeyRef": {Type: "object"}},
+				}},
+			}},
+		}},
+	}}
 	return credsTestContext{
 		Context: context.Background(),
 		scheme:  s,
@@ -1039,7 +1057,8 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 			}).
 			WithIndex(&v1beta1.Auth{}, "stack", unstructuredStackIndex).
 			WithIndex(&v1beta1.Gateway{}, "stack", unstructuredStackIndex).
-			WithObjects(objs...).Build(),
+			WithIndex(&v1beta1.Connectivity{}, "stack", unstructuredStackIndex).
+			WithObjects(append(objs, crd)...).Build(),
 	}
 }
 
@@ -2292,8 +2311,8 @@ func TestConnectivityReconcileAvoidsCachedReadAfterEarlyAPIAuthWrite(t *testing.
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger, credentials := newReadyLedgerPrerequisites()
-	base := newReconcileTestContext(t, ledger, credentials)
+	ledger, credentials, source := newReadyLedgerPrerequisites()
+	base := newReconcileTestContext(t, ledger, credentials, source)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -2915,9 +2934,9 @@ func TestConnectivityReconcileDialsLedgerServiceAndKeepsSNIForTLS(t *testing.T) 
 	ledger.Spec.Version = "v3.0.0"
 	ledger.Status.Ready = true
 
-	ledger, credentials := newReadyLedgerPrerequisites()
+	ledger, credentials, source := newReadyLedgerPrerequisites()
 
-	ctx := newReconcileTestContext(t, ledger, credentials)
+	ctx := newReconcileTestContext(t, ledger, credentials, source)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -2950,10 +2969,14 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	ledger.Spec.Version = "v3.0.0"
 	ledger.Status.Ready = true
 
-	_, credentials := newReadyLedgerPrerequisites()
+	_, credentials, source := newReadyLedgerPrerequisites()
 
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "old-ledger:9999", "spec", "ledgerAddress")
+	_ = unstructured.SetNestedMap(delegated.Object, map[string]any{
+		"keyId": "legacy-id", "subject": "connectivity",
+		"secretKeyRef": map[string]any{"name": "old-key", "key": "seed.hex"},
+	}, "spec", "auth")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
@@ -2962,7 +2985,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
 	})
 
-	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
+	ctx := newReconcileTestContext(t, ledger, credentials, source, delegated)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
@@ -2975,6 +2998,12 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	if address, _, _ := unstructured.NestedString(updated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
 		t.Fatalf("updated spec.ledgerAddress = %q, want ledger-stack0:8888", address)
 	}
+	auth, _, err := unstructured.NestedMap(updated.Object, "spec", "auth")
+	if err != nil || !reflect.DeepEqual(auth, map[string]any{
+		"bundleSecretKeyRef": map[string]any{"name": connectivityLedgerBundleSecret, "key": connectivityLedgerBundleKey},
+	}) {
+		t.Fatalf("updated spec.auth = %v, want bundle reference only (err=%v)", auth, err)
+	}
 }
 
 // newReadyLedgerPrerequisites returns a ready v3 Ledger and its provisioned
@@ -2985,7 +3014,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 // credential whose spec is about to change (e.g. a god-mode leftover) must
 // instead report pending until the ledger operator re-observes the new
 // generation.
-func newReadyLedgerPrerequisites() (*v1beta1.Ledger, *unstructured.Unstructured) {
+func newReadyLedgerPrerequisites() (*v1beta1.Ledger, *unstructured.Unstructured, *corev1.Secret) {
 	ledger := &v1beta1.Ledger{}
 	ledger.Name = "stack0-ledger"
 	ledger.Spec.Stack = "stack0"
@@ -3005,11 +3034,23 @@ func newReadyLedgerPrerequisites() (*v1beta1.Ledger, *unstructured.Unstructured)
 	})
 	_ = unstructured.SetNestedField(credentials.Object, "Ready", "status", "phase")
 	_ = unstructured.SetNestedField(credentials.Object, int64(1), "status", "observedGeneration")
-	_ = unstructured.SetNestedField(credentials.Object, "key-id", "status", "keyID")
+	seed := bytes.Repeat([]byte{1}, ed25519.SeedSize)
+	pubkey := ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
+	keyHash := sha256.Sum256(pubkey)
+	keyID := hex.EncodeToString(keyHash[:8])
+	_ = unstructured.SetNestedField(credentials.Object, keyID, "status", "keyID")
 	_ = unstructured.SetNestedSlice(credentials.Object, []any{
 		map[string]any{"namespace": "stack0", "name": "connectivity-ledger-key"},
 	}, "status", "distributedSecretRefs")
-	return ledger, credentials
+	source := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "stack0", Name: "connectivity-ledger-key",
+		Labels: map[string]string{"ledger.formance.com/credentials-name": "connectivity-stack0"},
+	}, Data: map[string][]byte{
+		"seed.hex":   []byte(hex.EncodeToString(seed)),
+		"pubkey.hex": []byte(hex.EncodeToString(pubkey)),
+		"key-id":     []byte(keyID),
+	}}
+	return ledger, credentials, source
 }
 
 func TestConnectivityReconcileWiresAPIAuthWhenStackHasAuth(t *testing.T) {
@@ -3017,7 +3058,7 @@ func TestConnectivityReconcileWiresAPIAuthWhenStackHasAuth(t *testing.T) {
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger, credentials := newReadyLedgerPrerequisites()
+	ledger, credentials, source := newReadyLedgerPrerequisites()
 
 	auth := &v1beta1.Auth{}
 	auth.Name = "stack0-auth"
@@ -3028,7 +3069,7 @@ func TestConnectivityReconcileWiresAPIAuthWhenStackHasAuth(t *testing.T) {
 	gateway.Spec.Stack = "stack0"
 	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
 
-	ctx := newReconcileTestContext(t, ledger, credentials, auth, gateway)
+	ctx := newReconcileTestContext(t, ledger, credentials, source, auth, gateway)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3055,7 +3096,7 @@ func TestConnectivityReconcileAPIAuthHonorsCheckScopesSetting(t *testing.T) {
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger, credentials := newReadyLedgerPrerequisites()
+	ledger, credentials, source := newReadyLedgerPrerequisites()
 
 	auth := &v1beta1.Auth{}
 	auth.Name = "stack0-auth"
@@ -3063,7 +3104,7 @@ func TestConnectivityReconcileAPIAuthHonorsCheckScopesSetting(t *testing.T) {
 
 	checkScopesSetting := settings.New("check-scopes", "auth.connectivity.check-scopes", "true", "stack0")
 
-	ctx := newReconcileTestContext(t, ledger, credentials, auth, checkScopesSetting)
+	ctx := newReconcileTestContext(t, ledger, credentials, source, auth, checkScopesSetting)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3086,9 +3127,9 @@ func TestConnectivityReconcileFailsWhenAPIAuthResolutionFails(t *testing.T) {
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger, credentials := newReadyLedgerPrerequisites()
+	ledger, credentials, source := newReadyLedgerPrerequisites()
 
-	base := newReconcileTestContext(t, ledger, credentials)
+	base := newReconcileTestContext(t, ledger, credentials, source)
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
 			if _, ok := list.(*v1beta1.AuthList); ok {
@@ -3117,7 +3158,7 @@ func TestConnectivityReconcileRevokesOwnedGatewayWhenAPIAuthResolutionFails(t *t
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger, credentials := newReadyLedgerPrerequisites()
+	ledger, credentials, source := newReadyLedgerPrerequisites()
 	controller := true
 	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
 		Name: "stack0-connectivity",
@@ -3131,7 +3172,7 @@ func TestConnectivityReconcileRevokesOwnedGatewayWhenAPIAuthResolutionFails(t *t
 		}},
 	}}
 
-	base := newReconcileTestContext(t, ledger, credentials, httpAPI)
+	base := newReconcileTestContext(t, ledger, credentials, source, httpAPI)
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
 			if _, ok := list.(*v1beta1.AuthList); ok {
@@ -3211,8 +3252,8 @@ func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger, credentials := newReadyLedgerPrerequisites()
-	ctx := newReconcileTestContext(t, ledger, credentials)
+	ledger, credentials, source := newReadyLedgerPrerequisites()
+	ctx := newReconcileTestContext(t, ledger, credentials, source)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3359,13 +3400,13 @@ func TestConnectivityReconcileClearsAPIAuthWhenStackHasNoAuth(t *testing.T) {
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger, credentials := newReadyLedgerPrerequisites()
+	ledger, credentials, source := newReadyLedgerPrerequisites()
 
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "https://stale.example.com/api/auth", "spec", "api", "auth", "issuer")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
 
-	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
+	ctx := newReconcileTestContext(t, ledger, credentials, source, delegated)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
