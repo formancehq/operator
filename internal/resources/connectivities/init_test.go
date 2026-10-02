@@ -388,22 +388,15 @@ func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
 // ledger operator must re-observe the new generation before the credential is
 // reported ready.
 func TestEnsureLedgerCredentialsRejectsStaleReadyPhase(t *testing.T) {
-	existing := &unstructured.Unstructured{}
-	existing.SetGroupVersionKind(ledgerCredentialsGVK)
-	existing.SetName("connectivity-stack1")
-	existing.SetGeneration(2)
-	_ = unstructured.SetNestedField(existing.Object, false, "spec", "god")
-	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
-	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(existing.Object, int64(1), "status", "observedGeneration")
-	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
-	_ = unstructured.SetNestedSlice(existing.Object, []any{
-		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
-	}, "status", "distributedSecretRefs")
-
+	existing := readyLedgerCredentialsForStack1(2, 1)
 	ctx := newCredsTestContext(t, existing)
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack1"
+	before := &unstructured.Unstructured{}
+	before.SetGroupVersionKind(ledgerCredentialsGVK)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(existing), before); err != nil {
+		t.Fatal(err)
+	}
 
 	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
@@ -415,30 +408,20 @@ func TestEnsureLedgerCredentialsRejectsStaleReadyPhase(t *testing.T) {
 	if keyID != "" || secret != "" {
 		t.Fatalf("stale key/secret must not be reported while the spec is unobserved, got keyID=%q secret=%q", keyID, secret)
 	}
+	after := &unstructured.Unstructured{}
+	after.SetGroupVersionKind(ledgerCredentialsGVK)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(existing), after); err != nil {
+		t.Fatal(err)
+	}
+	if after.GetResourceVersion() != before.GetResourceVersion() {
+		t.Fatal("already-converged credential was unexpectedly updated before the observedGeneration check")
+	}
 }
 
 // An already-converged, unchanged credential (spec matches the desired state,
 // and the ledger operator observed this generation) reports its key and Secret.
 func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
-	existing := &unstructured.Unstructured{}
-	existing.SetGroupVersionKind(ledgerCredentialsGVK)
-	existing.SetName("connectivity-stack1")
-	existing.SetGeneration(7)
-	_ = unstructured.SetNestedField(existing.Object, false, "spec", "god")
-	_ = unstructured.SetNestedStringSlice(existing.Object, connectivityLedgerScopes, "spec", "scopes")
-	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
-	_ = unstructured.SetNestedStringSlice(existing.Object, []string{"stack1"}, "spec", "additionalNamespaces")
-	// Already owned by the Stack, exactly as SetControllerReference would leave
-	// it, so the reconcile below is a no-op on the object.
-	stackRef := metav1.NewControllerRef(&v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack1"}}, v1beta1.GroupVersion.WithKind("Stack"))
-	existing.SetOwnerReferences([]metav1.OwnerReference{*stackRef})
-	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(existing.Object, int64(7), "status", "observedGeneration")
-	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
-	_ = unstructured.SetNestedSlice(existing.Object, []any{
-		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
-	}, "status", "distributedSecretRefs")
-
+	existing := readyLedgerCredentialsForStack1(7, 7)
 	ctx := newCredsTestContext(t, existing)
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack1"
@@ -456,6 +439,29 @@ func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
 	if secret != "ledger-connectivity-stack1-credentials-keys" {
 		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
 	}
+}
+
+func readyLedgerCredentialsForStack1(generation, observedGeneration int64) *unstructured.Unstructured {
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(ledgerCredentialsGVK)
+	existing.SetName("connectivity-stack1")
+	existing.SetGeneration(generation)
+	_ = unstructured.SetNestedField(existing.Object, false, "spec", "god")
+	_ = unstructured.SetNestedStringSlice(existing.Object, connectivityLedgerScopes, "spec", "scopes")
+	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
+	_ = unstructured.SetNestedStringSlice(existing.Object, []string{"stack1"}, "spec", "additionalNamespaces")
+	// Already owned by the Stack, exactly as SetControllerReference would leave
+	// it, so the reconcile below is a no-op on the object.
+	stackRef := metav1.NewControllerRef(&v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack1"}}, v1beta1.GroupVersion.WithKind("Stack"))
+	existing.SetOwnerReferences([]metav1.OwnerReference{*stackRef})
+	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(existing.Object, observedGeneration, "status", "observedGeneration")
+	_ = unstructured.SetNestedField(existing.Object, "2ba721b2866686f6", "status", "keyID")
+	_ = unstructured.SetNestedSlice(existing.Object, []any{
+		map[string]any{"name": "ledger-connectivity-stack1-credentials-keys", "namespace": "stack1"},
+	}, "status", "distributedSecretRefs")
+
+	return existing
 }
 
 func TestDeleteLedgerCredentialsFinalizerDeletesCredential(t *testing.T) {
@@ -2963,13 +2969,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
-	ledger := &v1beta1.Ledger{}
-	ledger.Name = "stack0-ledger"
-	ledger.Spec.Stack = "stack0"
-	ledger.Spec.Version = "v3.0.0"
-	ledger.Status.Ready = true
-
-	_, credentials, source := newReadyLedgerPrerequisites()
+	ledger, credentials, source := newReadyLedgerPrerequisites()
 
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "old-ledger:9999", "spec", "ledgerAddress")
