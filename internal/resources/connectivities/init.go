@@ -260,12 +260,22 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityAPIPending", message)
 		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
 	}
+	bundleSupported, err := ledgerBundleCRDSupported(ctx)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundleSchemaLookupFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
+	}
+	if !bundleSupported {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundleSchemaUnavailable", "Connectivity CRD does not support spec.auth.bundleSecretKeyRef")
+		pending := NewPendingError().WithMessage("Connectivity CRD does not support spec.auth.bundleSecretKeyRef").WithRequeueAfter(ledgerCredentialsRetryDelay)
+		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
+	}
 
 	// Provision a Stack-bound, non-god ledger credential scoped to
 	// connectivityLedgerScopes so connectivity-core can authenticate its gRPC
 	// calls. The ledger operator registers the public key
 	// on the ledger and distributes the private seed as a Secret in the stack
-	// namespace; connectivity-core is wired to it via spec.auth below.
+	// namespace; the bundle below binds that seed to the registered claims.
 	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		if apimeta.IsNoMatchError(err) || apierrors.IsForbidden(err) {
@@ -279,7 +289,21 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	if !credReady {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsPending",
 			"waiting for ledger credentials to be provisioned")
-		return ledgerCredentialsPendingError("waiting for ledger credentials to be provisioned")
+		pending := ledgerCredentialsPendingError("waiting for ledger credentials to be provisioned")
+		if err := deleteLedgerBundle(ctx, connectivity); err != nil {
+			return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
+		}
+		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
+	}
+	bundleReady, err := reconcileLedgerBundle(ctx, stack, connectivity, authSecretName, authKeyID)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundleFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
+	}
+	if !bundleReady {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundlePending", "waiting for distributed Ledger key and key ID to converge")
+		pending := NewPendingError().WithMessage("waiting for distributed Ledger key and key ID to converge").WithRequeueAfter(ledgerCredentialsRetryDelay)
+		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
 	}
 
 	// Resolve the connectivity core image through the operator's registry
@@ -360,20 +384,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err
 		}
-		// Ledger auth: connectivity-core signs its gRPC tokens with the Ed25519
-		// seed distributed by the ledger Credentials (key "seed.hex"), using the
-		// registered key ID. The connectivity operator turns this into the
-		// --auth-key-id / --auth-key-file flags.
-		if err := unstructured.SetNestedField(object.Object, authKeyID, "spec", "auth", "keyId"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(object.Object, "connectivity", "spec", "auth", "subject"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(object.Object, authSecretName, "spec", "auth", "secretKeyRef", "name"); err != nil {
-			return err
-		}
-		return unstructured.SetNestedField(object.Object, "seed.hex", "spec", "auth", "secretKeyRef", "key")
+		// Replace the entire map so an existing key-mode CR does not retain
+		// defaulted subject/key fields forbidden by the bundle-mode CRD.
+		return unstructured.SetNestedMap(object.Object, map[string]any{
+			"bundleSecretKeyRef": map[string]any{
+				"name": connectivityLedgerBundleSecret,
+				"key":  connectivityLedgerBundleKey,
+			},
+		}, "spec", "auth")
 	})
 	if err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
@@ -436,6 +454,7 @@ func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity
 	return errors.Join(
 		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
+		deleteLedgerBundle(ctx, connectivity),
 	)
 }
 
@@ -572,6 +591,7 @@ func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.
 		deleteOwnedDelegatedConnectivity(ctx, stack.Name, connectivity),
 		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
+		deleteLedgerBundle(ctx, connectivity),
 	)
 }
 
@@ -1346,7 +1366,9 @@ func connectivityStackFromCredentials(object client.Object) (string, bool) {
 func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	return []ReconcilerOption[*v1beta1.Connectivity]{
 		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
+		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-bundle", deleteLedgerBundle),
 		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
+		WithWatch[*v1beta1.Connectivity](mapLedgerSecretToConnectivity),
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),
