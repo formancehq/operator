@@ -260,14 +260,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityAPIPending", message)
 		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
 	}
-	bundleSupported, err := ledgerBundleCRDSupported(ctx)
+	credentialsSecretSupported, err := ledgerCredentialsSecretCRDSupported(ctx)
 	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundleSchemaLookupFailed", err.Error())
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsSchemaLookupFailed", err.Error())
 		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
-	if !bundleSupported {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundleSchemaUnavailable", "Connectivity CRD does not support spec.auth.bundleSecretKeyRef")
-		pending := NewPendingError().WithMessage("Connectivity CRD does not support spec.auth.bundleSecretKeyRef").WithRequeueAfter(ledgerCredentialsRetryDelay)
+	if !credentialsSecretSupported {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsSchemaUnavailable", "Connectivity CRD does not support spec.auth.credentialsSecretName")
+		pending := NewPendingError().WithMessage("Connectivity CRD does not support spec.auth.credentialsSecretName").WithRequeueAfter(ledgerCredentialsRetryDelay)
 		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
 	}
 
@@ -275,8 +275,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	// connectivityLedgerScopes so connectivity-core can authenticate its gRPC
 	// calls. The ledger operator registers the public key
 	// on the ledger and distributes the private seed as a Secret in the stack
-	// namespace; the bundle below binds that seed to the registered claims.
-	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
+	// namespace. The Connectivity operator mounts that Secret directly.
+	authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		if apimeta.IsNoMatchError(err) || apierrors.IsForbidden(err) {
 			setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsUnavailable",
@@ -290,20 +290,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsPending",
 			"waiting for ledger credentials to be provisioned")
 		pending := ledgerCredentialsPendingError("waiting for ledger credentials to be provisioned")
-		if err := deleteLedgerBundle(ctx, connectivity); err != nil {
+		if err := deleteLegacyLedgerBundle(ctx, connectivity); err != nil {
 			return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
 		}
 		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
 	}
-	bundleReady, err := reconcileLedgerBundle(ctx, stack, connectivity, authSecretName, authKeyID)
-	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundleFailed", err.Error())
+	if err := deleteLegacyLedgerBundle(ctx, connectivity); err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LegacyLedgerBundleCleanupFailed", err.Error())
 		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
-	}
-	if !bundleReady {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerBundlePending", "waiting for distributed Ledger key and key ID to converge")
-		pending := NewPendingError().WithMessage("waiting for distributed Ledger key and key ID to converge").WithRequeueAfter(ledgerCredentialsRetryDelay)
-		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
 	}
 
 	// Resolve the connectivity core image through the operator's registry
@@ -384,13 +378,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err
 		}
-		// Replace the entire map so an existing key-mode CR does not retain
-		// defaulted subject/key fields forbidden by the bundle-mode CRD.
+		// Replace the entire map so an existing key-mode or bundle CR does not
+		// retain mutually exclusive auth fields.
 		return unstructured.SetNestedMap(object.Object, map[string]any{
-			"bundleSecretKeyRef": map[string]any{
-				"name": connectivityLedgerBundleSecret,
-				"key":  connectivityLedgerBundleKey,
-			},
+			"credentialsSecretName": authSecretName,
 		}, "spec", "auth")
 	})
 	if err != nil {
@@ -454,7 +445,7 @@ func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity
 	return errors.Join(
 		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
-		deleteLedgerBundle(ctx, connectivity),
+		deleteLegacyLedgerBundle(ctx, connectivity),
 	)
 }
 
@@ -591,7 +582,7 @@ func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.
 		deleteOwnedDelegatedConnectivity(ctx, stack.Name, connectivity),
 		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
-		deleteLedgerBundle(ctx, connectivity),
+		deleteLegacyLedgerBundle(ctx, connectivity),
 	)
 }
 
@@ -839,14 +830,14 @@ func getStackLedger(ctx Context, stackName string) (*v1beta1.Ledger, error) {
 
 // ensureLedgerCredentials provisions the cluster-scoped ledger Credentials that
 // authorizes connectivity-core against the stack's Ledger v3, and reports the
-// registered key ID plus the distributed private-key Secret once ready.
+// distributed private-key Secret name once ready.
 //
 // The Credentials is cluster-scoped, so it is owned by the (cluster-scoped)
 // Stack rather than the namespaced Connectivity — a namespaced owner cannot own
 // a cluster-scoped resource. The ledger operator generates the Ed25519 keypair,
 // registers the public key on the Cluster matched by the stack selector, and
 // distributes the private seed as a Secret into the stack namespace.
-func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretName string, ready bool, err error) {
+func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (secretName string, ready bool, err error) {
 	cred := &unstructured.Unstructured{}
 	cred.SetGroupVersionKind(ledgerCredentialsGVK)
 	cred.SetName("connectivity-" + stack.Name)
@@ -873,7 +864,7 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 		return unstructured.SetNestedStringSlice(cred.Object, []string{stack.Name}, "spec", "additionalNamespaces")
 	})
 	if err != nil {
-		return "", "", false, err
+		return "", false, err
 	}
 
 	// A Ready status written before this reconcile proves nothing about the spec
@@ -886,15 +877,14 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 	// up to metadata.generation) before reporting ready. The Credentials watch
 	// re-triggers this reconcile when the ledger operator updates the status.
 	if operation != controllerutil.OperationResultNone {
-		return "", "", false, nil
+		return "", false, nil
 	}
 	if phase, _, _ := unstructured.NestedString(cred.Object, "status", "phase"); phase != "Ready" {
-		return "", "", false, nil
+		return "", false, nil
 	}
 	if observedGeneration, _, _ := unstructured.NestedInt64(cred.Object, "status", "observedGeneration"); observedGeneration != cred.GetGeneration() {
-		return "", "", false, nil
+		return "", false, nil
 	}
-	keyID, _, _ = unstructured.NestedString(cred.Object, "status", "keyID")
 	// The Secret is distributed to several namespaces; pick the one in the stack
 	// namespace, where connectivity-core runs.
 	refs, _, _ := unstructured.NestedSlice(cred.Object, "status", "distributedSecretRefs")
@@ -908,10 +898,10 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 			break
 		}
 	}
-	if keyID == "" || secretName == "" {
-		return "", "", false, nil
+	if secretName == "" {
+		return "", false, nil
 	}
-	return keyID, secretName, true, nil
+	return secretName, true, nil
 }
 
 // The Credentials is cluster-scoped and owned by the Stack, so neither GC on
@@ -950,6 +940,22 @@ func deleteLedgerCredentials(ctx Context, connectivity *v1beta1.Connectivity) er
 func connectivityResourceReady(object *unstructured.Unstructured) (bool, string) {
 	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
 	if phase == "Ready" {
+		secretName, _, _ := unstructured.NestedString(object.Object, "spec", "auth", "credentialsSecretName")
+		if secretName != "" {
+			conditions, _, _ := unstructured.NestedSlice(object.Object, "status", "conditions")
+			for _, item := range conditions {
+				condition, ok := item.(map[string]any)
+				if !ok || condition["type"] != "LedgerCredentialsReady" {
+					continue
+				}
+				observedGeneration, found, _ := unstructured.NestedInt64(condition, "observedGeneration")
+				if condition["status"] == "True" && found && observedGeneration == object.GetGeneration() {
+					return true, "Connectivity is ready"
+				}
+				break
+			}
+			return false, "waiting for Connectivity Core to roll out the current Ledger credential"
+		}
 		return true, "Connectivity is ready"
 	}
 	message, _, _ := unstructured.NestedString(object.Object, "status", "message")
@@ -1366,9 +1372,8 @@ func connectivityStackFromCredentials(object client.Object) (string, bool) {
 func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	return []ReconcilerOption[*v1beta1.Connectivity]{
 		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
-		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-bundle", deleteLedgerBundle),
+		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-bundle", deleteLegacyLedgerBundle),
 		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
-		WithWatch[*v1beta1.Connectivity](mapLedgerSecretToConnectivity),
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),

@@ -270,12 +270,12 @@ func TestEnsureLedgerCredentialsCreatesScopedCredentialAndReportsPending(t *test
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack0"
 
-	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	secret, ready, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		t.Fatalf("ensureLedgerCredentials: %v", err)
 	}
-	if ready || keyID != "" || secret != "" {
-		t.Fatalf("freshly created credential must be pending, got ready=%v keyID=%q secret=%q", ready, keyID, secret)
+	if ready || secret != "" {
+		t.Fatalf("freshly created credential must be pending, got ready=%v secret=%q", ready, secret)
 	}
 
 	// The Credentials must have been created cluster-scoped, non-god, with the
@@ -328,15 +328,15 @@ func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
 
 	// First reconcile: the spec is narrowed in place. The stale Ready status must
 	// not be reported as ready — Ledger has not applied the narrowed rights yet.
-	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	secret, ready, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		t.Fatalf("ensureLedgerCredentials: %v", err)
 	}
 	if ready {
 		t.Fatal("credential must not report ready on the reconcile that narrowed its spec")
 	}
-	if keyID != "" || secret != "" {
-		t.Fatalf("stale key/secret must not be reported while the narrowed spec is unobserved, got keyID=%q secret=%q", keyID, secret)
+	if secret != "" {
+		t.Fatalf("stale secret must not be reported while the narrowed spec is unobserved, got secret=%q", secret)
 	}
 
 	got := &unstructured.Unstructured{}
@@ -367,16 +367,13 @@ func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
 	}
 
 	// Second reconcile: with the new generation observed, the converged
-	// credential reports the same key ID and stack-namespace Secret again.
-	keyID, secret, ready, err = ensureLedgerCredentials(ctx, stack)
+	// credential reports the stack-namespace Secret again.
+	secret, ready, err = ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		t.Fatalf("ensureLedgerCredentials after convergence: %v", err)
 	}
 	if !ready {
 		t.Fatal("credential must report ready once the new generation is observed")
-	}
-	if keyID != "2ba721b2866686f6" {
-		t.Errorf("keyID = %q, want 2ba721b2866686f6", keyID)
 	}
 	if secret != "ledger-connectivity-stack1-credentials-keys" {
 		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
@@ -398,15 +395,15 @@ func TestEnsureLedgerCredentialsRejectsStaleReadyPhase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	secret, ready, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		t.Fatalf("ensureLedgerCredentials: %v", err)
 	}
 	if ready {
 		t.Fatal("Ready phase from an older generation must not be reported ready")
 	}
-	if keyID != "" || secret != "" {
-		t.Fatalf("stale key/secret must not be reported while the spec is unobserved, got keyID=%q secret=%q", keyID, secret)
+	if secret != "" {
+		t.Fatalf("stale secret must not be reported while the spec is unobserved, got secret=%q", secret)
 	}
 	after := &unstructured.Unstructured{}
 	after.SetGroupVersionKind(ledgerCredentialsGVK)
@@ -419,22 +416,20 @@ func TestEnsureLedgerCredentialsRejectsStaleReadyPhase(t *testing.T) {
 }
 
 // An already-converged, unchanged credential (spec matches the desired state,
-// and the ledger operator observed this generation) reports its key and Secret.
-func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
+// and the ledger operator observed this generation) reports its Secret name.
+func TestEnsureLedgerCredentialsReportsSecretWhenReady(t *testing.T) {
 	existing := readyLedgerCredentialsForStack1(7, 7)
+	unstructured.RemoveNestedField(existing.Object, "status", "keyID")
 	ctx := newCredsTestContext(t, existing)
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack1"
 
-	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+	secret, ready, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		t.Fatalf("ensureLedgerCredentials: %v", err)
 	}
 	if !ready {
 		t.Fatal("credential with status Ready must report ready")
-	}
-	if keyID != "2ba721b2866686f6" {
-		t.Errorf("keyID = %q, want 2ba721b2866686f6", keyID)
 	}
 	if secret != "ledger-connectivity-stack1-credentials-keys" {
 		t.Errorf("secret = %q, want the distributed secret in the stack namespace", secret)
@@ -1030,7 +1025,7 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 		Schema: &apiextensionsv1.CustomResourceValidation{OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 			Properties: map[string]apiextensionsv1.JSONSchemaProps{"spec": {
 				Properties: map[string]apiextensionsv1.JSONSchemaProps{"auth": {
-					Properties: map[string]apiextensionsv1.JSONSchemaProps{"bundleSecretKeyRef": {Type: "object"}},
+					Properties: map[string]apiextensionsv1.JSONSchemaProps{"credentialsSecretName": {Type: "string"}},
 				}},
 			}},
 		}},
@@ -2985,7 +2980,9 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
 	})
 
-	ctx := newReconcileTestContext(t, ledger, credentials, source, delegated)
+	// Ledger owns the distributed Secret. Stack reconciliation only needs its
+	// name from Credentials status; the Secret need not exist in this client.
+	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
@@ -2999,10 +2996,30 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 		t.Fatalf("updated spec.ledgerAddress = %q, want ledger-stack0:8888", address)
 	}
 	auth, _, err := unstructured.NestedMap(updated.Object, "spec", "auth")
-	if err != nil || !reflect.DeepEqual(auth, map[string]any{
-		"bundleSecretKeyRef": map[string]any{"name": connectivityLedgerBundleSecret, "key": connectivityLedgerBundleKey},
-	}) {
-		t.Fatalf("updated spec.auth = %v, want bundle reference only (err=%v)", auth, err)
+	if err != nil || !reflect.DeepEqual(auth, map[string]any{"credentialsSecretName": source.Name}) {
+		t.Fatalf("updated spec.auth = %v, want only the distributed Secret name (err=%v)", auth, err)
+	}
+}
+
+func TestConnectivityResourceReadyRequiresCurrentLedgerCredentialRollout(t *testing.T) {
+	delegated := newDelegatedConnectivity("stack0")
+	delegated.SetGeneration(3)
+	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(delegated.Object, "ledger-connectivity-stack0-credentials-keys", "spec", "auth", "credentialsSecretName")
+	if ready, _ := connectivityResourceReady(delegated); ready {
+		t.Fatal("Ready phase without Core credential rollout condition was accepted")
+	}
+	_ = unstructured.SetNestedSlice(delegated.Object, []any{map[string]any{
+		"type": "LedgerCredentialsReady", "status": "True", "observedGeneration": int64(2),
+	}}, "status", "conditions")
+	if ready, _ := connectivityResourceReady(delegated); ready {
+		t.Fatal("stale Core credential rollout was accepted")
+	}
+	_ = unstructured.SetNestedSlice(delegated.Object, []any{map[string]any{
+		"type": "LedgerCredentialsReady", "status": "True", "observedGeneration": int64(3),
+	}}, "status", "conditions")
+	if ready, message := connectivityResourceReady(delegated); !ready {
+		t.Fatalf("current Core credential rollout rejected: %s", message)
 	}
 }
 
@@ -3267,6 +3284,9 @@ func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T
 	}
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedSlice(delegated.Object, []any{map[string]any{
+		"type": "LedgerCredentialsReady", "status": "True", "observedGeneration": delegated.GetGeneration(),
+	}}, "status", "conditions")
 	if err := ctx.GetClient().Update(ctx, delegated); err != nil {
 		t.Fatalf("mark delegated Connectivity ready: %v", err)
 	}
