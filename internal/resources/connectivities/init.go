@@ -84,9 +84,26 @@ var (
 	}
 	connectivityAvailable bool
 
+	// connectivityLedgerScopes is the exact set of Ledger v3 scopes Connectivity's
+	// ingestion path requires for its Core calls: AccountRead (cursor GetAccount),
+	// LedgerWrite (CreateLedger, CreateIndex, SaveNumscript), TransactionWrite and
+	// MetadataWrite (plugin transaction/metadata actions and cursor save in Apply),
+	// and QueryWrite (CreatePreparedQuery). Discovery is public. The list is owned
+	// by the integration contract, not user configuration; update it only when
+	// Core's actual Ledger calls change. See the capability matrix in
+	// connectivity's docs/architecture/ledger-capabilities.md.
+	connectivityLedgerScopes = []string{
+		"ledger:AccountRead",
+		"ledger:LedgerWrite",
+		"ledger:TransactionWrite",
+		"ledger:MetadataWrite",
+		"ledger:QueryWrite",
+	}
+
 	// ledgerCredentialsGVK is the cluster-scoped ledger.formance.com/Credentials
-	// resource. The connectivity module provisions a god-mode credential so
-	// connectivity-core can authenticate its gRPC calls to the stack's Ledger v3:
+	// resource. The connectivity module provisions a Stack-bound, non-god Ed25519
+	// credential scoped to connectivityLedgerScopes so connectivity-core can
+	// authenticate its gRPC calls to the stack's Ledger v3:
 	// the ledger operator generates the Ed25519 keypair, registers the public key
 	// on the matched ledger Cluster, and distributes the private seed as a Secret.
 	ledgerCredentialsGVK = schema.GroupVersionKind{
@@ -133,10 +150,10 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 			"connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
 		// The connectivity operator is gone, so we can neither provision nor
 		// manage the delegated workload — but if the ledger hard gate is also
-		// closed we must still tear down the god-mode Credentials and the gateway
+		// closed we must still tear down the ledger Credentials and the gateway
 		// route we own, otherwise a closed gate leaves them behind just because
 		// this capability check short-circuits before the ledger gates below.
-		// A closed ledger gate additionally revokes the god-mode Credentials. When
+		// A closed ledger gate additionally revokes the ledger Credentials. When
 		// that gate is still open, keep the workload and Credentials but close its
 		// public route: without the delegated API we cannot prove that the currently
 		// serving rollout enforces the desired authentication configuration.
@@ -243,12 +260,23 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "ConnectivityAPIPending", message)
 		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
 	}
+	credentialsSecretSupported, err := ledgerCredentialsSecretCRDSupported(ctx)
+	if err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsSchemaLookupFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
+	}
+	if !credentialsSecretSupported {
+		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsSchemaUnavailable", "Connectivity CRD does not support spec.auth.credentialsSecretName")
+		pending := NewPendingError().WithMessage("Connectivity CRD does not support spec.auth.credentialsSecretName").WithRequeueAfter(ledgerCredentialsRetryDelay)
+		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
+	}
 
-	// Provision a god-mode ledger credential so connectivity-core can
-	// authenticate its gRPC calls. The ledger operator registers the public key
+	// Provision a Stack-bound, non-god ledger credential scoped to
+	// connectivityLedgerScopes so connectivity-core can authenticate its gRPC
+	// calls. The ledger operator registers the public key
 	// on the ledger and distributes the private seed as a Secret in the stack
-	// namespace; connectivity-core is wired to it via spec.auth below.
-	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
+	// namespace. The Connectivity operator mounts that Secret directly.
+	authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		if apimeta.IsNoMatchError(err) || apierrors.IsForbidden(err) {
 			setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsUnavailable",
@@ -261,7 +289,15 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	if !credReady {
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsPending",
 			"waiting for ledger credentials to be provisioned")
-		return ledgerCredentialsPendingError("waiting for ledger credentials to be provisioned")
+		pending := ledgerCredentialsPendingError("waiting for ledger credentials to be provisioned")
+		if err := deleteLegacyLedgerBundle(ctx, connectivity); err != nil {
+			return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
+		}
+		return pendingAfterGatewayRevocation(ctx, connectivity, pending, nil)
+	}
+	if err := deleteLegacyLedgerBundle(ctx, connectivity); err != nil {
+		setCondition(connectivity, metav1.ConditionFalse, "LegacyLedgerBundleCleanupFailed", err.Error())
+		return errors.Join(err, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
 
 	// Resolve the connectivity core image through the operator's registry
@@ -342,20 +378,11 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err
 		}
-		// Ledger auth: connectivity-core signs its gRPC tokens with the Ed25519
-		// seed distributed by the ledger Credentials (key "seed.hex"), using the
-		// registered key ID. The connectivity operator turns this into the
-		// --auth-key-id / --auth-key-file flags.
-		if err := unstructured.SetNestedField(object.Object, authKeyID, "spec", "auth", "keyId"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(object.Object, "connectivity", "spec", "auth", "subject"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(object.Object, authSecretName, "spec", "auth", "secretKeyRef", "name"); err != nil {
-			return err
-		}
-		return unstructured.SetNestedField(object.Object, "seed.hex", "spec", "auth", "secretKeyRef", "key")
+		// Replace the entire map so an existing key-mode or bundle CR does not
+		// retain mutually exclusive auth fields.
+		return unstructured.SetNestedMap(object.Object, map[string]any{
+			"credentialsSecretName": authSecretName,
+		}, "spec", "auth")
 	})
 	if err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
@@ -413,11 +440,12 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 // when the external Connectivity API is unavailable. Deleting the delegated CR
 // on this path would turn an RBAC capability gap into a hard Forbidden error;
 // leave that CR untouched and independently remove the public route and the
-// god-mode ledger credential that remain accessible to this controller.
+// ledger credential that remain accessible to this controller.
 func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity) error {
 	return errors.Join(
 		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
+		deleteLegacyLedgerBundle(ctx, connectivity),
 	)
 }
 
@@ -545,7 +573,7 @@ func reconcileExistingConnectivityAPIAuth(
 func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
 	// Attempt every deletion independently rather than bailing on the first
 	// error: a failure to delete one resource must not leave the public gateway
-	// route or the god-mode Credentials behind, since the point of the hard
+	// route or the ledger Credentials behind, since the point of the hard
 	// teardown is to stop exposing the workload — and its credential — once the
 	// ledger prerequisite no longer holds. Deleting the cluster-scoped
 	// Credentials also cascades the ledger operator's key deregistration and the
@@ -554,6 +582,7 @@ func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.
 		deleteOwnedDelegatedConnectivity(ctx, stack.Name, connectivity),
 		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
 		deleteLedgerCredentials(ctx, connectivity),
+		deleteLegacyLedgerBundle(ctx, connectivity),
 	)
 }
 
@@ -801,22 +830,31 @@ func getStackLedger(ctx Context, stackName string) (*v1beta1.Ledger, error) {
 
 // ensureLedgerCredentials provisions the cluster-scoped ledger Credentials that
 // authorizes connectivity-core against the stack's Ledger v3, and reports the
-// registered key ID plus the distributed private-key Secret once ready.
+// distributed private-key Secret name once ready.
 //
 // The Credentials is cluster-scoped, so it is owned by the (cluster-scoped)
 // Stack rather than the namespaced Connectivity — a namespaced owner cannot own
 // a cluster-scoped resource. The ledger operator generates the Ed25519 keypair,
 // registers the public key on the Cluster matched by the stack selector, and
 // distributes the private seed as a Secret into the stack namespace.
-func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretName string, ready bool, err error) {
+func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (secretName string, ready bool, err error) {
 	cred := &unstructured.Unstructured{}
 	cred.SetGroupVersionKind(ledgerCredentialsGVK)
 	cred.SetName("connectivity-" + stack.Name)
-	if _, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cred, func() error {
+	operation, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cred, func() error {
 		if err := controllerutil.SetControllerReference(stack, cred, ctx.GetScheme()); err != nil {
 			return err
 		}
-		if err := unstructured.SetNestedField(cred.Object, true, "spec", "god"); err != nil {
+		// Connectivity authenticates with a least-privilege credential: god mode
+		// stays off and the scopes are fixed to connectivityLedgerScopes. Setting
+		// both explicitly (rather than omitting them) also converges an existing
+		// god-mode Credentials from a previous operator version to the narrowed
+		// spec in place. Readiness is only reported again once the ledger operator
+		// has re-observed the bumped generation (see below).
+		if err := unstructured.SetNestedField(cred.Object, false, "spec", "god"); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedStringSlice(cred.Object, connectivityLedgerScopes, "spec", "scopes"); err != nil {
 			return err
 		}
 		if err := unstructured.SetNestedStringMap(cred.Object,
@@ -824,14 +862,29 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 			return err
 		}
 		return unstructured.SetNestedStringSlice(cred.Object, []string{stack.Name}, "spec", "additionalNamespaces")
-	}); err != nil {
-		return "", "", false, err
+	})
+	if err != nil {
+		return "", false, err
 	}
 
-	if phase, _, _ := unstructured.NestedString(cred.Object, "status", "phase"); phase != "Ready" {
-		return "", "", false, nil
+	// A Ready status written before this reconcile proves nothing about the spec
+	// this reconcile just wrote: when an existing god-mode credential is narrowed
+	// in place (same key ID and Secret), Ledger must re-register the key with the
+	// narrowed rights before the credential can be used. When this reconcile
+	// changed the object, the returned status was read before the change; require
+	// a subsequent reconcile where the spec is unchanged and the ledger operator
+	// has re-observed the current generation (status.observedGeneration catching
+	// up to metadata.generation) before reporting ready. The Credentials watch
+	// re-triggers this reconcile when the ledger operator updates the status.
+	if operation != controllerutil.OperationResultNone {
+		return "", false, nil
 	}
-	keyID, _, _ = unstructured.NestedString(cred.Object, "status", "keyID")
+	if phase, _, _ := unstructured.NestedString(cred.Object, "status", "phase"); phase != "Ready" {
+		return "", false, nil
+	}
+	if observedGeneration, _, _ := unstructured.NestedInt64(cred.Object, "status", "observedGeneration"); observedGeneration != cred.GetGeneration() {
+		return "", false, nil
+	}
 	// The Secret is distributed to several namespaces; pick the one in the stack
 	// namespace, where connectivity-core runs.
 	refs, _, _ := unstructured.NestedSlice(cred.Object, "status", "distributedSecretRefs")
@@ -845,10 +898,10 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 			break
 		}
 	}
-	if keyID == "" || secretName == "" {
-		return "", "", false, nil
+	if secretName == "" {
+		return "", false, nil
 	}
-	return keyID, secretName, true, nil
+	return secretName, true, nil
 }
 
 // The Credentials is cluster-scoped and owned by the Stack, so neither GC on
@@ -887,6 +940,22 @@ func deleteLedgerCredentials(ctx Context, connectivity *v1beta1.Connectivity) er
 func connectivityResourceReady(object *unstructured.Unstructured) (bool, string) {
 	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
 	if phase == "Ready" {
+		secretName, _, _ := unstructured.NestedString(object.Object, "spec", "auth", "credentialsSecretName")
+		if secretName != "" {
+			conditions, _, _ := unstructured.NestedSlice(object.Object, "status", "conditions")
+			for _, item := range conditions {
+				condition, ok := item.(map[string]any)
+				if !ok || condition["type"] != "LedgerCredentialsReady" {
+					continue
+				}
+				observedGeneration, found, _ := unstructured.NestedInt64(condition, "observedGeneration")
+				if condition["status"] == "True" && found && observedGeneration == object.GetGeneration() {
+					return true, "Connectivity is ready"
+				}
+				break
+			}
+			return false, "waiting for Connectivity Core to roll out the current Ledger credential"
+		}
 		return true, "Connectivity is ready"
 	}
 	message, _, _ := unstructured.NestedString(object.Object, "status", "message")
@@ -1303,6 +1372,7 @@ func connectivityStackFromCredentials(object client.Object) (string, bool) {
 func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	return []ReconcilerOption[*v1beta1.Connectivity]{
 		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
+		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-bundle", deleteLegacyLedgerBundle),
 		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
