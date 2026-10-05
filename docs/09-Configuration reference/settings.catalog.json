@@ -405,6 +405,13 @@
       ]
     },
     {
+      "key": "jobs.nodeSelector",
+      "valueType": "map[string]string",
+      "sources": [
+        "internal/resources/jobs/node_selector.go:18"
+      ]
+    },
+    {
       "key": "ledger.api.bulk-max-size",
       "valueType": "int",
       "sources": [
