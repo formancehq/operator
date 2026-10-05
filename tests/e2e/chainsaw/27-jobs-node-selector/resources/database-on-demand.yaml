@@ -1,0 +1,7 @@
+apiVersion: formance.com/v1beta1
+kind: Database
+metadata:
+  name: chainsaw-jobs-on-demand
+spec:
+  stack: chainsaw-jobs-node-selector
+  service: ledger

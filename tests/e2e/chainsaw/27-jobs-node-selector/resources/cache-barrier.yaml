@@ -1,0 +1,17 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-jobs-settings-cache-barrier
+spec:
+  stacks:
+    - chainsaw-jobs-node-selector
+  key: deployments.gateway.replicas
+  value: "0"
+---
+apiVersion: formance.com/v1beta1
+kind: Gateway
+metadata:
+  name: chainsaw-jobs-settings-cache-barrier
+spec:
+  stack: chainsaw-jobs-node-selector
+  dev: true

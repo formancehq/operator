@@ -1,0 +1,10 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-jobs-postgres-uri
+spec:
+  stacks:
+    - chainsaw-jobs-node-selector
+  key: postgres.ledger.uri
+  # No database server is needed: these Jobs must remain available for assertions.
+  value: postgresql://formance:formance@missing-postgres.chainsaw-jobs-node-selector.svc.cluster.local:5432?disableSSLMode=true
