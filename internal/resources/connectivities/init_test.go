@@ -355,6 +355,20 @@ func TestEnsureLedgerCredentialsConvergesGodCredentialToScoped(t *testing.T) {
 		t.Errorf("additionalNamespaces = %v, want [stack1]", ns)
 	}
 
+	// The fake client does not bump generation on spec updates. Simulate the
+	// API server's increment and verify that old Ready status is still pending.
+	got.SetGeneration(2)
+	if err := ctx.GetClient().Update(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	keyID, secret, ready, err = ensureLedgerCredentials(ctx, stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ready || keyID != "" || secret != "" {
+		t.Fatal("narrowed credential must remain pending until its new generation is observed")
+	}
+
 	// Simulate the ledger operator re-observing the new generation: phase stays
 	// Ready and observedGeneration catches up to the current generation.
 	_ = unstructured.SetNestedField(got.Object, got.GetGeneration(), "status", "observedGeneration")
@@ -2966,12 +2980,12 @@ func TestConnectivityReconcileDialsLedgerServiceAndKeepsSNIForTLS(t *testing.T) 
 		t.Fatal(err)
 	}
 	wantAuth := map[string]any{
-		"keyId":        "key-id",
-		"subject":      "connectivity",
-		"secretKeyRef": map[string]any{"name": "connectivity-ledger-key", "key": "seed.hex"},
+		"keyIdSecretKeyRef": map[string]any{"name": "connectivity-ledger-key", "key": "key-id"},
+		"subject":           "connectivity",
+		"secretKeyRef":      map[string]any{"name": "connectivity-ledger-key", "key": "seed.hex"},
 	}
 	if !reflect.DeepEqual(auth, wantAuth) {
-		t.Fatalf("spec.auth = %#v, want the existing key binding %#v", auth, wantAuth)
+		t.Fatalf("spec.auth = %#v, want the Ledger Secret binding %#v", auth, wantAuth)
 	}
 	if address, _, _ := unstructured.NestedString(delegated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
 		t.Fatalf("spec.ledgerAddress = %q, want the in-namespace Service endpoint ledger-stack0:8888", address)
@@ -2990,6 +3004,9 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "old-ledger:9999", "spec", "ledgerAddress")
+	_ = unstructured.SetNestedMap(delegated.Object, map[string]any{
+		"keyId": "old-key", "subject": "old-subject", "key": "old-inline-seed",
+	}, "spec", "auth")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
@@ -3007,6 +3024,18 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	updated := newDelegatedConnectivity(stack.Name)
 	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, updated); err != nil {
 		t.Fatalf("get updated delegated Connectivity: %v", err)
+	}
+	auth, _, err := unstructured.NestedMap(updated.Object, "spec", "auth")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantAuth := map[string]any{
+		"keyIdSecretKeyRef": map[string]any{"name": "connectivity-ledger-key", "key": "key-id"},
+		"subject":           "connectivity",
+		"secretKeyRef":      map[string]any{"name": "connectivity-ledger-key", "key": "seed.hex"},
+	}
+	if !reflect.DeepEqual(auth, wantAuth) {
+		t.Fatalf("old auth fields were not replaced with the Ledger Secret binding: %#v", auth)
 	}
 	if address, _, _ := unstructured.NestedString(updated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
 		t.Fatalf("updated spec.ledgerAddress = %q, want ledger-stack0:8888", address)

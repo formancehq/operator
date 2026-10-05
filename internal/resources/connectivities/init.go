@@ -266,7 +266,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	// calls. The ledger operator registers the public key
 	// on the ledger and distributes the private seed as a Secret in the stack
 	// namespace; connectivity-core is wired to it via spec.auth below.
-	authKeyID, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
+	_, authSecretName, credReady, err := ensureLedgerCredentials(ctx, stack)
 	if err != nil {
 		if apimeta.IsNoMatchError(err) || apierrors.IsForbidden(err) {
 			setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsUnavailable",
@@ -360,20 +360,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := applyConnectivityMonitoring(object, monitoringConfiguration); err != nil {
 			return err
 		}
-		// Ledger auth: connectivity-core signs its gRPC tokens with the Ed25519
-		// seed distributed by the ledger Credentials (key "seed.hex"), using the
-		// registered key ID. The connectivity operator turns this into the
-		// --auth-key-id / --auth-key-file flags.
-		if err := unstructured.SetNestedField(object.Object, authKeyID, "spec", "auth", "keyId"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(object.Object, "connectivity", "spec", "auth", "subject"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(object.Object, authSecretName, "spec", "auth", "secretKeyRef", "name"); err != nil {
-			return err
-		}
-		return unstructured.SetNestedField(object.Object, "seed.hex", "spec", "auth", "secretKeyRef", "key")
+		// Keep key ID and signing seed on the same Ledger-distributed Secret.
+		// Replacing the auth map removes inline and bundle fields from older
+		// managed resources instead of mixing credential sources.
+		return unstructured.SetNestedMap(object.Object, map[string]any{
+			"keyIdSecretKeyRef": map[string]any{"name": authSecretName, "key": "key-id"},
+			"subject":           "connectivity",
+			"secretKeyRef":      map[string]any{"name": authSecretName, "key": "seed.hex"},
+		}, "spec", "auth")
 	})
 	if err != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "ReconcileFailed", err.Error())
