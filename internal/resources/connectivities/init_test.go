@@ -437,6 +437,34 @@ func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
 	}
 }
 
+func TestEnsureLedgerCredentialsWaitsForDistributedKey(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		keyID string
+		refs  []any
+	}{
+		{name: "missing key ID", refs: []any{map[string]any{"namespace": "stack1", "name": "key-secret"}}},
+		{name: "missing Secret", keyID: "key-id"},
+		{name: "foreign namespace", keyID: "key-id", refs: []any{map[string]any{"namespace": "other-stack", "name": "key-secret"}}},
+		{name: "malformed reference", keyID: "key-id", refs: []any{"not-a-reference"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := readyLedgerCredentialsForStack1(2, 2)
+			_ = unstructured.SetNestedField(existing.Object, tt.keyID, "status", "keyID")
+			_ = unstructured.SetNestedSlice(existing.Object, tt.refs, "status", "distributedSecretRefs")
+			ctx := newCredsTestContext(t, existing)
+			stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack1"}}
+			keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ready || keyID != "" || secret != "" {
+				t.Fatalf("incomplete key distribution must remain pending, got ready=%v keyID=%q secret=%q", ready, keyID, secret)
+			}
+		})
+	}
+}
+
 func readyLedgerCredentialsForStack1(generation, observedGeneration int64) *unstructured.Unstructured {
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(ledgerCredentialsGVK)
