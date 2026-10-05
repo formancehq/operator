@@ -1,0 +1,9 @@
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: chainsaw-jobs-node-selector
+spec:
+  stacks:
+    - chainsaw-jobs-node-selector
+  key: jobs.nodeSelector
+  value: not-a-map
