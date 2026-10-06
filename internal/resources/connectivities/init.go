@@ -101,7 +101,7 @@ var (
 	}
 
 	// ledgerCredentialsGVK is the cluster-scoped ledger.formance.com/Credentials
-	// resource. The connectivity module provisions a Stack-bound, non-god Ed25519
+	// resource. The connectivity module provisions a Stack-bound Ed25519
 	// credential scoped to connectivityLedgerScopes so connectivity-core can
 	// authenticate its gRPC calls to the stack's Ledger v3:
 	// the ledger operator generates the Ed25519 keypair, registers the public key
@@ -261,7 +261,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
 	}
 
-	// Provision a Stack-bound, non-god ledger credential scoped to
+	// Provision a Stack-bound ledger credential scoped to
 	// connectivityLedgerScopes so connectivity-core can authenticate its gRPC
 	// calls. The ledger operator registers the public key
 	// on the ledger and distributes the private seed as a Secret in the stack
@@ -828,13 +828,13 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 		if err := controllerutil.SetControllerReference(stack, cred, ctx.GetScheme()); err != nil {
 			return err
 		}
-		// Connectivity authenticates with a least-privilege credential: god mode
+		// Connectivity authenticates with a least-privilege credential: superuser mode
 		// stays off and the scopes are fixed to connectivityLedgerScopes. Setting
 		// both explicitly (rather than omitting them) also converges an existing
-		// god-mode Credentials from a previous operator version to the narrowed
+		// superuser Credentials from a previous operator version to the narrowed
 		// spec in place. Readiness is only reported again once the ledger operator
 		// has re-observed the bumped generation (see below).
-		if err := unstructured.SetNestedField(cred.Object, false, "spec", "god"); err != nil {
+		if err := unstructured.SetNestedField(cred.Object, false, "spec", "superuser"); err != nil {
 			return err
 		}
 		if err := unstructured.SetNestedStringSlice(cred.Object, connectivityLedgerScopes, "spec", "scopes"); err != nil {
@@ -851,12 +851,11 @@ func ensureLedgerCredentials(ctx Context, stack *v1beta1.Stack) (keyID, secretNa
 	}
 
 	// A Ready status written before this reconcile proves nothing about the spec
-	// this reconcile just wrote: when an existing god-mode credential is narrowed
+	// this reconcile just wrote: when an existing superuser credential is narrowed
 	// in place (same key ID and Secret), its controller must observe the new
 	// specification before delegation proceeds. This status proves credential
 	// distribution; the Ledger Cluster controller applies grants separately.
-	// When this reconcile
-	// changed the object, the returned status was read before the change; require
+	// When this reconcile changed the object, the returned status was read before the change; require
 	// a subsequent reconcile where the spec is unchanged and the ledger operator
 	// has re-observed the current generation (status.observedGeneration catching
 	// up to metadata.generation) before reporting ready. The Credentials watch

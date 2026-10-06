@@ -2,6 +2,7 @@
 
 Formance Connectivity requires:
 - **Ledger v3**: Connectivity ingests double-entry transactions into the stack ledger through its gRPC endpoint. The effective Ledger version must be a semantic major v3 version. Ledger v2 migration previews and opaque development references are not supported because they do not select the primary v3 topology.
+- **Ledger operator**: its Credentials CRD and controller must support `spec.superuser`. Install the compatible Ledger operator and CRD before deploying this Operator.
 - **Connectivity operator**: the module delegates the actual workload to a `connectivity.formance.com/Connectivity` resource; the Connectivity v1 CRDs (`v1.0.0-alpha.1` or later) must be installed on the cluster.
 
 ## Connectivity Object
@@ -31,7 +32,7 @@ During reconciliation, the Operator may adopt same-name ownerless delegated Conn
 
 ## Ledger credential
 
-The Operator provisions a cluster-scoped `ledger.formance.com/Credentials` named `connectivity-<stack>`, selected onto the stack's ledger Cluster with `spec.selector.matchLabels[formance.com/stack]`, with god mode disabled and exactly the scope set Connectivity's ingestion path requires:
+The Operator provisions a cluster-scoped `ledger.formance.com/Credentials` named `connectivity-<stack>`, selected onto the stack's ledger Cluster with `spec.selector.matchLabels[formance.com/stack]`, with superuser mode disabled and exactly the scope set Connectivity's ingestion path requires:
 
 - `ledger:AccountRead` — cursor `GetAccount`
 - `ledger:LedgerWrite` — `CreateLedger`, `CreateIndex`, `SaveNumscript`
@@ -41,9 +42,9 @@ The Operator provisions a cluster-scoped `ledger.formance.com/Credentials` named
 
 The scope list is owned by the integration contract (see the [Ledger capability matrix](https://github.com/formancehq/connectivity/blob/main/docs/architecture/ledger-capabilities.md)); it is not configurable through the Connectivity CRD and is updated only when Connectivity's actual Ledger calls change. The delegated binding uses the supported `spec.auth.keyIdSecretKeyRef` and `spec.auth.secretKeyRef`, referencing `key-id` and `seed.hex` in the same Ledger-distributed Secret, with `spec.auth.subject=connectivity`. Reconciliation replaces the auth map to remove old inline or bundle fields. The Connectivity operator watches both Secret keys and restarts Core when either changes. The Operator creates no credential bundle or additional signing Secret.
 
-An existing god-mode Credentials converges to the narrowed spec on the next reconciliation, retaining its key ID and distributed Secret. After any credential update, the Operator waits for `status.phase=Ready` and `status.observedGeneration` to match `metadata.generation` before proceeding with delegation. This status confirms credential distribution; Ledger Cluster reconciliation applies the grants separately. Deploy a compatible Connectivity Core that emits non-god tokens with these scopes before narrowing the registered key; older Core versions that emit `god=true` will fail authentication after the change. Before releasing this Operator change, exercise the migration with an existing credential against a real Ledger, verify continued ingestion and denial of unrelated privileges, and record the exact Core, Operator and Ledger revisions. Kubernetes readiness alone does not prove authorization.
+An existing superuser Credentials converges to the narrowed spec on the next reconciliation, retaining its key ID and distributed Secret. After any credential update, the Operator waits for `status.phase=Ready` and `status.observedGeneration` to match `metadata.generation` before proceeding with delegation. This status confirms credential distribution; Ledger Cluster reconciliation applies the grants separately. Deploy a compatible Connectivity Core that emits scoped tokens with these scopes before narrowing the registered key; older Core versions that emit `superuser=true` will fail authentication after the change. Before releasing this Operator change, exercise the migration with an existing credential against a real Ledger, verify continued ingestion and denial of unrelated privileges, and record the exact Core, Operator and Ledger revisions. Kubernetes readiness alone does not prove authorization.
 
-If Ledger reports authorization errors, check the Credentials' current observed generation, `spec.god=false`, the five scopes, and the deployed Core token behavior. A version or scope mismatch requires compatible Core/Operator versions. Rolling back the Operator restores the previous god-mode grants on reconciliation; it widens privileges and must follow the deployment approval process.
+If Ledger reports authorization errors, check the Credentials' current observed generation, `spec.superuser=false`, the five scopes, and the deployed Core token behavior. A version or scope mismatch requires compatible Core/Operator versions. Rolling back the Operator restores the previous superuser grants on reconciliation; it widens privileges and must follow the deployment approval process.
 
 The rollout proof intentionally matches the Connectivity operator's supported rendering contract: `spec.api.auth` contains exactly `issuer` and `checkScopes`; the `api` container receives literal `AUTH_ENABLED`, `AUTH_ISSUER`, and `AUTH_CHECK_SCOPES` values; and a ClusterIP Service selects and routes to that container. These assumptions match the minimum supported Connectivity operator (`v1.0.0-alpha.1`). A future operator version that changes this schema or rendering remains fail closed: the public route stays revoked with a `ConnectivityAPIPending` condition until this integration is updated.
 
