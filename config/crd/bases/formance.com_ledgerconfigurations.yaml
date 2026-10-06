@@ -1188,39 +1188,24 @@ spec:
                         type: integer
                     type: object
                   clusterID:
-                    default: default
-                    description: ClusterID for inter-node communication validation.
+                    description: |-
+                      ClusterID for inter-node communication validation. When omitted, the
+                      operator generates and persists a UUID before creating workloads.
                     type: string
                     x-kubernetes-validations:
                     - message: clusterID is immutable once set
                       rule: oldSelf == '' || self == oldSelf
-                  coldStorage:
-                    description: ColdStorage configuration for chapter archival.
-                    properties:
-                      bucketId:
-                        description: BucketID is the shared namespace prefix for archives.
-                        type: string
-                      driver:
-                        description: 'Driver is the storage driver: "filesystem" or
-                          "s3".'
-                        type: string
-                      path:
-                        description: Path is the base path for filesystem driver.
-                        type: string
-                      s3:
-                        description: S3 configuration.
-                        properties:
-                          bucket:
-                            description: Bucket is the S3 bucket name.
-                            type: string
-                          endpoint:
-                            description: Endpoint is a custom S3 endpoint (for MinIO).
-                            type: string
-                          region:
-                            description: Region is the AWS region.
-                            type: string
-                        type: object
-                    type: object
+                  clusterPolicyRevision:
+                    description: |-
+                      ClusterPolicyRevision is the monotonic revision number the leader must
+                      propose to replace the committed cluster policy. Bump this whenever you
+                      change any metadata-limit field, idempotencyTTL, hashAlgorithm, or
+                      queryCheckpointLimit. The leader proposes the policy only when this
+                      exceeds the applied revision; setting a new value without bumping the
+                      revision logs a divergence error and changes nothing.
+                    format: int64
+                    minimum: 1
+                    type: integer
                   dataDir:
                     default: /data/app
                     description: DataDir is the application data directory.
@@ -1234,67 +1219,90 @@ spec:
                       LogLevel takes precedence when both are set; prefer LogLevel for new
                       manifests since it also unlocks the trace level.
                     type: boolean
-                  dnsEndpoint:
-                    description: DNSEndpoint configuration for ExternalDNS.
-                    properties:
-                      annotations:
-                        additionalProperties:
-                          type: string
-                        description: Annotations to add to the DNSEndpoint resource.
-                        type: object
-                      enabled:
-                        description: Enabled enables the DNSEndpoint resource.
-                        type: boolean
-                      endpoints:
-                        description: Endpoints is the list of DNS endpoint entries.
-                        items:
-                          description: DNSEndpointEntry defines a single DNS endpoint.
-                          properties:
-                            dnsName:
-                              description: DNSName is the hostname for the DNS record.
-                              type: string
-                            providerSpecific:
-                              description: ProviderSpecific holds provider-specific
-                                properties.
-                              items:
-                                description: ProviderSpecificProperty defines a provider-specific
-                                  key-value pair.
-                                properties:
-                                  name:
-                                    description: Name is the property name.
-                                    type: string
-                                  value:
-                                    description: Value is the property value.
-                                    type: string
-                                required:
-                                - name
-                                - value
-                                type: object
-                              type: array
-                            recordTTL:
-                              description: RecordTTL is the TTL in seconds for the
-                                DNS record.
-                              format: int64
-                              type: integer
-                            recordType:
-                              description: RecordType is the DNS record type (e.g.,
-                                CNAME, A). Defaults to CNAME.
-                              type: string
-                            targets:
-                              description: Targets is the list of target hostnames
-                                or IPs.
-                              items:
-                                type: string
-                              type: array
-                          required:
-                          - dnsName
-                          - targets
+                  dnsEndpoints:
+                    description: |-
+                      DNSEndpoints configures one or more ExternalDNS DNSEndpoint resources.
+                      Each entry is reconciled into its own DNSEndpoint object, so distinct
+                      endpoints (e.g. a public and a private one) can carry different
+                      annotations. Entries are keyed by their unique name.
+                    items:
+                      description: DNSEndpointSpec defines a single ExternalDNS DNSEndpoint
+                        configuration.
+                      properties:
+                        annotations:
+                          additionalProperties:
+                            type: string
+                          description: Annotations to add to the DNSEndpoint resource.
                           type: object
-                        type: array
-                    type: object
-                    x-kubernetes-validations:
-                    - message: endpoints are required when dnsEndpoint is enabled
-                      rule: '!self.enabled || size(self.endpoints) > 0'
+                        enabled:
+                          description: Enabled enables the DNSEndpoint resource.
+                          type: boolean
+                        endpoints:
+                          description: Endpoints is the list of DNS endpoint entries.
+                          items:
+                            description: DNSEndpointEntry defines a single DNS endpoint.
+                            properties:
+                              dnsName:
+                                description: DNSName is the hostname for the DNS record.
+                                type: string
+                              providerSpecific:
+                                description: ProviderSpecific holds provider-specific
+                                  properties.
+                                items:
+                                  description: ProviderSpecificProperty defines a
+                                    provider-specific key-value pair.
+                                  properties:
+                                    name:
+                                      description: Name is the property name.
+                                      type: string
+                                    value:
+                                      description: Value is the property value.
+                                      type: string
+                                  required:
+                                  - name
+                                  - value
+                                  type: object
+                                type: array
+                              recordTTL:
+                                description: RecordTTL is the TTL in seconds for the
+                                  DNS record.
+                                format: int64
+                                type: integer
+                              recordType:
+                                description: RecordType is the DNS record type (e.g.,
+                                  CNAME, A). Defaults to CNAME.
+                                type: string
+                              targets:
+                                description: Targets is the list of target hostnames
+                                  or IPs.
+                                items:
+                                  type: string
+                                type: array
+                            required:
+                            - dnsName
+                            - targets
+                            type: object
+                          type: array
+                        name:
+                          description: |-
+                            Name is a unique, stable identifier for this DNSEndpoint within the
+                            Cluster. It is used as the suffix of the generated DNSEndpoint object's
+                            name (e.g. "public", "private"), so it must be unique across entries and
+                            a valid DNS-1123 label (it is concatenated into the object's metadata.name).
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                      x-kubernetes-validations:
+                      - message: endpoints are required when the DNSEndpoint is enabled
+                        rule: '!self.enabled || size(self.endpoints) > 0'
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   extraEnv:
                     description: ExtraEnv is a list of additional environment variables
                       to inject into ledger containers.
@@ -1879,6 +1887,50 @@ spec:
                       (0 = unlimited). Default: 4096.
                     format: int32
                     type: integer
+                  metadataMaxCommandBytes:
+                    description: |-
+                      MetadataMaxCommandBytes is the maximum total metadata bytes one command
+                      may carry across all entities it touches. Bounds what a single accepted
+                      write can replicate through Raft. Must be >= metadataMaxEntityBytes.
+                      Replicated in the cluster policy; requires bumping clusterPolicyRevision.
+                      Default: 1048576 (1 MiB).
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  metadataMaxEntityBytes:
+                    description: |-
+                      MetadataMaxEntityBytes is the maximum total metadata bytes one command
+                      may carry for a single entity. Must not exceed metadataMaxCommandBytes.
+                      Replicated in the cluster policy; requires bumping clusterPolicyRevision.
+                      Default: 65536 (64 KiB).
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  metadataMaxEntries:
+                    description: |-
+                      MetadataMaxEntries is the maximum number of metadata entries one command
+                      may carry for a single entity (transaction, account, or ledger). This is
+                      replicated in the cluster policy; changing it requires bumping
+                      clusterPolicyRevision. Default: 128.
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  metadataMaxKeyBytes:
+                    description: |-
+                      MetadataMaxKeyBytes is the maximum metadata key size in bytes. Must not
+                      exceed metadataMaxEntityBytes. Replicated in the cluster policy; requires
+                      bumping clusterPolicyRevision. Default: 256.
+                    format: int64
+                    minimum: 1
+                    type: integer
+                  metadataMaxValueBytes:
+                    description: |-
+                      MetadataMaxValueBytes is the maximum metadata value size in bytes. Must
+                      not exceed metadataMaxEntityBytes. Replicated in the cluster policy;
+                      requires bumping clusterPolicyRevision. Default: 16384 (16 KiB).
+                    format: int64
+                    minimum: 1
+                    type: integer
                   metricsNaming:
                     description: |-
                       MetricsNaming selects the convention for metric names emitted
@@ -1993,12 +2045,40 @@ spec:
                             description: ApplicationName overrides the application
                               name.
                             type: string
-                          authToken:
-                            description: AuthToken for Pyroscope authentication.
-                            type: string
-                          basicAuthPassword:
-                            description: BasicAuthPassword for basic authentication.
-                            type: string
+                          authTokenFrom:
+                            description: AuthTokenFrom references a Pyroscope authentication
+                              token in a Secret in the Cluster namespace.
+                            properties:
+                              key:
+                                description: Key is the key within the Secret.
+                                type: string
+                              name:
+                                description: Name is the Secret name.
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                            x-kubernetes-validations:
+                            - message: secret name and key must be non-empty
+                              rule: self.name != '' && self.key != ''
+                          basicAuthPasswordFrom:
+                            description: BasicAuthPasswordFrom references a basic-auth
+                              password in a Secret in the Cluster namespace.
+                            properties:
+                              key:
+                                description: Key is the key within the Secret.
+                                type: string
+                              name:
+                                description: Name is the Secret name.
+                                type: string
+                            required:
+                            - key
+                            - name
+                            type: object
+                            x-kubernetes-validations:
+                            - message: secret name and key must be non-empty
+                              rule: self.name != '' && self.key != ''
                           basicAuthUser:
                             description: BasicAuthUser for basic authentication.
                             type: string
@@ -2061,17 +2141,6 @@ spec:
                           port:
                             description: Port for the trace exporter.
                             type: string
-                          sampling:
-                            description: Sampling configuration.
-                            properties:
-                              enabled:
-                                description: Enabled enables error-aware trace sampling.
-                                type: boolean
-                              successRatio:
-                                description: SuccessRatio is the sampling ratio for
-                                  successful traces (0.0-1.0).
-                                type: string
-                            type: object
                         type: object
                     type: object
                   networkPolicy:
@@ -2430,60 +2499,6 @@ spec:
                   persistence:
                     description: Persistence configuration for WAL and data volumes.
                     properties:
-                      coldCache:
-                        description: |-
-                          ColdCache persistence configuration for cold storage read cache.
-                          Uses a separate volume to avoid filling the data disk when reading archived chapters.
-                        properties:
-                          accessMode:
-                            default: ReadWriteOnce
-                            description: |-
-                              AccessMode for the PVC.
-                              Mutually exclusive with hostPath.
-                            type: string
-                          hostPath:
-                            description: |-
-                              HostPath configures a host-local volume instead of a PVC.
-                              When set, no PersistentVolumeClaim is created for this volume.
-                              The pod uses a hostPath volume mounted from the specified path on the node.
-                              Each pod gets an isolated subdirectory named after its ordinal index.
-                              This is intended for NVMe instance stores where Raft replication provides durability.
-                              Mutually exclusive with storageClass, accessMode, and volumeAttributesClassName.
-                            properties:
-                              path:
-                                description: |-
-                                  Path on the host node (e.g. "/mnt/nvme0/data").
-                                  Each pod gets an isolated subdirectory: <path>/<pod-ordinal>.
-                                type: string
-                              type:
-                                default: DirectoryOrCreate
-                                description: Type is the hostPath type.
-                                enum:
-                                - Directory
-                                - DirectoryOrCreate
-                                type: string
-                            required:
-                            - path
-                            type: object
-                          size:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            description: Size of the volume.
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                          storageClass:
-                            description: |-
-                              StorageClass for the PVC.
-                              Mutually exclusive with hostPath.
-                            type: string
-                          volumeAttributesClassName:
-                            description: |-
-                              VolumeAttributesClassName is the name of the VolumeAttributesClass to use for the PVC.
-                              Requires the VolumeAttributesClass feature gate to be enabled (beta in K8s 1.31+).
-                              Mutually exclusive with hostPath.
-                            type: string
-                        type: object
                       data:
                         description: Data persistence configuration.
                         properties:
@@ -2493,6 +2508,64 @@ spec:
                               AccessMode for the PVC.
                               Mutually exclusive with hostPath.
                             type: string
+                          autoExpansion:
+                            description: |-
+                              AutoExpansion configures opt-in automatic growth for PVC-backed WAL and
+                              data volumes. It is unsupported for hostPath volumes.
+                            properties:
+                              cooldown:
+                                default: 8h
+                                description: |-
+                                  Cooldown is the minimum delay between completed expansion decisions.
+                                  EBS policies must use at least six hours; the default is eight hours.
+                                type: string
+                              enabled:
+                                default: false
+                                description: Enabled opts this volume into automatic
+                                  expansion. It defaults to false.
+                                type: boolean
+                              maximumSize:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: |-
+                                  MaximumSize is the hard upper bound for automatic expansion. It is
+                                  required when Enabled is true.
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              minimumIncrement:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                default: 10Gi
+                                description: MinimumIncrement is the smallest capacity
+                                  increase requested at once.
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              targetPercent:
+                                default: 55
+                                description: TargetPercent is the utilization percentage
+                                  the new capacity targets.
+                                format: int32
+                                maximum: 98
+                                minimum: 1
+                                type: integer
+                              thresholdPercent:
+                                default: 70
+                                description: ThresholdPercent is the utilization percentage
+                                  that triggers expansion.
+                                format: int32
+                                maximum: 99
+                                minimum: 1
+                                type: integer
+                            type: object
+                            x-kubernetes-validations:
+                            - message: maximumSize is required when auto-expansion
+                                is enabled
+                              rule: '!self.enabled || has(self.maximumSize)'
+                            - message: targetPercent must be lower than thresholdPercent
+                              rule: '!has(self.targetPercent) || !has(self.thresholdPercent)
+                                || self.targetPercent < self.thresholdPercent'
                           hostPath:
                             description: |-
                               HostPath configures a host-local volume instead of a PVC.
@@ -2521,7 +2594,10 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: Size of the volume.
+                            description: |-
+                              Size is the initial and minimum requested capacity of the volume. Automatic
+                              expansion updates the live PVCs only and never rewrites this field or the
+                              StatefulSet VolumeClaimTemplates.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           storageClass:
@@ -2571,6 +2647,64 @@ spec:
                               AccessMode for the PVC.
                               Mutually exclusive with hostPath.
                             type: string
+                          autoExpansion:
+                            description: |-
+                              AutoExpansion configures opt-in automatic growth for PVC-backed WAL and
+                              data volumes. It is unsupported for hostPath volumes.
+                            properties:
+                              cooldown:
+                                default: 8h
+                                description: |-
+                                  Cooldown is the minimum delay between completed expansion decisions.
+                                  EBS policies must use at least six hours; the default is eight hours.
+                                type: string
+                              enabled:
+                                default: false
+                                description: Enabled opts this volume into automatic
+                                  expansion. It defaults to false.
+                                type: boolean
+                              maximumSize:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: |-
+                                  MaximumSize is the hard upper bound for automatic expansion. It is
+                                  required when Enabled is true.
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              minimumIncrement:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                default: 10Gi
+                                description: MinimumIncrement is the smallest capacity
+                                  increase requested at once.
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              targetPercent:
+                                default: 55
+                                description: TargetPercent is the utilization percentage
+                                  the new capacity targets.
+                                format: int32
+                                maximum: 98
+                                minimum: 1
+                                type: integer
+                              thresholdPercent:
+                                default: 70
+                                description: ThresholdPercent is the utilization percentage
+                                  that triggers expansion.
+                                format: int32
+                                maximum: 99
+                                minimum: 1
+                                type: integer
+                            type: object
+                            x-kubernetes-validations:
+                            - message: maximumSize is required when auto-expansion
+                                is enabled
+                              rule: '!self.enabled || has(self.maximumSize)'
+                            - message: targetPercent must be lower than thresholdPercent
+                              rule: '!has(self.targetPercent) || !has(self.thresholdPercent)
+                                || self.targetPercent < self.thresholdPercent'
                           hostPath:
                             description: |-
                               HostPath configures a host-local volume instead of a PVC.
@@ -2599,7 +2733,10 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            description: Size of the volume.
+                            description: |-
+                              Size is the initial and minimum requested capacity of the volume. Automatic
+                              expansion updates the live PVCs only and never rewrites this field or the
+                              StatefulSet VolumeClaimTemplates.
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
                           storageClass:
@@ -2879,8 +3016,10 @@ spec:
                         type: object
                     type: object
                   queryProfileThreshold:
-                    description: QueryProfileThreshold logs and emits OTel attributes
-                      for queries exceeding this duration (0 to disable).
+                    description: |-
+                      QueryProfileThreshold logs and emits OTel attributes for reads whose total
+                      server-side handling (excluding the caller-requested read barrier) exceeds
+                      this duration. 0 disables the slow-read log.
                     type: string
                   raft:
                     description: Raft consensus configuration.
@@ -3269,20 +3408,6 @@ spec:
                           More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
                         format: int32
                         type: integer
-                    type: object
-                  receiptSigning:
-                    description: ReceiptSigning configures HMAC signing for JWT transaction
-                      receipts.
-                    properties:
-                      secretKey:
-                        default: key
-                        description: SecretKey is the key in the secret containing
-                          the HMAC key.
-                        type: string
-                      secretName:
-                        description: SecretName is the Kubernetes secret containing
-                          the HMAC key.
-                        type: string
                     type: object
                   replicas:
                     default: 3

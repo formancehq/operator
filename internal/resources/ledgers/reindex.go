@@ -10,6 +10,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/jobs"
 )
 
 func createReindexCronJob(ctx core.Context, ledger *v1beta1.Ledger) (*batchv1.CronJob, error) {
@@ -38,7 +39,7 @@ func createReindexCronJob(ctx core.Context, ledger *v1beta1.Ledger) (*batchv1.Cr
 			},
 		}
 
-		return nil
+		return jobs.ApplyNodeSelector(ctx, ledger.GetStack(), &t.Spec.JobTemplate.Spec.Template.Spec)
 	}, core.WithController[*batchv1.CronJob](ctx.GetScheme(), ledger))
 	return cronJob, err
 }

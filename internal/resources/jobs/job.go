@@ -175,6 +175,9 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 		withRunAs(ctx, owner),
 		withSettingEnvVars(ctx, owner),
 		withSettingAnnotations(ctx, owner),
+		Mutator(func(job *batchv1.Job) error {
+			return ApplyNodeSelector(ctx, owner.GetStack(), &job.Spec.Template.Spec)
+		}),
 	)
 	for _, option := range append(defaultOptions, options...) {
 		option(configuration)

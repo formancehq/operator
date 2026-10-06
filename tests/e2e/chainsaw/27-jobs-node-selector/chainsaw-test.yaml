@@ -1,0 +1,102 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: jobs-node-selector
+  labels:
+    suite: settings
+    feature: jobs-node-selector
+spec:
+  concurrent: false
+  steps:
+    - name: generated-job-without-node-selector-setting
+      try:
+        - apply:
+            file: resources/stack.yaml
+        - apply:
+            file: resources/postgres-setting.yaml
+        - apply:
+            file: resources/database-default.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              namespace=chainsaw-jobs-node-selector
+              uid="$(kubectl get database chainsaw-jobs-default -o jsonpath='{.metadata.uid}')"
+              job="${uid}-create-database"
+              while ! kubectl get job "$job" -n "$namespace" >/dev/null 2>&1; do
+                sleep 1
+              done
+              test "$(kubectl get job "$job" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].kind}')" = "Database"
+              test "$(kubectl get job "$job" -n "$namespace" -o jsonpath='{.spec.template.spec.nodeSelector}')" = ""
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh jobs-node-selector-default
+    - name: invalid-setting-prevents-job-creation
+      try:
+        - apply:
+            file: resources/invalid-node-selector-setting.yaml
+        - apply:
+            file: resources/cache-barrier.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              # Both Settings use the same informer. Observing the later replica
+              # setting proves the controller cache has consumed the invalid selector.
+              while [ "$(kubectl get deployment gateway -n chainsaw-jobs-node-selector -o jsonpath='{.spec.replicas}' 2>/dev/null || true)" != "0" ]; do
+                sleep 1
+              done
+        - apply:
+            file: resources/database-on-demand.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              while true; do
+                info="$(kubectl get database chainsaw-jobs-on-demand -o jsonpath='{.status.info}')"
+                case "$info" in
+                  *"reading jobs.nodeSelector"*) break ;;
+                  *) sleep 1 ;;
+                esac
+              done
+              uid="$(kubectl get database chainsaw-jobs-on-demand -o jsonpath='{.metadata.uid}')"
+              if kubectl get job "${uid}-create-database" -n chainsaw-jobs-node-selector >/dev/null 2>&1; then
+                echo "invalid jobs.nodeSelector must prevent Job creation"
+                exit 1
+              fi
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh jobs-node-selector-invalid
+    - name: fixing-setting-reconciles-job-and-pod-with-selector
+      try:
+        - apply:
+            file: resources/node-selector-setting.yaml
+        - script:
+            timeout: 2m
+            content: |
+              set -eu
+              namespace=chainsaw-jobs-node-selector
+              uid="$(kubectl get database chainsaw-jobs-on-demand -o jsonpath='{.metadata.uid}')"
+              job="${uid}-create-database"
+              while ! kubectl get job "$job" -n "$namespace" >/dev/null 2>&1; do
+                sleep 1
+              done
+              test "$(kubectl get job "$job" -n "$namespace" -o jsonpath='{.metadata.ownerReferences[0].name}')" = "chainsaw-jobs-on-demand"
+              test "$(kubectl get job "$job" -n "$namespace" -o jsonpath='{.spec.template.spec.nodeSelector.karpenter\.sh/capacity-type}')" = "on-demand"
+              while [ -z "$(kubectl get pod -n "$namespace" -l "job-name=$job" -o name)" ]; do
+                sleep 1
+              done
+              test "$(kubectl get pod -n "$namespace" -l "job-name=$job" -o jsonpath='{.items[0].spec.nodeSelector.karpenter\.sh/capacity-type}')" = "on-demand"
+              # Kind has no matching on-demand node; Kubernetes must not ignore the selector.
+              kubectl wait pod -n "$namespace" -l "job-name=$job" \
+                --for=jsonpath='{.status.conditions[?(@.type=="PodScheduled")].reason}'=Unschedulable --timeout=1m
+              test "$(kubectl get pod -n "$namespace" -l "job-name=$job" -o jsonpath='{.items[0].status.phase}')" = "Pending"
+              test "$(kubectl get pod -n "$namespace" -l "job-name=$job" -o jsonpath='{.items[0].spec.nodeName}')" = ""
+              original_uid="$(kubectl get database chainsaw-jobs-default -o jsonpath='{.metadata.uid}')"
+              test "$(kubectl get job "${original_uid}-create-database" -n "$namespace" -o jsonpath='{.spec.template.spec.nodeSelector}')" = ""
+      catch:
+        - script:
+            timeout: 2m
+            content: ../../scripts/dump-diagnostics.sh jobs-node-selector-configured
