@@ -19,6 +19,7 @@ package connectivities
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -260,7 +261,7 @@ func newCredsTestContext(t *testing.T, objs ...client.Object) credsTestContext {
 	}
 }
 
-func TestEnsureLedgerCredentialsCreatesGodCredentialAndReportsPending(t *testing.T) {
+func TestEnsureLedgerCredentialsCreatesSuperuserCredentialAndReportsPending(t *testing.T) {
 	ctx := newCredsTestContext(t)
 	stack := &v1beta1.Stack{}
 	stack.Name = "stack0"
@@ -273,14 +274,14 @@ func TestEnsureLedgerCredentialsCreatesGodCredentialAndReportsPending(t *testing
 		t.Fatalf("freshly created credential must be pending, got ready=%v keyID=%q secret=%q", ready, keyID, secret)
 	}
 
-	// The Credentials must have been created cluster-scoped with god + selector.
+	// The Credentials must have been created cluster-scoped with superuser + selector.
 	got := &unstructured.Unstructured{}
 	got.SetGroupVersionKind(ledgerCredentialsGVK)
 	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "connectivity-stack0"}, got); err != nil {
 		t.Fatalf("Credentials was not created: %v", err)
 	}
-	if god, _, _ := unstructured.NestedBool(got.Object, "spec", "god"); !god {
-		t.Error("Credentials must have spec.god=true")
+	if superuser, _, _ := unstructured.NestedBool(got.Object, "spec", "superuser"); !superuser {
+		t.Error("Credentials must have spec.superuser=true")
 	}
 	if sel, _, _ := unstructured.NestedStringMap(got.Object, "spec", "selector", "matchLabels"); sel["formance.com/stack"] != "stack0" {
 		t.Errorf("selector.matchLabels[formance.com/stack] = %q, want stack0", sel["formance.com/stack"])
@@ -290,11 +291,45 @@ func TestEnsureLedgerCredentialsCreatesGodCredentialAndReportsPending(t *testing
 	}
 }
 
+func TestEnsureLedgerCredentialsMigratesLegacyGodField(t *testing.T) {
+	for _, legacyGod := range []bool{false, true} {
+		t.Run(fmt.Sprintf("god=%v", legacyGod), func(t *testing.T) {
+			existing := newLedgerCredentialsForStack("stack0")
+			existing.SetUID(types.UID("existing-credential"))
+			if err := unstructured.SetNestedField(existing.Object, legacyGod, "spec", "god"); err != nil {
+				t.Fatal(err)
+			}
+			ctx := newCredsTestContext(t, existing)
+			stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack0-uid")}}
+
+			for range 2 {
+				if _, _, _, err := ensureLedgerCredentials(ctx, stack); err != nil {
+					t.Fatalf("ensureLedgerCredentials: %v", err)
+				}
+			}
+			got := &unstructured.Unstructured{}
+			got.SetGroupVersionKind(ledgerCredentialsGVK)
+			if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(existing), got); err != nil {
+				t.Fatal(err)
+			}
+			if _, found, err := unstructured.NestedFieldNoCopy(got.Object, "spec", "god"); err != nil || found {
+				t.Fatalf("legacy spec.god must be removed, found=%v err=%v", found, err)
+			}
+			if superuser, _, err := unstructured.NestedBool(got.Object, "spec", "superuser"); err != nil || !superuser {
+				t.Fatalf("spec.superuser must be true, got=%v err=%v", superuser, err)
+			}
+			if got.GetUID() != existing.GetUID() {
+				t.Fatal("migration must update the existing credential in place")
+			}
+		})
+	}
+}
+
 func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(ledgerCredentialsGVK)
 	existing.SetName("connectivity-stack1")
-	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+	_ = unstructured.SetNestedField(existing.Object, true, "spec", "superuser")
 	_ = unstructured.SetNestedStringMap(existing.Object, map[string]string{"formance.com/stack": "stack1"}, "spec", "selector", "matchLabels")
 	_ = unstructured.SetNestedStringSlice(existing.Object, []string{"stack1"}, "spec", "additionalNamespaces")
 	_ = unstructured.SetNestedField(existing.Object, "Ready", "status", "phase")
@@ -324,11 +359,11 @@ func TestEnsureLedgerCredentialsReportsKeyAndSecretWhenReady(t *testing.T) {
 
 func TestDeleteLedgerCredentialsFinalizerDeletesCredential(t *testing.T) {
 	// A Connectivity being deleted (deletion timestamp + finalizer set) whose
-	// god-mode ledger Credentials still exists cluster-scoped.
+	// superuser ledger Credentials still exists cluster-scoped.
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(ledgerCredentialsGVK)
 	existing.SetName("connectivity-stack0")
-	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+	_ = unstructured.SetNestedField(existing.Object, true, "spec", "superuser")
 
 	connectivity := &v1beta1.Connectivity{}
 	connectivity.Name = "stack0"
@@ -375,7 +410,7 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 	existing := &unstructured.Unstructured{}
 	existing.SetGroupVersionKind(ledgerCredentialsGVK)
 	existing.SetName("connectivity-stack0")
-	_ = unstructured.SetNestedField(existing.Object, true, "spec", "god")
+	_ = unstructured.SetNestedField(existing.Object, true, "spec", "superuser")
 
 	stack := &v1beta1.Stack{
 		ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack0-uid")},
@@ -1000,7 +1035,7 @@ func gatewayHTTPAPIExists(t *testing.T, ctx credsTestContext, stackName string) 
 	return err == nil
 }
 
-// newLedgerCredentialsForStack returns the cluster-scoped god-mode Credentials
+// newLedgerCredentialsForStack returns the cluster-scoped superuser Credentials
 // as ensureLedgerCredentials provisions it: named "connectivity-<stack>".
 func newLedgerCredentialsForStack(stackName string) *unstructured.Unstructured {
 	cred := &unstructured.Unstructured{}
@@ -1029,7 +1064,7 @@ func setStackOwnedLedgerCredentials(
 	})
 }
 
-// credentialsExist reports whether the cluster-scoped god-mode Credentials for
+// credentialsExist reports whether the cluster-scoped superuser Credentials for
 // the stack is still present in the cluster.
 func credentialsExist(t *testing.T, ctx credsTestContext, stackName string) bool {
 	t.Helper()
@@ -1096,7 +1131,7 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerVersionIsOpaque(t *tes
 		t.Error("GatewayHTTPAPI must be torn down when the ledger is not v3")
 	}
 	if credentialsExist(t, ctx, "stack0") {
-		t.Error("god-mode Credentials must be torn down when the ledger is not v3")
+		t.Error("superuser Credentials must be torn down when the ledger is not v3")
 	}
 }
 
@@ -1264,7 +1299,7 @@ func TestConnectivityReconcileRetriesUnavailableCapabilityWhenGateUnresolved(t *
 		t.Error("GatewayHTTPAPI must be revoked while the gate is unresolved")
 	}
 	if !credentialsExist(t, ctx, stack.Name) {
-		t.Error("god-mode Credentials must be kept while the gate is unresolved")
+		t.Error("superuser Credentials must be kept while the gate is unresolved")
 	}
 }
 
@@ -1458,7 +1493,7 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 		t.Error("GatewayHTTPAPI must be torn down despite an unrelated auth resolution failure")
 	}
 	if credentialsExist(t, ctx, stack.Name) {
-		t.Error("god-mode Credentials must be torn down despite an unrelated auth resolution failure")
+		t.Error("superuser Credentials must be torn down despite an unrelated auth resolution failure")
 	}
 }
 
@@ -1543,7 +1578,7 @@ func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
 		t.Error("GatewayHTTPAPI must NOT be torn down on a transient ledger-not-ready gate")
 	}
 	if !credentialsExist(t, ctx, "stack0") {
-		t.Error("god-mode Credentials must NOT be torn down on a transient ledger-not-ready gate")
+		t.Error("superuser Credentials must NOT be torn down on a transient ledger-not-ready gate")
 	}
 }
 
@@ -2410,7 +2445,7 @@ func TestConnectivityReconcilePendingWhenCapabilityUnavailable(t *testing.T) {
 
 // When the connectivity operator becomes unavailable after resources were
 // provisioned AND the ledger hard gate has since closed, the capability
-// short-circuit must not skip the teardown: the gateway route and god-mode
+// short-circuit must not skip the teardown: the gateway route and superuser
 // Credentials still have to be removed.
 func TestConnectivityReconcileTearsDownWhenCapabilityUnavailableAndLedgerGateClosed(t *testing.T) {
 	previous := connectivityAvailable
@@ -2443,7 +2478,7 @@ func TestConnectivityReconcileTearsDownWhenCapabilityUnavailableAndLedgerGateClo
 		t.Error("GatewayHTTPAPI must be torn down when the capability is unavailable and the ledger gate is closed")
 	}
 	if credentialsExist(t, ctx, "stack0") {
-		t.Error("god-mode Credentials must be torn down when the capability is unavailable and the ledger gate is closed")
+		t.Error("superuser Credentials must be torn down when the capability is unavailable and the ledger gate is closed")
 	}
 }
 
@@ -2492,7 +2527,7 @@ func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbid
 		t.Error("GatewayHTTPAPI must still be deleted independently")
 	}
 	if credentialsExist(t, ctx, stack.Name) {
-		t.Error("god-mode Credentials must still be revoked independently")
+		t.Error("superuser Credentials must still be revoked independently")
 	}
 }
 
@@ -2600,7 +2635,7 @@ func TestConnectivityReconcileRevokesGatewayWhenLedgerLookupFails(t *testing.T) 
 }
 
 // A failure to delete one resource during the hard teardown must not leave the
-// others behind: the public GatewayHTTPAPI and the god-mode Credentials still
+// others behind: the public GatewayHTTPAPI and the superuser Credentials still
 // have to be removed even when the delegated Connectivity delete fails (e.g. its
 // CRD/API was removed after startup), and the failure must surface.
 func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
@@ -2643,7 +2678,7 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 		t.Error("GatewayHTTPAPI must still be torn down when the delegated Connectivity delete fails")
 	}
 	if credentialsExist(t, ctx, "stack0") {
-		t.Error("god-mode Credentials must still be torn down when the delegated Connectivity delete fails")
+		t.Error("superuser Credentials must still be torn down when the delegated Connectivity delete fails")
 	}
 }
 
@@ -2855,7 +2890,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 }
 
 // newReadyLedgerPrerequisites returns a ready v3 Ledger and its provisioned
-// god-mode Credentials for stack0, the common prerequisites of a Reconcile
+// superuser Credentials for stack0, the common prerequisites of a Reconcile
 // reaching the delegated-resource provisioning.
 func newReadyLedgerPrerequisites() (*v1beta1.Ledger, *unstructured.Unstructured) {
 	ledger := &v1beta1.Ledger{}
