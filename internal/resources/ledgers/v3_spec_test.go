@@ -17,15 +17,14 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	t.Parallel()
 
 	base := &ledgerv1alpha1.ClusterSpec{
-		Image: ledgerv1alpha1.ImageSpec{PullPolicy: corev1.PullAlways},
+		Image:                 ledgerv1alpha1.ImageSpec{PullPolicy: corev1.PullAlways},
+		ClusterPolicyRevision: pointerTo(int64(2)),
+		MetadataMaxEntries:    pointerTo(int64(256)),
 		Monitoring: &ledgerv1alpha1.MonitoringConfig{
 			Pyroscope:      &ledgerv1alpha1.PyroscopeConfig{Enabled: true, ServerAddress: "http://pyroscope"},
 			FlightRecorder: &ledgerv1alpha1.FlightRecorderConfig{Enabled: true, MinAge: "30s"},
-			Traces: &ledgerv1alpha1.TracesConfig{
-				Sampling: &ledgerv1alpha1.TraceSamplingConfig{Enabled: true, SuccessRatio: "0.1"},
-			},
-			Metrics: &ledgerv1alpha1.MetricsConfig{KeepInMemory: pointerTo(true)},
-			Logs:    &ledgerv1alpha1.LogsConfig{Level: "warn"},
+			Metrics:        &ledgerv1alpha1.MetricsConfig{KeepInMemory: pointerTo(true)},
+			Logs:           &ledgerv1alpha1.LogsConfig{Level: "warn"},
 		},
 		Auth: &ledgerv1alpha1.AuthorizationConfig{
 			ScopeMapping:    map[string][]string{"ledger:read": {"ledger:accounts:read"}},
@@ -117,7 +116,8 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 
 	require.True(t, actual.Monitoring.Pyroscope.Enabled)
 	require.Equal(t, "30s", actual.Monitoring.FlightRecorder.MinAge)
-	require.Equal(t, "0.1", actual.Monitoring.Traces.Sampling.SuccessRatio)
+	require.Equal(t, int64(2), *actual.ClusterPolicyRevision)
+	require.Equal(t, int64(256), *actual.MetadataMaxEntries)
 	require.True(t, *actual.Monitoring.Metrics.KeepInMemory)
 	require.Equal(t, "warn", actual.Monitoring.Logs.Level)
 	require.Equal(t, "ledger", actual.Monitoring.ServiceName)
