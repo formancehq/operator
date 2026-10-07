@@ -13,7 +13,7 @@ This candidate excludes main's #547 (Job node selectors), #545 (Ledger cluster-I
 
 ## Compatibility and migration gates
 
-This is a behavior and integration-contract change despite the requested patch version. An existing superuser credential is narrowed to five scopes; a Core emitting superuser tokens becomes incompatible. The Ledger API dependency and generated LedgerConfiguration schemas also change: `coldStorage`, `dnsEndpoint`, `receiptSigning`, and `monitoring.traces` are removed; `dnsEndpoints`, `clusterPolicyRevision`, and five `metadataMax*` fields are added; `clusterID` loses its `default` value. Kubernetes can prune removed fields on CRD update. The Ledger reconciler replaces the full delegated Cluster spec from its typed configuration, so reconciliation can also remove fields from existing Clusters. Inventory the actual LedgerConfiguration and Cluster objects and preserve their intended configuration through an approved migration before applying the new CRD or Operator. Human approval must explicitly cover these impacts before integration or publication; the selected version number does not certify compatibility.
+This is a behavior and integration-contract change despite the requested patch version. An existing superuser credential is narrowed to five scopes; a Core emitting superuser tokens becomes incompatible. The Ledger API dependency and generated LedgerConfiguration schemas also change: `coldStorage`, `dnsEndpoint`, `receiptSigning`, and `monitoring.traces.sampling` are removed; `dnsEndpoints`, `clusterPolicyRevision`, and five `metadataMax*` fields are added; `clusterID` loses its `default` value. Kubernetes can prune removed fields when objects pass through the updated schema; replacing the CRD alone is not proof that all stored objects have already changed. The Ledger reconciler replaces the full delegated Cluster spec from its typed configuration, so reconciliation can also remove fields from existing Clusters. Inventory the actual LedgerConfiguration and Cluster objects and preserve their intended configuration through an approved migration before applying the new CRD or Operator. Human approval must explicitly cover these impacts before integration or publication; the selected version number does not certify compatibility.
 
 1. Install a compatible Ledger operator and Credentials CRD supporting `spec.superuser`, before deploying this Stack Operator. The source API dependency is Ledger beta.9 commit `4fe8ed8c07726da05eb678591e0e4960a821d919`. Regions main currently locks ledger-operator `3.0.0-beta.1`, whose Credentials API uses `spec.god`; that historical pin is not compatible evidence. The Helm lane owns the final compatible chart pin and corresponding runtime image.
 2. Install compatible Connectivity CRDs supporting `spec.auth.keyIdSecretKeyRef` and `spec.auth.secretKeyRef`. Bind `key-id` and `seed.hex` from the same Ledger-distributed Secret, with subject `connectivity`. No bundle or derived signing Secret is introduced.
@@ -24,6 +24,54 @@ This is a behavior and integration-contract change despite the requested patch v
 If Connectivity remains in `LedgerCredentialsPending`, inspect the served Credentials CRD and Ledger operator revision first. A legacy CRD can prune `superuser`; the Operator may then repeatedly report an update and remain pending while legacy god grants remain active. This failure signature is inferred from source and must be exercised or rejected by runtime evidence; do not treat an old Ready status as success.
 
 Rolling back to v3.16.0 restores the previous superuser grants on reconciliation and the old Ledger API behavior. Treat this as privilege widening with a version-skew risk, requiring explicit operational approval and an exercised recovery plan that states the Ledger operator version and the LedgerConfiguration/Cluster schema used before and after recovery. Never infer safe rollback from Helm readiness.
+
+## Exact removed schema paths and OVH evidence limits
+
+Comparing the v1beta1 structural schema in `config/crd/bases/formance.com_ledgerconfigurations.yaml` at v3.16.0 and #548 (`0cdf98803609dd1510ce02bd79e44e23d209378d`) yields the following 35 removed property paths. `[]` marks array items; parent and child paths are listed separately. This inventory describes source schema changes, not effective live configuration.
+
+```text
+spec.cluster.coldStorage
+spec.cluster.coldStorage.bucketId
+spec.cluster.coldStorage.driver
+spec.cluster.coldStorage.path
+spec.cluster.coldStorage.s3
+spec.cluster.coldStorage.s3.bucket
+spec.cluster.coldStorage.s3.endpoint
+spec.cluster.coldStorage.s3.region
+spec.cluster.dnsEndpoint
+spec.cluster.dnsEndpoint.annotations
+spec.cluster.dnsEndpoint.enabled
+spec.cluster.dnsEndpoint.endpoints
+spec.cluster.dnsEndpoint.endpoints[].dnsName
+spec.cluster.dnsEndpoint.endpoints[].providerSpecific
+spec.cluster.dnsEndpoint.endpoints[].providerSpecific[].name
+spec.cluster.dnsEndpoint.endpoints[].providerSpecific[].value
+spec.cluster.dnsEndpoint.endpoints[].recordTTL
+spec.cluster.dnsEndpoint.endpoints[].recordType
+spec.cluster.dnsEndpoint.endpoints[].targets
+spec.cluster.monitoring.pyroscope.authToken
+spec.cluster.monitoring.pyroscope.basicAuthPassword
+spec.cluster.monitoring.traces.sampling
+spec.cluster.monitoring.traces.sampling.enabled
+spec.cluster.monitoring.traces.sampling.successRatio
+spec.cluster.persistence.coldCache
+spec.cluster.persistence.coldCache.accessMode
+spec.cluster.persistence.coldCache.hostPath
+spec.cluster.persistence.coldCache.hostPath.path
+spec.cluster.persistence.coldCache.hostPath.type
+spec.cluster.persistence.coldCache.size
+spec.cluster.persistence.coldCache.storageClass
+spec.cluster.persistence.coldCache.volumeAttributesClassName
+spec.cluster.receiptSigning
+spec.cluster.receiptSigning.secretKey
+spec.cluster.receiptSigning.secretName
+```
+
+`spec.cluster.monitoring.traces` remains present; only its `sampling` subtree is removed. `spec.cluster.persistence.data.accessMode` retains the same type and `ReadWriteOnce` default. Their apparent removal in a textual diff must not be treated as a removed schema path. The `spec.cluster.clusterID` property remains present but loses its `default: default` value; path comparison alone does not detect that changed default.
+
+The Infra owner's read-only OVH checkpoint reports zero explicit LedgerConfiguration objects. This does not prove that Settings, private Helm values, chart defaults, future manifests, or existing Ledger Cluster specs do not use removed configuration. Regions consumes a Secret through valuesFrom; no secret content was read or decrypted. Owners must compare authorized redacted effective values and Cluster specs with this schema before approving migration.
+
+The OVH Flux CI includes a shared `fluxcd.yml` template; its effective validation contract has not been inspected in this lane. No passing render/schema gate is inferred from that include. The Flux writer/grant, exact Stack, compatible published tuple, effective-values render, independent reviews and exercised runtime/recovery remain gates. No Flux edit, branch, push, manual deployment, AWS diff or cluster mutation is performed by this inventory.
 
 ## Preparation branch and delivery evidence
 
