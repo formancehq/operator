@@ -73,6 +73,25 @@ The Infra owner's read-only OVH checkpoint reports zero explicit LedgerConfigura
 
 The OVH Flux CI includes a shared `fluxcd.yml` template; its effective validation contract has not been inspected in this lane. No passing render/schema gate is inferred from that include. The Flux writer/grant, exact Stack, compatible published tuple, effective-values render, independent reviews and exercised runtime/recovery remain gates. No Flux edit, branch, push, manual deployment, AWS diff or cluster mutation is performed by this inventory.
 
+## Pyroscope credential migration before schema adoption
+
+The new schema replaces inline profiling credentials with Secret references. Each reference requires a non-empty Secret `name` and `key` and resolves in the delegated Ledger Cluster namespace:
+
+| Removed field under `spec.cluster.monitoring.pyroscope` | Replacement |
+| --- | --- |
+| `authToken` | `authTokenFrom.name` and `authTokenFrom.key` |
+| `basicAuthPassword` | `basicAuthPasswordFrom.name` and `basicAuthPasswordFrom.key` |
+
+Keep `basicAuthUser` where basic authentication is used; that field remains supported. Retain the existing authentication method rather than enabling both modes as part of this migration.
+
+1. The configuration owner inventories which profiling authentication mode is used in the approved effective configuration, including Settings, private Helm values and existing Cluster specs. Record only field/reference presence and namespace ownership; never print credential values or copy them into this repository or review comments.
+2. Before adopting the new schema, the owning GitOps lane prepares the existing credential material through its approved Secret-management mechanism in each relevant Cluster namespace. Do not remove the old configuration until the compatible Ledger operator can resolve the new references. This preparation document authorizes no Secret creation, decryption or cluster mutation.
+3. Prepare the Secret selectors and the matching compatible operator/CRD rollout together. Do not apply the selectors to an old schema that prunes them, or drop the inline fields before the references can be used. Review the effective configuration without secrets and establish the explicit ordering/recovery plan before any separately authorized GitOps integration or reconciliation.
+4. During separately authorized qualification, verify that profiling delivery still succeeds and that a missing Secret/key produces an actionable failure. Check that reference-only configuration survives admission and reconciliation without silently disabling profiling. Readiness alone does not establish successful authentication to the profiling service.
+5. Recover using the approved operator/schema/configuration tuple if reference resolution or delivery fails. Preserve the original credential material in the approved Secret-management system for that recovery window; do not reconstruct inline credentials from this document or assume a downgrade understands the new selectors.
+
+This is a required migration procedure for existing profiling users, not evidence that OVH uses these fields or that any credential has been moved. The actual configuration inventory, Secret owner, rollout ordering and exercised recovery remain gates.
+
 ## Preparation branch and delivery evidence
 
 The preparation PR targets `chore/v3.16.1-baseline`, anchored at the existing v3.16.0 tag. It is not a PR to main: merging the selected backport into main would not remove #547 and cannot produce this frozen patch. The baseline is a review anchor, not an authorized release. The eventual source/ref to tag requires a separate integration decision. No `build-images` or `deploy-staging` label is part of preparation.
