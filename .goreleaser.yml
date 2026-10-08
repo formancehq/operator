@@ -4,7 +4,7 @@ project_name: operator
 
 includes:
   - from_url:
-      url: https://raw.githubusercontent.com/formancehq/earthly/refs/heads/main/.goreleaser.default.yaml
+      url: https://raw.githubusercontent.com/formancehq/earthly/refs/heads/main/.goreleaser.default-v2.yaml
 
 builds:
   - binary: operator
@@ -40,14 +40,14 @@ builds:
 
 archives:
   - id: "{{.ProjectName}}"
-    builds:
+    ids:
       - operator
-    format: tar.gz
+    formats: [tar.gz]
     name_template: "{{.ProjectName}}_{{.Os}}-{{.Arch}}"
   - id: "operator-utils"
-    builds:
+    ids:
       - operator-utils
-    format: tar.gz
+    formats: [tar.gz]
     name_template: "operator-utils_{{.Os}}-{{.Arch}}"
 
 release:
@@ -57,96 +57,100 @@ release:
     - Read the [documentation](https://docs.formance.com/)
     - Join our [GitHub Discussions](https://github.com/orgs/formancehq/discussions)
 
-dockers:
-  - image_templates:
-      [
-        "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64",
-      ]
-    goarch: amd64
-    dockerfile: ./tools/utils/build.Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --provenance=false
-      - --platform=linux/amd64
-      - --label=org.opencontainers.image.title=operator-utils
-      - --label=org.opencontainers.image.description=operator-utils
-      - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.source=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.licenses=MIT
-  - image_templates:
-      [
-        "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64",
-      ]
-    goarch: arm64
-    dockerfile: ./tools/utils/build.Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --provenance=false
-      - --platform=linux/arm64/v8
-      - --label=org.opencontainers.image.title=operator-utils
-      - --label=org.opencontainers.image.description=operator-utils
-      - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.source=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.licenses=MIT
-  # From scratch
-  - image_templates:
-      [
-        "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64-scratch",
-      ]
-    goarch: amd64
-    dockerfile: ./tools/utils/scratch.Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --provenance=false
-      - --platform=linux/amd64
-      - --label=org.opencontainers.image.title=operator-utils
-      - --label=org.opencontainers.image.description=operator-utils
-      - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.source=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.licenses=MIT
-  - image_templates:
-      [
-        "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64-scratch",
-      ]
-    goarch: arm64
-    dockerfile: ./tools/utils/scratch.Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --provenance=false
-      - --platform=linux/arm64/v8
-      - --label=org.opencontainers.image.title=operator-utils
-      - --label=org.opencontainers.image.description=operator-utils
-      - --label=org.opencontainers.image.url=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.source=https://github.com/formancehq/operator
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
-      - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.licenses=MIT
-
-docker_manifests:
-  - name_template: "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}"
-    image_templates:
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64"
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64"
-  - name_template: "{{ if not .IsNightly }}ghcr.io/formancehq/operator-utils:latest{{ end }}"
-    image_templates:
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64"
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64"
-  # From scratch
-  - name_template: "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-scratch"
-    image_templates:
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64-scratch"
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64-scratch"
-  - name_template: "{{ if not .IsNightly }}ghcr.io/formancehq/operator-utils:latest-scratch{{ end }}"
-    image_templates:
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64-scratch"
-      - "ghcr.io/formancehq/operator-utils:{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64-scratch"
+dockers_v2:
+- id: operator-utils-standard
+  dockerfile: ./tools/utils/build.Dockerfile
+  images:
+  - ghcr.io/formancehq/operator-utils
+  tags:
+  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}'
+  - '{{ if not .IsNightly }}latest{{ end }}'
+  platforms:
+  - linux/amd64
+  - linux/arm64/v8
+  flags:
+  - --provenance=false
+  sbom: false
+  labels: &id001
+    org.opencontainers.image.title: operator-utils
+    org.opencontainers.image.description: operator-utils
+    org.opencontainers.image.url: https://github.com/formancehq/operator
+    org.opencontainers.image.source: https://github.com/formancehq/operator
+    org.opencontainers.image.version: '{{ .Version }}'
+    org.opencontainers.image.created: '{{ time "2006-01-02T15:04:05Z07:00" }}'
+    org.opencontainers.image.revision: '{{ .FullCommit }}'
+    org.opencontainers.image.licenses: MIT
+  ids:
+  - operator-utils
+- id: operator-utils-scratch
+  dockerfile: ./tools/utils/scratch.Dockerfile
+  images:
+  - ghcr.io/formancehq/operator-utils
+  tags:
+  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-scratch'
+  - '{{ if not .IsNightly }}latest-scratch{{ end }}'
+  platforms:
+  - linux/amd64
+  - linux/arm64/v8
+  flags:
+  - --provenance=false
+  sbom: false
+  labels: *id001
+  ids:
+  - operator-utils
+- id: operator-utils-amd64
+  dockerfile: ./tools/utils/build.Dockerfile
+  images:
+  - ghcr.io/formancehq/operator-utils
+  tags:
+  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64'
+  platforms:
+  - linux/amd64
+  flags:
+  - --provenance=false
+  sbom: false
+  labels: *id001
+  ids:
+  - operator-utils
+- id: operator-utils-amd64-scratch
+  dockerfile: ./tools/utils/scratch.Dockerfile
+  images:
+  - ghcr.io/formancehq/operator-utils
+  tags:
+  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64-scratch'
+  platforms:
+  - linux/amd64
+  flags:
+  - --provenance=false
+  sbom: false
+  labels: *id001
+  ids:
+  - operator-utils
+- id: operator-utils-arm64
+  dockerfile: ./tools/utils/build.Dockerfile
+  images:
+  - ghcr.io/formancehq/operator-utils
+  tags:
+  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64'
+  platforms:
+  - linux/arm64/v8
+  flags:
+  - --provenance=false
+  sbom: false
+  labels: *id001
+  ids:
+  - operator-utils
+- id: operator-utils-arm64-scratch
+  dockerfile: ./tools/utils/scratch.Dockerfile
+  images:
+  - ghcr.io/formancehq/operator-utils
+  tags:
+  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64-scratch'
+  platforms:
+  - linux/arm64/v8
+  flags:
+  - --provenance=false
+  sbom: false
+  labels: *id001
+  ids:
+  - operator-utils
