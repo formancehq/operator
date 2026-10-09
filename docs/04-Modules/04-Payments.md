@@ -6,6 +6,10 @@ Formance Payments requires:
 - **PostgreSQL**: See configuration guide [here](../05-Infrastructure%20services/01-PostgreSQL.md).
 - (Optional) **Broker**: See configuration guide [here](../05-Infrastructure%20services/02-Message%20broker.md).
 
+Payments cannot be installed alongside Ledger v3 (including prereleases).
+Remove the Payments module before switching the stack's Ledger from v2 to v3.
+Stacks without a Ledger module remain supported.
+
 ## Payments Object
 
 :::info

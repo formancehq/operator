@@ -32,6 +32,7 @@ import (
 	"github.com/formancehq/operator/v3/internal/resources/databases"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
 	"github.com/formancehq/operator/v3/internal/resources/jobs"
+	"github.com/formancehq/operator/v3/internal/resources/ledgers"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 )
 
@@ -139,7 +140,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, p *v1beta1.Payments, version s
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
-			NoRequirements(),
+			Requirements(
+				Require(&v1beta1.Ledger{}, IfPresent(), VersionBefore(v1beta1.LedgerV3Version)),
+			),
+			WithUnsatisfiedRequirementsHandler(ledgers.CleanupLegacyModuleOnV3[*v1beta1.Payments](
+				&v1beta1.GatewayHTTPAPI{}, &appsv1.Deployment{}, &batchv1.Job{},
+				&corev1.Service{}, &corev1.ConfigMap{}, &v1beta1.BenthosStream{},
+			)),
 			WithFinalizer[*v1beta1.Payments]("clean-payments", Clean),
 			WithOwn[*v1beta1.Payments](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Payments](&corev1.Service{}),

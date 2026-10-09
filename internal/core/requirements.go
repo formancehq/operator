@@ -38,13 +38,14 @@ type ModuleRequirements struct {
 	requirements []Requirement
 }
 
-// Requirement describes one mandatory Stack-bound dependency.
+// Requirement describes constraints on one Stack-bound dependency.
 //
 // Fields are private so declarations can only be built with Require and its
 // options, and validated once when the controller is set up.
 type Requirement struct {
 	dependency          v1beta1.Dependent
 	requireReady        bool
+	ifPresent           bool
 	minVersionInclusive string
 	maxVersionExclusive string
 	minVersionSet       bool
@@ -63,7 +64,7 @@ func (option requirementOptionFunc) apply(requirement *Requirement) {
 	option(requirement)
 }
 
-// Requirements declares one or more mandatory dependencies.
+// Requirements declares one or more dependency constraints.
 func Requirements(requirements ...Requirement) ModuleRequirements {
 	return ModuleRequirements{
 		declared:     true,
@@ -93,6 +94,14 @@ func Require(dependency v1beta1.Dependent, options ...RequirementOption) Require
 func Ready() RequirementOption {
 	return requirementOptionFunc(func(requirement *Requirement) {
 		requirement.requireReady = true
+	})
+}
+
+// IfPresent applies the other constraints only when the dependency exists.
+// Ambiguous or failed lookups still block reconciliation.
+func IfPresent() RequirementOption {
+	return requirementOptionFunc(func(requirement *Requirement) {
+		requirement.ifPresent = true
 	})
 }
 
@@ -309,6 +318,13 @@ func evaluateRequirement(ctx Context, stack *v1beta1.Stack, requirement Requirem
 	err := GetSingleDependency(ctx, stack.Name, dependency)
 	switch {
 	case errors.Is(err, ErrNotFound):
+		if requirement.ifPresent {
+			return requirementsEvaluation{
+				status:  metav1.ConditionTrue,
+				reason:  requirementsSatisfiedReason,
+				message: fmt.Sprintf("optional dependency %s is absent in Stack %s", kind, stack.Name),
+			}
+		}
 		return requirementsEvaluation{
 			status:  metav1.ConditionFalse,
 			reason:  dependencyNotFoundReason,
