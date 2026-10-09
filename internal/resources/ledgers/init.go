@@ -168,6 +168,7 @@ func init() {
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.MCP{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Orchestration{}),
+			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Payments{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Reconciliation{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Search{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.TransactionPlane{}),

@@ -18,6 +18,7 @@ var ledgerV3IncompatibleModules = []struct {
 }{
 	{kind: "MCP", newModule: func() client.Object { return &v1beta1.MCP{} }},
 	{kind: "Orchestration", newModule: func() client.Object { return &v1beta1.Orchestration{} }},
+	{kind: "Payments", newModule: func() client.Object { return &v1beta1.Payments{} }},
 	{kind: "Reconciliation", newModule: func() client.Object { return &v1beta1.Reconciliation{} }},
 	{kind: "TransactionPlane", newModule: func() client.Object { return &v1beta1.TransactionPlane{} }},
 	{kind: "Wallets", newModule: func() client.Object { return &v1beta1.Wallets{} }},

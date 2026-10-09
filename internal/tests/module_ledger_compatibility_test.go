@@ -46,6 +46,18 @@ var _ = Describe("Ledger v3 module compatibility", func() {
 			},
 		},
 		{
+			name: "Payments",
+			newModule: func(stack string) v1beta1.Module {
+				return &v1beta1.Payments{
+					ObjectMeta: RandObjectMeta(),
+					Spec: v1beta1.PaymentsSpec{
+						StackDependency:  v1beta1.StackDependency{Stack: stack},
+						ModuleProperties: v1beta1.ModuleProperties{Version: "v2.0.0"},
+					},
+				}
+			},
+		},
+		{
 			name: "Reconciliation",
 			newModule: func(stack string) v1beta1.Module {
 				return &v1beta1.Reconciliation{
@@ -90,6 +102,98 @@ var _ = Describe("Ledger v3 module compatibility", func() {
 			},
 		},
 	}
+
+	It("reevaluates Payments when only the catalog Ledger version changes and permits Ledger absence", func() {
+		versions := &v1beta1.Versions{
+			ObjectMeta: RandObjectMeta(),
+			Spec:       map[string]string{"ledger": "v2.4.0", "payments": "v2.0.0"},
+		}
+		stack := &v1beta1.Stack{
+			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.StackSpec{VersionsFromFile: versions.Name},
+		}
+		ledger := &v1beta1.Ledger{
+			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.LedgerSpec{StackDependency: v1beta1.StackDependency{Stack: stack.Name}},
+		}
+		payments := &v1beta1.Payments{
+			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.PaymentsSpec{StackDependency: v1beta1.StackDependency{Stack: stack.Name}},
+		}
+		Expect(Create(versions, stack, ledger, payments)).To(Succeed())
+		DeferCleanup(func() {
+			for _, object := range []client.Object{payments, ledger, stack, versions} {
+				Expect(client.IgnoreNotFound(Delete(object))).To(Succeed())
+			}
+		})
+		assertDependencies := func(status metav1.ConditionStatus, reason string) {
+			Eventually(func(g Gomega) string {
+				g.Expect(LoadResource("", payments.Name, payments)).To(Succeed())
+				condition := payments.GetConditions().Get(core.DependenciesSatisfiedCondition)
+				g.Expect(condition).NotTo(BeNil())
+				g.Expect(condition.Status).To(Equal(status))
+				return condition.Reason
+			}).Should(Equal(reason))
+		}
+		assertDependencies(metav1.ConditionTrue, "RequirementsSatisfied")
+		Expect(LoadResource("", versions.Name, versions)).To(Succeed())
+		patch := client.MergeFrom(versions.DeepCopy())
+		versions.Spec["ledger"] = "v3.0.0-beta.9"
+		Expect(Patch(versions, patch)).To(Succeed())
+		assertDependencies(metav1.ConditionFalse, "DependencyVersionMismatch")
+
+		Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+		patch = client.MergeFrom(ledger.DeepCopy())
+		ledger.Spec.Version = "v2.4.0"
+		Expect(Patch(ledger, patch)).To(Succeed())
+		assertDependencies(metav1.ConditionTrue, "RequirementsSatisfied")
+
+		Expect(Delete(ledger)).To(Succeed())
+		assertDependencies(metav1.ConditionTrue, "RequirementsSatisfied")
+		Eventually(func() bool {
+			err := Get(types.NamespacedName{Name: ledger.Name}, &v1beta1.Ledger{})
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
+	})
+
+	It("blocks Ledger v3 materialization when Payments is the only incompatible module", func() {
+		stack := &v1beta1.Stack{ObjectMeta: RandObjectMeta(), Spec: v1beta1.StackSpec{Version: "v3.0.0"}}
+		ledger := &v1beta1.Ledger{
+			ObjectMeta: RandObjectMeta(),
+			Spec:       v1beta1.LedgerSpec{StackDependency: v1beta1.StackDependency{Stack: stack.Name}},
+		}
+		payments := &v1beta1.Payments{
+			ObjectMeta: RandObjectMeta(),
+			Spec: v1beta1.PaymentsSpec{
+				StackDependency:  v1beta1.StackDependency{Stack: stack.Name},
+				ModuleProperties: v1beta1.ModuleProperties{Version: "v2.0.0"},
+			},
+		}
+		Expect(Create(stack, payments, ledger)).To(Succeed())
+		DeferCleanup(func() {
+			for _, object := range []client.Object{payments, ledger, stack} {
+				Expect(client.IgnoreNotFound(Delete(object))).To(Succeed())
+			}
+		})
+		Eventually(func(g Gomega) string {
+			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+			condition := ledger.GetConditions().Get("LedgerV3ClusterReady")
+			g.Expect(condition).NotTo(BeNil())
+			g.Expect(condition.Reason).To(Equal("IncompatibleModules"))
+			return condition.Message
+		}).Should(ContainSubstring("Payments"))
+		Consistently(func() bool {
+			err := Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, primaryLedgerV3Cluster(stack.Name))
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
+		Expect(Delete(payments)).To(Succeed())
+		Eventually(func(g Gomega) string {
+			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+			condition := ledger.GetConditions().Get("LedgerV3ClusterReady")
+			g.Expect(condition).NotTo(BeNil())
+			return condition.Reason
+		}).ShouldNot(Equal("IncompatibleModules"))
+	})
 
 	for _, testCase := range testCases {
 		testCase := testCase

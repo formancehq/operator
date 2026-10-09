@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -250,6 +251,45 @@ func TestEvaluateLedgerEffectiveVersionRequirement(t *testing.T) {
 
 			evaluation := evaluateModuleRequirements(ctx, stack, Requirements(test.requirement))
 
+			require.Equal(t, test.wantStatus, evaluation.status)
+			require.Equal(t, test.wantReason, evaluation.reason)
+		})
+	}
+}
+
+func TestEvaluateOptionalLedgerRequirement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		versions   []string
+		wantStatus metav1.ConditionStatus
+		wantReason string
+	}{
+		{name: "no Ledger", wantStatus: metav1.ConditionTrue, wantReason: requirementsSatisfiedReason},
+		{name: "Ledger v2", versions: []string{"v2.4.0"}, wantStatus: metav1.ConditionTrue, wantReason: requirementsSatisfiedReason},
+		{name: "Ledger v3 prerelease", versions: []string{"v3.0.0-beta.9"}, wantStatus: metav1.ConditionFalse, wantReason: dependencyVersionMismatchReason},
+		{name: "Ledger v3", versions: []string{"v3.0.0"}, wantStatus: metav1.ConditionFalse, wantReason: dependencyVersionMismatchReason},
+		{name: "opaque Ledger version", versions: []string{"main"}, wantStatus: metav1.ConditionUnknown, wantReason: dependencyVersionNotSemverReason},
+		{name: "unresolved Ledger version", versions: []string{""}, wantStatus: metav1.ConditionUnknown, wantReason: dependencyVersionUnresolvedReason},
+		{name: "multiple Ledgers", versions: []string{"v2.4.0", "v2.4.0"}, wantStatus: metav1.ConditionFalse, wantReason: multipleDependenciesFoundReason},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var objects []client.Object
+			for i, version := range test.versions {
+				objects = append(objects, &v1beta1.Ledger{
+					ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("ledger-%d", i)},
+					Spec: v1beta1.LedgerSpec{
+						StackDependency:  v1beta1.StackDependency{Stack: "stack"},
+						ModuleProperties: v1beta1.ModuleProperties{Version: version},
+					},
+				})
+			}
+			ctx, stack := newRequirementsTestContext(t, objects...)
+			evaluation := evaluateModuleRequirements(ctx, stack, Requirements(
+				Require(&v1beta1.Ledger{}, IfPresent(), VersionBefore(v1beta1.LedgerV3Version)),
+			))
 			require.Equal(t, test.wantStatus, evaluation.status)
 			require.Equal(t, test.wantReason, evaluation.reason)
 		})

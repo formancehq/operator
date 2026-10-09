@@ -12,12 +12,13 @@ Some module reconcilers currently coordinate with another object in the same Sta
 - Connectivity requires a ready Ledger whose effective version supports the Ledger v3 integration;
 - future versions of a module may support only a bounded range of another module's versions.
 
-The first implementation records seven confirmed Ledger relationships:
+The first implementation records eight confirmed Ledger relationships:
 
 - Connectivity declares Ledger presence in the shared requirements layer, then its reconciler requires the effective Ledger version to be a semantic major v3 (`>= v3.0.0-0` and `< v4.0.0-0`);
+- Payments permits Ledger absence but requires Ledger `< v3.0.0-0` when present.
 - MCP, Orchestration (Flows), Reconciliation, TransactionPlane, Wallets, and Webhooks require Ledger `< v3.0.0-0`.
 
-All seven relationships require presence. The six legacy consumers also declare their version constraint in the shared layer. Connectivity keeps its exact version and readiness gates in its reconciler because a non-SemVer reference must trigger its module-specific hard teardown, whereas the shared version evaluator correctly classifies such a reference as unresolved. The other six modules do not add a readiness gate in this change.
+Seven relationships require presence. Payments uses `IfPresent()` to preserve stacks without Ledger, while requiring Ledger `< v3.0.0-0` when installed. All seven legacy consumers declare their version constraint in the shared layer. Connectivity keeps its exact version and readiness gates in its reconciler because a non-SemVer reference must trigger its module-specific hard teardown, whereas the shared version evaluator correctly classifies such a reference as unresolved. The seven legacy modules do not add a readiness gate in this change.
 
 These rules are currently implicit in individual reconcilers. Each caller is responsible for finding the dependency, resolving versions, checking readiness, installing watches, reporting errors, and deciding whether reconciliation can continue. The resulting behaviour is difficult to discover and is not consistent across modules.
 
@@ -59,13 +60,13 @@ Making `Requirements(...)` or `NoRequirements()` a required argument ensures tha
 
 ### Requirement
 
-A **requirement** is a condition declared by a module about one other Stack-bound object. The first implementation supports:
+A **requirement** is a condition declared by a module about one other Stack-bound object. The requirements model supports:
 
-- **presence**: exactly one matching, non-deleting object exists in the same Stack;
+- **presence**: exactly one matching, non-deleting object exists in the same Stack, unless `IfPresent()` permits absence;
 - **readiness**: the dependency reports `status.ready=true`;
 - **effective version**: a dependency that implements `v1beta1.Module` resolves to a version inside a declared SemVer range.
 
-All requirements are mandatory and combined with logical AND. Optional relationships remain ordinary reconciler behaviour until a concrete optional-requirement use case justifies extending the interface.
+All requirements are combined with logical AND. Presence is mandatory by default. `IfPresent()` permits an absent dependency but still enforces its version and readiness constraints when present; ambiguous or failed lookups remain unsatisfied or unknown.
 
 ### Dependency
 
@@ -118,6 +119,7 @@ func Require(
 	options ...RequirementOption,
 ) Requirement
 
+func IfPresent() RequirementOption
 func Ready() RequirementOption
 func VersionAtLeast(minInclusive string) RequirementOption
 func VersionBefore(maxExclusive string) RequirementOption
@@ -229,8 +231,8 @@ Modules such as Connectivity may need explicit cleanup after a certain incompati
 Legacy Ledger consumers require an additional transition guard. Changing the
 desired Ledger version to v3 does not immediately delete their working v2
 runtimes. Instead, the Ledger reconciler refuses to materialize the primary v3
-`Cluster` while MCP, Orchestration, Reconciliation, TransactionPlane, Wallets,
-or Webhooks objects still exist. The module objects are watched, so deleting the
+`Cluster` while MCP, Orchestration, Payments, Reconciliation, TransactionPlane,
+Wallets, or Webhooks objects still exist. The module objects are watched, so deleting the
 last incompatible module automatically resumes Ledger reconciliation.
 
 If a primary Ledger v3 `Cluster` already exists alongside one of these legacy
@@ -264,7 +266,7 @@ For example, a future ready `Broker` requirement could remove the repeated prese
 
 1. Implement and unit-test the requirements model.
 2. Integrate it into `WithModuleReconciler` and require every module registration to choose `Requirements(...)` or `NoRequirements()`.
-3. Record the confirmed Ledger relationships for Connectivity, MCP, TransactionPlane, Orchestration, Reconciliation, Wallets, and Webhooks; keep Connectivity's exact major-v3 gate local while declaring the six legacy ranges in the shared layer.
+3. Record the confirmed Ledger relationships for Connectivity, MCP, TransactionPlane, Orchestration, Payments, Reconciliation, Wallets, and Webhooks; keep Connectivity's exact major-v3 gate local while declaring the seven legacy ranges in the shared layer.
 4. Demonstrate Broker presence/readiness and Ledger version constraints with focused core tests.
 5. Add focused tests for effective-version overrides, `Versions` lookup, invalid SemVer, range boundaries, generated dependency watches, and module-specific cleanup hooks.
 6. Separate preparation from gating before migrating Broker readiness or another dependency provisioned by its consumer.
@@ -299,5 +301,5 @@ The design is demonstrated when:
 - Connectivity cleanup runs only when Ledger is missing or its effective version definitively resolves outside semantic major v3;
 - a Ledger v2 to v3 transition keeps legacy module runtimes active while blocking primary v3 Cluster materialization;
 - an already materialized primary Ledger v3 Cluster removes incompatible module runtimes and exposure without deleting durable data;
-- Connectivity declares Ledger presence plus its local semantic-major-v3 gate, while MCP, TransactionPlane, Orchestration, Reconciliation, Wallets, and Webhooks declare their confirmed Ledger ranges;
+- Connectivity declares Ledger presence plus its local semantic-major-v3 gate, while MCP, TransactionPlane, Orchestration, Payments, Reconciliation, Wallets, and Webhooks declare their confirmed Ledger ranges (Payments permits Ledger absence);
 - existing module tests continue to pass.
