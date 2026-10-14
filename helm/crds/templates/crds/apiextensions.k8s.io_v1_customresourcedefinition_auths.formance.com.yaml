@@ -130,11 +130,12 @@ spec:
                   In that case, being authenticated is sufficient.
                 type: boolean
               signingKey:
-                description: Overrides the default signing key used to sign JWT tokens.
+                description: Overrides the generated per-stack signing key used to
+                  sign JWT tokens.
                 type: string
               signingKeyFromSecret:
-                description: Overrides the default signing key used to sign JWT tokens,
-                  using a k8s secret
+                description: Overrides the generated per-stack signing key using a
+                  Kubernetes Secret.
                 properties:
                   key:
                     description: The key of the secret to select from.  Must be a
