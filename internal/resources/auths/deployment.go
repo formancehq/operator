@@ -79,12 +79,26 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 	}
 	if auth.Spec.SigningKey != "" {
 		env = append(env, Env("SIGNING_KEY", auth.Spec.SigningKey))
-	}
-	if auth.Spec.SigningKeyFromSecret != nil {
+	} else if auth.Spec.SigningKeyFromSecret != nil {
 		env = append(env, corev1.EnvVar{
 			Name: "SIGNING_KEY",
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: auth.Spec.SigningKeyFromSecret,
+			},
+		})
+	} else {
+		secret, err := ensureSigningKeySecret(ctx, auth)
+		if err != nil {
+			return err
+		}
+		annotations["auth-signing-key-version"] = secret.ResourceVersion
+		env = append(env, corev1.EnvVar{
+			Name: "SIGNING_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: signingKeySecretName},
+					Key:                  signingKeySecretData,
+				},
 			},
 		})
 	}

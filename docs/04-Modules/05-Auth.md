@@ -21,6 +21,10 @@ spec:
   stack: formance-dev
 ```
 
+When no signing key is configured, the operator generates a unique RSA private key for the stack in the `auth-signing-key` Secret and injects it into Auth. The Secret is retained across reconciliations. Use `signingKeyFromSecret` when key ownership or rotation is managed externally.
+
+When you upgrade an existing Auth instance that used the service's built-in key, the new key invalidates tokens signed before the upgrade. Clients must request new tokens after the Auth Deployment restarts.
+
 ### Define oAuth2 clients
 You can define oAuth2 clients to secure your stack. The Auth will then be able to authenticate the incoming requests and forward them to the right service.
 

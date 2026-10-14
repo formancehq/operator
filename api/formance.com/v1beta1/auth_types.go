@@ -40,10 +40,10 @@ type AuthSpec struct {
 	// Contains information about a delegated authentication server to use to delegate authentication
 	DelegatedOIDCServer *DelegatedOIDCServerConfiguration `json:"delegatedOIDCServer,omitempty"`
 	//+optional
-	// Overrides the default signing key used to sign JWT tokens.
+	// Overrides the generated per-stack signing key used to sign JWT tokens.
 	SigningKey string `json:"signingKey,omitempty"`
 	//+optional
-	// Overrides the default signing key used to sign JWT tokens, using a k8s secret
+	// Overrides the generated per-stack signing key using a Kubernetes Secret.
 	SigningKeyFromSecret *v1.SecretKeySelector `json:"signingKeyFromSecret,omitempty"`
 	//+optional
 	// Enables scope checking during authentication.
