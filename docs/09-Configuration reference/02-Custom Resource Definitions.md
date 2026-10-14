@@ -443,8 +443,8 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `delegatedOIDCServer` _[DelegatedOIDCServerConfiguration](#delegatedoidcserverconfiguration)_ | Contains information about a delegated authentication server to use to delegate authentication |  |  |
-| `signingKey` _string_ | Overrides the default signing key used to sign JWT tokens. |  |  |
-| `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Overrides the default signing key used to sign JWT tokens, using a k8s secret |  |  |
+| `signingKey` _string_ | Overrides the generated per-stack signing key used to sign JWT tokens. |  |  |
+| `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Overrides the generated per-stack signing key using a Kubernetes Secret. |  |  |
 | `enableScopes` _boolean_ | Enables scope checking during authentication.<br />If not enabled, each service will check the authentication but will not restrict access according to scopes.<br />In that case, being authenticated is sufficient. | false |  |
 
 ###### DelegatedOIDCServerConfiguration

@@ -1,6 +1,8 @@
 package tests_test
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"strings"
 
@@ -64,7 +66,19 @@ var _ = Describe("AuthController", func() {
 				Expect(deployment).To(BeControlledBy(auth))
 				Expect(deployment.Spec.Template.Spec.Containers[0].Env).To(ContainElements(
 					core.Env("BASE_URL", "http://auth:8080"),
+					core.EnvFromSecret("SIGNING_KEY", "auth-signing-key", "signing-key"),
 				))
+			})
+			By("Should create a per-stack signing key secret", func() {
+				secret := &corev1.Secret{}
+				Eventually(func() error {
+					return LoadResource(stack.Name, "auth-signing-key", secret)
+				}).Should(Succeed())
+				Expect(secret).To(BeControlledBy(auth))
+				block, _ := pem.Decode(secret.Data["signing-key"])
+				Expect(block).NotTo(BeNil())
+				_, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+				Expect(err).NotTo(HaveOccurred())
 			})
 			By("Should create a pdb", func() {
 				pdb := &v1.PodDisruptionBudget{}
@@ -95,6 +109,25 @@ var _ = Describe("AuthController", func() {
 					return reference
 				}).Should(BeTrue())
 			})
+		})
+		It("keeps the generated signing key across reconciliations", func() {
+			secret := &corev1.Secret{}
+			Eventually(func() error {
+				return LoadResource(stack.Name, "auth-signing-key", secret)
+			}).Should(Succeed())
+			originalKey := append([]byte(nil), secret.Data["signing-key"]...)
+
+			patch := client.MergeFrom(auth.DeepCopy())
+			auth.Spec.Dev = true
+			Expect(Patch(auth, patch)).To(Succeed())
+
+			Eventually(func(g Gomega) []corev1.EnvVar {
+				deployment := &appsv1.Deployment{}
+				g.Expect(LoadResource(stack.Name, "auth", deployment)).To(Succeed())
+				return deployment.Spec.Template.Spec.Containers[0].Env
+			}).Should(ContainElement(core.Env("CAOS_OIDC_DEV", "1")))
+			Expect(LoadResource(stack.Name, "auth-signing-key", secret)).To(Succeed())
+			Expect(secret.Data["signing-key"]).To(Equal(originalKey))
 		})
 		Context("Then when disabling the stack", func() {
 			JustBeforeEach(func() {

@@ -27,6 +27,12 @@ postgresql://postgres:5432?secret=postgres&secretCredentialsEncoding=raw
 
 The operator consumes both `secret` and `secretCredentialsEncoding`; neither parameter is included in the final PostgreSQL connection URI.
 
+## Auth signing keys in Operator v3.18.0
+
+The `operator` chart `3.18.0` deploys Operator `v3.18.0` and its matching `operator-crds` chart in one Helm upgrade. If an Auth resource does not set `signingKey` or `signingKeyFromSecret`, the operator creates a private signing key in that stack's `auth-signing-key` Secret.
+
+Existing Auth instances that used the service's built-in key switch to the generated key when Auth rolls out. Previously issued JWTs then stop validating, so clients must request new tokens. Auth instances with an explicit signing key keep using that key.
+
 ## Components upgrade
 The upgrade process is managed by the operator, who will upgrade the components one by one, as specified in the `versions` CRD. Any migration that needs to be carried out will also be managed by the operator.
 
