@@ -4,10 +4,10 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
 
 	v1beta1 "github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
@@ -16,21 +16,15 @@ import (
 
 var _ = Describe("NetworkPolicyController", func() {
 	Context("When creating a Stack", func() {
-		var (
-			stack *v1beta1.Stack
-		)
+		var stack *v1beta1.Stack
 		BeforeEach(func() {
 			stack = &v1beta1.Stack{
 				ObjectMeta: RandObjectMeta(),
 				Spec:       v1beta1.StackSpec{Version: "v99.0.0"},
 			}
 		})
-		JustBeforeEach(func() {
-			Expect(Create(stack)).To(BeNil())
-		})
-		AfterEach(func() {
-			Expect(Delete(stack)).To(BeNil())
-		})
+		JustBeforeEach(func() { Expect(Create(stack)).To(Succeed()) })
+		AfterEach(func() { Expect(Delete(stack)).To(Succeed()) })
 
 		It("Should not create NetworkPolicies by default", func() {
 			Consistently(func() int {
@@ -41,216 +35,106 @@ var _ = Describe("NetworkPolicyController", func() {
 		})
 
 		Context("With networkpolicies.enabled=true", func() {
-			var (
-				enabledSetting *v1beta1.Settings
-			)
+			var enabledSetting *v1beta1.Settings
 			JustBeforeEach(func() {
 				enabledSetting = settings.New(uuid.NewString(), "networkpolicies.enabled", "true", stack.Name)
 				Expect(Create(enabledSetting)).To(Succeed())
 			})
 			AfterEach(func() {
-				Expect(Delete(enabledSetting)).To(Succeed())
+				// The Settings deletion test has already removed this resource.
+				if enabledSetting != nil {
+					Expect(Delete(enabledSetting)).To(Succeed())
+				}
 			})
 
-			It("Should create NetworkPolicies controlled by the stack", func() {
-				// Check default-deny-ingress
+			It("Should create exactly two ingress policies controlled by the stack", func() {
 				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "default-deny-ingress", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
-					g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
-					g.Expect(np.Spec.Ingress).To(BeEmpty())
-				}).Should(Succeed())
+					npList := &networkingv1.NetworkPolicyList{}
+					g.Expect(List(npList, client.InNamespace(stack.Name))).To(Succeed())
+					g.Expect(npList.Items).To(HaveLen(2))
 
-				// Check allow-gateway-ingress
-				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "allow-gateway-ingress", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
-					g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "gateway"))
-					g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
-					g.Expect(np.Spec.Ingress).To(HaveLen(1))
-				}).Should(Succeed())
-
-				// Check allow-from-gateway
-				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "allow-from-gateway", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
-					g.Expect(np.Spec.PolicyTypes).To(ContainElement(networkingv1.PolicyTypeIngress))
-					g.Expect(np.Spec.Ingress).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "gateway"))
-				}).Should(Succeed())
-
-				// Direct Ledger v3 replicas can communicate on configured service ports.
-				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-cluster", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
-					g.Expect(np.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{
-						"app.kubernetes.io/instance": stack.Name,
-						"app.kubernetes.io/name":     "ledger",
+					local := &networkingv1.NetworkPolicy{}
+					g.Expect(LoadResource(stack.Name, "allow-same-namespace", local)).To(Succeed())
+					g.Expect(local).To(BeControlledBy(stack))
+					g.Expect(local.Spec.PodSelector).To(Equal(metav1.LabelSelector{}))
+					g.Expect(local.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeIngress}))
+					g.Expect(local.Spec.Egress).To(BeEmpty())
+					g.Expect(local.Spec.Ingress).To(HaveLen(1))
+					g.Expect(local.Spec.Ingress[0].Ports).To(BeEmpty())
+					g.Expect(local.Spec.Ingress[0].From).To(Equal([]networkingv1.NetworkPolicyPeer{
+						{PodSelector: &metav1.LabelSelector{}},
 					}))
-					g.Expect(np.Spec.Ingress).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
-					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(np.Spec.PodSelector.MatchLabels))
-					g.Expect(np.Spec.Ingress[0].Ports).To(BeEmpty())
+
+					gateway := &networkingv1.NetworkPolicy{}
+					g.Expect(LoadResource(stack.Name, "allow-gateway-ingress", gateway)).To(Succeed())
+					g.Expect(gateway).To(BeControlledBy(stack))
+					g.Expect(gateway.Spec.PodSelector).To(Equal(metav1.LabelSelector{
+						MatchLabels: map[string]string{"app.kubernetes.io/name": "gateway"},
+					}))
+					g.Expect(gateway.Spec.PolicyTypes).To(Equal([]networkingv1.PolicyType{networkingv1.PolicyTypeIngress}))
+					g.Expect(gateway.Spec.Egress).To(BeEmpty())
+					g.Expect(gateway.Spec.Ingress).To(HaveLen(1))
+					g.Expect(gateway.Spec.Ingress[0].From).To(BeEmpty())
+					g.Expect(gateway.Spec.Ingress[0].Ports).To(HaveLen(1))
+					protocol := corev1.ProtocolTCP
+					g.Expect(gateway.Spec.Ingress[0].Ports[0].Protocol).To(Equal(&protocol))
+					g.Expect(gateway.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8080))
 				}).Should(Succeed())
-
-				// Existing preview clusters keep their historical immutable selector.
-				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "allow-ledger-v3-preview-cluster", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
-					g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("formance.com/ledger-v3-preview", "true"))
-					g.Expect(np.Spec.Ingress).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(np.Spec.PodSelector.MatchLabels))
-					g.Expect(np.Spec.Ingress[0].Ports).To(BeEmpty())
-				}).Should(Succeed())
-
-				// Ledger v3 can reach only the legacy Ledger from the same namespace.
-				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "allow-ledger-v2-from-v3", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
-					g.Expect(np.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/name", "ledger"))
-					g.Expect(np.Spec.Ingress).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].From).To(HaveLen(2))
-					g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
-					g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue("app.kubernetes.io/instance", stack.Name))
-					g.Expect(np.Spec.Ingress[0].From[1].PodSelector.MatchLabels).To(HaveKeyWithValue("formance.com/ledger-v3-preview", "true"))
-					g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
-					g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8080))
-				}).Should(Succeed())
-
-				// Without a Connectivity module, no ingress exception is opened.
-				Consistently(func() error {
-					return LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", &networkingv1.NetworkPolicy{})
-				}).Should(BeNotFound())
-
 			})
 
-			Context("Given a Connectivity module", func() {
-				var connectivity *v1beta1.Connectivity
+			It("Should delete the policies when the setting is disabled", func() {
+				Eventually(func() error {
+					return LoadResource(stack.Name, "allow-same-namespace", &networkingv1.NetworkPolicy{})
+				}).Should(Succeed())
+				Eventually(func() error {
+					return LoadResource(stack.Name, "allow-gateway-ingress", &networkingv1.NetworkPolicy{})
+				}).Should(Succeed())
 
-				JustBeforeEach(func() {
-					connectivity = &v1beta1.Connectivity{
-						ObjectMeta: RandObjectMeta(),
-						Spec: v1beta1.ConnectivitySpec{
-							StackDependency: v1beta1.StackDependency{Stack: stack.Name},
-						},
-					}
-					connectivity.Name = stack.Name
-					Expect(Create(connectivity)).To(Succeed())
-				})
-				AfterEach(func() {
-					Expect(Delete(connectivity)).To(Succeed())
-				})
+				patch := client.MergeFrom(enabledSetting.DeepCopy())
+				enabledSetting.Spec.Value = "false"
+				Expect(Patch(enabledSetting, patch)).To(Succeed())
 
-				It("Then creates a scoped policy and reconciles LedgerConfiguration port changes", func() {
-					// Then the default Ledger v3 gRPC port is opened only for the
-					// delegated Connectivity instance.
-					Eventually(func(g Gomega) {
-						np := &networkingv1.NetworkPolicy{}
-						g.Expect(LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", np)).To(Succeed())
-						g.Expect(np).To(BeControlledBy(stack))
-						g.Expect(np.Spec.PodSelector.MatchLabels).To(Equal(map[string]string{
-							"app.kubernetes.io/instance": stack.Name,
-							"app.kubernetes.io/name":     "ledger",
-						}))
-						g.Expect(np.Spec.Ingress).To(HaveLen(1))
-						g.Expect(np.Spec.Ingress[0].From).To(HaveLen(1))
-						g.Expect(np.Spec.Ingress[0].From[0].NamespaceSelector).To(BeNil())
-						g.Expect(np.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(map[string]string{
-							"app.kubernetes.io/instance": "connectivity",
-							"app.kubernetes.io/name":     "connectivity",
-						}))
-						g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
-						g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(8888))
-					}).Should(Succeed())
-
-					// When the LedgerConfiguration port changes, its watch must
-					// enqueue the Stack and update the policy.
-					configuration := &v1beta1.LedgerConfiguration{
-						ObjectMeta: RandObjectMeta(),
-						Spec: v1beta1.LedgerConfigurationSpec{
-							Stacks: []string{stack.Name},
-							Cluster: ledgerv1alpha1.ClusterSpec{
-								Service: ledgerv1alpha1.ServiceSpec{GrpcPort: 7777},
-							},
-						},
-					}
-					Expect(Create(configuration)).To(Succeed())
-					DeferCleanup(func() { Expect(Delete(configuration)).To(Succeed()) })
-
-					Eventually(func(g Gomega) {
-						np := &networkingv1.NetworkPolicy{}
-						g.Expect(LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", np)).To(Succeed())
-						g.Expect(np.Spec.Ingress).To(HaveLen(1))
-						g.Expect(np.Spec.Ingress[0].Ports).To(HaveLen(1))
-						g.Expect(np.Spec.Ingress[0].Ports[0].Port.IntValue()).To(Equal(7777))
-					}).Should(Succeed())
-				})
+				Eventually(func(g Gomega) {
+					npList := &networkingv1.NetworkPolicyList{}
+					g.Expect(List(npList, client.InNamespace(stack.Name))).To(Succeed())
+					g.Expect(npList.Items).To(BeEmpty())
+				}).Should(Succeed())
 			})
 
-			Context("Then disabling networkpolicies", func() {
-				JustBeforeEach(func() {
-					// Wait for policies to be created first
-					Eventually(func() error {
-						return LoadResource(stack.Name, "default-deny-ingress", &networkingv1.NetworkPolicy{})
-					}).Should(Succeed())
+			It("Should delete the policies when the setting is removed", func() {
+				Eventually(func() error {
+					return LoadResource(stack.Name, "allow-same-namespace", &networkingv1.NetworkPolicy{})
+				}).Should(Succeed())
+				Eventually(func() error {
+					return LoadResource(stack.Name, "allow-gateway-ingress", &networkingv1.NetworkPolicy{})
+				}).Should(Succeed())
 
-					patch := client.MergeFrom(enabledSetting.DeepCopy())
-					enabledSetting.Spec.Value = "false"
-					Expect(Patch(enabledSetting, patch)).To(Succeed())
-				})
+				Expect(Delete(enabledSetting)).To(Succeed())
+				enabledSetting = nil
 
-				It("Should delete all NetworkPolicies", func() {
-					Eventually(func() error {
-						return LoadResource(stack.Name, "default-deny-ingress", &networkingv1.NetworkPolicy{})
-					}).Should(BeNotFound())
-					Eventually(func() error {
-						return LoadResource(stack.Name, "allow-gateway-ingress", &networkingv1.NetworkPolicy{})
-					}).Should(BeNotFound())
-					Eventually(func() error {
-						return LoadResource(stack.Name, "allow-from-gateway", &networkingv1.NetworkPolicy{})
-					}).Should(BeNotFound())
-					Eventually(func() error {
-						return LoadResource(stack.Name, "allow-ledger-v3-cluster", &networkingv1.NetworkPolicy{})
-					}).Should(BeNotFound())
-					Eventually(func() error {
-						return LoadResource(stack.Name, "allow-ledger-v3-preview-cluster", &networkingv1.NetworkPolicy{})
-					}).Should(BeNotFound())
-					Eventually(func() error {
-						return LoadResource(stack.Name, "allow-ledger-v2-from-v3", &networkingv1.NetworkPolicy{})
-					}).Should(BeNotFound())
-					Eventually(func() error {
-						return LoadResource(stack.Name, "allow-ledger-v3-from-connectivity", &networkingv1.NetworkPolicy{})
-					}).Should(BeNotFound())
-				})
+				Eventually(func(g Gomega) {
+					npList := &networkingv1.NetworkPolicyList{}
+					g.Expect(List(npList, client.InNamespace(stack.Name))).To(Succeed())
+					g.Expect(npList.Items).To(BeEmpty())
+				}).Should(Succeed())
 			})
 		})
 
 		Context("With wildcard networkpolicies.enabled=true", func() {
-			var (
-				enabledSetting *v1beta1.Settings
-			)
+			var enabledSetting *v1beta1.Settings
 			JustBeforeEach(func() {
 				enabledSetting = settings.New(uuid.NewString(), "networkpolicies.enabled", "true", "*")
 				Expect(Create(enabledSetting)).To(Succeed())
 			})
-			AfterEach(func() {
-				Expect(Delete(enabledSetting)).To(Succeed())
-			})
+			AfterEach(func() { Expect(Delete(enabledSetting)).To(Succeed()) })
 
-			It("Should create NetworkPolicies for the stack", func() {
+			It("Should create both NetworkPolicies for the stack", func() {
 				Eventually(func(g Gomega) {
-					np := &networkingv1.NetworkPolicy{}
-					g.Expect(LoadResource(stack.Name, "default-deny-ingress", np)).To(Succeed())
-					g.Expect(np).To(BeControlledBy(stack))
+					for _, name := range []string{"allow-same-namespace", "allow-gateway-ingress"} {
+						np := &networkingv1.NetworkPolicy{}
+						g.Expect(LoadResource(stack.Name, name, np)).To(Succeed())
+						g.Expect(np).To(BeControlledBy(stack))
+					}
 				}).Should(Succeed())
 			})
 		})

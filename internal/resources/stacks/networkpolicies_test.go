@@ -12,9 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
@@ -40,12 +37,6 @@ func newNetworkPolicyMockContext(t *testing.T, objects ...client.Object) core.Co
 	require.NoError(t, v1beta1.AddToScheme(scheme))
 	kubernetesClient := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithIndex(&v1beta1.Connectivity{}, "stack", func(object client.Object) []string {
-			return []string{object.(*v1beta1.Connectivity).GetStack()}
-		}).
-		WithIndex(&v1beta1.LedgerConfiguration{}, "stack", func(object client.Object) []string {
-			return object.(*v1beta1.LedgerConfiguration).GetStacks()
-		}).
 		WithObjects(objects...).
 		Build()
 	return &networkPolicyMockContext{
@@ -62,121 +53,98 @@ func loadNetworkPolicy(t *testing.T, ctx core.Context, namespace, name string) *
 	return np
 }
 
-func TestCreateNetworkPolicies_OmitsConnectivityPolicyWithoutModule(t *testing.T) {
+func TestCreateNetworkPolicies_IsolatesStackIngress(t *testing.T) {
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "test-stack", UID: "stack-uid"}}
 	ctx := newNetworkPolicyMockContext(t)
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "test-stack", Generation: 1}}
-
 	require.NoError(t, createNetworkPolicies(ctx, stack))
 
-	np := &networkingv1.NetworkPolicy{}
-	err := ctx.GetClient().Get(ctx, types.NamespacedName{
-		Namespace: stack.Name,
-		Name:      "allow-ledger-v3-from-connectivity",
-	}, np)
-	require.True(t, apierrors.IsNotFound(err))
-}
-
-// TestCreateNetworkPolicies_AllowsConnectivityToLedgerV3 asserts that the
-// connectivity workload is granted ingress to the Ledger v3 pods, so its
-// delegated pods are not blocked by the default-deny policy.
-func TestCreateNetworkPolicies_AllowsConnectivityToLedgerV3(t *testing.T) {
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "test-stack", Generation: 1}}
-	connectivity := &v1beta1.Connectivity{
-		ObjectMeta: metav1.ObjectMeta{Name: stack.Name},
-		Spec: v1beta1.ConnectivitySpec{
-			StackDependency: v1beta1.StackDependency{Stack: stack.Name},
-		},
-	}
-	ctx := newNetworkPolicyMockContext(t, connectivity)
-
-	require.NoError(t, createNetworkPolicies(ctx, stack))
-
-	np := loadNetworkPolicy(t, ctx, stack.Name, "allow-ledger-v3-from-connectivity")
-
-	// Target pods: the stack's Ledger v3 replicas.
-	require.Equal(t, map[string]string{
-		"app.kubernetes.io/instance": stack.Name,
-		"app.kubernetes.io/name":     "ledger",
-	}, np.Spec.PodSelector.MatchLabels)
-	require.Contains(t, np.Spec.PolicyTypes, networkingv1.PolicyTypeIngress)
-
-	// A single ingress rule allowing the connectivity workload in.
-	require.Len(t, np.Spec.Ingress, 1)
-	require.Len(t, np.Spec.Ingress[0].From, 1)
-
-	peer := np.Spec.Ingress[0].From[0]
-	// Same-namespace pod selector (no namespace selector): connectivity runs in
-	// the stack namespace alongside the ledger.
+	local := loadNetworkPolicy(t, ctx, stack.Name, "allow-same-namespace")
+	require.Equal(t, metav1.LabelSelector{}, local.Spec.PodSelector)
+	require.Equal(t, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}, local.Spec.PolicyTypes)
+	require.Len(t, local.Spec.Ingress, 1)
+	require.Empty(t, local.Spec.Ingress[0].Ports)
+	require.Len(t, local.Spec.Ingress[0].From, 1)
+	peer := local.Spec.Ingress[0].From[0]
+	// An empty namespace selector would allow every namespace. It must be nil.
 	require.Nil(t, peer.NamespaceSelector)
-	require.NotNil(t, peer.PodSelector)
-	require.Equal(t, map[string]string{
-		"app.kubernetes.io/instance": "connectivity",
-		"app.kubernetes.io/name":     "connectivity",
-	}, peer.PodSelector.MatchLabels)
+	require.Equal(t, &metav1.LabelSelector{}, peer.PodSelector)
+	require.Nil(t, peer.IPBlock)
+	require.Empty(t, local.Spec.Egress)
+	require.True(t, metav1.IsControlledBy(local, stack))
 
-	require.Len(t, np.Spec.Ingress[0].Ports, 1)
-	require.NotNil(t, np.Spec.Ingress[0].Ports[0].Protocol)
-	require.Equal(t, "TCP", string(*np.Spec.Ingress[0].Ports[0].Protocol))
-	require.NotNil(t, np.Spec.Ingress[0].Ports[0].Port)
-	require.Equal(t, 8888, np.Spec.Ingress[0].Ports[0].Port.IntValue())
-}
+	gateway := loadNetworkPolicy(t, ctx, stack.Name, "allow-gateway-ingress")
+	require.Equal(t, metav1.LabelSelector{MatchLabels: map[string]string{
+		"app.kubernetes.io/name": "gateway",
+	}}, gateway.Spec.PodSelector)
+	require.Equal(t, []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}, gateway.Spec.PolicyTypes)
+	require.Len(t, gateway.Spec.Ingress, 1)
+	require.Empty(t, gateway.Spec.Ingress[0].From)
+	require.Len(t, gateway.Spec.Ingress[0].Ports, 1)
+	require.Equal(t, "TCP", string(*gateway.Spec.Ingress[0].Ports[0].Protocol))
+	require.Equal(t, 8080, gateway.Spec.Ingress[0].Ports[0].Port.IntValue())
+	require.Empty(t, gateway.Spec.Egress)
+	require.True(t, metav1.IsControlledBy(gateway, stack))
 
-func TestCreateNetworkPolicies_UsesConfiguredLedgerGRPCPort(t *testing.T) {
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "test-stack", Generation: 1}}
-	connectivity := &v1beta1.Connectivity{
-		ObjectMeta: metav1.ObjectMeta{Name: stack.Name},
-		Spec: v1beta1.ConnectivitySpec{
-			StackDependency: v1beta1.StackDependency{Stack: stack.Name},
-		},
-	}
-	configuration := &v1beta1.LedgerConfiguration{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-stack"},
-		Spec: v1beta1.LedgerConfigurationSpec{
-			Stacks: []string{stack.Name},
-			Cluster: ledgerv1alpha1.ClusterSpec{
-				Service: ledgerv1alpha1.ServiceSpec{GrpcPort: 7777},
-			},
-		},
-	}
-	ctx := newNetworkPolicyMockContext(t, connectivity, configuration)
-
+	policies := &networkingv1.NetworkPolicyList{}
+	require.NoError(t, ctx.GetClient().List(ctx, policies, client.InNamespace(stack.Name)))
+	require.Len(t, policies.Items, 2)
+	// Repeated reconciliation is idempotent.
 	require.NoError(t, createNetworkPolicies(ctx, stack))
-
-	np := loadNetworkPolicy(t, ctx, stack.Name, "allow-ledger-v3-from-connectivity")
-	require.Len(t, np.Spec.Ingress, 1)
-	require.Len(t, np.Spec.Ingress[0].Ports, 1)
-	require.Equal(t, 7777, np.Spec.Ingress[0].Ports[0].Port.IntValue())
+	require.NoError(t, ctx.GetClient().List(ctx, policies, client.InNamespace(stack.Name)))
+	require.Len(t, policies.Items, 2)
 }
 
-func TestConnectivitySelector(t *testing.T) {
-	require.Equal(t, map[string]string{
-		"app.kubernetes.io/instance": "connectivity",
-		"app.kubernetes.io/name":     "connectivity",
-	}, connectivitySelector().MatchLabels)
-}
-
-func TestMapLedgerConfigurationToStacks(t *testing.T) {
-	stackA := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack-a"}}
-	stackB := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack-b"}}
-	ctx := newNetworkPolicyMockContext(t, stackA, stackB)
-
-	t.Run("specific stacks", func(t *testing.T) {
-		configuration := &v1beta1.LedgerConfiguration{
-			Spec: v1beta1.LedgerConfigurationSpec{Stacks: []string{stackA.Name}},
-		}
-
-		require.Equal(t, []reconcile.Request{{NamespacedName: types.NamespacedName{Name: stackA.Name}}},
-			mapLedgerConfigurationToStacks(ctx, configuration))
-	})
-
-	t.Run("wildcard", func(t *testing.T) {
-		configuration := &v1beta1.LedgerConfiguration{
-			Spec: v1beta1.LedgerConfigurationSpec{Stacks: []string{"*"}},
-		}
-
-		require.ElementsMatch(t, []reconcile.Request{
-			{NamespacedName: types.NamespacedName{Name: stackA.Name}},
-			{NamespacedName: types.NamespacedName{Name: stackB.Name}},
-		}, mapLedgerConfigurationToStacks(ctx, configuration))
-	})
+func TestNetworkPolicies_UpgradeAndDisable(t *testing.T) {
+	historicalNames := []string{
+		"default-deny-ingress", "allow-from-gateway", "allow-ledger-v3-cluster",
+		"allow-ledger-v3-preview-cluster", "allow-ledger-v2-from-v3", "allow-ledger-v3-from-connectivity",
+	}
+	for _, enabled := range []bool{true, false} {
+		t.Run(map[bool]string{true: "upgrade", false: "disable"}[enabled], func(t *testing.T) {
+			stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "test-stack", UID: "stack-uid"}}
+			var objects []client.Object
+			// Include every historical rule, the existing unrestricted Gateway rule,
+			// and the new local rule to cover both upgrade and disable reconciliation.
+			names := append([]string{"allow-same-namespace", "allow-gateway-ingress"}, historicalNames...)
+			for _, name := range names {
+				objects = append(objects, &networkingv1.NetworkPolicy{
+					ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: stack.Name},
+					Spec: networkingv1.NetworkPolicySpec{
+						PodSelector: metav1.LabelSelector{},
+						PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+						Ingress:     []networkingv1.NetworkPolicyIngressRule{{}},
+					},
+				})
+			}
+			unrelated := &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: "custom-egress", Namespace: stack.Name},
+				Spec: networkingv1.NetworkPolicySpec{PodSelector: metav1.LabelSelector{}, PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress}}}
+			otherStack := &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: "allow-from-gateway", Namespace: "other-stack"}}
+			objects = append(objects, unrelated, otherStack)
+			ctx := newNetworkPolicyMockContext(t, objects...)
+			if enabled {
+				require.NoError(t, createNetworkPolicies(ctx, stack))
+				gateway := loadNetworkPolicy(t, ctx, stack.Name, "allow-gateway-ingress")
+				require.Len(t, gateway.Spec.Ingress[0].Ports, 1)
+				require.Equal(t, 8080, gateway.Spec.Ingress[0].Ports[0].Port.IntValue())
+				local := loadNetworkPolicy(t, ctx, stack.Name, "allow-same-namespace")
+				require.Len(t, local.Spec.Ingress[0].From, 1)
+			} else {
+				require.NoError(t, deleteNetworkPolicies(ctx, stack))
+				require.NoError(t, deleteNetworkPolicies(ctx, stack))
+			}
+			for _, name := range historicalNames {
+				err := ctx.GetClient().Get(ctx, types.NamespacedName{Namespace: stack.Name, Name: name}, &networkingv1.NetworkPolicy{})
+				require.True(t, apierrors.IsNotFound(err), "legacy policy %s remains: %v", name, err)
+			}
+			policies := &networkingv1.NetworkPolicyList{}
+			require.NoError(t, ctx.GetClient().List(ctx, policies, client.InNamespace(stack.Name)))
+			want := 1
+			if enabled {
+				want = 3
+			}
+			require.Len(t, policies.Items, want)
+			require.Equal(t, unrelated.Spec, loadNetworkPolicy(t, ctx, stack.Name, unrelated.Name).Spec)
+			require.Equal(t, otherStack.Spec, loadNetworkPolicy(t, ctx, otherStack.Namespace, otherStack.Name).Spec)
+		})
+	}
 }
