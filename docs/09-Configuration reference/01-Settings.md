@@ -85,7 +85,7 @@ While we have some basic types (string, number, bool ...), we also have some com
 | gateway.dns.public.record-type                                                           | string | CNAME                                                                                                                                                                                                                  | DNS record type (e.g., CNAME, A, AAAA)                                                                                                                                                                                           |
 | gateway.dns.public.provider-specific                                                     | Map    | alias=true,aws/target-hosted-zone=same-zone                                                                                                                                                                            | Provider-specific DNS settings for public endpoints                                                                                                                                                                              |
 | gateway.dns.public.annotations                                                           | Map    |                                                                                                                                                                                                                        | Annotations to add to the public DNSEndpoint resource                                                                                                                                                                            |
-| networkpolicies.enabled                                                                  | bool   | true                                                                                                                                                                                                                   | Enable network micro-segmentation within a Stack namespace, including Ledger v3 Raft and migration traffic isolation                                                                                                             |
+| networkpolicies.enabled                                                                  | bool   | true                                                                                                                                                                                                                   | Allow all traffic within a Stack namespace and accept cross-namespace ingress only through the Gateway (default: false)                                                                                                             |
 
 ### Postgres URI format
 
@@ -456,20 +456,15 @@ The external-dns operator must be installed in your cluster for DNS endpoints to
 
 ### Configure Network Policies
 
-The operator can create Kubernetes NetworkPolicies to enforce network micro-segmentation within a Stack namespace. When enabled, the following rules are applied:
+The Operator can create Kubernetes NetworkPolicies to isolate incoming traffic in a Stack namespace. This setting is disabled by default. When enabled:
 
-- **All ingress traffic is denied by default** to all pods in the namespace
-- **The Gateway is accessible by everyone** (it is the entry point)
-- **All other services** (Ledger, Payments, Auth, etc.) **are only accessible from the Gateway**
-- **Ledger v3 replicas can communicate with each other** on the Raft and service gRPC ports
-- **Ledger v3 can read Ledger v2 only in its own Stack namespace**
+- All pods in the same namespace can communicate on all ports.
+- Pods in other namespaces can reach only the Gateway, on TCP port `8080`.
+- Direct ingress from other namespaces to Ledger, Payments, Auth, and other pods is blocked.
 
-Egress traffic is not restricted. This is required for public Auth issuers and
-external monitoring endpoints. The Ledger v3 mirror must use the internal
-`http://ledger:8080` Service; ingress isolation on the destination ensures that
-only a Ledger v3 pod from the same Stack namespace can reach it directly.
+These policies do not restrict egress. A Ledger v3 pod can still reach a Ledger in another Stack through that Stack's Gateway, subject to its authentication. To block direct access between Stacks, enable the setting for every destination Stack.
 
-NetworkPolicies are owned by the Stack and are automatically garbage-collected when the Stack is deleted.
+NetworkPolicies are owned by the Stack and are automatically garbage-collected when the Stack is deleted. Setting `networkpolicies.enabled` to `false` removes the policies managed by this setting.
 
 #### Enable Network Policies
 
@@ -487,25 +482,25 @@ spec:
 
 #### Created NetworkPolicies
 
-When enabled, 6 NetworkPolicies are created in the Stack namespace:
+When enabled, two NetworkPolicies are created in the Stack namespace:
 
 | Name | Effect |
 |------|--------|
-| `default-deny-ingress` | Denies all ingress traffic to all pods |
-| `allow-gateway-ingress` | Allows all ingress traffic to pods labeled `app.kubernetes.io/name: gateway` |
-| `allow-from-gateway` | Allows ingress traffic from gateway pods to all other pods |
-| `allow-ledger-v3-cluster` | Allows Raft and service gRPC traffic between direct Ledger v3 replicas on ports 7777 and 8888 |
-| `allow-ledger-v3-preview-cluster` | Allows the same cluster traffic for preview Ledger v3 replicas while preserving their historical pod selector |
-| `allow-ledger-v2-from-v3` | Allows Ledger v3 to reach Ledger v2 on port 8080 within the same Stack namespace |
+| `allow-same-namespace` | Selects all pods and allows ingress from any pod in the same namespace, on all ports |
+| `allow-gateway-ingress` | Allows ingress from all sources to TCP port `8080` on pods labeled `app.kubernetes.io/name: gateway` |
 
-Since Kubernetes NetworkPolicies are additive, the Gateway receives both `deny-all` and `allow-all`, making it fully accessible. Other services receive `deny-all` and `allow-from-gateway`, restricting access to Gateway only.
+The `allow-same-namespace` policy makes all pods ingress-isolated. Its source selector contains only `podSelector: {}`, with no namespace selector, so it allows only pods from its own namespace. The Gateway policy adds an exception for TCP port `8080`; it has no source selector.
+
+On reconciliation, the Operator replaces the previous Stack ingress policies with these two policies and removes the obsolete policies.
 
 :::warning
-A CNI plugin that supports NetworkPolicies (Calico, Cilium, etc.) must be installed in your cluster. The default CNI in some environments (e.g., Flannel) does not enforce NetworkPolicies.
+Kubernetes NetworkPolicies are additive. Another ingress policy can permit additional sources or ports. These Stack policies do not remove unrelated policies or change egress policies, including any policies created by a separate Ledger Operator.
+
+A CNI plugin that supports NetworkPolicies (Calico, Cilium, etc.) must be installed in your cluster. A CNI that does not support them will not enforce this isolation.
 :::
 
 :::info
-If no Gateway module is deployed, the policies are still created. The deny-all policy protects all services, and the allow-from-gateway rule has no matching source — resulting in all ingress being blocked, which is the safest default.
+If no Gateway module is deployed, the policies are still created. Pods in the same namespace can communicate, but the Gateway exception has no matching pods.
 :::
 
 <!-- ### Define a Replicas -->

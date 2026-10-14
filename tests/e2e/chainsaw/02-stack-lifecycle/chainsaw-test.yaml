@@ -29,10 +29,8 @@ spec:
             timeout: 2m
             content: |
               set -eu
-              kubectl wait --for=delete networkpolicy/default-deny-ingress -n chainsaw-networkpolicies --timeout=2m
+              kubectl wait --for=delete networkpolicy/allow-same-namespace -n chainsaw-networkpolicies --timeout=2m
               kubectl wait --for=delete networkpolicy/allow-gateway-ingress -n chainsaw-networkpolicies --timeout=2m
-              kubectl wait --for=delete networkpolicy/allow-from-gateway -n chainsaw-networkpolicies --timeout=2m
-              kubectl wait --for=delete networkpolicy/allow-ledger-v3-from-connectivity -n chainsaw-networkpolicies --timeout=2m
       catch:
         - script:
             timeout: 2m
