@@ -6,7 +6,7 @@ IMPORT $core AS core
 FROM core+base-image
 
 sources:
-    FROM core+builder-image
+    FROM +builder-image
     WORKDIR /src
     WORKDIR /src/components/operator
     COPY --dir api internal pkg cmd config .
@@ -14,7 +14,7 @@ sources:
     SAVE ARTIFACT /src
 
 controller-gen:
-    FROM core+builder-image
+    FROM +builder-image
     DO --pass-args core+GO_INSTALL --package=sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.0
 
 generate:
@@ -30,7 +30,7 @@ generate:
 
 compile:
     ARG LICENCE_PUBLIC_KEY_B64=""
-    FROM core+builder-image
+    FROM +builder-image
     COPY (+sources/*) /src
     COPY --pass-args (+generate/*) /src/components/operator
     WORKDIR /src/components/operator/cmd
@@ -131,3 +131,16 @@ manifests:
         controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
     SAVE ARTIFACT config AS LOCAL config
+
+
+# Keep shared build helpers while selecting an exact Go compiler.
+go-toolchain:
+    FROM golang:1.27.3-alpine
+    SAVE ARTIFACT /usr/local/go
+
+builder-image:
+    FROM core+builder-image
+    COPY (+go-toolchain/go) /usr/local/go
+    ENV GOROOT=/usr/local/go
+    ENV PATH=/usr/local/go/bin:$PATH
+    ENV GOTOOLCHAIN=local

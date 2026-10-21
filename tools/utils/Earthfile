@@ -5,7 +5,7 @@ IMPORT github.com/formancehq/earthly:tags/v0.19.0 AS core
 FROM core+base-image
 
 sources:
-    FROM core+builder-image
+    FROM +builder-image
     WORKDIR /src
     WORKDIR /src/components/operator/tools/utils
     COPY --dir cmd .
@@ -13,7 +13,7 @@ sources:
     SAVE ARTIFACT /src
 
 compile:
-    FROM core+builder-image
+    FROM +builder-image
     COPY (+sources/*) /src
     WORKDIR /src/components/operator/tools/utils
 	DO --pass-args core+GO_COMPILE
@@ -25,3 +25,15 @@ build-image:
     ARG REPOSITORY=ghcr.io
     ARG tag=latest
     DO --pass-args core+SAVE_IMAGE --COMPONENT=operator-utils --TAG=$tag
+
+# Keep shared build helpers while selecting an exact Go compiler.
+go-toolchain:
+    FROM golang:1.27.3-alpine
+    SAVE ARTIFACT /usr/local/go
+
+builder-image:
+    FROM core+builder-image
+    COPY (+go-toolchain/go) /usr/local/go
+    ENV GOROOT=/usr/local/go
+    ENV PATH=/usr/local/go/bin:$PATH
+    ENV GOTOOLCHAIN=local
