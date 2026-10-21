@@ -2,6 +2,8 @@ module github.com/formancehq/operator/tools/utils/v3
 
 go 1.26.0
 
+toolchain go1.27.3
+
 require (
 	github.com/formancehq/go-libs/v5 v5.1.0
 	github.com/pkg/errors v0.9.1

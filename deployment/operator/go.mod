@@ -2,6 +2,8 @@ module github.com/formancehq/operator/v3/deployment/operator
 
 go 1.26.2
 
+toolchain go1.27.3
+
 require (
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.18
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.31.1
