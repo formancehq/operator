@@ -135,10 +135,10 @@ jobs:
     steps:
       - uses: formancehq/ci/actions/deploy-staging@v1
         with:
-          application: staging-eu-west-1-hosting-operator
+          application: staging-eu-west-1-hosting-regions
           parameter: |
-            image.tag=${{ github.sha }}
-            operator.utils.tag=${{ github.sha }}
+            operator.image.tag=${{ github.sha }}
+            operator.operator.utils.tag=${{ github.sha }}
           auth-token: ${{ secrets.ARGOCD_REGION_AUTH_TOKEN }}
           ts-oauth-client-id: ${{ secrets.TS_OIDC_OAUTH_CLIENT_ID }}
           ts-audience: ${{ secrets.TS_OIDC_AUDIENCE }}
