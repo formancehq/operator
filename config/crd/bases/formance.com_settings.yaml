@@ -67,13 +67,14 @@ spec:
           with the value `true` to configure eligible services to log as JSON.\nExample:\n```yaml\napiVersion:
           formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\tname: json-logging\n\nspec:\n\n\tkey:
           logging.json\n\tstacks:\n\t- '*'\n\tvalue: \"true\"\n\n```\n\n###### Authentication
-          scopes\n\nYou can enable scope verification for modules using the setting
-          `auth.<module-name>.check-scopes` or `auth.*.check-scopes` for all modules.\nWhen
-          enabled, modules will verify that authenticated requests include the required
-          scopes for the requested operation.\n\nExample to enable scope verification
-          for all modules:\n```yaml\napiVersion: formance.com/v1beta1\nkind: Settings\nmetadata:\n\n\tname:
-          enable-scopes-all\n\nspec:\n\n\tkey: auth.*.check-scopes\n\tstacks:\n\t-
-          '*'\n\tvalue: \"true\"\n\n```\n\nExample to enable scope verification only
+          scopes\n\nScope verification is enabled by default when authentication is
+          enabled. You can override it using the setting `auth.<module-name>.check-scopes`
+          or `auth.*.check-scopes` for all modules, including setting it to `false`
+          to disable verification.\nWhen enabled, modules will verify that authenticated
+          requests include the required scopes for the requested operation.\n\nExample
+          to enable scope verification for all modules:\n```yaml\napiVersion: formance.com/v1beta1\nkind:
+          Settings\nmetadata:\n\n\tname: enable-scopes-all\n\nspec:\n\n\tkey: auth.*.check-scopes\n\tstacks:\n\t-
+          '*'\n\tvalue: \"true\"\n\n```\n\nExample to explicitly enable scope verification
           for the ledger module:\n```yaml\napiVersion: formance.com/v1beta1\nkind:
           Settings\nmetadata:\n\n\tname: enable-scopes-ledger\n\nspec:\n\n\tkey: auth.ledger.check-scopes\n\tstacks:\n\t-
           production\n\tvalue: \"true\"\n\n```\n\nNote: The `auth.checkScopes` field

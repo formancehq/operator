@@ -92,7 +92,7 @@ func ProtectedEnvVars(ctx Context, stack *v1beta1.Stack, moduleName string, auth
 // 1. Module spec field: auth.CheckScopes (if auth is not nil and CheckScopes is true)
 // 2. Settings with specific module name: auth.<module-name>.check-scopes
 // 3. Settings with wildcard: auth.*.check-scopes
-// 4. Default: false
+// 4. Default: true
 func shouldCheckScopes(ctx Context, stackName, moduleName string, auth *v1beta1.AuthConfig) (bool, error) {
 	// First, check module spec (highest priority)
 	if auth != nil && auth.CheckScopes {
@@ -110,5 +110,5 @@ func shouldCheckScopes(ctx Context, stackName, moduleName string, auth *v1beta1.
 		return *checkScopesFromSettings, nil
 	}
 
-	return false, nil
+	return true, nil
 }
