@@ -7,7 +7,7 @@ on:
       - releases/*
       - release/*
   pull_request:
-    types: [assigned, opened, synchronize, reopened, labeled, edited]
+    types: [assigned, opened, synchronize, reopened, edited]
 
 permissions:
   contents: write
@@ -102,7 +102,7 @@ jobs:
 
   GoReleaser:
     runs-on: namespace-profile-linux-amd64-4vcpu
-    if: contains(github.event.pull_request.labels.*.name, 'build-images') || contains(github.event.pull_request.labels.*.name, 'deploy-staging') || github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'merge_group'
     steps:
       - uses: namespacelabs/nscloud-checkout-action@v9
         with:
@@ -122,7 +122,7 @@ jobs:
 
   Deploy:
     runs-on: namespace-profile-linux-amd64-2vcpu
-    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'deploy-staging')
+    if: github.ref == 'refs/heads/main'
     environment: staging
     permissions:
       contents: read
