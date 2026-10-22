@@ -185,13 +185,14 @@ var _ = Describe("AuthScopesSettings", func() {
 			JustBeforeEach(func() {
 				Expect(Create(stack, databaseSettings, auth, ledger)).To(Succeed())
 			})
-			It("Should NOT add AUTH_CHECK_SCOPES env vars (default behavior)", func() {
+			It("Should add AUTH_CHECK_SCOPES env vars (default behavior)", func() {
 				deployment := &appsv1.Deployment{}
 				Eventually(func(g Gomega) []corev1.EnvVar {
 					g.Expect(Get(core.GetNamespacedResourceName(stack.Name, "ledger"), deployment)).To(Succeed())
 					return deployment.Spec.Template.Spec.Containers[0].Env
-				}).ShouldNot(ContainElements(
+				}).Should(ContainElements(
 					core.Env("AUTH_CHECK_SCOPES", "true"),
+					core.Env("AUTH_SERVICE", "ledger"),
 				))
 			})
 		})

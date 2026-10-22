@@ -287,7 +287,7 @@ spec:
 
 ###### Authentication scopes
 
-You can enable scope verification for modules using the setting `auth.<module-name>.check-scopes` or `auth.*.check-scopes` for all modules.
+Scope verification is enabled by default when authentication is enabled. You can override it using the setting `auth.<module-name>.check-scopes` or `auth.*.check-scopes` for all modules, including setting it to `false` to disable verification.
 When enabled, modules will verify that authenticated requests include the required scopes for the requested operation.
 
 Example to enable scope verification for all modules:
@@ -307,7 +307,7 @@ spec:
 
 ```
 
-Example to enable scope verification only for the ledger module:
+Example to explicitly enable scope verification for the ledger module:
 ```yaml
 apiVersion: formance.com/v1beta1
 kind: Settings

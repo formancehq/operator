@@ -1771,8 +1771,8 @@ func TestConnectivityReconcileUpdatesAPIAuthWhenLedgerV3NotReady(t *testing.T) {
 	if issuer, _, _ := unstructured.NestedString(updated.Object, "spec", "api", "auth", "issuer"); issuer != "https://stack0.example.com/api/auth" {
 		t.Fatalf("spec.api.auth.issuer = %q, want the stack auth issuer while the ledger is not ready", issuer)
 	}
-	if checkScopes, found, _ := unstructured.NestedBool(updated.Object, "spec", "api", "auth", "checkScopes"); !found || checkScopes {
-		t.Fatalf("spec.api.auth.checkScopes = %v (found=%v), want an explicit false", checkScopes, found)
+	if checkScopes, found, _ := unstructured.NestedBool(updated.Object, "spec", "api", "auth", "checkScopes"); !found || !checkScopes {
+		t.Fatalf("spec.api.auth.checkScopes = %v (found=%v), want true by default", checkScopes, found)
 	}
 }
 
@@ -3110,8 +3110,8 @@ func TestConnectivityReconcileWiresAPIAuthWhenStackHasAuth(t *testing.T) {
 		t.Fatalf("spec.api.auth.issuer = %q, want the stack auth issuer https://stack0.example.com/api/auth", issuer)
 	}
 	checkScopes, found, _ := unstructured.NestedBool(delegated.Object, "spec", "api", "auth", "checkScopes")
-	if !found || checkScopes {
-		t.Fatalf("spec.api.auth.checkScopes = %v (found=%v), want an explicit false without a check-scopes Setting", checkScopes, found)
+	if !found || !checkScopes {
+		t.Fatalf("spec.api.auth.checkScopes = %v (found=%v), want true without a check-scopes Setting", checkScopes, found)
 	}
 }
 
@@ -3126,7 +3126,7 @@ func TestConnectivityReconcileAPIAuthHonorsCheckScopesSetting(t *testing.T) {
 	auth.Name = "stack0-auth"
 	auth.Spec.Stack = "stack0"
 
-	checkScopesSetting := settings.New("check-scopes", "auth.connectivity.check-scopes", "true", "stack0")
+	checkScopesSetting := settings.New("check-scopes", "auth.connectivity.check-scopes", "false", "stack0")
 
 	ctx := newReconcileTestContext(t, ledger, credentials, auth, checkScopesSetting)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
@@ -3141,8 +3141,8 @@ func TestConnectivityReconcileAPIAuthHonorsCheckScopesSetting(t *testing.T) {
 	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, delegated); err != nil {
 		t.Fatalf("get delegated Connectivity: %v", err)
 	}
-	if checkScopes, _, _ := unstructured.NestedBool(delegated.Object, "spec", "api", "auth", "checkScopes"); !checkScopes {
-		t.Fatal("spec.api.auth.checkScopes = false, want true when the auth.connectivity.check-scopes Setting is enabled")
+	if checkScopes, _, _ := unstructured.NestedBool(delegated.Object, "spec", "api", "auth", "checkScopes"); checkScopes {
+		t.Fatal("spec.api.auth.checkScopes = true, want false when the auth.connectivity.check-scopes Setting is disabled")
 	}
 }
 
@@ -3374,7 +3374,7 @@ func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T
 	apiDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
 		{Name: "AUTH_ENABLED", Value: "true"},
 		{Name: "AUTH_ISSUER", Value: "https://stack0.example.com/api/auth"},
-		{Name: "AUTH_CHECK_SCOPES", Value: "false"},
+		{Name: "AUTH_CHECK_SCOPES", Value: "true"},
 	}
 	if err := ctx.GetClient().Update(ctx, apiDeployment); err != nil {
 		t.Fatalf("apply authenticated API Deployment template: %v", err)

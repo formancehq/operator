@@ -50,7 +50,7 @@ The rollout proof intentionally matches the Connectivity operator's supported re
 
 Connectivity currently accepts only the stack's primary auth issuer. Additional issuers configured through the `auth.issuers` Setting are not propagated to `connectivity-api`, so tokens issued exclusively by one of those additional issuers are rejected.
 
-Scope enforcement (`connectivity:read` / `connectivity:write`) follows the platform convention and is disabled by default. Enable it with the standard check-scopes Setting:
+Scope enforcement (`connectivity:read` / `connectivity:write`) follows the platform convention and is enabled by default when authentication is enabled. To disable it explicitly, use the standard check-scopes Setting:
 
 ```yaml
 apiVersion: formance.com/v1beta1
@@ -59,7 +59,7 @@ metadata:
   name: connectivity-check-scopes
 spec:
   key: auth.connectivity.check-scopes
-  value: "true"
+  value: "false"
   stacks:
     - "*"
 ```
