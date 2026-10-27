@@ -412,6 +412,19 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	if err != nil {
 		return nil, nil, err
 	}
+	var topologySpreadMinDomains *int32
+	// min-domains only shapes the operator defaults, so it is ignored when
+	// those defaults are disabled or replaced by the LedgerConfiguration.
+	if topologySpreadConstraints != nil && *topologySpreadConstraints && len(baseSpec.TopologySpreadConstraints) == 0 {
+		topologySpreadMinDomains, err = settings.GetInt32(ctx, stack.Name,
+			"deployments", "ledger", "topology-spread-constraints", "min-domains")
+		if err != nil {
+			return nil, nil, err
+		}
+		if topologySpreadMinDomains != nil && *topologySpreadMinDomains < 1 {
+			return nil, nil, fmt.Errorf("deployments.ledger.topology-spread-constraints.min-domains must be greater than 0, got %d", *topologySpreadMinDomains)
+		}
+	}
 	desiredSpec, err := composeLedgerV3ClusterSpec(baseSpec, ledgerV3SpecOverrides{
 		ImageRepository:           imageRepository(image),
 		ImageTag:                  image.Version,
@@ -428,6 +441,7 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		Auth:                      authConfiguration,
 		ServiceAccountName:        serviceAccountName,
 		TopologySpreadConstraints: topologySpreadConstraints,
+		TopologySpreadMinDomains:  topologySpreadMinDomains,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("composing Ledger v3 Cluster spec: %w", err)

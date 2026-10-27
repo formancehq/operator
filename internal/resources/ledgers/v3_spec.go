@@ -32,6 +32,7 @@ type ledgerV3SpecOverrides struct {
 	Auth                      *auths.ProtectedAuthConfiguration
 	ServiceAccountName        string
 	TopologySpreadConstraints *bool
+	TopologySpreadMinDomains  *int32
 }
 
 // composeLedgerV3ClusterSpec applies the values owned by the Formance Operator
@@ -101,23 +102,31 @@ func composeLedgerV3ClusterSpec(base *ledgerv1alpha1.ClusterSpec, overrides ledg
 		spec.ServiceAccount.Name = overrides.ServiceAccountName
 	}
 	if overrides.TopologySpreadConstraints != nil {
-		if *overrides.TopologySpreadConstraints {
-			spec.TopologySpreadConstraints = defaultLedgerV3TopologySpreadConstraints()
-		} else {
+		if !*overrides.TopologySpreadConstraints {
 			spec.TopologySpreadConstraints = nil
+		} else if len(spec.TopologySpreadConstraints) == 0 {
+			// Constraints declared by the LedgerConfiguration take precedence
+			// over the operator defaults.
+			spec.TopologySpreadConstraints = defaultLedgerV3TopologySpreadConstraints(overrides.TopologySpreadMinDomains)
 		}
 	}
 
 	return spec, nil
 }
 
-func defaultLedgerV3TopologySpreadConstraints() []corev1.TopologySpreadConstraint {
+func defaultLedgerV3TopologySpreadConstraints(zoneMinDomains *int32) []corev1.TopologySpreadConstraint {
+	zone := corev1.TopologySpreadConstraint{
+		MaxSkew:           1,
+		TopologyKey:       corev1.LabelTopologyZone,
+		WhenUnsatisfiable: corev1.ScheduleAnyway,
+	}
+	if zoneMinDomains != nil {
+		// Kubernetes only honors minDomains with DoNotSchedule.
+		zone.WhenUnsatisfiable = corev1.DoNotSchedule
+		zone.MinDomains = pointerTo(*zoneMinDomains)
+	}
 	return []corev1.TopologySpreadConstraint{
-		{
-			MaxSkew:           1,
-			TopologyKey:       corev1.LabelTopologyZone,
-			WhenUnsatisfiable: corev1.ScheduleAnyway,
-		},
+		zone,
 		{
 			MaxSkew:           1,
 			TopologyKey:       corev1.LabelHostname,

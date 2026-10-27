@@ -165,6 +165,117 @@ var _ = Describe("Ledger v3 controller", func() {
 		}).Should(Equal(int64(5)))
 	})
 
+	topologySpreadConstraints := func(g Gomega, cluster *unstructured.Unstructured) []any {
+		g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+		constraints, _, err := unstructured.NestedSlice(cluster.Object, "spec", "topologySpreadConstraints")
+		g.Expect(err).NotTo(HaveOccurred())
+		return constraints
+	}
+
+	It("applies topology spread min-domains to the default zone constraint", func() {
+		topologySettings := []*v1beta1.Settings{
+			settings.New(uuid.NewString(), "deployments.ledger.topology-spread-constraints", "true", stack.Name),
+			settings.New(uuid.NewString(), "deployments.ledger.topology-spread-constraints.min-domains", "3", stack.Name),
+		}
+		for _, setting := range topologySettings {
+			Expect(Create(setting)).To(Succeed())
+		}
+		DeferCleanup(func() {
+			for _, setting := range topologySettings {
+				Expect(client.IgnoreNotFound(Delete(setting))).To(Succeed())
+			}
+		})
+
+		cluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) []any {
+			return topologySpreadConstraints(g, cluster)
+		}).Should(Equal([]any{
+			map[string]any{
+				"maxSkew":           int64(1),
+				"topologyKey":       corev1.LabelTopologyZone,
+				"whenUnsatisfiable": string(corev1.DoNotSchedule),
+				"minDomains":        int64(3),
+			},
+			map[string]any{
+				"maxSkew":           int64(1),
+				"topologyKey":       corev1.LabelHostname,
+				"whenUnsatisfiable": string(corev1.DoNotSchedule),
+			},
+		}))
+	})
+
+	It("keeps LedgerConfiguration topology spread constraints and ignores min-domains", func() {
+		configuration := &v1beta1.LedgerConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "topology-" + stack.Name},
+			Spec: v1beta1.LedgerConfigurationSpec{
+				Stacks: []string{stack.Name},
+				Cluster: ledgerv1alpha1.ClusterSpec{
+					TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{
+						MaxSkew:           2,
+						TopologyKey:       "configuration.example/failure-domain",
+						WhenUnsatisfiable: corev1.ScheduleAnyway,
+					}},
+				},
+			},
+		}
+		// An invalid min-domains must not block reconciliation when the
+		// LedgerConfiguration owns the constraints.
+		topologySettings := []*v1beta1.Settings{
+			settings.New(uuid.NewString(), "deployments.ledger.topology-spread-constraints", "true", stack.Name),
+			settings.New(uuid.NewString(), "deployments.ledger.topology-spread-constraints.min-domains", "0", stack.Name),
+		}
+		for _, setting := range topologySettings {
+			Expect(Create(setting)).To(Succeed())
+		}
+		// Created last so that observing its constraints proves a reconciliation
+		// ran with the invalid min-domains in place.
+		Expect(Create(configuration)).To(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(Delete(configuration))).To(Succeed())
+			for _, setting := range topologySettings {
+				Expect(client.IgnoreNotFound(Delete(setting))).To(Succeed())
+			}
+		})
+
+		cluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) []any {
+			return topologySpreadConstraints(g, cluster)
+		}).Should(Equal([]any{
+			map[string]any{
+				"maxSkew":           int64(2),
+				"topologyKey":       "configuration.example/failure-domain",
+				"whenUnsatisfiable": string(corev1.ScheduleAnyway),
+			},
+		}))
+	})
+
+	It("ignores min-domains when topology spread constraints are disabled", func() {
+		topologySettings := []*v1beta1.Settings{
+			settings.New(uuid.NewString(), "deployments.ledger.topology-spread-constraints", "false", stack.Name),
+			settings.New(uuid.NewString(), "deployments.ledger.topology-spread-constraints.min-domains", "0", stack.Name),
+			// Created last so that observing its replicas proves a reconciliation
+			// ran with the invalid min-domains in place.
+			settings.New(uuid.NewString(), "deployments.ledger.replicas", "4", stack.Name),
+		}
+		for _, setting := range topologySettings {
+			Expect(Create(setting)).To(Succeed())
+		}
+		DeferCleanup(func() {
+			for _, setting := range topologySettings {
+				Expect(client.IgnoreNotFound(Delete(setting))).To(Succeed())
+			}
+		})
+
+		cluster := newLedgerV3Cluster()
+		Eventually(func(g Gomega) int64 {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			replicas, _, err := unstructured.NestedInt64(cluster.Object, "spec", "replicas")
+			g.Expect(err).NotTo(HaveOccurred())
+			return replicas
+		}).Should(Equal(int64(5)))
+		Expect(topologySpreadConstraints(Default, cluster)).To(BeEmpty())
+	})
+
 	It("reuses the historical Ledger container resource settings", func() {
 		resourceSettings := []*v1beta1.Settings{
 			settings.New(uuid.NewString(), "deployments.ledger.containers.ledger.resource-requirements.requests", "cpu=50m,memory=6Gi", stack.Name),
