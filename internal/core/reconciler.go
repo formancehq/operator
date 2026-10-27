@@ -67,6 +67,7 @@ type ReconcilerOptions[T client.Object] struct {
 	Finalizers                    []finalizerConfig[T]
 	Raws                          []func(Context, *builder.Builder) error
 	UnsatisfiedRequirementsHandle func(Context, *v1beta1.Stack, T) error
+	StackDisabledHandle           func(Context, *v1beta1.Stack, T) error
 }
 
 type ReconcilerOption[T client.Object] func(*ReconcilerOptions[T])
@@ -107,6 +108,12 @@ func WithFinalizer[T client.Object](name string, callback Finalizer[T]) Reconcil
 			fn:   callback,
 		})
 	}
+}
+
+// WithStackDisabledHandler replaces generic owned-object removal for a module
+// whose delegated lifecycle must retain configuration while stopping workloads.
+func WithStackDisabledHandler[T v1beta1.Module](handler func(Context, *v1beta1.Stack, T) error) ReconcilerOption[T] {
+	return func(options *ReconcilerOptions[T]) { options.StackDisabledHandle = handler }
 }
 
 // WithUnsatisfiedRequirementsHandler registers module-specific cleanup that is
@@ -277,25 +284,8 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 			return ctrl.Result{}, err
 		}
 
-		objectFinalizers := object.GetFinalizers()
-	l:
-		for _, existingFinalizer := range objectFinalizers {
-			for _, expectedFinalizer := range reconcilerOptions.Finalizers {
-				if expectedFinalizer.name == existingFinalizer {
-					continue l
-				}
-			}
-			controllerutil.RemoveFinalizer(object, existingFinalizer)
-		}
-		if len(objectFinalizers) != len(object.GetFinalizers()) {
-			if err := mgr.GetClient().Update(ctx, object); err != nil {
-				if apierrors.IsConflict(err) {
-					log.FromContext(ctx).Info(fmt.Sprintf("Catching conflict error: %s", err))
-					return reconcile.Result{RequeueAfter: time.Second}, nil
-				}
-				return reconcile.Result{}, errors.Wrapf(err, "patching resource to update finalizers")
-			}
-		}
+		// Finalizers belong to their registering controller. Preserve all other
+		// names, including during deletion, rather than bypassing their cleanup.
 
 		reconcileContext := NewContext(mgr, ctx)
 		if !object.GetDeletionTimestamp().IsZero() {
@@ -352,7 +342,7 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 		}
 		if len(missingFinalizers) > 0 {
 			log.FromContext(ctx).Info(fmt.Sprintf("Adding finalizers %s", missingFinalizers))
-			patch := client.MergeFrom(object.DeepCopyObject().(T))
+			patch := client.MergeFromWithOptions(object.DeepCopyObject().(T), client.MergeFromWithOptimisticLock{})
 			finalizers := object.GetFinalizers()
 			finalizers = append(finalizers, missingFinalizers...)
 			object.SetFinalizers(finalizers)

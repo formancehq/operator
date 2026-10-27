@@ -64,7 +64,8 @@ type StackDependentObjectController[T v1beta1.Dependent] func(ctx Context, stack
 func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController[T], allowDeleted bool) ObjectController[T] {
 	return func(ctx Context, reconcilerOptions *ReconcilerOptions[T], t T) error {
 		stack := &v1beta1.Stack{}
-		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+		// A stale live Stack must not authorize provisioning after deletion starts.
+		if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{
 			Name: t.GetStack(),
 		}, stack); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -149,6 +150,9 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingCont
 			// Owned objects must be controlled by the module.
 			// if not, they will not be automatically removed on stack removal.
 			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
+			if reconcilerOptions.StackDisabledHandle != nil {
+				return reconcilerOptions.StackDisabledHandle(ctx, stack, t)
+			}
 			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
 		}
 

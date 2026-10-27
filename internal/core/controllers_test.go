@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 )
@@ -188,4 +190,43 @@ func TestForModuleDisablesOwnedResourcesWithoutRunningFinalizers(t *testing.T) {
 	require.Equal(t, stack.UID, refreshedSearch.OwnerReferences[0].UID)
 	err := fakeClient.Get(ctx, types.NamespacedName{Namespace: owned.Namespace, Name: owned.Name}, &corev1.ConfigMap{})
 	require.True(t, apierrors.IsNotFound(err), "owned runtime resource must be deleted when the Stack is disabled")
+}
+
+func TestForStackDependencyUsesAuthoritativeParentLiveness(t *testing.T) {
+	for _, scenario := range []string{"deleting", "absent", "read-error", "allow-deleting"} {
+		t.Run(scenario, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			require.NoError(t, v1beta1.AddToScheme(scheme))
+			stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: "stack-uid", Finalizers: []string{"delete"}}}
+			module := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "module", Labels: map[string]string{v1beta1.StackLabel: stack.Name}}, Spec: v1beta1.ConnectivitySpec{StackDependency: v1beta1.StackDependency{Stack: stack.Name}}}
+			cached := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stack, module).Build()
+			direct := fake.NewClientBuilder().WithScheme(scheme).WithObjects(stack).Build()
+			require.NoError(t, direct.Delete(context.Background(), stack))
+			if scenario == "absent" {
+				require.NoError(t, direct.Get(context.Background(), client.ObjectKeyFromObject(stack), stack))
+				stack.Finalizers = nil
+				require.NoError(t, direct.Update(context.Background(), stack))
+			}
+			var reader client.Reader = direct
+			if scenario == "read-error" {
+				reader = interceptor.NewClient(direct, interceptor.Funcs{Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+					return errors.New("API unavailable")
+				}})
+			}
+			ctx := testContext{Context: context.Background(), client: cached, apiReader: reader, scheme: scheme}
+			called := false
+			controller := ForStackDependency(func(Context, *v1beta1.Stack, *ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity) error {
+				called = true
+				return nil
+			}, scenario == "allow-deleting")
+			err := controller(ctx, &ReconcilerOptions[*v1beta1.Connectivity]{}, module)
+			if scenario == "allow-deleting" {
+				require.NoError(t, err)
+				require.True(t, called)
+			} else {
+				require.Error(t, err)
+				require.False(t, called)
+			}
+		})
+	}
 }

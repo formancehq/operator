@@ -201,6 +201,10 @@ make uninstall
 make undeploy
 ```
 
+## Connectivity lifecycle
+
+Connectivity supports retaining configuration on Stack disable and ordered cleanup on module or Stack deletion. See the [lifecycle and upgrade requirements](docs/04-Modules/12-Connectivity.md#disable-and-delete) before upgrading the operators.
+
 ## Settings
 
 See defined settings in [Settings](docs/09-Configuration%20reference/01-Settings.md)

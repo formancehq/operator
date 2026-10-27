@@ -177,10 +177,10 @@ Invalid declarations are programming errors and prevent the controller manager f
 
 Requirement evaluation belongs in the existing module reconciliation seam. The intended order is:
 
-1. run finalizers before the normal object controller when the module is deleting;
-2. load the referenced Stack and maintain the Stack label;
+1. run registered finalizers before the normal object controller when the module is deleting; preserve finalizers owned by other controllers, and install registered finalizers with optimistic locking;
+2. load the referenced Stack through the API reader to reject stale parent liveness, and maintain the Stack label;
 3. honour the Stack skip annotation and Stack deletion;
-4. maintain the owner reference and honour disabled Stack behaviour;
+4. maintain the owner reference and honour disabled Stack behaviour: invoke a registered `WithStackDisabledHandler`, otherwise remove owned runtime objects while retaining durable resources;
 5. resolve the module's own effective version;
 6. evaluate declared requirements;
 7. update `DependenciesSatisfied` and, on failure, `ReconciledWithStack`;

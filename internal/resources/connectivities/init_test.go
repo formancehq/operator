@@ -567,7 +567,7 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 			StackDependency: v1beta1.StackDependency{Stack: stack.Name},
 		},
 	}
-	ctx := newCredsTestContext(t, existing, connectivity)
+	ctx := newReconcileTestContext(t, existing, connectivity)
 	options := &core.ReconcilerOptions[*v1beta1.Connectivity]{
 		Owns:     map[client.Object][]builder.OwnsOption{},
 		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
@@ -1045,7 +1045,21 @@ func TestLedgerCredentialsWatchDisabledWithoutWatchPermission(t *testing.T) {
 // "stack" field so getStackLedger's List(MatchingFields{"stack": ...}) resolves.
 func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestContext {
 	t.Helper()
+	// The delegated fixture models the current installed lifecycle CRD. Tests for
+	// missing or old CRDs explicitly replace or delete it.
+	hasCRD := false
+	for _, obj := range objs {
+		if _, ok := obj.(*apiextensionsv1.CustomResourceDefinition); ok {
+			hasCRD = true
+		}
+	}
+	if !hasCRD {
+		objs = append(objs, lifecycleCRD())
+	}
 	s := runtime.NewScheme()
+	if err := apiextensionsv1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
 	if err := v1beta1.AddToScheme(s); err != nil {
 		t.Fatalf("add v1beta1 to scheme: %v", err)
 	}
@@ -1244,6 +1258,7 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerVersionIsOpaque(t *tes
 	// before the ledger was downgraded.
 	delegated := newDelegatedConnectivity(stack.Name)
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetFinalizers([]string{connectivityLifecycleFinalizer})
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
 	})
@@ -1257,7 +1272,7 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerVersionIsOpaque(t *tes
 	cred := newLedgerCredentialsForStack(stack.Name)
 	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 
-	ctx := newReconcileTestContext(t, ledger, delegated, httpAPI, cred)
+	ctx := newReconcileTestContext(t, lifecycleCRD(), ledger, delegated, httpAPI, cred)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if err == nil {
@@ -1266,18 +1281,18 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerVersionIsOpaque(t *tes
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
 	}
-	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerNotV3" {
-		t.Fatalf("expected a LedgerNotV3 condition, got %#v", connectivity.Status.Conditions)
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "DelegatedDeletionPending" {
+		t.Fatalf("expected a DelegatedDeletionPending condition, got %#v", connectivity.Status.Conditions)
 	}
 
-	if delegatedConnectivityExists(t, ctx, "stack0") {
-		t.Error("delegated Connectivity must be torn down when the ledger is not v3")
+	if !delegatedConnectivityExists(t, ctx, "stack0") {
+		t.Error("delegated Connectivity must retain its finalizer until cleanup completes")
 	}
 	if gatewayHTTPAPIExists(t, ctx, "stack0") {
 		t.Error("GatewayHTTPAPI must be torn down when the ledger is not v3")
 	}
-	if credentialsExist(t, ctx, "stack0") {
-		t.Error("superuser Credentials must be torn down when the ledger is not v3")
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Error("Credentials must remain until delegated cleanup finishes")
 	}
 }
 
@@ -1325,6 +1340,7 @@ func TestConnectivityReconcileRejectsLedgerV2Preview(t *testing.T) {
 	connectivity.Spec.Stack = "stack0"
 	delegated := newDelegatedConnectivity(stack.Name)
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetFinalizers([]string{connectivityLifecycleFinalizer})
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
 	})
@@ -1337,18 +1353,18 @@ func TestConnectivityReconcileRejectsLedgerV2Preview(t *testing.T) {
 	}}
 
 	previewSetting := settings.New("preview", "ledger.v3.preview-version", "v3.0.0-alpha.11", stack.Name)
-	ctx := newReconcileTestContext(t, newReadyV2Ledger(stack.Name), delegated, httpAPI, previewSetting)
+	ctx := newReconcileTestContext(t, lifecycleCRD(), newReadyV2Ledger(stack.Name), delegated, httpAPI, previewSetting)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want pending on the incompatible Ledger", err)
 	}
-	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerNotV3" {
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "DelegatedDeletionPending" {
 		t.Fatalf("expected the v2 preview to be rejected with LedgerNotV3, got %#v", connectivity.Status.Conditions)
 	}
 
-	if delegatedConnectivityExists(t, ctx, "stack0") {
-		t.Error("delegated Connectivity must be torn down for a v2 Ledger preview")
+	if !delegatedConnectivityExists(t, ctx, "stack0") {
+		t.Error("delegated Connectivity must wait for cleanup even after a Ledger downgrade")
 	}
 	if gatewayHTTPAPIExists(t, ctx, "stack0") {
 		t.Error("GatewayHTTPAPI must be torn down for a v2 Ledger preview")
@@ -1601,6 +1617,7 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 	connectivity.Spec.Stack = stack.Name
 	delegated := newDelegatedConnectivity(stack.Name)
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetFinalizers([]string{connectivityLifecycleFinalizer})
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
 	})
@@ -1614,7 +1631,7 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 	cred := newLedgerCredentialsForStack(stack.Name)
 	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 
-	base := newReconcileTestContext(t, ledger, delegated, httpAPI, cred)
+	base := newReconcileTestContext(t, lifecycleCRD(), ledger, delegated, httpAPI, cred)
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
 			if _, ok := list.(*v1beta1.AuthList); ok {
@@ -1629,17 +1646,17 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want pending for a resolved non-v3 Ledger", err)
 	}
-	if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "LedgerNotV3" {
-		t.Fatalf("condition = %+v, want reason LedgerNotV3", condition)
+	if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "DelegatedDeletionPending" {
+		t.Fatalf("condition = %+v, want reason DelegatedDeletionPending", condition)
 	}
-	if delegatedConnectivityExists(t, ctx, stack.Name) {
-		t.Error("delegated Connectivity must be torn down despite an unrelated auth resolution failure")
+	if !delegatedConnectivityExists(t, ctx, stack.Name) {
+		t.Error("delegated Connectivity must retain its cleanup finalizer")
 	}
 	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
 		t.Error("GatewayHTTPAPI must be torn down despite an unrelated auth resolution failure")
 	}
-	if credentialsExist(t, ctx, stack.Name) {
-		t.Error("superuser Credentials must be torn down despite an unrelated auth resolution failure")
+	if !credentialsExist(t, ctx, stack.Name) {
+		t.Error("Credentials must remain until delegated cleanup finishes")
 	}
 }
 
@@ -1664,6 +1681,8 @@ func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
 	connectivity.Spec.Stack = stack.Name
 
 	delegated := newDelegatedConnectivity(stack.Name)
+	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
@@ -2047,6 +2066,8 @@ func TestConnectivityAPIAuthRolloutRejectsForeignOwnedService(t *testing.T) {
 	expectedConnectivity.Spec.Stack = "stack0"
 
 	delegated := newDelegatedConnectivity("stack0")
+	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(expectedConnectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
@@ -2354,6 +2375,7 @@ func TestConnectivityReconcileAvoidsCachedReadAfterEarlyAPIAuthWrite(t *testing.
 		t.Fatalf("get delegated Connectivity: %v", err)
 	}
 	_ = unstructured.SetNestedField(stale.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(stale.Object, stale.GetGeneration(), "status", "observedGeneration")
 	if err := base.GetClient().Update(base, stale); err != nil {
 		t.Fatalf("mark delegated Connectivity ready: %v", err)
 	}
@@ -2628,7 +2650,7 @@ func TestConnectivityReconcileTearsDownWhenCapabilityUnavailableAndLedgerGateClo
 	}
 }
 
-func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbidden(t *testing.T) {
+func TestConnectivityReconcileRetainsCredentialsWhenUnavailableDelegatedDeleteIsForbidden(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = false
 	t.Cleanup(func() { connectivityAvailable = previous })
@@ -2640,6 +2662,9 @@ func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbid
 	}}
 	connectivity.Spec.Stack = stack.Name
 	delegated := newDelegatedConnectivity(stack.Name)
+	delegated.SetUID("delegated-uid")
+	delegated.SetFinalizers([]string{connectivityLifecycleFinalizer})
+	delegated.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity"))})
 	httpAPI := &v1beta1.GatewayHTTPAPI{ObjectMeta: metav1.ObjectMeta{
 		Name: "stack0-connectivity",
 		UID:  types.UID("gateway-http-api-uid"),
@@ -2663,8 +2688,8 @@ func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbid
 	ctx := credsTestContext{Context: context.Background(), client: forbidden, scheme: base.scheme}
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
-	if !core.IsApplicationError(err) {
-		t.Fatalf("Reconcile() returned %v, want the advertised pending capability state", err)
+	if !apierrors.IsForbidden(err) {
+		t.Fatalf("Reconcile() returned %v, want the delegated delete error", err)
 	}
 	if !delegatedConnectivityExists(t, ctx, stack.Name) {
 		t.Error("inaccessible delegated Connectivity must be left for the external operator/API to recover")
@@ -2672,8 +2697,8 @@ func TestConnectivityReconcileStaysPendingWhenUnavailableDelegatedDeleteIsForbid
 	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
 		t.Error("GatewayHTTPAPI must still be deleted independently")
 	}
-	if credentialsExist(t, ctx, stack.Name) {
-		t.Error("superuser Credentials must still be revoked independently")
+	if !credentialsExist(t, ctx, stack.Name) {
+		t.Error("Credentials must remain while delegated cleanup is unproven")
 	}
 }
 
@@ -2780,11 +2805,9 @@ func TestConnectivityReconcileRevokesGatewayWhenLedgerLookupFails(t *testing.T) 
 	}
 }
 
-// A failure to delete one resource during the hard teardown must not leave the
-// others behind: the public GatewayHTTPAPI and the superuser Credentials still
-// have to be removed even when the delegated Connectivity delete fails (e.g. its
-// CRD/API was removed after startup), and the failure must surface.
-func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
+// Close exposure when delegated deletion fails, but retain its credentials so
+// the delegated controller can finish cleanup after API recovery.
+func TestTeardownDelegatedRetainsCredentialsWhenDeleteFails(t *testing.T) {
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{
 		Name: "stack0",
@@ -2793,6 +2816,7 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 	connectivity.Spec.Stack = stack.Name
 	delegated := newDelegatedConnectivity(stack.Name)
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
+	delegated.SetFinalizers([]string{connectivityLifecycleFinalizer})
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
 	})
@@ -2806,7 +2830,7 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 	cred := newLedgerCredentialsForStack(stack.Name)
 	setStackOwnedLedgerCredentials(stack, connectivity, cred)
 
-	base := newReconcileTestContext(t, delegated, httpAPI, cred)
+	base := newReconcileTestContext(t, lifecycleCRD(), delegated, httpAPI, cred)
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
 			if obj.GetObjectKind().GroupVersionKind() == connectivityGVK {
@@ -2823,8 +2847,8 @@ func TestTeardownDelegatedAttemptsEveryDeletion(t *testing.T) {
 	if gatewayHTTPAPIExists(t, ctx, "stack0") {
 		t.Error("GatewayHTTPAPI must still be torn down when the delegated Connectivity delete fails")
 	}
-	if credentialsExist(t, ctx, "stack0") {
-		t.Error("superuser Credentials must still be torn down when the delegated Connectivity delete fails")
+	if !credentialsExist(t, ctx, "stack0") {
+		t.Error("Credentials must remain when delegated deletion fails")
 	}
 }
 
@@ -3008,6 +3032,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 		"keyId": "old-key", "subject": "old-subject", "key": "old-inline-seed",
 	}, "spec", "auth")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3291,6 +3316,7 @@ func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T
 	}
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
 	if err := ctx.GetClient().Update(ctx, delegated); err != nil {
 		t.Fatalf("mark delegated Connectivity ready: %v", err)
 	}
@@ -3429,6 +3455,7 @@ func TestConnectivityReconcileClearsAPIAuthWhenStackHasNoAuth(t *testing.T) {
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "https://stale.example.com/api/auth", "spec", "api", "auth", "issuer")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
+	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
 
 	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
