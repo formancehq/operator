@@ -232,7 +232,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	apiImage, apiImageErr := registries.GetFormanceImage(ctx, stack, "connectivity-api", version)
 	pullSecretErr := errors.Join(imageErr, apiImageErr)
 	if pullSecretErr == nil {
-		pullSecretErr = reconcileImagePullSecretReferences(ctx, stack, connectivity, image.PullSecrets, apiImage.PullSecrets)
+		pullSecretErr = reconcileImagePullSecretReferences(ctx, stack, image.PullSecrets, apiImage.PullSecrets)
 	}
 
 	// OIDC protection for the connectivity-api, following the same convention
@@ -1346,7 +1346,7 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	return []ReconcilerOption[*v1beta1.Connectivity]{
 		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
 		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
-		WithOwn[*v1beta1.Connectivity](&v1beta1.ResourceReference{}),
+		WithWatch[*v1beta1.Connectivity](mapPullSecretReferenceToConnectivity),
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),

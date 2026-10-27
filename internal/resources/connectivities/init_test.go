@@ -1085,6 +1085,7 @@ func newReconcileTestContext(t *testing.T, objs ...client.Object) credsTestConte
 			WithIndex(&v1beta1.LedgerConfiguration{}, "stack", func(obj client.Object) []string {
 				return obj.(*v1beta1.LedgerConfiguration).GetStacks()
 			}).
+			WithIndex(&v1beta1.Connectivity{}, "stack", unstructuredStackIndex).
 			WithIndex(&v1beta1.Auth{}, "stack", unstructuredStackIndex).
 			WithIndex(&v1beta1.Gateway{}, "stack", unstructuredStackIndex).
 			WithObjects(objs...).Build(),
