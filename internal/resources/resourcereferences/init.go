@@ -93,6 +93,9 @@ const (
 	AnyValue = "any"
 
 	RewrittenResourceName = "formance.com/referenced-by-name"
+
+	// RegistryPullSecretLabel enables collision protection for registry-generated references.
+	RegistryPullSecretLabel = "formance.com/registry-pull-secret"
 )
 
 func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceReference) error {
@@ -152,6 +155,12 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 	newResource.SetName(req.Spec.Name)
 
 	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), newResource, func() error {
+		// Check the actual destination here: a local Secret can appear after registry discovery.
+		if req.Labels[RegistryPullSecretLabel] == "true" && newResource.GetResourceVersion() != "" {
+			if err := requireResourceReferenceOwner(ctx, newResource); err != nil {
+				return err
+			}
+		}
 		content := newResource.UnstructuredContent()
 		if err := mergo.MergeWithOverwrite(&content, resource.UnstructuredContent()); err != nil {
 			return err

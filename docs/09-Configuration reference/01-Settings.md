@@ -88,6 +88,65 @@ While we have some basic types (string, number, bool ...), we also have some com
 | gateway.dns.public.annotations                                                           | Map    |                                                                                                                                                                                                                        | Annotations to add to the public DNSEndpoint resource                                                                                                                                                                            |
 | networkpolicies.enabled                                                                  | bool   | true                                                                                                                                                                                                                   | Allow all traffic within a Stack namespace and accept cross-namespace ingress only through the Gateway (default: false)                                                                                                             |
 
+### Connectivity pull secrets
+
+Configure Core/API and plugin workloads independently. These comma-separated Secret names use the usual wildcard and per-stack Settings precedence:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: connectivity-pull-secrets
+spec:
+  stacks: ["*"]
+  key: connectivity.image-pull-secrets
+  value: ghcr-pull
+---
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: connectivity-instance-pull-secrets
+spec:
+  stacks: ["*"]
+  key: connectivity.instances.image-pull-secrets
+  value: ghcr-pull
+```
+
+Stack Operator creates two independent, Stack-owned Connectivity Policies. The first has only `connectivitySelector: {}` and configures Core/API. The second has only `instanceSelector: {}` and configures plugins. Each Policy constrains `namespaceSelector` to `kubernetes.io/metadata.name=<stack-name>`, uses `mode: Enforce`, and supplies only `mutate.imagePullSecrets`. Other Policies, including monitoring policies, remain independently managed. Overlapping image-pull-secret Policies follow Connectivity's ascending priority/name, last-write-wins precedence; remove the old manual pull-secret mutation when migrating.
+
+The union of both Settings and registry endpoint credentials creates one ResourceReference per Secret per Stack. No registry endpoint Setting is required for this explicit path. Provision and authorize the source Secrets as described below. Secret references reconcile independently of module readiness. Catalog credentials, image resolution, image rewrites, and referrers are unchanged and are never inferred as plugin credentials.
+
+An omitted or empty Setting removes only its managed Policy; an empty per-stack value overrides a wildcard. Shared Secret references remain while either Setting or a registry endpoint still requires them. Removing a Policy removes its contribution: it does not force an empty array onto workloads or erase another Policy's contribution. Existing direct registry configuration for Core/API remains supported.
+
+The Policy CRD is optional when neither Setting requests credentials. When either is configured, install a compatible Connectivity Policy CRD and the generated Operator RBAC. Capability discovery runs at controller startup; restart Stack Operator after adding that API or its permissions. If unavailable, configured Stacks report a pending diagnostic while ordinary Stacks continue reconciling. Generated Policy names are deterministic from Stack UID and target axis. A manually owned object at the generated name is never adopted or overwritten; resolve that collision explicitly. Stack deletion garbage-collects owned Policies and references.
+
+### Registry pull secrets
+
+A registry endpoint can include one or more comma-separated `pullSecret` parameters:
+
+```yaml
+apiVersion: formance.com/v1beta1
+kind: Settings
+metadata:
+  name: ghcr-endpoint
+spec:
+  stacks: ["*"]
+  key: registries."ghcr.io".endpoint
+  value: ghcr.io?pullSecret=ghcr-pull
+```
+
+Quote registry names containing dots in the setting key. Settings precedence and wildcard rules also apply to registry endpoints.
+
+Provision the source Secret separately as `kubernetes.io/dockerconfigjson`. Opt it into cross-namespace copying with the label `formance.com/stack: any` for all stacks, or `formance.com/stack: <stack-name>` for one stack. Do not store registry credentials in Settings. Exactly one authorized source must match the Secret name; multiple matching sources are an error. The annotation `formance.com/referenced-by-name` can supply the referenced name when the source has a different name.
+
+Stack Operator creates one stack-owned ResourceReference per configured pull secret and copies it into the stack namespace. Source updates are propagated by ResourceReference. The image configuration still supplies the secret name to workloads; the explicit Connectivity Settings above supply credentials to Connectivity-managed workloads. This does not configure credentials for operators or catalogs outside stack namespaces: provision those separately.
+
+An existing local Secret takes precedence and is never adopted or overwritten by this automatic mechanism. A Secret already managed by ResourceReference remains managed and follows source updates. If a local Secret is removed, Stack Operator attempts to provision its configured reference.
+
+Changing the endpoint creates the replacement references before removing obsolete ones. Old references remain while replacements are pending. Removing a pull secret from all effective endpoints deletes its automatic reference; Kubernetes garbage collection removes the copied Secret after its final owner disappears. Copies remain while a stack is disabled and are collected when the stack is deleted. Other ResourceReference consumers can share ownership of the copy.
+
+For a pending stack, inspect its registry ResourceReferences and their status. Missing or unlabeled sources, ambiguous sources, and a local Secret appearing during a copy attempt cause explicit reconciliation errors. Fix the source label/name or the collision and retry. Source authorization failures do not immediately revoke a previously copied Secret; credential revocation must also invalidate the registry credential.
+
 ### Postgres URI format
 
 Scheme: postgresql

@@ -29,6 +29,7 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/registries"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -257,6 +258,19 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 		return err
 	}
 
+	connectivitySecrets, instanceSecrets, err := settings.GetConnectivityPullSecrets(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+	allSecrets := append(append([]string{}, connectivitySecrets...), instanceSecrets...)
+	if err := registries.ReconcilePullSecretReferences(ctx, stack, allSecrets...); err != nil {
+		return err
+	}
+
+	if err := reconcilePullSecretPolicies(ctx, stack, connectivitySecrets, instanceSecrets); err != nil {
+		return err
+	}
+
 	setLicenceCondition(ctx, stack)
 
 	if err := setModulesCondition(ctx, stack); err != nil {
@@ -414,6 +428,8 @@ func init() {
 		WithStdReconciler(Reconcile,
 			WithOwn[*v1beta1.Stack](&corev1.Namespace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})),
 			WithOwn[*v1beta1.Stack](&networkingv1.NetworkPolicy{}),
+			WithOwn[*v1beta1.Stack](&v1beta1.ResourceReference{}),
+			withPullSecretPolicyWatch(),
 			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
 				for _, rtype := range ctx.GetScheme().AllKnownTypes() {
 					v := reflect.New(rtype).Interface()
@@ -463,10 +479,20 @@ func init() {
 				return nil
 			}),
 			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
+				b.Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(func(watchCtx context.Context, object client.Object) []reconcile.Request {
+					if object.GetNamespace() == "" {
+						return nil
+					}
+					stack := &v1beta1.Stack{}
+					if err := ctx.GetClient().Get(watchCtx, types.NamespacedName{Name: object.GetNamespace()}, stack); err != nil {
+						return nil
+					}
+					return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: stack.Name}}}
+				}))
 				b.Watches(&v1beta1.Settings{}, handler.EnqueueRequestsFromMapFunc(
 					func(watchCtx context.Context, object client.Object) []reconcile.Request {
 						s := object.(*v1beta1.Settings)
-						if s.Spec.Key != "networkpolicies.enabled" {
+						if s.Spec.Key != "networkpolicies.enabled" && !registries.IsEndpointSetting(s.Spec.Key) && !settings.IsConnectivityPullSecretSetting(s.Spec.Key) {
 							return nil
 						}
 						requests := make([]reconcile.Request, 0)

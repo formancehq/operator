@@ -78,26 +78,32 @@ func GetImageConfiguration(
 		return nil, err
 	}
 	if registryEndpoint != "" {
-		parts := strings.SplitN(registryEndpoint, "?", 2)
-		ret.Registry = parts[0]
-		if len(parts) > 1 {
-			parametersPairs := strings.Split(parts[1], ",")
-			for _, pair := range parametersPairs {
-				parts := strings.SplitN(pair, "=", 2)
-				if len(parts) != 2 {
-					return nil, fmt.Errorf("invalid registry endpoint parameter: %s", pair)
-				}
-				switch parts[0] {
-				case "pullSecret":
-					ret.PullSecrets = append(ret.PullSecrets, v1.LocalObjectReference{
-						Name: parts[1],
-					})
-				default:
-					return nil, fmt.Errorf("unknown registry endpoint parameter: %s", parts[0])
-				}
-			}
+		ret.Registry, ret.PullSecrets, err = parseEndpoint(registryEndpoint)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return ret, nil
+}
+
+func parseEndpoint(endpoint string) (string, []v1.LocalObjectReference, error) {
+	parts := strings.SplitN(endpoint, "?", 2)
+	var secrets []v1.LocalObjectReference
+	if len(parts) > 1 {
+		for _, pair := range strings.Split(parts[1], ",") {
+			key, value, ok := strings.Cut(pair, "=")
+			if !ok {
+				return "", nil, fmt.Errorf("invalid registry endpoint parameter")
+			}
+			if key != "pullSecret" {
+				return "", nil, fmt.Errorf("unknown registry endpoint parameter: %s", key)
+			}
+			if value == "" {
+				return "", nil, fmt.Errorf("registry pull secret name must not be empty")
+			}
+			secrets = append(secrets, v1.LocalObjectReference{Name: value})
+		}
+	}
+	return parts[0], secrets, nil
 }

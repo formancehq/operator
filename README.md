@@ -4,6 +4,8 @@
 
 The operator allow to install formance components on a k8s cluster.
 
+See the [Settings reference](docs/09-Configuration%20reference/01-Settings.md#registry-pull-secrets) to configure private registries and copy pull secrets into stack namespaces. [Connectivity Settings](docs/09-Configuration%20reference/01-Settings.md#connectivity-pull-secrets) configure Core/API and plugin pull secrets independently.
+
 ## Getting Started
 
 ### Prerequisites

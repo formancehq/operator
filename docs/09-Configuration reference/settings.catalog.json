@@ -53,6 +53,20 @@
       ]
     },
     {
+      "key": "connectivity.image-pull-secrets",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/settings/connectivity_pull_secrets.go:20"
+      ]
+    },
+    {
+      "key": "connectivity.instances.image-pull-secrets",
+      "valueType": "string[]",
+      "sources": [
+        "internal/resources/settings/connectivity_pull_secrets.go:24"
+      ]
+    },
+    {
       "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.env-vars",
       "valueType": "map[string]string",
       "sources": [
@@ -596,14 +610,14 @@
       "key": "namespace.annotations",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:180"
+        "internal/resources/stacks/init.go:181"
       ]
     },
     {
       "key": "namespace.labels",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:161"
+        "internal/resources/stacks/init.go:162"
       ]
     },
     {
@@ -723,6 +737,7 @@
       "key": "registries.\u003cname\u003e.endpoint",
       "valueType": "string",
       "sources": [
+        "internal/resources/registries/pull_secrets.go:41",
         "internal/resources/registries/registries.go:76"
       ]
     },
