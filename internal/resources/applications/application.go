@@ -362,17 +362,31 @@ func (a Application) withTopologySpreadConstraints(ctx core.Context) core.Object
 		if !useTopologySpreadConstraints {
 			return nil
 		}
+		minDomains, err := settings.GetInt32(ctx, a.owner.GetStack(), "deployments", deployment.Name, "topology-spread-constraints", "min-domains")
+		if err != nil {
+			return err
+		}
+
+		zone := corev1.TopologySpreadConstraint{
+			MaxSkew:           1,
+			TopologyKey:       corev1.LabelTopologyZone,
+			WhenUnsatisfiable: corev1.ScheduleAnyway,
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: deployment.Spec.Template.Labels,
+			},
+			MatchLabelKeys: []string{"pod-template-hash"},
+		}
+		if minDomains != nil {
+			if *minDomains < 1 {
+				return fmt.Errorf("deployments.%s.topology-spread-constraints.min-domains must be greater than 0, got %d", deployment.Name, *minDomains)
+			}
+			// Kubernetes only honors minDomains with DoNotSchedule.
+			zone.WhenUnsatisfiable = corev1.DoNotSchedule
+			zone.MinDomains = minDomains
+		}
 
 		deployment.Spec.Template.Spec.TopologySpreadConstraints = []corev1.TopologySpreadConstraint{
-			{
-				MaxSkew:           1,
-				TopologyKey:       corev1.LabelTopologyZone,
-				WhenUnsatisfiable: corev1.ScheduleAnyway,
-				LabelSelector: &metav1.LabelSelector{
-					MatchLabels: deployment.Spec.Template.Labels,
-				},
-				MatchLabelKeys: []string{"pod-template-hash"},
-			},
+			zone,
 			{
 				MaxSkew:           1,
 				TopologyKey:       corev1.LabelHostname,

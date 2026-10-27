@@ -927,3 +927,115 @@ func TestWithSemconvMetricsNames(t *testing.T) {
 		})
 	}
 }
+
+func TestWithTopologySpreadConstraints(t *testing.T) {
+	t.Parallel()
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1beta1.AddToScheme(scheme))
+
+	const (
+		stackName      = "test-stack"
+		deploymentName = "test-deployment"
+	)
+	labels := map[string]string{"app.kubernetes.io/name": deploymentName}
+	hostname := v1.TopologySpreadConstraint{
+		MaxSkew:           1,
+		TopologyKey:       v1.LabelHostname,
+		WhenUnsatisfiable: v1.DoNotSchedule,
+		LabelSelector:     &metav1.LabelSelector{MatchLabels: labels},
+		MatchLabelKeys:    []string{"pod-template-hash"},
+	}
+	zone := func(whenUnsatisfiable v1.UnsatisfiableConstraintAction, minDomains *int32) v1.TopologySpreadConstraint {
+		return v1.TopologySpreadConstraint{
+			MaxSkew:           1,
+			TopologyKey:       v1.LabelTopologyZone,
+			WhenUnsatisfiable: whenUnsatisfiable,
+			LabelSelector:     &metav1.LabelSelector{MatchLabels: labels},
+			MatchLabelKeys:    []string{"pod-template-hash"},
+			MinDomains:        minDomains,
+		}
+	}
+	minDomains := int32(3)
+
+	testCases := []struct {
+		name     string
+		settings []*v1beta1.Settings
+		expected []v1.TopologySpreadConstraint
+		err      string
+	}{
+		{
+			name: "disabled ignores min-domains",
+			settings: []*v1beta1.Settings{
+				settings.New("min-domains", "deployments."+deploymentName+".topology-spread-constraints.min-domains", "0", stackName),
+			},
+		},
+		{
+			name: "enabled without min-domains",
+			settings: []*v1beta1.Settings{
+				settings.New("enabled", "deployments.*.topology-spread-constraints", "true", "*"),
+			},
+			expected: []v1.TopologySpreadConstraint{zone(v1.ScheduleAnyway, nil), hostname},
+		},
+		{
+			name: "enabled with min-domains",
+			settings: []*v1beta1.Settings{
+				settings.New("enabled", "deployments.*.topology-spread-constraints", "true", "*"),
+				settings.New("min-domains", "deployments."+deploymentName+".topology-spread-constraints.min-domains", "3", stackName),
+			},
+			expected: []v1.TopologySpreadConstraint{zone(v1.DoNotSchedule, &minDomains), hostname},
+		},
+		{
+			name: "enabled with invalid min-domains",
+			settings: []*v1beta1.Settings{
+				settings.New("enabled", "deployments.*.topology-spread-constraints", "true", "*"),
+				settings.New("min-domains", "deployments.*.topology-spread-constraints.min-domains", "0", "*"),
+			},
+			err: "must be greater than 0",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			objects := make([]client.Object, 0, len(tc.settings))
+			for _, setting := range tc.settings {
+				objects = append(objects, setting)
+			}
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(objects...).
+				WithIndex(&v1beta1.Settings{}, "stack", func(obj client.Object) []string {
+					return obj.(*v1beta1.Settings).GetStacks()
+				}).
+				WithIndex(&v1beta1.Settings{}, "keylen", func(obj client.Object) []string {
+					return []string{fmt.Sprint(len(settings.SplitKeywordWithDot(obj.(*v1beta1.Settings).Spec.Key)))}
+				}).
+				Build()
+			mockCtx := &mockContext{
+				Context:  t.Context(),
+				client:   fakeClient,
+				scheme:   scheme,
+				platform: core.Platform{Region: "testing", Environment: "testing"},
+			}
+			app := Application{owner: &v1beta1.Ledger{
+				Spec: v1beta1.LedgerSpec{StackDependency: v1beta1.StackDependency{Stack: stackName}},
+			}}
+			deployment := &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{Name: deploymentName},
+				Spec: appsv1.DeploymentSpec{
+					Template: v1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: labels}},
+				},
+			}
+
+			err := app.withTopologySpreadConstraints(mockCtx)(deployment)
+			if tc.err != "" {
+				require.ErrorContains(t, err, tc.err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, deployment.Spec.Template.Spec.TopologySpreadConstraints)
+		})
+	}
+}

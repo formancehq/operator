@@ -107,7 +107,7 @@ func TestComposeLedgerV3ClusterSpec(t *testing.T) {
 	require.Equal(t, "stack0", actual.AdditionalLabels["app.kubernetes.io/instance"])
 	require.Equal(t, "true", actual.AdditionalLabels[ledgerV3PreviewLabel])
 	require.Equal(t, "nvme", actual.NodeSelector["disk"])
-	require.Equal(t, defaultLedgerV3TopologySpreadConstraints(), actual.TopologySpreadConstraints)
+	require.Equal(t, base.TopologySpreadConstraints, actual.TopologySpreadConstraints)
 	require.Equal(t, "2", actual.Resources.Limits.Cpu().String())
 	require.Empty(t, actual.Resources.Requests)
 	require.Equal(t, []corev1.EnvVar{
@@ -207,7 +207,7 @@ func TestComposeLedgerV3ClusterSpecDisablesConfiguredTopologySpreadConstraints(t
 	t.Parallel()
 
 	base := &ledgerv1alpha1.ClusterSpec{
-		TopologySpreadConstraints: defaultLedgerV3TopologySpreadConstraints(),
+		TopologySpreadConstraints: defaultLedgerV3TopologySpreadConstraints(nil),
 	}
 	actual, err := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
 		ImageRepository:           "ledger",
@@ -221,6 +221,70 @@ func TestComposeLedgerV3ClusterSpecDisablesConfiguredTopologySpreadConstraints(t
 
 	require.Nil(t, actual.TopologySpreadConstraints)
 	require.NotEmpty(t, base.TopologySpreadConstraints)
+}
+
+func TestComposeLedgerV3ClusterSpecAppliesDefaultTopologySpreadConstraints(t *testing.T) {
+	t.Parallel()
+
+	actual, err := composeLedgerV3ClusterSpec(&ledgerv1alpha1.ClusterSpec{}, ledgerV3SpecOverrides{
+		ImageRepository:           "ledger",
+		ImageTag:                  "latest",
+		Replicas:                  3,
+		InstanceName:              "stack0",
+		TLSSecretName:             "tls",
+		TopologySpreadConstraints: pointerTo(true),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []corev1.TopologySpreadConstraint{
+		{MaxSkew: 1, TopologyKey: corev1.LabelTopologyZone, WhenUnsatisfiable: corev1.ScheduleAnyway},
+		{MaxSkew: 1, TopologyKey: corev1.LabelHostname, WhenUnsatisfiable: corev1.DoNotSchedule},
+	}, actual.TopologySpreadConstraints)
+}
+
+func TestComposeLedgerV3ClusterSpecAppliesTopologySpreadMinDomains(t *testing.T) {
+	t.Parallel()
+
+	actual, err := composeLedgerV3ClusterSpec(&ledgerv1alpha1.ClusterSpec{}, ledgerV3SpecOverrides{
+		ImageRepository:           "ledger",
+		ImageTag:                  "latest",
+		Replicas:                  3,
+		InstanceName:              "stack0",
+		TLSSecretName:             "tls",
+		TopologySpreadConstraints: pointerTo(true),
+		TopologySpreadMinDomains:  pointerTo(int32(3)),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []corev1.TopologySpreadConstraint{
+		{MaxSkew: 1, TopologyKey: corev1.LabelTopologyZone, WhenUnsatisfiable: corev1.DoNotSchedule, MinDomains: pointerTo(int32(3))},
+		{MaxSkew: 1, TopologyKey: corev1.LabelHostname, WhenUnsatisfiable: corev1.DoNotSchedule},
+	}, actual.TopologySpreadConstraints)
+}
+
+func TestComposeLedgerV3ClusterSpecKeepsConfiguredTopologySpreadConstraints(t *testing.T) {
+	t.Parallel()
+
+	base := &ledgerv1alpha1.ClusterSpec{
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{
+			MaxSkew:           1,
+			TopologyKey:       corev1.LabelTopologyZone,
+			WhenUnsatisfiable: corev1.DoNotSchedule,
+			MinDomains:        pointerTo(int32(2)),
+		}},
+	}
+	actual, err := composeLedgerV3ClusterSpec(base, ledgerV3SpecOverrides{
+		ImageRepository:           "ledger",
+		ImageTag:                  "latest",
+		Replicas:                  3,
+		InstanceName:              "stack0",
+		TLSSecretName:             "tls",
+		TopologySpreadConstraints: pointerTo(true),
+		TopologySpreadMinDomains:  pointerTo(int32(3)),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, base.TopologySpreadConstraints, actual.TopologySpreadConstraints)
 }
 
 func TestComposeLedgerV3ClusterSpecRejectsOversizedAuthRetries(t *testing.T) {
