@@ -1377,7 +1377,7 @@ func connectivityModuleRequirements() ModuleRequirements {
 }
 
 func init() {
-	Init(WithModuleReconciler(Reconcile, disableConnectivity,
+	Init(WithModuleLifecycleReconciler(Reconcile, disableConnectivity,
 		connectivityModuleRequirements(),
 		connectivityReconcilerOptions()...,
 	))

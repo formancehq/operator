@@ -379,7 +379,7 @@ func TestForModuleGatesReconcilerOnRequirements(t *testing.T) {
 			called := false
 			controller := ForModule(
 				Requirements(Require(&v1beta1.Broker{}, Ready())),
-				DisableModuleOwnedObjects[*v1beta1.Ledger], func(Context, *v1beta1.Stack, *ReconcilerOptions[*v1beta1.Ledger], *v1beta1.Ledger, string) error {
+				func(Context, *v1beta1.Stack, *ReconcilerOptions[*v1beta1.Ledger], *v1beta1.Ledger, string) error {
 					called = true
 					return nil
 				},
@@ -444,7 +444,7 @@ func TestForModuleDoesNotCleanupUnknownRequirement(t *testing.T) {
 	})(options)
 	controller := ForModule(
 		Requirements(Require(&v1beta1.Ledger{}, VersionAtLeast("v3.0.0-0"))),
-		DisableModuleOwnedObjects[*v1beta1.Connectivity], func(Context, *v1beta1.Stack, *ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
+		func(Context, *v1beta1.Stack, *ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
 			t.Fatal("underlying reconciler must not run for an unknown dependency version")
 			return nil
 		},

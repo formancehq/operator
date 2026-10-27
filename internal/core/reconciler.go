@@ -409,12 +409,17 @@ func WithResourceReconciler[T v1beta1.Dependent](fn func(ctx Context, stack *v1b
 		opts...)
 }
 
-func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, disabledController StackDependentObjectController[T], requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
+func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
+	return WithModuleLifecycleReconciler(fn, disableModuleOwnedObjects[T], requirements, opts...)
+}
+
+// WithModuleLifecycleReconciler requires an explicit disable controller for a delegated lifecycle.
+func WithModuleLifecycleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, disabledController StackDependentObjectController[T], requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
 	opts = withRequirementWatches(requirements, opts)
 	opts = append(opts, WithWatchVersions[T](requirements))
 	initializer := withStackDependencyReconciler(
 		ForStackDependency(
-			ForModule(requirements, disabledController, func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
+			ForModuleWithDisable(requirements, disabledController, func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
 				return fn(ctx, stack, req, version)
 			}),
 			false,

@@ -575,7 +575,7 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 	for _, option := range connectivityReconcilerOptions() {
 		option(options)
 	}
-	controller := core.ForModule(core.NoRequirements(), disableConnectivity, func(_ core.Context, _ *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], _ *v1beta1.Connectivity, _ string) error {
+	controller := core.ForModuleWithDisable(core.NoRequirements(), disableConnectivity, func(_ core.Context, _ *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], _ *v1beta1.Connectivity, _ string) error {
 		t.Fatal("a disabled Stack must not reconcile its Connectivity module")
 		return nil
 	})
@@ -1519,7 +1519,7 @@ func TestConnectivityModuleControllerReachesHardGateForLedgerV2Preview(t *testin
 	for _, option := range connectivityReconcilerOptions() {
 		option(options)
 	}
-	controller := core.ForModule(connectivityModuleRequirements(),
+	controller := core.ForModuleWithDisable(connectivityModuleRequirements(),
 		disableConnectivity, func(ctx core.Context, stack *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], connectivity *v1beta1.Connectivity, version string) error {
 			return Reconcile(ctx, stack, connectivity, version)
 		})

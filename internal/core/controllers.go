@@ -126,7 +126,12 @@ func ensureStackLabel[T v1beta1.Dependent](ctx Context, t T) error {
 
 type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error
 
-func ForModule[T v1beta1.Module](requirements ModuleRequirements, disabledController StackDependentObjectController[T], underlyingController ModuleController[T]) StackDependentObjectController[T] {
+func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingController ModuleController[T]) StackDependentObjectController[T] {
+	return ForModuleWithDisable(requirements, disableModuleOwnedObjects[T], underlyingController)
+}
+
+// ForModuleWithDisable delegates Stack disable to the module's lifecycle controller.
+func ForModuleWithDisable[T v1beta1.Module](requirements ModuleRequirements, disabledController StackDependentObjectController[T], underlyingController ModuleController[T]) StackDependentObjectController[T] {
 	return func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], t T) error {
 		hasOwnerReference, err := HasOwnerReference(ctx, stack, t)
 		if err != nil {
@@ -254,8 +259,7 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, disabledContro
 	}
 }
 
-// DisableModuleOwnedObjects removes runtime objects while retaining durable resources.
-func DisableModuleOwnedObjects[T v1beta1.Module](ctx Context, _ *v1beta1.Stack, options *ReconcilerOptions[T], module T) error {
+func disableModuleOwnedObjects[T v1beta1.Module](ctx Context, _ *v1beta1.Stack, options *ReconcilerOptions[T], module T) error {
 	return removeAllModulesOwnedObjects(ctx, module, options.Owns)
 }
 

@@ -54,7 +54,7 @@ func lifecycleFixture(t *testing.T) (credsTestContext, *v1beta1.Stack, *v1beta1.
 func TestDisableConnectivityRequestsShutdownWithoutWaiting(t *testing.T) {
 	ctx, stack, module, delegated := lifecycleFixture(t)
 	opts := &core.ReconcilerOptions[*v1beta1.Connectivity]{Owns: map[client.Object][]builder.OwnsOption{delegated: nil}}
-	controller := core.ForModule(core.NoRequirements(), disableConnectivity, func(core.Context, *v1beta1.Stack, *core.ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
+	controller := core.ForModuleWithDisable(core.NoRequirements(), disableConnectivity, func(core.Context, *v1beta1.Stack, *core.ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
 		t.Fatal("normal controller ran")
 		return nil
 	})
