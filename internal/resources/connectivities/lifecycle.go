@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -24,28 +23,8 @@ func lifecyclePending(module *v1beta1.Connectivity, reason, message string) erro
 	return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
 }
 
-func requireDisabledSchema(ctx Context, module *v1beta1.Connectivity) error {
-	crd := &apiextensionsv1.CustomResourceDefinition{}
-	if err := ctx.GetAPIReader().Get(ctx, client.ObjectKey{Name: "connectivities.connectivity.formance.com"}, crd); err != nil {
-		return lifecyclePending(module, "LifecycleCapabilityUnavailable", fmt.Sprintf("cannot verify Connectivity lifecycle CRD: %v; install compatible CRDs and controller first", err))
-	}
-	for _, version := range crd.Spec.Versions {
-		if version.Name != connectivityGVK.Version || !version.Served || version.Schema == nil || version.Schema.OpenAPIV3Schema == nil {
-			continue
-		}
-		spec := version.Schema.OpenAPIV3Schema.Properties["spec"]
-		if spec.Properties["disabled"].Type == "boolean" {
-			return nil
-		}
-	}
-	return lifecyclePending(module, "LifecycleCapabilityUnavailable", "Connectivity CRD lacks boolean spec.disabled; install compatible CRDs and controller first")
-}
-
-func disableConnectivity(ctx Context, stack *v1beta1.Stack, module *v1beta1.Connectivity) error {
+func disableConnectivity(ctx Context, stack *v1beta1.Stack, _ *ReconcilerOptions[*v1beta1.Connectivity], module *v1beta1.Connectivity) error {
 	if err := deleteOwnedGatewayHTTPAPI(ctx, module); err != nil {
-		return err
-	}
-	if err := requireDisabledSchema(ctx, module); err != nil {
 		return err
 	}
 	delegated := &unstructured.Unstructured{}
@@ -80,30 +59,13 @@ func disableConnectivity(ctx Context, stack *v1beta1.Stack, module *v1beta1.Conn
 		if err := ctx.GetClient().Patch(ctx, delegated, client.RawPatch(types.JSONPatchType, guarded)); err != nil {
 			return err
 		}
-		return lifecyclePending(module, "Disabling", "waiting for delegated Connectivity to stop Core, API and all ConnectorInstance workloads")
 	}
-	phase, _, err := unstructured.NestedString(delegated.Object, "status", "phase")
-	if err != nil {
-		return err
-	}
-	address, _, err := unstructured.NestedString(delegated.Object, "status", "address")
-	if err != nil {
-		return err
-	}
-	observed, found, err := unstructured.NestedInt64(delegated.Object, "status", "observedGeneration")
-	if err != nil {
-		return err
-	}
-	if phase != "Disabled" || address != "" || !found || observed != delegated.GetGeneration() {
-		return lifecyclePending(module, "Disabling", "waiting for delegated Connectivity Disabled phase and empty address")
-	}
-	setCondition(module, metav1.ConditionTrue, "Disabled", "Connectivity workloads are disabled; configuration and credentials are retained")
-	module.GetConditions().AppendOrReplace(v1beta1.Condition{Type: "ReconciledWithStack", Status: metav1.ConditionTrue, ObservedGeneration: stack.Generation, LastTransitionTime: metav1.Now(), Reason: "Spec", Message: "Connectivity disabled with Stack"}, v1beta1.ConditionTypeMatch("ReconciledWithStack"))
+	setCondition(module, metav1.ConditionTrue, "DisableRequested", "Connectivity disable requested; the Connectivity controller owns workload shutdown")
+	module.GetConditions().AppendOrReplace(v1beta1.Condition{Type: "ReconciledWithStack", Status: metav1.ConditionTrue, ObservedGeneration: stack.Generation, LastTransitionTime: metav1.Now(), Reason: "Spec", Message: "Connectivity disable requested with Stack"}, v1beta1.ConditionTypeMatch("ReconciledWithStack"))
 	return nil
 }
 
 func finalizeConnectivity(ctx Context, module *v1beta1.Connectivity) error {
-	// Keep the existing finalizer name: objects created by older Stack Operators
-	// must receive this barrier before their credential can be revoked.
+	// Keep the existing credential finalizer, without waiting for delegated cleanup.
 	return teardownDelegated(ctx, &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: module.GetStack()}}, module)
 }

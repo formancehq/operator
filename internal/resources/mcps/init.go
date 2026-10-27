@@ -64,7 +64,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, mcp *v1beta1.MCP, version stri
 
 func init() {
 	Init(
-		WithModuleReconciler(Reconcile,
+		WithModuleReconciler(Reconcile, DisableModuleOwnedObjects,
 			Requirements(
 				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
 			),

@@ -73,7 +73,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, t *v1beta1.TransactionPlane, v
 
 func init() {
 	Init(
-		WithModuleReconciler(Reconcile,
+		WithModuleReconciler(Reconcile, DisableModuleOwnedObjects,
 			Requirements(
 				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
 			),

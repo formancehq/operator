@@ -575,7 +575,7 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 	for _, option := range connectivityReconcilerOptions() {
 		option(options)
 	}
-	controller := core.ForModule(core.NoRequirements(), func(_ core.Context, _ *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], _ *v1beta1.Connectivity, _ string) error {
+	controller := core.ForModule(core.NoRequirements(), disableConnectivity, func(_ core.Context, _ *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], _ *v1beta1.Connectivity, _ string) error {
 		t.Fatal("a disabled Stack must not reconcile its Connectivity module")
 		return nil
 	})
@@ -1281,8 +1281,8 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerVersionIsOpaque(t *tes
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want an application (pending) error", err)
 	}
-	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "DelegatedDeletionPending" {
-		t.Fatalf("expected a DelegatedDeletionPending condition, got %#v", connectivity.Status.Conditions)
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerNotV3" {
+		t.Fatalf("expected a LedgerNotV3 condition, got %#v", connectivity.Status.Conditions)
 	}
 
 	if !delegatedConnectivityExists(t, ctx, "stack0") {
@@ -1291,8 +1291,8 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerVersionIsOpaque(t *tes
 	if gatewayHTTPAPIExists(t, ctx, "stack0") {
 		t.Error("GatewayHTTPAPI must be torn down when the ledger is not v3")
 	}
-	if !credentialsExist(t, ctx, "stack0") {
-		t.Error("Credentials must remain until delegated cleanup finishes")
+	if credentialsExist(t, ctx, "stack0") {
+		t.Error("Credentials must be deleted without waiting for delegated cleanup")
 	}
 }
 
@@ -1359,7 +1359,7 @@ func TestConnectivityReconcileRejectsLedgerV2Preview(t *testing.T) {
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want pending on the incompatible Ledger", err)
 	}
-	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "DelegatedDeletionPending" {
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "LedgerNotV3" {
 		t.Fatalf("expected the v2 preview to be rejected with LedgerNotV3, got %#v", connectivity.Status.Conditions)
 	}
 
@@ -1520,7 +1520,7 @@ func TestConnectivityModuleControllerReachesHardGateForLedgerV2Preview(t *testin
 		option(options)
 	}
 	controller := core.ForModule(connectivityModuleRequirements(),
-		func(ctx core.Context, stack *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], connectivity *v1beta1.Connectivity, version string) error {
+		disableConnectivity, func(ctx core.Context, stack *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], connectivity *v1beta1.Connectivity, version string) error {
 			return Reconcile(ctx, stack, connectivity, version)
 		})
 
@@ -1646,8 +1646,8 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 	if !core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want pending for a resolved non-v3 Ledger", err)
 	}
-	if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "DelegatedDeletionPending" {
-		t.Fatalf("condition = %+v, want reason DelegatedDeletionPending", condition)
+	if condition := connectivity.GetConditions().Get(connectivityReadyCondition); condition == nil || condition.Reason != "LedgerNotV3" {
+		t.Fatalf("condition = %+v, want reason LedgerNotV3", condition)
 	}
 	if !delegatedConnectivityExists(t, ctx, stack.Name) {
 		t.Error("delegated Connectivity must retain its cleanup finalizer")
@@ -1655,8 +1655,8 @@ func TestConnectivityReconcileTearsDownDelegatedWhenLedgerNotV3AndAPIAuthResolut
 	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
 		t.Error("GatewayHTTPAPI must be torn down despite an unrelated auth resolution failure")
 	}
-	if !credentialsExist(t, ctx, stack.Name) {
-		t.Error("Credentials must remain until delegated cleanup finishes")
+	if credentialsExist(t, ctx, stack.Name) {
+		t.Error("Credentials must be deleted without waiting for delegated cleanup")
 	}
 }
 

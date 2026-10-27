@@ -31,14 +31,12 @@ workloads while retaining configuration and credentials. Other modules keep thei
 existing owned-runtime removal behavior. See [Connectivity lifecycle](12-Connectivity.md#disable-and-delete)
 for rollout requirements and observable completion conditions.
 
-Deleting a Stack waits for Connectivity module cleanup before deleting Ledger and
-other modules, then deletes durable resource CRs and allows namespace garbage
-collection. A disabled Stack can remain pending if Connectivity cannot restore
-Core for cleanup; the Operator does not invent missing startup dependencies or
-force-remove finalizers. Namespace deletion also deletes externally supplied
-Secrets stored inside it.
+Deleting a Stack requests deletion of all modules without imposing a Connectivity
+cleanup order, then follows the existing resource and namespace deletion lifecycle.
+The Connectivity controller owns its asynchronous cleanup. Namespace deletion also
+deletes externally supplied Secrets stored inside it.
 
 Do not create or reassign module attachments while a Stack is deleting. Normal
-reconciliation checks Stack liveness through the API reader; deletion inventories
-existing attachments before requesting cleanup. These checks do not provide a
+reconciliation checks Stack liveness through the API reader; deletion discovers
+existing attachments while requesting cleanup. These checks do not provide a
 transaction across independent API writers.

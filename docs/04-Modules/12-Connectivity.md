@@ -69,11 +69,10 @@ spec:
 `Stack.spec.disabled=true` stops Connectivity through the delegated resource's
 `spec.disabled=true`. The Stack Operator retains the delegated Connectivity CR,
 all ConnectorInstance configuration and managed Secrets, and Ledger Credentials.
-It removes the owned gateway route and waits for the delegated controller to
-report `phase=Disabled`, an empty address, and `status.observedGeneration` equal
-to `metadata.generation`. The delegated controller owns stopping Core, API and
-all instance workloads, and must publish `Disabled` only after verifying that their
-workloads have stopped. A patch being accepted does not mean disable completed.
+It removes the owned gateway route and returns once the disable request is
+accepted. The delegated controller owns stopping Core, API and instance workloads;
+its status records actual completion. Repeated enable/disable changes update the
+desired state without serializing the requests behind workload shutdown.
 Other Stack modules retain their existing disable behavior.
 
 Re-enabling the Stack explicitly restores delegated `spec.disabled=false` after
@@ -82,24 +81,16 @@ controller reports the current generation `Ready` after Core rollout, and the AP
 Deployment and Service satisfy the authentication rollout checks.
 
 Deleting the `formance.com/Connectivity` module requests deletion of its exact-owned
-delegated Connectivity and keeps the module finalizer and Ledger Credentials until
-that resource disappears. The delegated controller must delete every instance
-through `RemoveSource` before removing Core, and garbage-collect managed Secrets;
-externally supplied Secrets remain untouched by Connectivity cleanup. Deletion of
-an individual instance while its parent is disabled waits; deleting the parent
-takes precedence and restores Core for cleanup. The Stack Operator reuses its
-existing `delete-ledger-credentials` finalizer name for this ordered cleanup.
+delegated Connectivity and deletes its Ledger Credentials without waiting for the
+delegated resource to disappear. The existing `delete-ledger-credentials` finalizer
+covers these API operations only. Cleanup errors are retried, but accepted deletion
+does not wait for the delegated finalizer.
 
-Stack deletion drains Connectivity modules first, before requesting deletion of
-Ledger or other modules. A disabled Stack is not automatically re-enabled: the
-Connectivity controller restores Core for deletion using the retained configuration
-and credentials. Core constructs its Ledger client lazily and can remove an absent
-source without a Ledger RPC; this does not reconstruct missing credential, TLS or
-other startup dependencies. If cleanup cannot run, deletion remains pending and
-credentials are retained. Repair the named dependency or compatible controller;
-do not remove finalizers to force success. Deleting a Ledger module directly or
-changing it away from v3 can make ingestion unavailable before cleanup; hard-gate
-teardown still waits for delegated deletion before releasing credentials.
+The Connectivity controller owns instance cleanup, workload teardown and its own
+finalizer. The Stack Operator does not serialize other module deletions behind
+Connectivity. Cleanup must therefore tolerate Ledger, credentials and other Stack
+resources becoming unavailable. Only the Connectivity controller reports completion
+of its lifecycle; a successful Stack Operator reconciliation confirms the request.
 
 Full Stack deletion also deletes the Stack-owned namespace. Kubernetes namespace
 deletion removes all Secrets in that namespace, including externally supplied
@@ -114,27 +105,21 @@ this Stack Operator. The served Connectivity schema must declare boolean
 `spec.disabled`; the controller must implement the disabled, observed-generation,
 Core-rollout and instance-cleanup contracts above, and hold
 `connectivity.formance.com/connectivity` during cleanup. There is no verified
-release-version floor for this combined contract. CRD shape and finalizer presence
-are necessary guards, not proof that the installed controller implements it.
+release-version floor for this combined contract. Verify the installed controller behavior; schema shape and finalizer presence
+alone do not prove that contract.
 Record the actual paired revisions and exercise disable/re-enable and both module
 and Stack deletion before release.
 
-When the schema, lifecycle finalizer, ownership or API access cannot be verified,
-the Operator retains configuration and credentials, closes its owned public route
-where possible, and reports the blocking condition. It never falls back to deleting
-the delegated CR to disable it. If a delegated CR is already deleting, disable
-cannot cancel that deletion. Fix discovery/RBAC/schema/controller compatibility and
-allow reconciliation to resume. Startup capability discovery requires restarting
-the Stack Operator after installing previously missing APIs or permissions.
+Compatible CRDs and controller are required dependencies. The Stack Operator does
+not negotiate lifecycle capability or wait for the delegated lifecycle finalizer to
+be installed. API and ownership errors are reported and retried; foreign-owned
+resources are preserved. Disable never falls back to deleting the delegated CR.
+A delegated resource already deleting cannot be restored by a disable request.
+Startup capability discovery requires restarting the Stack Operator after installing
+previously missing APIs or permissions.
 
-This changes observable lifecycle behavior: disable now preserves the delegated CR
-instead of deleting it; module, hard-gate and Stack deletion wait for cleanup rather
-than promptly revoking credentials or deleting every module concurrently. Existing
-automation that relies on delegated-CR absence on disable, immediate credential
-revocation, or deletion succeeding without a compatible Connectivity controller
-must change. These are behavioral compatibility changes and capability restrictions;
-there is no Stack CRD field removal. Disclose them and obtain the required human
-approval before merge. Rolling back to an older Stack Operator restores its old
-delete-on-disable and credential-ordering behavior and is unsafe during a disabled
-or terminating Connectivity lifecycle. Complete cleanup/re-enable with the compatible
-pair before an approved rollback; do not rely on rollback to bypass a pending state.
+This changes observable disable behavior: disable preserves the delegated CR instead
+of deleting it. Existing automation that relies on delegated-CR absence on disable
+must change. Disclose this behavioral compatibility change and obtain required human
+approval before merge. Rolling back to an older Stack Operator restores delete-on-disable;
+complete cleanup/re-enable with the compatible pair before an approved rollback.

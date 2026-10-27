@@ -123,7 +123,7 @@ func usesSeparateWorkerDeployment(version string) bool {
 
 func init() {
 	Init(
-		WithModuleReconciler(Reconcile,
+		WithModuleReconciler(Reconcile, DisableModuleOwnedObjects,
 			Requirements(
 				Require(&v1beta1.Ledger{}, VersionBefore(v1beta1.LedgerV3Version)),
 			),

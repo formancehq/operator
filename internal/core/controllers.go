@@ -126,7 +126,7 @@ func ensureStackLabel[T v1beta1.Dependent](ctx Context, t T) error {
 
 type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error
 
-func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingController ModuleController[T]) StackDependentObjectController[T] {
+func ForModule[T v1beta1.Module](requirements ModuleRequirements, disabledController StackDependentObjectController[T], underlyingController ModuleController[T]) StackDependentObjectController[T] {
 	return func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], t T) error {
 		hasOwnerReference, err := HasOwnerReference(ctx, stack, t)
 		if err != nil {
@@ -146,14 +146,7 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingCont
 
 		if stack.Spec.Disabled {
 			t.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
-			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
-			// Owned objects must be controlled by the module.
-			// if not, they will not be automatically removed on stack removal.
-			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
-			if reconcilerOptions.StackDisabledHandle != nil {
-				return reconcilerOptions.StackDisabledHandle(ctx, stack, t)
-			}
-			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
+			return disabledController(ctx, stack, reconcilerOptions, t)
 		}
 
 		moduleVersion, err := GetModuleVersion(ctx, stack, t)
@@ -259,6 +252,11 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingCont
 
 		return nil
 	}
+}
+
+// DisableModuleOwnedObjects removes runtime objects while retaining durable resources.
+func DisableModuleOwnedObjects[T v1beta1.Module](ctx Context, _ *v1beta1.Stack, options *ReconcilerOptions[T], module T) error {
+	return removeAllModulesOwnedObjects(ctx, module, options.Owns)
 }
 
 func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[client.Object][]builder.OwnsOption) error {

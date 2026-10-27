@@ -109,7 +109,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version st
 
 func init() {
 	Init(
-		WithModuleReconciler(Reconcile,
+		WithModuleReconciler(Reconcile, DisableModuleOwnedObjects,
 			NoRequirements(),
 			WithOwn[*v1beta1.Auth](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Auth](&v1beta1.GatewayHTTPAPI{}),

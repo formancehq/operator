@@ -127,7 +127,7 @@ var isDNSEndpointAvailable bool
 
 func init() {
 	Init(
-		WithModuleReconciler(Reconcile,
+		WithModuleReconciler(Reconcile, DisableModuleOwnedObjects,
 			NoRequirements(),
 			WithOwn[*v1beta1.Gateway](&corev1.ConfigMap{}),
 			WithOwn[*v1beta1.Gateway](&appsv1.Deployment{}),

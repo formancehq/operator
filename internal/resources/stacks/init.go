@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
-	"slices"
 	"sort"
 	"strings"
 
@@ -313,9 +312,7 @@ func (p pendingDeletions) String() string {
 }
 
 func deleteModules(ctx Context, stack *v1beta1.Stack, logger logr.Logger) error {
-	// Inventory every module before requesting any deletion. Connectivity must
-	// finish first regardless of scheme iteration order.
-	var modules []unstructured.Unstructured
+	pendingModuleDeletions := pendingDeletions{}
 	for _, rtype := range ctx.GetScheme().AllKnownTypes() {
 		v := reflect.New(rtype).Interface()
 		module, ok := v.(v1beta1.Module)
@@ -339,45 +336,20 @@ func deleteModules(ctx Context, stack *v1beta1.Stack, logger logr.Logger) error 
 			return ok && stackName == stack.Name
 		})
 
-		modules = append(modules, items...)
-	}
-
-	pendingConnectivity := false
-	for i := range modules {
-		module := &modules[i]
-		if module.GroupVersionKind() != v1beta1.GroupVersion.WithKind("Connectivity") {
-			continue
-		}
-		pendingConnectivity = true
-		if module.GetDeletionTimestamp().IsZero() {
-			if !slices.Contains(module.GetFinalizers(), "delete-ledger-credentials") {
-				return NewPendingError().WithMessage("Waiting for Connectivity module lifecycle finalizer before Stack deletion")
+		for _, item := range items {
+			pendingModuleDeletion := pendingDeletion{
+				GroupVersionKind: gvk,
+				Name:             item.GetName(),
 			}
-			uid, version := module.GetUID(), module.GetResourceVersion()
-			if err := ctx.GetClient().Delete(ctx, module, client.Preconditions{UID: &uid, ResourceVersion: &version}); client.IgnoreNotFound(err) != nil {
-				return err
+			if item.GetDeletionTimestamp().IsZero() {
+				logger.Info(fmt.Sprintf("Delete module %s [%s]", item.GetName(), gvk))
+				if err := ctx.GetClient().Delete(ctx, &item); client.IgnoreNotFound(err) != nil {
+					return err
+				}
+				pendingModuleDeletion.JustDeleted = true
 			}
+			pendingModuleDeletions = append(pendingModuleDeletions, pendingModuleDeletion)
 		}
-	}
-	if pendingConnectivity {
-		return NewPendingError().WithMessage("Waiting for Connectivity cleanup before deleting Ledger and other modules; inspect delegated status for missing Core startup dependencies")
-	}
-	pendingModuleDeletions := pendingDeletions{}
-	for i := range modules {
-		item := &modules[i]
-		pendingModuleDeletion := pendingDeletion{
-			GroupVersionKind: item.GroupVersionKind(),
-			Name:             item.GetName(),
-		}
-		if item.GetDeletionTimestamp().IsZero() {
-			logger.Info(fmt.Sprintf("Delete module %s [%s]", item.GetName(), item.GroupVersionKind()))
-			uid, version := item.GetUID(), item.GetResourceVersion()
-			if err := ctx.GetClient().Delete(ctx, item, client.Preconditions{UID: &uid, ResourceVersion: &version}); client.IgnoreNotFound(err) != nil {
-				return err
-			}
-			pendingModuleDeletion.JustDeleted = true
-		}
-		pendingModuleDeletions = append(pendingModuleDeletions, pendingModuleDeletion)
 	}
 
 	if len(pendingModuleDeletions) > 0 {

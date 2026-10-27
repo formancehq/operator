@@ -149,8 +149,7 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "OperatorUnavailable",
 			"connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
 		// Revoke exposure while discovery is unavailable. A closed Ledger gate
-		// still requests delegated cleanup through direct reads, but credentials
-		// remain until the delegated API proves that resource has disappeared.
+		// still requests delegated cleanup through direct reads.
 		gateClosed, err := ledgerGateClosed(ctx, stack)
 		if err != nil {
 			// The gate could not be determined; a possibly-due teardown must not
@@ -317,6 +316,9 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	object.SetNamespace(stack.Name)
 	object.SetName(connectivityDelegatedName)
 	operation, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), object, func() error {
+		if !object.GetDeletionTimestamp().IsZero() {
+			return lifecyclePending(connectivity, "DelegatedDeleting", "delegated Connectivity is deleting; a new resource can be created after it disappears")
+		}
 		if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
 			return err
 		}
@@ -546,8 +548,7 @@ func reconcileExistingConnectivityAPIAuth(
 // same-name replacement objects. The names/scopes mirror how they are
 // provisioned in Reconcile.
 func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
-	// Close exposure even when delegated cleanup cannot proceed. Credentials must
-	// remain usable until the delegated finalizer has finished RemoveSource.
+	// Request delegated deletion; its controller owns asynchronous cleanup.
 	if err := deleteOwnedGatewayHTTPAPI(ctx, connectivity); err != nil {
 		return err
 	}
@@ -562,9 +563,6 @@ func deleteOwnedDelegatedConnectivity(
 	stackName string,
 	connectivity *v1beta1.Connectivity,
 ) error {
-	if err := requireDisabledSchema(ctx, connectivity); err != nil {
-		return err
-	}
 	delegated := &unstructured.Unstructured{}
 	delegated.SetGroupVersionKind(connectivityGVK)
 	key := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}
@@ -578,16 +576,13 @@ func deleteOwnedDelegatedConnectivity(
 	if !controllerRefMatches(owner, v1beta1.GroupVersion.WithKind("Connectivity"), connectivity) {
 		return lifecyclePending(connectivity, "DelegatedOwnershipConflict", "delegated Connectivity is not controlled by this module; preserving credentials")
 	}
-	if !slices.Contains(delegated.GetFinalizers(), connectivityLifecycleFinalizer) {
-		return lifecyclePending(connectivity, "CleanupFinalizerPending", "waiting for the Connectivity controller to install its lifecycle finalizer")
-	}
 	if delegated.GetDeletionTimestamp().IsZero() {
 		uid, version := delegated.GetUID(), delegated.GetResourceVersion()
 		if err := ctx.GetClient().Delete(ctx, delegated, client.Preconditions{UID: &uid, ResourceVersion: &version}); client.IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
-	return lifecyclePending(connectivity, "DelegatedDeletionPending", "waiting for delegated Connectivity deletion; Core and Ledger credentials are retained for instance cleanup")
+	return nil
 }
 
 func controllerRefMatches(ref *metav1.OwnerReference, gvk schema.GroupVersionKind, owner client.Object) bool {
@@ -680,6 +675,9 @@ func updateExistingConnectivityAPIAuth(
 		return false, client.IgnoreNotFound(err)
 	}
 
+	if !object.GetDeletionTimestamp().IsZero() {
+		return false, lifecyclePending(connectivity, "DelegatedDeleting", "delegated Connectivity is deleting; preserving its cleanup configuration")
+	}
 	before := object.DeepCopy()
 	// Match the normal CreateOrUpdate path's ownership check before mutating the
 	// fixed-name delegated resource. SetControllerReference returns an
@@ -1358,7 +1356,6 @@ func connectivityStackFromCredentials(object client.Object) (string, bool) {
 func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	return []ReconcilerOption[*v1beta1.Connectivity]{
 		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", finalizeConnectivity),
-		WithStackDisabledHandler(disableConnectivity),
 		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
@@ -1380,7 +1377,7 @@ func connectivityModuleRequirements() ModuleRequirements {
 }
 
 func init() {
-	Init(WithModuleReconciler(Reconcile,
+	Init(WithModuleReconciler(Reconcile, disableConnectivity,
 		connectivityModuleRequirements(),
 		connectivityReconcilerOptions()...,
 	))

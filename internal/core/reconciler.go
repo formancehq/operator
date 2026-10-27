@@ -67,7 +67,6 @@ type ReconcilerOptions[T client.Object] struct {
 	Finalizers                    []finalizerConfig[T]
 	Raws                          []func(Context, *builder.Builder) error
 	UnsatisfiedRequirementsHandle func(Context, *v1beta1.Stack, T) error
-	StackDisabledHandle           func(Context, *v1beta1.Stack, T) error
 }
 
 type ReconcilerOption[T client.Object] func(*ReconcilerOptions[T])
@@ -108,12 +107,6 @@ func WithFinalizer[T client.Object](name string, callback Finalizer[T]) Reconcil
 			fn:   callback,
 		})
 	}
-}
-
-// WithStackDisabledHandler replaces generic owned-object removal for a module
-// whose delegated lifecycle must retain configuration while stopping workloads.
-func WithStackDisabledHandler[T v1beta1.Module](handler func(Context, *v1beta1.Stack, T) error) ReconcilerOption[T] {
-	return func(options *ReconcilerOptions[T]) { options.StackDisabledHandle = handler }
 }
 
 // WithUnsatisfiedRequirementsHandler registers module-specific cleanup that is
@@ -416,12 +409,12 @@ func WithResourceReconciler[T v1beta1.Dependent](fn func(ctx Context, stack *v1b
 		opts...)
 }
 
-func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
+func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, disabledController StackDependentObjectController[T], requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
 	opts = withRequirementWatches(requirements, opts)
 	opts = append(opts, WithWatchVersions[T](requirements))
 	initializer := withStackDependencyReconciler(
 		ForStackDependency(
-			ForModule(requirements, func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
+			ForModule(requirements, disabledController, func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
 				return fn(ctx, stack, req, version)
 			}),
 			false,

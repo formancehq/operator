@@ -51,15 +51,14 @@ func lifecycleFixture(t *testing.T) (credsTestContext, *v1beta1.Stack, *v1beta1.
 	return ctx, stack, module, delegated
 }
 
-func TestDisableConnectivityRetainsConfigurationAndCredentialsUntilObserved(t *testing.T) {
+func TestDisableConnectivityRequestsShutdownWithoutWaiting(t *testing.T) {
 	ctx, stack, module, delegated := lifecycleFixture(t)
 	opts := &core.ReconcilerOptions[*v1beta1.Connectivity]{Owns: map[client.Object][]builder.OwnsOption{delegated: nil}}
-	core.WithStackDisabledHandler(disableConnectivity)(opts)
-	controller := core.ForModule(core.NoRequirements(), func(core.Context, *v1beta1.Stack, *core.ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
+	controller := core.ForModule(core.NoRequirements(), disableConnectivity, func(core.Context, *v1beta1.Stack, *core.ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
 		t.Fatal("normal controller ran")
 		return nil
 	})
-	require.True(t, core.IsApplicationError(controller(ctx, stack, opts, module)))
+	require.NoError(t, controller(ctx, stack, opts, module))
 	got := newDelegatedConnectivity(stack.Name)
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
 	require.Equal(t, delegated.GetUID(), got.GetUID())
@@ -68,35 +67,28 @@ func TestDisableConnectivityRetainsConfigurationAndCredentialsUntilObserved(t *t
 	require.True(t, credentialsExist(t, ctx, stack.Name))
 	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: "managed"}, &corev1.Secret{}))
-	require.True(t, core.IsApplicationError(controller(ctx, stack, opts, module)))
+	require.NoError(t, controller(ctx, stack, opts, module))
 	require.NoError(t, unstructured.SetNestedField(got.Object, "Disabled", "status", "phase"))
 	require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration()-1, "status", "observedGeneration"))
 	require.NoError(t, ctx.client.Update(ctx, got))
-	require.True(t, core.IsApplicationError(controller(ctx, stack, opts, module)), "stale Disabled must not complete disable")
+	require.NoError(t, controller(ctx, stack, opts, module), "disable does not wait for observed generation")
 	require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration(), "status", "observedGeneration"))
 	require.NoError(t, ctx.client.Update(ctx, got))
 	require.NoError(t, controller(ctx, stack, opts, module))
 }
 
-func TestDisableConnectivityRejectsUnsupportedSchemaAndOwnership(t *testing.T) {
-	for _, scenario := range []string{"missing-schema", "old-schema", "foreign-owner", "deleting"} {
+func TestDisableConnectivityRejectsForeignOwnershipAndDeletion(t *testing.T) {
+	for _, scenario := range []string{"foreign-owner", "deleting"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx, stack, module, delegated := lifecycleFixture(t)
 			switch scenario {
-			case "missing-schema":
-				require.NoError(t, ctx.client.Delete(ctx, lifecycleCRD()))
-			case "old-schema":
-				crd := lifecycleCRD()
-				require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(crd), crd))
-				crd.Spec.Versions[0].Schema.OpenAPIV3Schema.Properties = nil
-				require.NoError(t, ctx.client.Update(ctx, crd))
 			case "foreign-owner":
 				delegated.SetOwnerReferences(nil)
 				require.NoError(t, ctx.client.Update(ctx, delegated))
 			case "deleting":
 				require.NoError(t, ctx.client.Delete(ctx, delegated))
 			}
-			require.True(t, core.IsApplicationError(disableConnectivity(ctx, stack, module)))
+			require.True(t, core.IsApplicationError(disableConnectivity(ctx, stack, nil, module)))
 			got := newDelegatedConnectivity(stack.Name)
 			require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
 			disabled, _, err := unstructured.NestedBool(got.Object, "spec", "disabled")
@@ -129,7 +121,7 @@ func TestDisableConnectivityPatchRejectsConcurrentEditAndReplacement(t *testing.
 				}
 				return cl.Patch(c, obj, patch, opts...)
 			}})
-			require.Error(t, disableConnectivity(ctx, stack, module))
+			require.Error(t, disableConnectivity(ctx, stack, nil, module))
 			got := newDelegatedConnectivity(stack.Name)
 			require.NoError(t, underlying.Get(ctx, client.ObjectKeyFromObject(delegated), got))
 			disabled, _, err := unstructured.NestedBool(got.Object, "spec", "disabled")
@@ -139,32 +131,30 @@ func TestDisableConnectivityPatchRejectsConcurrentEditAndReplacement(t *testing.
 	}
 }
 
-func TestFinalizeConnectivityWaitsForDelegatedDisappearance(t *testing.T) {
+func TestFinalizeConnectivityRequestsDeletionWithoutWaiting(t *testing.T) {
 	ctx, stack, module, delegated := lifecycleFixture(t)
-	// Deletion takes precedence over disable; finalizers bypass normal Stack gates.
-	require.True(t, core.IsApplicationError(finalizeConnectivity(ctx, module)))
+	require.NoError(t, finalizeConnectivity(ctx, module))
 	got := newDelegatedConnectivity(stack.Name)
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
 	require.False(t, got.GetDeletionTimestamp().IsZero())
-	require.True(t, credentialsExist(t, ctx, stack.Name))
-	require.True(t, core.IsApplicationError(finalizeConnectivity(ctx, module)))
-	got.SetFinalizers(nil)
-	require.NoError(t, ctx.client.Update(ctx, got))
-	require.NoError(t, finalizeConnectivity(ctx, module))
+	require.Contains(t, got.GetFinalizers(), connectivityLifecycleFinalizer)
 	require.False(t, credentialsExist(t, ctx, stack.Name))
+	require.NoError(t, finalizeConnectivity(ctx, module), "repeated request does not wait for the delegated finalizer")
+}
+
+func TestFinalizeConnectivityDoesNotWaitForLifecycleFinalizerInstallation(t *testing.T) {
+	ctx, _, module, delegated := lifecycleFixture(t)
+	delegated.SetFinalizers(nil)
+	require.NoError(t, ctx.client.Update(ctx, delegated))
 	require.NoError(t, finalizeConnectivity(ctx, module))
+	require.True(t, apierrors.IsNotFound(ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), delegated)))
 }
 
 func TestFinalizeConnectivityPreservesCredentialsOnUnprovenCleanup(t *testing.T) {
-	for _, scenario := range []string{"no-finalizer", "missing-schema", "forbidden-read", "missing-api", "failed-delete", "foreign-owner"} {
+	for _, scenario := range []string{"forbidden-read", "missing-api", "failed-delete", "foreign-owner"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx, stack, module, delegated := lifecycleFixture(t)
 			switch scenario {
-			case "no-finalizer":
-				delegated.SetFinalizers(nil)
-				require.NoError(t, ctx.client.Update(ctx, delegated))
-			case "missing-schema":
-				require.NoError(t, ctx.client.Delete(ctx, lifecycleCRD()))
 			case "foreign-owner":
 				delegated.SetOwnerReferences(nil)
 				require.NoError(t, ctx.client.Update(ctx, delegated))
@@ -291,9 +281,37 @@ func TestFinalizeConnectivityDoesNotUseCachedAbsence(t *testing.T) {
 		}
 		return cl.Get(c, key, obj, opts...)
 	}})
-	require.True(t, core.IsApplicationError(finalizeConnectivity(ctx, module)))
+	require.NoError(t, finalizeConnectivity(ctx, module))
 	got := newDelegatedConnectivity(stack.Name)
 	require.NoError(t, ctx.apiReader.Get(ctx, client.ObjectKeyFromObject(delegated), got))
 	require.False(t, got.GetDeletionTimestamp().IsZero())
-	require.True(t, credentialsExist(t, ctx, stack.Name))
+	require.False(t, credentialsExist(t, ctx, stack.Name))
+}
+
+func TestConnectivityRestoreDoesNotMutateDeletingResource(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+	ledger, credentials := newReadyLedgerPrerequisites()
+	ctx, stack, module, delegated := lifecycleFixture(t)
+	stack.Spec.Disabled = false
+	require.NoError(t, ctx.client.Create(ctx, ledger))
+	// Use the prerequisite credential's ready status while preserving fixture ownership.
+	existing := newLedgerCredentialsForStack(stack.Name)
+	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(existing), existing))
+	existing.Object["status"] = credentials.Object["status"]
+	require.NoError(t, ctx.client.Update(ctx, existing))
+	require.NoError(t, ctx.client.Delete(ctx, delegated))
+	before := newDelegatedConnectivity(stack.Name)
+	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), before))
+	require.Error(t, Reconcile(ctx, stack, module, "v1.0.0"))
+	after := newDelegatedConnectivity(stack.Name)
+	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), after))
+	require.Equal(t, before.GetUID(), after.GetUID())
+	require.Equal(t, before.Object["spec"], after.Object["spec"])
+	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
+	_, err := updateExistingConnectivityAPIAuth(ctx, stack.Name, module, nil)
+	require.Error(t, err)
+	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), after))
+	require.Equal(t, before.Object["spec"], after.Object["spec"])
 }
