@@ -5,6 +5,10 @@
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.2511";
     nixpkgs-unstable.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1";
 
+    # Keep the root package set pinned; use stable upstream Go and its builder.
+    nixpkgs-go.url = "https://flakehub.com/f/NixOS/nixpkgs/0.2605";
+
+    # Retain golangci-lint 2.15.0; the compiler input provides 2.12.2.
     go-tooling = {
       url = "github:NixOS/nixpkgs/8cec5ef1131078ea76689e84c362b0ed6a1fb6a1";
       flake = false;
@@ -16,7 +20,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, goreleaser, go-tooling }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, goreleaser, go-tooling, nixpkgs-go }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -45,16 +49,11 @@
     {
       devShells = forEachSupportedSystem ({ pkgs, pkgs-unstable, system }:
         let
-          go = pkgs.callPackage "${go-tooling}/pkgs/development/compilers/go/1.27.nix" {
-            buildGo127Module = buildGoModule;
-          };
-          buildGoModule = pkgs.buildGoModule.override { inherit go; };
-          lintGo = pkgs.callPackage "${go-tooling}/pkgs/development/compilers/go/1.27.nix" {
-            buildGo127Module = lintBuildGoModule;
-          };
-          lintBuildGoModule = pkgs.buildGoModule.override { go = lintGo; };
+          pkgs-go = import nixpkgs-go { inherit system; };
+          go = pkgs-go.go_1_27;
+          buildGoModule = pkgs-go.buildGo127Module;
           golangci-lint = pkgs.callPackage "${go-tooling}/pkgs/by-name/go/golangci-lint/package.nix" {
-            buildGo127Module = lintBuildGoModule;
+            buildGo127Module = buildGoModule;
           };
           stablePackages = with pkgs; [
             earthly
