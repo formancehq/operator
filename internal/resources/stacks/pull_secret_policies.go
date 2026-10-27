@@ -114,6 +114,17 @@ func reconcilePullSecretPolicies(ctx core.Context, stack *v1beta1.Stack, connect
 				"priority":          int64(0),
 				"mutate":            map[string]any{"imagePullSecrets": secrets},
 			}
+			if target.axis == "connectivitySelector" {
+				// A namespace selector also enables Connectivity's instance path.
+				// Contradictory requirements exclude every instance regardless of
+				// tenant-controlled labels while preserving Core/API selection.
+				policy.Object["spec"].(map[string]any)["instanceSelector"] = map[string]any{
+					"matchExpressions": []any{
+						map[string]any{"key": "formance.com/pull-secret-policy", "operator": "Exists"},
+						map[string]any{"key": "formance.com/pull-secret-policy", "operator": "DoesNotExist"},
+					},
+				}
+			}
 			return controllerutil.SetControllerReference(stack, policy, ctx.GetScheme())
 		})
 		if err != nil {

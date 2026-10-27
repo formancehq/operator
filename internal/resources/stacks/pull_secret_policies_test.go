@@ -9,6 +9,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -62,11 +63,22 @@ func TestPullSecretPoliciesIndependentLifecycle(t *testing.T) {
 		require.True(t, metav1.IsControlledBy(p, stack))
 		spec := p.Object["spec"].(map[string]any)
 		require.Contains(t, spec, axis)
-		other := "instanceSelector"
-		if axis == other {
-			other = "connectivitySelector"
+		if axis == "connectivitySelector" {
+			selector := &metav1.LabelSelector{}
+			require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(spec["instanceSelector"].(map[string]any), selector))
+			require.Len(t, selector.MatchExpressions, 2)
+			require.Equal(t, selector.MatchExpressions[0].Key, selector.MatchExpressions[1].Key)
+			require.Equal(t, metav1.LabelSelectorOpExists, selector.MatchExpressions[0].Operator)
+			require.Equal(t, metav1.LabelSelectorOpDoesNotExist, selector.MatchExpressions[1].Operator)
+			compiled, err := metav1.LabelSelectorAsSelector(selector)
+			require.NoError(t, err)
+			for _, instanceLabels := range []labels.Set{nil, {}, {"formance.com/pull-secret-policy": ""}, {"formance.com/pull-secret-policy": "any"}, {"tenant-label": "value"}} {
+				require.False(t, compiled.Matches(instanceLabels), "Core/API Policy must never select plugin instance labels %v", instanceLabels)
+			}
+		} else {
+			require.NotContains(t, spec, "connectivitySelector")
+			require.Empty(t, spec["instanceSelector"])
 		}
-		require.NotContains(t, spec, other)
 		require.Equal(t, map[string]any{"matchLabels": map[string]any{"kubernetes.io/metadata.name": "tenant-one"}}, spec["namespaceSelector"])
 		require.Equal(t, map[string]any{"imagePullSecrets": []any{map[string]any{"name": name}}}, spec["mutate"])
 	}

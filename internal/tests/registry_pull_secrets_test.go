@@ -10,6 +10,8 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -236,11 +238,19 @@ var _ = Describe("Explicit Connectivity pull secrets", func() {
 				spec := policy.Object["spec"].(map[string]any)
 				_, core := spec["connectivitySelector"]
 				_, plugin := spec["instanceSelector"]
-				g.Expect(core != plugin).To(BeTrue())
+				g.Expect(plugin).To(BeTrue())
 				if core {
 					axes["core"] = true
+					selector := &metav1.LabelSelector{}
+					g.Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(spec["instanceSelector"].(map[string]any), selector)).To(Succeed())
+					compiled, err := metav1.LabelSelectorAsSelector(selector)
+					g.Expect(err).NotTo(HaveOccurred())
+					for _, instanceLabels := range []labels.Set{nil, {}, {"formance.com/pull-secret-policy": ""}, {"formance.com/pull-secret-policy": "any"}} {
+						g.Expect(compiled.Matches(instanceLabels)).To(BeFalse())
+					}
 				} else {
 					axes["plugin"] = true
+					g.Expect(spec["instanceSelector"]).To(BeEmpty())
 				}
 				g.Expect(spec["namespaceSelector"]).To(Equal(map[string]any{"matchLabels": map[string]any{"kubernetes.io/metadata.name": stack.Name}}))
 			}
