@@ -150,8 +150,23 @@ func TestFinalizeConnectivityDoesNotWaitForLifecycleFinalizerInstallation(t *tes
 	require.True(t, apierrors.IsNotFound(ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), delegated)))
 }
 
+func TestFinalizeConnectivityToleratesAbsentDelegatedAPI(t *testing.T) {
+	ctx, stack, module, _ := lifecycleFixture(t)
+	ctx.client = interceptor.NewClient(ctx.client.(client.WithWatch), interceptor.Funcs{
+		Get: func(c context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if obj.GetObjectKind().GroupVersionKind() == connectivityGVK {
+				return &apimeta.NoKindMatchError{GroupKind: connectivityGVK.GroupKind()}
+			}
+			return cl.Get(c, key, obj, opts...)
+		},
+	})
+	require.NoError(t, finalizeConnectivity(ctx, module))
+	require.False(t, credentialsExist(t, ctx, stack.Name))
+	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
+}
+
 func TestFinalizeConnectivityPreservesCredentialsOnUnprovenCleanup(t *testing.T) {
-	for _, scenario := range []string{"forbidden-read", "missing-api", "failed-delete", "foreign-owner"} {
+	for _, scenario := range []string{"forbidden-read", "failed-read", "failed-delete", "foreign-owner"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx, stack, module, delegated := lifecycleFixture(t)
 			switch scenario {
@@ -162,8 +177,8 @@ func TestFinalizeConnectivityPreservesCredentialsOnUnprovenCleanup(t *testing.T)
 				ctx.client = interceptor.NewClient(ctx.client.(client.WithWatch), interceptor.Funcs{
 					Get: func(c context.Context, cl client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 						if obj.GetObjectKind().GroupVersionKind() == connectivityGVK {
-							if scenario == "missing-api" {
-								return &apimeta.NoKindMatchError{GroupKind: connectivityGVK.GroupKind()}
+							if scenario == "failed-read" {
+								return errors.New("discovery unavailable")
 							}
 							if scenario == "forbidden-read" {
 								return apierrors.NewForbidden(schema.GroupResource{Group: connectivityGVK.Group, Resource: "connectivities"}, key.Name, errors.New("denied"))

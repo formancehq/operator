@@ -85,7 +85,9 @@ Deleting the `formance.com/Connectivity` module requests deletion of its exact-o
 delegated Connectivity and deletes its Ledger Credentials without waiting for the
 delegated resource to disappear. The existing `delete-ledger-credentials` finalizer
 covers these API operations only. Cleanup errors are retried, but accepted deletion
-does not wait for the delegated finalizer.
+does not wait for the delegated finalizer. A missing delegated API or object is
+already absent for deletion; other lookup and ownership errors retain credentials
+and retry cleanup.
 
 The Connectivity controller owns instance cleanup, workload teardown and its own
 finalizer. The Stack Operator does not serialize other module deletions behind

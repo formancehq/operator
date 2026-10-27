@@ -568,7 +568,7 @@ func deleteOwnedDelegatedConnectivity(
 	delegated.SetGroupVersionKind(connectivityGVK)
 	key := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}
 	if err := ctx.GetAPIReader().Get(ctx, key, delegated); err != nil {
-		if apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) || apimeta.IsNoMatchError(err) {
 			return nil
 		}
 		return lifecyclePending(connectivity, "DelegatedLookupFailed", fmt.Sprintf("cannot prove delegated Connectivity cleanup: %v", err))
