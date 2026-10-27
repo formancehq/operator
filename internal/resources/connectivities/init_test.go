@@ -1682,7 +1682,7 @@ func TestConnectivityReconcileKeepsDelegatedWhenLedgerV3NotReady(t *testing.T) {
 
 	delegated := newDelegatedConnectivity(stack.Name)
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
+	setDelegatedReadyCondition(delegated, metav1.ConditionTrue, delegated.GetGeneration())
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
@@ -2067,7 +2067,7 @@ func TestConnectivityAPIAuthRolloutRejectsForeignOwnedService(t *testing.T) {
 
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
+	setDelegatedReadyCondition(delegated, metav1.ConditionTrue, delegated.GetGeneration())
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
 	delegated.SetOwnerReferences([]metav1.OwnerReference{
 		*metav1.NewControllerRef(expectedConnectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
@@ -2375,7 +2375,7 @@ func TestConnectivityReconcileAvoidsCachedReadAfterEarlyAPIAuthWrite(t *testing.
 		t.Fatalf("get delegated Connectivity: %v", err)
 	}
 	_ = unstructured.SetNestedField(stale.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(stale.Object, stale.GetGeneration(), "status", "observedGeneration")
+	setDelegatedReadyCondition(stale, metav1.ConditionTrue, stale.GetGeneration())
 	if err := base.GetClient().Update(base, stale); err != nil {
 		t.Fatalf("mark delegated Connectivity ready: %v", err)
 	}
@@ -3032,7 +3032,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 		"keyId": "old-key", "subject": "old-subject", "key": "old-inline-seed",
 	}, "spec", "auth")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
+	setDelegatedReadyCondition(delegated, metav1.ConditionTrue, delegated.GetGeneration())
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3316,7 +3316,7 @@ func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T
 	}
 	delegated.SetUID(types.UID("delegated-connectivity-uid"))
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
+	setDelegatedReadyCondition(delegated, metav1.ConditionTrue, delegated.GetGeneration())
 	if err := ctx.GetClient().Update(ctx, delegated); err != nil {
 		t.Fatalf("mark delegated Connectivity ready: %v", err)
 	}
@@ -3455,7 +3455,7 @@ func TestConnectivityReconcileClearsAPIAuthWhenStackHasNoAuth(t *testing.T) {
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "https://stale.example.com/api/auth", "spec", "api", "auth", "issuer")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
-	_ = unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration")
+	setDelegatedReadyCondition(delegated, metav1.ConditionTrue, delegated.GetGeneration())
 
 	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}

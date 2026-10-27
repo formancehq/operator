@@ -36,6 +36,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -930,14 +931,27 @@ func connectivityResourceReady(object *unstructured.Unstructured) (bool, string)
 	if err != nil || disabled {
 		return false, "delegated Connectivity is disabled or has invalid disable state"
 	}
-	observed, found, err := unstructured.NestedInt64(object.Object, "status", "observedGeneration")
-	if err != nil || !found || observed != object.GetGeneration() {
+	statusMap, _, err := unstructured.NestedMap(object.Object, "status")
+	if err != nil {
+		return false, "delegated Connectivity has invalid status"
+	}
+	var status struct {
+		Conditions []metav1.Condition `json:"conditions"`
+	}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(statusMap, &status); err != nil {
+		return false, "delegated Connectivity has invalid conditions"
+	}
+	condition := apimeta.FindStatusCondition(status.Conditions, "Ready")
+	if condition == nil || condition.ObservedGeneration != object.GetGeneration() {
 		return false, "waiting for delegated Connectivity to observe its current generation"
 	}
-	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
-	if phase == "Ready" {
+	if condition.Status == metav1.ConditionTrue {
 		return true, "Connectivity is ready"
 	}
+	if condition.Message != "" {
+		return false, condition.Message
+	}
+	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
 	message, _, _ := unstructured.NestedString(object.Object, "status", "message")
 	if message == "" {
 		message = fmt.Sprintf("connectivity resource phase is %q", phase)

@@ -77,7 +77,8 @@ Other Stack modules retain their existing disable behavior.
 
 Re-enabling the Stack explicitly restores delegated `spec.disabled=false` after
 Ledger prerequisites are satisfied. The gateway stays closed until the delegated
-controller reports the current generation `Ready` after Core rollout, and the API
+controller reports `Ready=True` with a current `observedGeneration` in
+`status.conditions` after Core rollout, and the API
 Deployment and Service satisfy the authentication rollout checks.
 
 Deleting the `formance.com/Connectivity` module requests deletion of its exact-owned

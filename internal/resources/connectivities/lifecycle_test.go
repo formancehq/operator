@@ -184,21 +184,42 @@ func TestFinalizeConnectivityPreservesCredentialsOnUnprovenCleanup(t *testing.T)
 	}
 }
 
-func TestConnectivityResourceReadyRequiresObservedEnabledGeneration(t *testing.T) {
-	obj := newDelegatedConnectivity("stack0")
-	obj.SetGeneration(9)
-	require.NoError(t, unstructured.SetNestedField(obj.Object, "Ready", "status", "phase"))
-	ready, _ := connectivityResourceReady(obj)
-	require.False(t, ready)
-	require.NoError(t, unstructured.SetNestedField(obj.Object, int64(8), "status", "observedGeneration"))
-	ready, _ = connectivityResourceReady(obj)
-	require.False(t, ready)
-	require.NoError(t, unstructured.SetNestedField(obj.Object, int64(9), "status", "observedGeneration"))
-	ready, _ = connectivityResourceReady(obj)
-	require.True(t, ready)
-	require.NoError(t, unstructured.SetNestedField(obj.Object, "Disabled", "status", "phase"))
-	ready, _ = connectivityResourceReady(obj)
-	require.False(t, ready)
+func setDelegatedReadyCondition(object *unstructured.Unstructured, status metav1.ConditionStatus, generation int64) {
+	_ = unstructured.SetNestedSlice(object.Object, []any{map[string]any{
+		"type": "Ready", "status": string(status), "observedGeneration": generation,
+	}}, "status", "conditions")
+}
+
+func TestConnectivityResourceReadyRequiresCurrentTrueCondition(t *testing.T) {
+	for _, scenario := range []string{"absent", "stale", "false", "unknown", "malformed", "disabled", "deleting", "ready"} {
+		t.Run(scenario, func(t *testing.T) {
+			object := newDelegatedConnectivity("stack0")
+			object.SetGeneration(9)
+			require.NoError(t, unstructured.SetNestedField(object.Object, "Ready", "status", "phase"))
+			// Legacy global generation and phase cannot grant readiness.
+			require.NoError(t, unstructured.SetNestedField(object.Object, int64(9), "status", "observedGeneration"))
+			if scenario != "absent" {
+				setDelegatedReadyCondition(object, metav1.ConditionTrue, 9)
+			}
+			switch scenario {
+			case "stale":
+				setDelegatedReadyCondition(object, metav1.ConditionTrue, 8)
+			case "false":
+				setDelegatedReadyCondition(object, metav1.ConditionFalse, 9)
+			case "unknown":
+				setDelegatedReadyCondition(object, metav1.ConditionUnknown, 9)
+			case "malformed":
+				require.NoError(t, unstructured.SetNestedField(object.Object, "invalid", "status", "conditions"))
+			case "disabled":
+				require.NoError(t, unstructured.SetNestedField(object.Object, true, "spec", "disabled"))
+			case "deleting":
+				timestamp := metav1.Now()
+				object.SetDeletionTimestamp(&timestamp)
+			}
+			ready, _ := connectivityResourceReady(object)
+			require.Equal(t, scenario == "ready", ready)
+		})
+	}
 }
 
 func TestConnectivityReenableClearsDisabledAndWaitsForCurrentReadyGeneration(t *testing.T) {
@@ -217,7 +238,7 @@ func TestConnectivityReenableClearsDisabledAndWaitsForCurrentReadyGeneration(t *
 	delegated.SetGeneration(5)
 	require.NoError(t, unstructured.SetNestedField(delegated.Object, true, "spec", "disabled"))
 	require.NoError(t, unstructured.SetNestedField(delegated.Object, "Disabled", "status", "phase"))
-	require.NoError(t, unstructured.SetNestedField(delegated.Object, int64(5), "status", "observedGeneration"))
+	setDelegatedReadyCondition(delegated, metav1.ConditionFalse, 5)
 	require.NoError(t, ctx.client.Update(ctx, delegated))
 	require.True(t, core.IsApplicationError(Reconcile(ctx, stack, module, "v1.0.0")))
 	got := newDelegatedConnectivity(stack.Name)
@@ -228,7 +249,7 @@ func TestConnectivityReenableClearsDisabledAndWaitsForCurrentReadyGeneration(t *
 	require.Equal(t, delegated.GetUID(), got.GetUID())
 	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
 	require.NoError(t, unstructured.SetNestedField(got.Object, "Ready", "status", "phase"))
-	require.NoError(t, unstructured.SetNestedField(got.Object, int64(4), "status", "observedGeneration"))
+	setDelegatedReadyCondition(got, metav1.ConditionTrue, 4)
 	require.NoError(t, ctx.client.Update(ctx, got))
 	require.True(t, core.IsApplicationError(Reconcile(ctx, stack, module, "v1.0.0")))
 	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name), "stale Ready must not reopen exposure")
@@ -239,7 +260,7 @@ func TestConnectivityAPIReadinessRejectsAuthoritativeLifecycleChange(t *testing.
 		t.Run(scenario, func(t *testing.T) {
 			ctx, stack, module, delegated := lifecycleFixture(t)
 			require.NoError(t, unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase"))
-			require.NoError(t, unstructured.SetNestedField(delegated.Object, delegated.GetGeneration(), "status", "observedGeneration"))
+			setDelegatedReadyCondition(delegated, metav1.ConditionTrue, delegated.GetGeneration())
 			// The cache still reports a Ready snapshot; the API reader sees a newer state.
 			ready, _ := connectivityResourceReady(delegated)
 			require.True(t, ready)
@@ -248,7 +269,7 @@ func TestConnectivityAPIReadinessRejectsAuthoritativeLifecycleChange(t *testing.
 			case "stale-generation":
 				direct.SetGeneration(direct.GetGeneration() + 1)
 			case "pending":
-				require.NoError(t, unstructured.SetNestedField(direct.Object, "Pending", "status", "phase"))
+				setDelegatedReadyCondition(direct, metav1.ConditionFalse, direct.GetGeneration())
 			case "disabled":
 				require.NoError(t, unstructured.SetNestedField(direct.Object, true, "spec", "disabled"))
 			case "deleting":
