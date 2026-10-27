@@ -43,7 +43,6 @@ func watchResource[T client.Object](ctx core.Context, object T) []reconcile.Requ
 	ret := make([]reconcile.Request, 0)
 
 	// Watch resources created by the ResourceReference
-	var resourceReference string
 	for _, reference := range object.GetOwnerReferences() {
 		gvk, err := apiutil.GVKForObject(&v1beta1.ResourceReference{}, ctx.GetScheme())
 		if err != nil {
@@ -51,17 +50,11 @@ func watchResource[T client.Object](ctx core.Context, object T) []reconcile.Requ
 		}
 		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		if reference.Kind == kind && reference.APIVersion == apiVersion {
-			resourceReference = reference.Name
-			break
+			ret = append(ret, reconcile.Request{NamespacedName: types.NamespacedName{Name: reference.Name}})
 		}
 	}
-
-	if resourceReference != "" {
-		return append(ret, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Name: resourceReference,
-			},
-		})
+	if len(ret) > 0 {
+		return ret
 	}
 
 	// Watch resources which should be replicated by the ResourceReferences
@@ -94,8 +87,8 @@ const (
 
 	RewrittenResourceName = "formance.com/referenced-by-name"
 
-	// RegistryPullSecretLabel enables collision protection for registry-generated references.
-	RegistryPullSecretLabel = "formance.com/registry-pull-secret"
+	// ManagedPullSecretLabel enables collision protection for operator-generated pull-secret references.
+	ManagedPullSecretLabel = "formance.com/connectivity-pull-secret"
 )
 
 func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceReference) error {
@@ -108,32 +101,6 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 		Group:   req.Spec.GroupVersionKind.Group,
 		Version: req.Spec.GroupVersionKind.Version,
 		Kind:    req.Spec.GroupVersionKind.Kind,
-	}
-
-	if req.Status.SyncedResource != "" && req.Spec.Name != req.Status.SyncedResource {
-		oldResource := &unstructured.Unstructured{}
-		oldResource.SetGroupVersionKind(gvk)
-		err := ctx.GetClient().Get(ctx, types.NamespacedName{
-			Namespace: stack.Name,
-			Name:      req.Status.SyncedResource,
-		}, oldResource)
-		if client.IgnoreNotFound(err) != nil {
-			return err
-		}
-
-		if err == nil { // Can be not found, if the resource has been manually deleted
-			patch := client.MergeFrom(oldResource.DeepCopy())
-			if err := controllerutil.RemoveOwnerReference(req, oldResource, ctx.GetScheme()); err == nil {
-				if err := ctx.GetClient().Patch(ctx, oldResource, patch); err != nil {
-					return err
-				}
-			}
-			if len(oldResource.GetOwnerReferences()) == 0 {
-				if err := ctx.GetClient().Delete(ctx, oldResource); err != nil {
-					return err
-				}
-			}
-		}
 	}
 
 	annotations := make(map[string]any)
@@ -152,12 +119,12 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 	newResource := &unstructured.Unstructured{}
 	newResource.SetGroupVersionKind(gvk)
 	newResource.SetNamespace(stack.Name)
-	newResource.SetName(req.Spec.Name)
+	newResource.SetName(req.GetTargetName())
 
 	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), newResource, func() error {
-		// Check the actual destination here: a local Secret can appear after registry discovery.
-		if req.Labels[RegistryPullSecretLabel] == "true" && newResource.GetResourceVersion() != "" {
-			if err := requireResourceReferenceOwner(ctx, newResource); err != nil {
+		// Check the actual destination: another writer can appear after reference planning.
+		if newResource.GetResourceVersion() != "" {
+			if err := requireResourceReferenceOwner(ctx, newResource, req); err != nil {
 				return err
 			}
 		}
@@ -186,8 +153,41 @@ func Reconcile(ctx core.Context, stack *v1beta1.Stack, req *v1beta1.ResourceRefe
 		return err
 	}
 
+	if req.Status.SyncedResource != "" && req.GetTargetName() != req.Status.SyncedResource {
+		oldResource := &unstructured.Unstructured{}
+		oldResource.SetGroupVersionKind(gvk)
+		err := ctx.GetClient().Get(ctx, types.NamespacedName{
+			Namespace: stack.Name,
+			Name:      req.Status.SyncedResource,
+		}, oldResource)
+		if client.IgnoreNotFound(err) != nil {
+			return err
+		}
+
+		owned, ownerErr := core.HasOwnerReference(ctx, req, oldResource)
+		if ownerErr != nil {
+			return ownerErr
+		}
+		if err == nil && owned { // Preserve any independently recreated old destination.
+			patch := client.MergeFrom(oldResource.DeepCopy())
+			if err := controllerutil.RemoveOwnerReference(req, oldResource, ctx.GetScheme()); err != nil {
+				return err
+			}
+			if err := ctx.GetClient().Patch(ctx, oldResource, patch); err != nil {
+				return err
+			}
+			if len(oldResource.GetOwnerReferences()) == 0 {
+				uid := oldResource.GetUID()
+				if err := ctx.GetClient().Delete(ctx, oldResource, client.Preconditions{UID: &uid}); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	req.Status.Hash = core.HashFromResources(newResource)
-	req.Status.SyncedResource = req.Spec.Name
+	req.Status.SyncedResource = req.GetTargetName()
+	req.Status.ObservedGeneration = req.Generation
 
 	return nil
 }

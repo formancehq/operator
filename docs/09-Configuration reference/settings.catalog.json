@@ -53,17 +53,10 @@
       ]
     },
     {
-      "key": "connectivity.image-pull-secrets",
-      "valueType": "string[]",
-      "sources": [
-        "internal/resources/settings/connectivity_pull_secrets.go:20"
-      ]
-    },
-    {
       "key": "connectivity.instances.image-pull-secrets",
-      "valueType": "string[]",
+      "valueType": "string",
       "sources": [
-        "internal/resources/settings/connectivity_pull_secrets.go:24"
+        "internal/resources/settings/connectivity_pull_secrets.go:16"
       ]
     },
     {
@@ -610,14 +603,14 @@
       "key": "namespace.annotations",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:181"
+        "internal/resources/stacks/init.go:180"
       ]
     },
     {
       "key": "namespace.labels",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/stacks/init.go:162"
+        "internal/resources/stacks/init.go:161"
       ]
     },
     {
@@ -737,7 +730,6 @@
       "key": "registries.\u003cname\u003e.endpoint",
       "valueType": "string",
       "sources": [
-        "internal/resources/registries/pull_secrets.go:41",
         "internal/resources/registries/registries.go:76"
       ]
     },

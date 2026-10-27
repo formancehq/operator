@@ -90,62 +90,59 @@ While we have some basic types (string, number, bool ...), we also have some com
 
 ### Connectivity pull secrets
 
-Configure Core/API and plugin workloads independently. These comma-separated Secret names use the usual wildcard and per-stack Settings precedence:
+Core/API use the existing registry configuration and image resolution. For example, `registries."ghcr.io".endpoint: ghcr.io?pullSecret=ghcr-pull` keeps injecting `ghcr-pull` through the existing Connectivity and API image-pull-secret fields. Stack Operator's Connectivity module now also creates component-owned ResourceReferences to copy those already-resolved Secrets under the same names. Multiple configured secrets are supported, and names shared by Core/API use one reference. No new Core/API Setting or Policy is required, and registry behavior for other modules is unchanged.
+
+Core/API copies are requested before transient Ledger readiness and Ledger credential provisioning, so private Ledger/Auth images can bootstrap. New image/copy errors do not bypass the existing auth fail-closed preflight or Gateway revocation. Old references remain until replacement references are current, then only obsolete references owned by this Connectivity component are removed. Module deletion garbage-collects its references and copies after their final owner disappears.
+
+Plugins have one new Setting, whose value is a single source Secret name (not a comma-separated list):
 
 ```yaml
 apiVersion: formance.com/v1beta1
 kind: Settings
 metadata:
-  name: connectivity-pull-secrets
-spec:
-  stacks: ["*"]
-  key: connectivity.image-pull-secrets
-  value: ghcr-pull
----
-apiVersion: formance.com/v1beta1
-kind: Settings
-metadata:
-  name: connectivity-instance-pull-secrets
+  name: connectivity-plugin-pull-secret
 spec:
   stacks: ["*"]
   key: connectivity.instances.image-pull-secrets
   value: ghcr-pull
 ```
 
-Stack Operator creates two independent, Stack-owned Connectivity Policies. The first configures Core/API through `connectivitySelector: {}` and explicitly excludes every plugin instance with an `instanceSelector` containing contradictory `Exists` and `DoesNotExist` requirements on `formance.com/pull-secret-policy`. This exclusion is necessary because a nonempty namespace selector also enables Connectivity’s instance selection path; omitting `instanceSelector` would select plugins in that namespace. The second has `instanceSelector: {}` and no `connectivitySelector`, so it configures plugins independently. Each Policy constrains `namespaceSelector` to `kubernetes.io/metadata.name=<stack-name>`, uses `mode: Enforce`, and supplies only `mutate.imagePullSecrets`. Other Policies, including monitoring policies, remain independently managed. Overlapping image-pull-secret Policies follow Connectivity's ascending priority/name, last-write-wins precedence; remove the old manual pull-secret mutation when migrating.
+| Consumer | Source | Destination Secret | ResourceReference owner/name |
+| --- | --- | --- | --- |
+| Core/API | Existing resolved registry pull-secret names | Same configured names, e.g. `ghcr-pull` | Connectivity component; deterministic per component and configured name |
+| Plugins | New Setting value, e.g. `ghcr-pull` | `ghcr-pull-connectivity-plugins` | Stack; `<stack>-ghcr-pull-connectivity-plugins` |
 
-The union of both Settings and registry endpoint credentials creates one ResourceReference per Secret per Stack. No registry endpoint Setting is required for this explicit path. Provision and authorize the source Secrets as described below. Secret references reconcile independently of module readiness. Catalog credentials, image resolution, image rewrites, and referrers are unchanged and are never inferred as plugin credentials.
+The plugin reference keeps its name and UID when its source changes. It updates `spec.name` while `spec.targetName` stays `ghcr-pull-connectivity-plugins`. An omitted or empty Setting removes that stack's plugin reference; an empty per-stack value overrides a wildcard. Core/API references are independently managed. Catalog credentials, image resolution, image rewrites and referrers remain unchanged; the plugin credential is never inferred from Catalog configuration.
 
-An omitted or empty Setting removes only its managed Policy; an empty per-stack value overrides a wildcard. Shared Secret references remain while either Setting or a registry endpoint still requires them. Removing a Policy removes its contribution: it does not force an empty array onto workloads or erase another Policy's contribution. Existing direct registry configuration for Core/API remains supported.
+Stack Operator manages **one shared cluster-wide Policy**, `stack-connectivity-plugin-pull-secrets`. It has `instanceSelector: {}`, no `connectivitySelector`, and injects only `ghcr-pull-connectivity-plugins`. Its namespace selector uses `kubernetes.io/metadata.name In [...]` with the sorted names of live Stacks whose effective plugin Setting is nonempty. It has no Stack or Settings owner; the `formance.com/managed-plugin-pull-secret-policy: "true"` label identifies its management contract. Other Policies, including monitoring policies, remain independent. Overlapping pull-secret Policies follow Connectivity's ascending priority/name, last-write-wins precedence; remove a former manual plugin pull-secret mutation when migrating.
 
-The Policy CRD is optional when neither Setting requests credentials. When either is configured, install a compatible Connectivity Policy CRD and the generated Operator RBAC. Capability discovery runs at controller startup; restart Stack Operator after adding that API or its permissions. If unavailable, configured Stacks report a pending diagnostic while ordinary Stacks continue reconciling. Generated Policy names are deterministic from Stack UID and target axis. A manually owned object at the generated name is never adopted or overwritten; resolve that collision explicitly. Stack deletion garbage-collects owned Policies and references.
+The aggregate controller watches Settings, Stacks and this named Policy. It repairs drift or deletion and removes the managed Policy when no Stack is eligible, including after the last Setting or Stack is deleted. It rejects a manually managed or foreign-owned object at that name. It does not add namespace labels, and one failed Secret copy does not block policy aggregation for other configured Stacks.
 
-### Registry pull secrets
+Provision sources as `kubernetes.io/dockerconfigjson` Secrets and authorize copying with `formance.com/stack: any` or `formance.com/stack: <stack-name>`. Exactly one authorized source must match its name or `formance.com/referenced-by-name` alias. Do not store credentials in Settings. Source rotations propagate to copies, which do not carry the source authorization label. An unmanaged local destination is preserved and reported as a collision; incompatible live source/destination writers cannot overwrite each other. References with the same source, destination and resource kind may share ownership. Kubernetes garbage collection removes a copy after its final owner disappears.
 
-A registry endpoint can include one or more comma-separated `pullSecret` parameters:
+The Policy CRD is optional on clusters without plugin credential Settings. If configured, install a compatible Connectivity Policy CRD and generated Operator RBAC. Capability discovery runs once at startup; restart Stack Operator after adding that API or its permissions. A configured Stack reports an actionable Pending diagnostic if unavailable, while ordinary Stacks continue reconciling. Inspect the shared Policy and controller logs as well as per-stack references when diagnosing delivery.
+
+Compare reference `status.observedGeneration` with `metadata.generation` as well as `status.ready` when checking source changes. Failed authorization or replacement preserves the last copied data; revoking an already-issued registry credential also requires invalidating it at the registry. No controller rollout or registry pull is established by manifest rendering alone.
+
+### ResourceReference source and destination
+
+`ResourceReference.spec.name` identifies the authorized source object, preserving the existing API. Optional `spec.targetName` chooses the copied object's name in the Stack namespace. When omitted, the destination remains `spec.name`, as before:
 
 ```yaml
 apiVersion: formance.com/v1beta1
-kind: Settings
+kind: ResourceReference
 metadata:
-  name: ghcr-endpoint
+  name: example-ghcr-pull-connectivity-plugins
 spec:
-  stacks: ["*"]
-  key: registries."ghcr.io".endpoint
-  value: ghcr.io?pullSecret=ghcr-pull
+  stack: example
+  gvk:
+    version: v1
+    kind: Secret
+  name: ghcr-pull
+  targetName: ghcr-pull-connectivity-plugins
 ```
 
-Quote registry names containing dots in the setting key. Settings precedence and wildcard rules also apply to registry endpoints.
-
-Provision the source Secret separately as `kubernetes.io/dockerconfigjson`. Opt it into cross-namespace copying with the label `formance.com/stack: any` for all stacks, or `formance.com/stack: <stack-name>` for one stack. Do not store registry credentials in Settings. Exactly one authorized source must match the Secret name; multiple matching sources are an error. The annotation `formance.com/referenced-by-name` can supply the referenced name when the source has a different name.
-
-Stack Operator creates one stack-owned ResourceReference per configured pull secret and copies it into the stack namespace. Source updates are propagated by ResourceReference. The image configuration still supplies the secret name to workloads; the explicit Connectivity Settings above supply credentials to Connectivity-managed workloads. This does not configure credentials for operators or catalogs outside stack namespaces: provision those separately.
-
-An existing local Secret takes precedence and is never adopted or overwritten by this automatic mechanism. A Secret already managed by ResourceReference remains managed and follows source updates. If a local Secret is removed, Stack Operator attempts to provision its configured reference.
-
-Changing the endpoint creates the replacement references before removing obsolete ones. Old references remain while replacements are pending. Removing a pull secret from all effective endpoints deletes its automatic reference; Kubernetes garbage collection removes the copied Secret after its final owner disappears. Copies remain while a stack is disabled and are collected when the stack is deleted. Other ResourceReference consumers can share ownership of the copy.
-
-For a pending stack, inspect its registry ResourceReferences and their status. Missing or unlabeled sources, ambiguous sources, and a local Secret appearing during a copy attempt cause explicit reconciliation errors. Fix the source label/name or the collision and retry. Source authorization failures do not immediately revoke a previously copied Secret; credential revocation must also invalidate the registry credential.
+`status.syncedResource` records the destination successfully copied. Changing a destination copies the replacement before removing this reference's ownership of the old copy; a failed replacement leaves the old copy available. A source change with a fixed destination replaces its data in place after source authorization succeeds. Deploy the updated ResourceReference CRD with the controller so `targetName` is retained by the API server.
 
 ### Postgres URI format
 

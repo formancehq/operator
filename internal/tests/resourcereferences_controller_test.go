@@ -40,7 +40,7 @@ var _ = Describe("ResourceReferenceController", func() {
 		Context("with a registry pull secret reference", func() {
 			newReference := func() *v1beta1.ResourceReference {
 				metadata := RandObjectMeta()
-				metadata.Labels = map[string]string{resourcereferences.RegistryPullSecretLabel: "true"}
+				metadata.Labels = map[string]string{resourcereferences.ManagedPullSecretLabel: "true"}
 				return &v1beta1.ResourceReference{
 					ObjectMeta: metadata,
 					Spec: v1beta1.ResourceReferenceSpec{
@@ -61,7 +61,7 @@ var _ = Describe("ResourceReferenceController", func() {
 				Expect(Create(reference)).To(Succeed())
 				Eventually(func(g Gomega) {
 					g.Expect(LoadResource("", reference.Name, reference)).To(Succeed())
-					g.Expect(reference.Status.Info).To(ContainSubstring("refusing to overwrite unmanaged registry pull secret"))
+					g.Expect(reference.Status.Info).To(ContainSubstring("refusing to overwrite unmanaged pull secret"))
 					g.Expect(reference.Status.Ready).To(BeFalse())
 				}).Should(Succeed())
 				copied := &corev1.Secret{}

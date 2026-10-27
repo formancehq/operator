@@ -29,7 +29,6 @@ import (
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
-	"github.com/formancehq/operator/v3/internal/resources/registries"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -258,16 +257,14 @@ func Reconcile(ctx Context, stack *v1beta1.Stack) error {
 		return err
 	}
 
-	connectivitySecrets, instanceSecrets, err := settings.GetConnectivityPullSecrets(ctx, stack.Name)
+	instanceSecret, err := settings.GetConnectivityInstancePullSecret(ctx, stack.Name)
 	if err != nil {
 		return err
 	}
-	allSecrets := append(append([]string{}, connectivitySecrets...), instanceSecrets...)
-	if err := registries.ReconcilePullSecretReferences(ctx, stack, allSecrets...); err != nil {
+	if err := requirePluginPolicyCapability(instanceSecret); err != nil {
 		return err
 	}
-
-	if err := reconcilePullSecretPolicies(ctx, stack, connectivitySecrets, instanceSecrets); err != nil {
+	if err := reconcilePullSecretReferences(ctx, stack, instanceSecret); err != nil {
 		return err
 	}
 
@@ -429,7 +426,6 @@ func init() {
 			WithOwn[*v1beta1.Stack](&corev1.Namespace{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})),
 			WithOwn[*v1beta1.Stack](&networkingv1.NetworkPolicy{}),
 			WithOwn[*v1beta1.Stack](&v1beta1.ResourceReference{}),
-			withPullSecretPolicyWatch(),
 			WithRaw[*v1beta1.Stack](func(ctx Context, b *builder.Builder) error {
 				for _, rtype := range ctx.GetScheme().AllKnownTypes() {
 					v := reflect.New(rtype).Interface()
@@ -492,7 +488,7 @@ func init() {
 				b.Watches(&v1beta1.Settings{}, handler.EnqueueRequestsFromMapFunc(
 					func(watchCtx context.Context, object client.Object) []reconcile.Request {
 						s := object.(*v1beta1.Settings)
-						if s.Spec.Key != "networkpolicies.enabled" && !registries.IsEndpointSetting(s.Spec.Key) && !settings.IsConnectivityPullSecretSetting(s.Spec.Key) {
+						if s.Spec.Key != "networkpolicies.enabled" && !settings.IsConnectivityPullSecretSetting(s.Spec.Key) {
 							return nil
 						}
 						requests := make([]reconcile.Request, 0)

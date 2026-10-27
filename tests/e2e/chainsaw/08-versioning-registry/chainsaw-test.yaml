@@ -13,15 +13,11 @@ spec:
         - apply:
             file: resources/versions.yaml
         - apply:
-            file: resources/registry-source-secret.yaml
-        - apply:
             file: resources/registry-settings.yaml
         - apply:
             file: resources/stack.yaml
         - apply:
             file: resources/gateway.yaml
-        - assert:
-            file: asserts/registry-secret-copied.yaml
         - script:
             timeout: 2m
             content: |
@@ -59,23 +55,6 @@ spec:
         - script:
             timeout: 2m
             content: ../../scripts/dump-diagnostics.sh versioning-registry-module-priority
-    - name: removing-registry-settings-cleans-up-the-copy
-      try:
-        - script:
-            timeout: 2m
-            content: |
-              set -eu
-              reference="$(kubectl get secret/chainsaw-regcred -n chainsaw-versioning -o jsonpath='{.metadata.ownerReferences[?(@.kind=="ResourceReference")].name}')"
-              test -n "$reference"
-              test "$(kubectl get resourcereference "$reference" -o jsonpath='{.metadata.ownerReferences[?(@.controller==true)].name}')" = chainsaw-versioning
-              kubectl delete settings chainsaw-registry-endpoint
-              kubectl wait --for=delete "resourcereference/$reference" --timeout=2m
-              kubectl wait --for=delete secret/chainsaw-regcred -n chainsaw-versioning --timeout=2m
-              kubectl get secret/chainsaw-regcred -n default >/dev/null
-      catch:
-        - script:
-            timeout: 2m
-            content: ../../scripts/dump-diagnostics.sh versioning-registry-secret-cleanup
     - name: missing-version-reports-explicit-error
       try:
         - apply:

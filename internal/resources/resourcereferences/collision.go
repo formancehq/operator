@@ -10,9 +10,10 @@ import (
 	"github.com/formancehq/operator/v3/internal/core"
 )
 
-// HasResourceReferenceOwner validates ownership against the API server: a stale or fabricated owner reference
-// must not turn an independently managed Secret into a registry replica.
-func HasResourceReferenceOwner(ctx core.Context, target client.Object) (bool, error) {
+// requireResourceReferenceOwner prevents independent sources from racing to
+// overwrite one target. Plain references retain legacy unmanaged adoption.
+func requireResourceReferenceOwner(ctx core.Context, target client.Object, desired *v1beta1.ResourceReference) error {
+	managed := false
 	for _, owner := range target.GetOwnerReferences() {
 		if owner.APIVersion != v1beta1.GroupVersion.String() || owner.Kind != "ResourceReference" || owner.UID == "" {
 			continue
@@ -20,24 +21,28 @@ func HasResourceReferenceOwner(ctx core.Context, target client.Object) (bool, er
 		reference := &v1beta1.ResourceReference{}
 		if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Name: owner.Name}, reference); err != nil {
 			if client.IgnoreNotFound(err) != nil {
-				return false, fmt.Errorf("checking registry pull secret ownership: %w", err)
+				return err
 			}
 			continue
 		}
-		if reference.UID == owner.UID && reference.Spec.Stack == target.GetNamespace() {
-			return true, nil
+		if reference.UID != owner.UID {
+			continue
+		}
+		if reference.Spec.Stack != target.GetNamespace() {
+			return fmt.Errorf("incompatible ResourceReference owner for target %s/%s", target.GetNamespace(), target.GetName())
+		}
+		managed = true
+		// Updating this reference's source is allowed; all other live owners must
+		// request exactly the same source and destination (including resource kind).
+		if reference.UID == desired.UID {
+			continue
+		}
+		if reference.Spec.Name != desired.Spec.Name || reference.GetTargetName() != desired.GetTargetName() || reference.Spec.GroupVersionKind == nil || desired.Spec.GroupVersionKind == nil || *reference.Spec.GroupVersionKind != *desired.Spec.GroupVersionKind {
+			return fmt.Errorf("incompatible ResourceReference source/destination for target %s/%s", target.GetNamespace(), target.GetName())
 		}
 	}
-	return false, nil
-}
-
-func requireResourceReferenceOwner(ctx core.Context, target client.Object) error {
-	managed, err := HasResourceReferenceOwner(ctx, target)
-	if err != nil {
-		return err
-	}
-	if !managed {
-		return fmt.Errorf("refusing to overwrite unmanaged registry pull secret %s/%s", target.GetNamespace(), target.GetName())
+	if !managed && (desired.Labels[ManagedPullSecretLabel] == "true" || desired.Spec.TargetName != "") {
+		return fmt.Errorf("refusing to overwrite unmanaged pull secret %s/%s", target.GetNamespace(), target.GetName())
 	}
 	return nil
 }

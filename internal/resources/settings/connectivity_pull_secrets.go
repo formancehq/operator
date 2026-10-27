@@ -2,49 +2,31 @@ package settings
 
 import (
 	"fmt"
-	"slices"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/formancehq/operator/v3/internal/core"
 )
 
-const (
-	ConnectivityPullSecrets         = "connectivity.image-pull-secrets"
-	ConnectivityInstancePullSecrets = "connectivity.instances.image-pull-secrets"
-)
+const ConnectivityInstancePullSecrets = "connectivity.instances.image-pull-secrets"
 
-// GetConnectivityPullSecrets resolves each target independently, including an
-// explicit empty override of a wildcard setting.
-func GetConnectivityPullSecrets(ctx core.Context, stack string) (connectivity, instances []string, err error) {
-	connectivity, err = GetTrimmedStringSlice(ctx, stack, "connectivity", "image-pull-secrets")
+// GetConnectivityInstancePullSecret resolves one authorized source Secret name.
+func GetConnectivityInstancePullSecret(ctx core.Context, stack string) (string, error) {
+	name, err := GetStringOrEmpty(ctx, stack, "connectivity", "instances", "image-pull-secrets")
 	if err != nil {
-		return nil, nil, err
+		return "", err
 	}
-	instances, err = GetTrimmedStringSlice(ctx, stack, "connectivity", "instances", "image-pull-secrets")
-	if err != nil {
-		return nil, nil, err
+	name = strings.TrimSpace(name)
+	if name != "" && len(validation.IsDNS1123Subdomain(name)) != 0 {
+		return "", fmt.Errorf("%s for stack %s must contain one valid source Secret name, not a list", ConnectivityInstancePullSecrets, stack)
 	}
-	for _, target := range []struct {
-		key    string
-		output *[]string
-	}{
-		{ConnectivityPullSecrets, &connectivity}, {ConnectivityInstancePullSecrets, &instances},
-	} {
-		for _, name := range *target.output {
-			if len(validation.IsDNS1123Subdomain(name)) != 0 {
-				return nil, nil, fmt.Errorf("invalid Secret name in %s for stack %s", target.key, stack)
-			}
-		}
-		slices.Sort(*target.output)
-		*target.output = slices.Compact(*target.output)
-	}
-	return
+	return name, nil
 }
 
 func IsConnectivityPullSecretSetting(key string) bool {
 	parts := SplitKeywordWithDot(key)
-	for _, candidate := range []string{ConnectivityPullSecrets, ConnectivityInstancePullSecrets} {
+	for _, candidate := range []string{ConnectivityInstancePullSecrets} {
 		expected := SplitKeywordWithDot(candidate)
 		if len(parts) != len(expected) {
 			continue

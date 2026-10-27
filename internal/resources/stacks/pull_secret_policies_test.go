@@ -6,16 +6,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/resourcereferences"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
@@ -33,133 +35,170 @@ func newPolicyTestContext(t *testing.T, objects ...client.Object) policyTestCont
 	t.Helper()
 	scheme := runtime.NewScheme()
 	require.NoError(t, v1beta1.AddToScheme(scheme))
-	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).
+	require.NoError(t, corev1.AddToScheme(scheme))
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).WithStatusSubresource(&v1beta1.ResourceReference{}).
 		WithIndex(&v1beta1.Settings{}, "stack", func(o client.Object) []string { return o.(*v1beta1.Settings).GetStacks() }).
 		WithIndex(&v1beta1.Settings{}, "keylen", func(o client.Object) []string {
 			return []string{fmt.Sprint(len(settings.SplitKeywordWithDot(o.(*v1beta1.Settings).Spec.Key)))}
 		}).Build()
 	return policyTestContext{Context: context.Background(), c: c, s: scheme}
 }
-func enablePolicyTest(t *testing.T) {
-	t.Helper()
-	previous := pullSecretPoliciesAvailable
-	pullSecretPoliciesAvailable = true
-	t.Cleanup(func() { pullSecretPoliciesAvailable = previous })
-}
-func policyFor(stack *v1beta1.Stack, axis string) *unstructured.Unstructured {
-	p := &unstructured.Unstructured{}
-	p.SetGroupVersionKind(pullSecretPolicyGVK)
-	p.SetName(pullSecretPolicyName(stack, axis))
-	return p
-}
-func TestPullSecretPoliciesIndependentLifecycle(t *testing.T) {
-	enablePolicyTest(t)
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "tenant-one", UID: "stack-one"}}
-	ctx := newPolicyTestContext(t, stack)
-	require.NoError(t, reconcilePullSecretPolicies(ctx, stack, []string{"core"}, []string{"plugin"}))
-	for axis, name := range map[string]string{"connectivitySelector": "core", "instanceSelector": "plugin"} {
-		p := policyFor(stack, axis)
-		require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(p), p))
-		require.True(t, metav1.IsControlledBy(p, stack))
-		spec := p.Object["spec"].(map[string]any)
-		require.Contains(t, spec, axis)
-		if axis == "connectivitySelector" {
-			selector := &metav1.LabelSelector{}
-			require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(spec["instanceSelector"].(map[string]any), selector))
-			require.Len(t, selector.MatchExpressions, 2)
-			require.Equal(t, selector.MatchExpressions[0].Key, selector.MatchExpressions[1].Key)
-			require.Equal(t, metav1.LabelSelectorOpExists, selector.MatchExpressions[0].Operator)
-			require.Equal(t, metav1.LabelSelectorOpDoesNotExist, selector.MatchExpressions[1].Operator)
-			compiled, err := metav1.LabelSelectorAsSelector(selector)
-			require.NoError(t, err)
-			for _, instanceLabels := range []labels.Set{nil, {}, {"formance.com/pull-secret-policy": ""}, {"formance.com/pull-secret-policy": "any"}, {"tenant-label": "value"}} {
-				require.False(t, compiled.Matches(instanceLabels), "Core/API Policy must never select plugin instance labels %v", instanceLabels)
-			}
-		} else {
-			require.NotContains(t, spec, "connectivitySelector")
-			require.Empty(t, spec["instanceSelector"])
-		}
-		require.Equal(t, map[string]any{"matchLabels": map[string]any{"kubernetes.io/metadata.name": "tenant-one"}}, spec["namespaceSelector"])
-		require.Equal(t, map[string]any{"imagePullSecrets": []any{map[string]any{"name": name}}}, spec["mutate"])
+func TestPluginSourceSettingOverridesAndValidation(t *testing.T) {
+	ctx := newPolicyTestContext(t, settings.New("global", settings.ConnectivityInstancePullSecrets, " source ", "*"), settings.New("empty", settings.ConnectivityInstancePullSecrets, "", "one"))
+	value, err := settings.GetConnectivityInstancePullSecret(ctx, "one")
+	require.NoError(t, err)
+	require.Empty(t, value)
+	value, err = settings.GetConnectivityInstancePullSecret(ctx, "two")
+	require.NoError(t, err)
+	require.Equal(t, "source", value)
+	for _, value := range []string{"source,other", "bad/name"} {
+		invalid := settings.New("invalid", settings.ConnectivityInstancePullSecrets, value, "two")
+		require.NoError(t, ctx.c.Create(ctx, invalid))
+		_, err := settings.GetConnectivityInstancePullSecret(ctx, "two")
+		require.ErrorContains(t, err, "one valid source Secret name")
+		require.NoError(t, ctx.c.Delete(ctx, invalid))
 	}
-	// An unchanged replay must not update the policy (including API defaults).
-	before := policyFor(stack, "connectivitySelector")
-	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(before), before))
-	require.NoError(t, reconcilePullSecretPolicies(ctx, stack, []string{"core"}, []string{"plugin"}))
-	after := policyFor(stack, "connectivitySelector")
-	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(after), after))
-	require.Equal(t, before.GetResourceVersion(), after.GetResourceVersion())
-	// Removing one axis deletes its policy instead of relying on an empty list
-	// to clear a last-write-wins mutation; the other axis remains independent.
-	require.NoError(t, reconcilePullSecretPolicies(ctx, stack, nil, []string{"replacement"}))
-	p := policyFor(stack, "connectivitySelector")
-	require.Error(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(p), p))
-	p = policyFor(stack, "instanceSelector")
-	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(p), p))
-	names, _, err := unstructured.NestedSlice(p.Object, "spec", "mutate", "imagePullSecrets")
-	require.NoError(t, err)
-	require.Equal(t, []any{map[string]any{"name": "replacement"}}, names)
-	require.NoError(t, reconcilePullSecretPolicies(ctx, stack, nil, nil))
-	require.Error(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(p), p))
 }
-func TestPullSecretPolicyCollision(t *testing.T) {
-	enablePolicyTest(t)
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "tenant", UID: "stack"}}
-	manual := policyFor(stack, "connectivitySelector")
-	manual.Object["spec"] = map[string]any{"mode": "Warn"}
-	ctx := newPolicyTestContext(t, stack, manual)
-	require.ErrorContains(t, reconcilePullSecretPolicies(ctx, stack, []string{"secret"}, nil), "refusing to overwrite")
-	require.NoError(t, reconcilePullSecretPolicies(ctx, stack, nil, nil))
-	got := policyFor(stack, "connectivitySelector")
-	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(got), got))
-	require.Equal(t, manual.Object["spec"], got.Object["spec"])
-}
-func TestPullSecretPolicyUnavailable(t *testing.T) {
-	previous := pullSecretPoliciesAvailable
-	pullSecretPoliciesAvailable = false
-	t.Cleanup(func() { pullSecretPoliciesAvailable = previous })
-	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "ordinary-stack", UID: "stack"}}
-	ctx := newPolicyTestContext(t, stack)
-	require.NoError(t, reconcilePullSecretPolicies(ctx, stack, nil, nil))
-	require.ErrorContains(t, reconcilePullSecretPolicies(ctx, stack, nil, []string{"plugin"}), "Policies unavailable")
-}
-func TestConnectivityPullSecretSettingsIndependentOverrides(t *testing.T) {
-	ctx := newPolicyTestContext(t,
-		settings.New("core", settings.ConnectivityPullSecrets, " core,shared, core ", "*"),
-		settings.New("plugins", settings.ConnectivityInstancePullSecrets, "plugin,shared", "*"),
-		settings.New("empty-core", settings.ConnectivityPullSecrets, "", "one"))
-	coreNames, pluginNames, err := settings.GetConnectivityPullSecrets(ctx, "one")
-	require.NoError(t, err)
-	require.Empty(t, coreNames)
-	require.Equal(t, []string{"plugin", "shared"}, pluginNames)
-	coreNames, pluginNames, err = settings.GetConnectivityPullSecrets(ctx, "two")
-	require.NoError(t, err)
-	require.Equal(t, []string{"core", "shared"}, coreNames)
-	require.Equal(t, []string{"plugin", "shared"}, pluginNames)
-	bad := settings.New("invalid", settings.ConnectivityInstancePullSecrets, "bad/name", "one")
-	require.NoError(t, ctx.c.Create(ctx, bad))
-	_, _, err = settings.GetConnectivityPullSecrets(ctx, "one")
-	require.ErrorContains(t, err, "invalid Secret name")
-}
-
-func TestPullSecretPolicyDiscoveryAbsentDoesNotRequireWatch(t *testing.T) {
-	previous := pullSecretPoliciesAvailable
-	t.Cleanup(func() { pullSecretPoliciesAvailable = previous })
-	ctx := newPolicyTestContext(t)
-	require.NoError(t, apiextensionsv1.AddToScheme(ctx.s))
-	options := core.ReconcilerOptions[*v1beta1.Stack]{}
-	withPullSecretPolicyWatch()(&options)
-	require.Len(t, options.Raws, 1)
-	// No Policy CRD: discovery must return before registering a watch.
-	require.NoError(t, options.Raws[0](ctx, nil))
-	require.False(t, pullSecretPoliciesAvailable)
-}
-
-func TestConnectivityPullSecretSettingWatchKeys(t *testing.T) {
-	for _, key := range []string{settings.ConnectivityPullSecrets, settings.ConnectivityInstancePullSecrets, "connectivity.*", "*.instances.image-pull-secrets", "*.*.*"} {
+func TestPluginSettingWatchKeys(t *testing.T) {
+	for _, key := range []string{settings.ConnectivityInstancePullSecrets, "*.instances.image-pull-secrets", "*.*.*"} {
 		require.True(t, settings.IsConnectivityPullSecretSetting(key), key)
 	}
-	for _, key := range []string{"connectivity.monitoring", "connectivity.instances", "registries.ghcr.endpoint", "namespace.labels"} {
+	for _, key := range []string{"connectivity.image-pull-secrets", "namespace.labels", "registries.*.endpoint"} {
 		require.False(t, settings.IsConnectivityPullSecretSetting(key), key)
 	}
+}
+func TestPluginReferenceStableTargetAndSourceGeneration(t *testing.T) {
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "tenant", UID: "stack"}}
+	ctx := newPolicyTestContext(t, stack)
+	require.Error(t, reconcilePullSecretReferences(ctx, stack, "source"))
+	ref := &v1beta1.ResourceReference{}
+	key := client.ObjectKey{Name: "tenant-ghcr-pull-connectivity-plugins"}
+	require.NoError(t, ctx.c.Get(ctx, key, ref))
+	require.Equal(t, "source", ref.Spec.Name)
+	require.Equal(t, instancePullSecretTarget, ref.Spec.TargetName)
+	require.True(t, metav1.IsControlledBy(ref, stack))
+	ref.Status.Ready = true
+	require.NoError(t, ctx.c.Status().Update(ctx, ref))
+	require.NoError(t, reconcilePullSecretReferences(ctx, stack, "replacement"))
+	require.NoError(t, ctx.c.Get(ctx, key, ref))
+	require.Equal(t, "replacement", ref.Spec.Name)
+	require.Equal(t, instancePullSecretTarget, ref.GetTargetName())
+	ref.Generation = 2
+	require.NoError(t, ctx.c.Update(ctx, ref))
+	ref.Status.Ready = true
+	ref.Status.ObservedGeneration = 1
+	require.NoError(t, ctx.c.Status().Update(ctx, ref))
+	require.Error(t, reconcilePullSecretReferences(ctx, stack, "replacement"))
+	require.NoError(t, reconcilePullSecretReferences(ctx, stack, ""))
+	require.Error(t, ctx.c.Get(ctx, key, ref))
+}
+func TestLocalPluginDestinationStillGetsReferenceAndReportsCollision(t *testing.T) {
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "tenant", UID: "stack"}}
+	source := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "source", Namespace: "default", Labels: map[string]string{v1beta1.StackLabel: "tenant"}}, Data: map[string][]byte{"credential": []byte("source")}}
+	local := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: instancePullSecretTarget, Namespace: stack.Name}, Data: map[string][]byte{"credential": []byte("local")}}
+	ctx := newPolicyTestContext(t, stack, source, local)
+	require.Error(t, reconcilePullSecretReferences(ctx, stack, source.Name))
+	ref := &v1beta1.ResourceReference{}
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKey{Name: "tenant-" + instancePullSecretTarget}, ref))
+	require.ErrorContains(t, resourcereferences.Reconcile(ctx, stack, ref), "refusing to overwrite unmanaged pull secret")
+	got := &corev1.Secret{}
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(local), got))
+	require.Equal(t, local.Data, got.Data)
+	require.Empty(t, got.OwnerReferences)
+}
+
+func TestSharedPluginPolicyAggregatesStacksAndReconcilesDrift(t *testing.T) {
+	var objects []client.Object
+	for i := 0; i < 30; i++ {
+		objects = append(objects, &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("tenant-%02d", i), UID: types.UID(fmt.Sprintf("stack-%d", i))}})
+	}
+	global := settings.New("global", settings.ConnectivityInstancePullSecrets, "source", "*")
+	empty := settings.New("exclude", settings.ConnectivityInstancePullSecrets, "", "tenant-07")
+	objects = append(objects, global, empty)
+	ctx := newPolicyTestContext(t, objects...)
+	// No source or destination Secrets exist: aggregation is independent of copies.
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	policy := pluginPolicyObject()
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+	require.Empty(t, policy.GetOwnerReferences())
+	require.Equal(t, "true", policy.GetLabels()[sharedPluginPolicyMarker])
+	spec := policy.Object["spec"].(map[string]any)
+	require.NotContains(t, spec, "connectivitySelector")
+	require.Empty(t, spec["instanceSelector"])
+	expressions, found, err := unstructured.NestedSlice(policy.Object, "spec", "namespaceSelector", "matchExpressions")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Len(t, expressions, 1)
+	expression := expressions[0].(map[string]any)
+	require.Equal(t, "In", expression["operator"])
+	require.Equal(t, "kubernetes.io/metadata.name", expression["key"])
+	values := expression["values"].([]any)
+	require.Len(t, values, 29)
+	require.NotContains(t, values, "tenant-07")
+	require.Equal(t, "tenant-00", values[0])
+	require.Equal(t, "tenant-29", values[len(values)-1])
+	list := &unstructured.UnstructuredList{}
+	list.SetAPIVersion(policy.GetAPIVersion())
+	list.SetKind("PolicyList")
+	require.NoError(t, ctx.c.List(ctx, list))
+	require.Len(t, list.Items, 1)
+	rv := policy.GetResourceVersion()
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+	require.Equal(t, rv, policy.GetResourceVersion())
+	policy.Object["spec"].(map[string]any)["connectivitySelector"] = map[string]any{}
+	require.NoError(t, ctx.c.Update(ctx, policy))
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+	require.NotContains(t, policy.Object["spec"], "connectivitySelector")
+	require.NoError(t, ctx.c.Delete(ctx, global))
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	require.True(t, apierrors.IsNotFound(ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy)))
+}
+
+func TestSharedPluginPolicyLastStackRemovalAndCollisionSafety(t *testing.T) {
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "tenant", UID: "stack"}}
+	setting := settings.New("global", settings.ConnectivityInstancePullSecrets, "source", "*")
+	ctx := newPolicyTestContext(t, stack, setting)
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	policy := pluginPolicyObject()
+	require.NoError(t, ctx.c.Delete(ctx, stack))
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	require.True(t, apierrors.IsNotFound(ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy)))
+	stack = &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "tenant", UID: "replacement-stack"}}
+	require.NoError(t, ctx.c.Create(ctx, stack))
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+	require.NoError(t, ctx.c.Delete(ctx, policy))
+	require.NoError(t, reconcileSharedPluginPolicy(ctx))
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+	for _, foreignOwner := range []bool{false, true} {
+		if foreignOwner {
+			policy.SetLabels(map[string]string{sharedPluginPolicyMarker: "true"})
+			policy.SetOwnerReferences([]metav1.OwnerReference{{APIVersion: "v1", Kind: "Namespace", Name: "foreign", UID: "foreign"}})
+		} else {
+			policy.SetLabels(nil)
+		}
+		require.NoError(t, ctx.c.Update(ctx, policy))
+		before := policy.DeepCopy()
+		require.ErrorContains(t, reconcileSharedPluginPolicy(ctx), "refusing to overwrite")
+		require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+		require.Equal(t, before, policy)
+	}
+	require.NoError(t, ctx.c.Delete(ctx, setting))
+	require.ErrorContains(t, reconcileSharedPluginPolicy(ctx), "refusing to overwrite")
+	require.NoError(t, ctx.c.Get(ctx, client.ObjectKeyFromObject(policy), policy))
+}
+func TestOptionalPluginPolicyAPIDoesNotRequireConnectivity(t *testing.T) {
+	require.False(t, pluginPolicyAPIAvailable(newPolicyTestContext(t)))
+}
+
+func TestPluginCapabilityRequirementIsExplicitAndOptional(t *testing.T) {
+	previous := pluginPolicyAvailable
+	pluginPolicyAvailable = false
+	t.Cleanup(func() { pluginPolicyAvailable = previous })
+	require.NoError(t, requirePluginPolicyCapability(""))
+	require.ErrorContains(t, requirePluginPolicyCapability("source"), "restart Stack Operator")
+	pluginPolicyAvailable = true
+	require.NoError(t, requirePluginPolicyCapability("source"))
 }

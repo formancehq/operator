@@ -3196,7 +3196,8 @@ func TestConnectivityReconcileRevokesOwnedGatewayWhenAPIAuthResolutionFails(t *t
 		}},
 	}}
 
-	base := newReconcileTestContext(t, ledger, credentials, httpAPI)
+	registry := settings.New("registry", "registries.*.endpoint", "mirror.example?pullSecret=private-images", "stack0")
+	base := newReconcileTestContext(t, ledger, credentials, httpAPI, registry)
 	failing := interceptor.NewClient(base.client.(client.WithWatch), interceptor.Funcs{
 		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
 			if _, ok := list.(*v1beta1.AuthList); ok {
@@ -3213,6 +3214,10 @@ func TestConnectivityReconcileRevokesOwnedGatewayWhenAPIAuthResolutionFails(t *t
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if err == nil || core.IsApplicationError(err) {
 		t.Fatalf("Reconcile() returned %v, want a hard auth-resolution error", err)
+	}
+	refs := &v1beta1.ResourceReferenceList{}
+	if err := ctx.client.List(ctx, refs); err != nil || len(refs.Items) != 1 {
+		t.Fatalf("pull-secret references = %d, error = %v, want one pending copy before auth failure", len(refs.Items), err)
 	}
 	if gatewayHTTPAPIExists(t, ctx, stack.Name) {
 		t.Fatal("owned GatewayHTTPAPI remains exposed after auth resolution failed")

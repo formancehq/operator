@@ -1,135 +1,165 @@
 package stacks
 
 import (
-	"crypto/sha256"
+	"context"
 	"fmt"
-	"strings"
+	"slices"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
+	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
 
 // +kubebuilder:rbac:groups=connectivity.formance.com,resources=policies,verbs=get;list;watch;create;update;patch;delete
 
-var pullSecretPolicyGVK = schema.GroupVersionKind{Group: "connectivity.formance.com", Version: "v1alpha1", Kind: "Policy"}
-var pullSecretPoliciesAvailable bool
+var pluginPolicyAvailable bool
 
-// Like other delegated APIs, discover this optional capability at startup.
-// Clusters without Connectivity must still reconcile ordinary Stacks.
-func withPullSecretPolicyWatch() core.ReconcilerOption[*v1beta1.Stack] {
-	return core.WithRaw[*v1beta1.Stack](func(ctx core.Context, b *builder.Builder) error {
-		pullSecretPoliciesAvailable = false
-		crd := &apiextensionsv1.CustomResourceDefinition{}
-		if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Name: "policies.connectivity.formance.com"}, crd); err != nil {
-			log.FromContext(ctx).Info("Connectivity pull secret Policies unavailable", "error", err)
+const instancePullSecretTarget = "ghcr-pull-connectivity-plugins"
+const sharedPluginPolicyName = "stack-connectivity-plugin-pull-secrets"
+const sharedPluginPolicyMarker = "formance.com/managed-plugin-pull-secret-policy"
+
+func pluginPolicyObject() *unstructured.Unstructured {
+	p := &unstructured.Unstructured{}
+	p.SetAPIVersion("connectivity.formance.com/v1alpha1")
+	p.SetKind("Policy")
+	p.SetName(sharedPluginPolicyName)
+	return p
+}
+
+// A single queue key serializes aggregation independently of Stack copy readiness.
+// Watching Settings/Stacks without a primary object also handles the last deletion.
+func init() {
+	core.Init(func(mgr core.Manager) error {
+		ctx := core.NewContext(mgr, context.Background())
+		pluginPolicyAvailable = pluginPolicyAPIAvailable(ctx)
+		if !pluginPolicyAvailable {
 			return nil
 		}
-		for _, version := range crd.Spec.Versions {
-			if version.Name != pullSecretPolicyGVK.Version || !version.Served {
-				continue
-			}
-			list := &unstructured.UnstructuredList{}
-			list.SetGroupVersionKind(pullSecretPolicyGVK.GroupVersion().WithKind("PolicyList"))
-			if err := ctx.GetAPIReader().List(ctx, list, client.Limit(1)); err != nil {
-				log.FromContext(ctx).Info("Connectivity pull secret Policies inaccessible", "error", err)
+		singleton := handler.EnqueueRequestsFromMapFunc(func(_ context.Context, object client.Object) []reconcile.Request {
+			if setting, ok := object.(*v1beta1.Settings); ok && !settings.IsConnectivityPullSecretSetting(setting.Spec.Key) {
 				return nil
 			}
-			for _, verb := range []string{"get", "list", "watch", "create", "update", "patch", "delete"} {
-				review := &authorizationv1.SelfSubjectAccessReview{Spec: authorizationv1.SelfSubjectAccessReviewSpec{ResourceAttributes: &authorizationv1.ResourceAttributes{Group: pullSecretPolicyGVK.Group, Version: pullSecretPolicyGVK.Version, Resource: "policies", Verb: verb}}}
-				if err := ctx.GetClient().Create(ctx, review); err != nil || !review.Status.Allowed {
-					log.FromContext(ctx).Info("Connectivity pull secret Policy permission unavailable", "verb", verb, "error", err)
-					return nil
-				}
+			if policy, ok := object.(*unstructured.Unstructured); ok && policy.GetName() != sharedPluginPolicyName {
+				return nil
 			}
-			policy := &unstructured.Unstructured{}
-			policy.SetGroupVersionKind(pullSecretPolicyGVK)
-			b.Owns(policy)
-			pullSecretPoliciesAvailable = true
-			return nil
-		}
-		return nil
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: sharedPluginPolicyName}}}
+		})
+		return ctrl.NewControllerManagedBy(mgr).Named("connectivity-plugin-pull-secret-policy").
+			Watches(&v1beta1.Settings{}, singleton).Watches(&v1beta1.Stack{}, singleton).Watches(pluginPolicyObject(), singleton).
+			Complete(reconcile.Func(func(ctx context.Context, _ reconcile.Request) (ctrl.Result, error) {
+				return ctrl.Result{}, reconcileSharedPluginPolicy(core.NewContext(mgr, ctx))
+			}))
 	})
 }
 
-func pullSecretPolicyName(stack *v1beta1.Stack, axis string) string {
-	hash := sha256.Sum256([]byte(string(stack.UID)))
-	return fmt.Sprintf("stack-pull-secrets-%x-%s", hash[:16], strings.ToLower(axis))
+func pluginPolicyAPIAvailable(ctx core.Context) bool {
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{Name: "policies.connectivity.formance.com"}, crd); err != nil {
+		log.FromContext(ctx).Info("Connectivity plugin Policy API unavailable; continuing without shared policy controller", "error", err)
+		return false
+	}
+	served := false
+	for _, version := range crd.Spec.Versions {
+		served = served || version.Name == "v1alpha1" && version.Served
+	}
+	if !served {
+		return false
+	}
+	list := &unstructured.UnstructuredList{}
+	list.SetAPIVersion("connectivity.formance.com/v1alpha1")
+	list.SetKind("PolicyList")
+	if err := ctx.GetAPIReader().List(ctx, list, client.Limit(1)); err != nil {
+		log.FromContext(ctx).Info("Connectivity plugin Policies inaccessible", "error", err)
+		return false
+	}
+	for _, verb := range []string{"get", "list", "watch", "create", "update", "patch", "delete"} {
+		review := &authorizationv1.SelfSubjectAccessReview{Spec: authorizationv1.SelfSubjectAccessReviewSpec{ResourceAttributes: &authorizationv1.ResourceAttributes{Group: "connectivity.formance.com", Version: "v1alpha1", Resource: "policies", Verb: verb}}}
+		if err := ctx.GetClient().Create(ctx, review); err != nil || !review.Status.Allowed {
+			log.FromContext(ctx).Info("Connectivity plugin Policy permission unavailable", "verb", verb, "error", err)
+			return false
+		}
+	}
+	return true
 }
 
-func reconcilePullSecretPolicies(ctx core.Context, stack *v1beta1.Stack, connectivity, instances []string) error {
-	if !pullSecretPoliciesAvailable {
-		if len(connectivity) == 0 && len(instances) == 0 {
-			return nil
-		}
-		return core.NewPendingError().WithMessage("Connectivity pull secret Policies unavailable; install the Policy CRD, grant policies permissions and restart Stack Operator")
+func requireManagedPluginPolicy(policy *unstructured.Unstructured) error {
+	if policy.GetLabels()[sharedPluginPolicyMarker] != "true" || len(policy.GetOwnerReferences()) != 0 {
+		return fmt.Errorf("refusing to overwrite unmanaged or foreign-owned plugin Policy %s", policy.GetName())
 	}
-	for _, target := range []struct {
-		axis  string
-		names []string
-	}{
-		{"connectivitySelector", connectivity}, {"instanceSelector", instances},
-	} {
-		policy := &unstructured.Unstructured{}
-		policy.SetGroupVersionKind(pullSecretPolicyGVK)
-		policy.SetName(pullSecretPolicyName(stack, target.axis))
-		if len(target.names) == 0 {
-			if err := ctx.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(policy), policy); err != nil {
-				if client.IgnoreNotFound(err) != nil {
-					return err
-				}
-				continue
-			}
-			if !metav1.IsControlledBy(policy, stack) {
-				continue
-			}
-			uid := policy.GetUID()
-			if err := ctx.GetClient().Delete(ctx, policy, client.Preconditions{UID: &uid}); client.IgnoreNotFound(err) != nil {
-				return err
-			}
+	return nil
+}
+
+func reconcileSharedPluginPolicy(ctx core.Context) error {
+	stacks := &v1beta1.StackList{}
+	if err := ctx.GetClient().List(ctx, stacks); err != nil {
+		return err
+	}
+	namespaces := []string{}
+	for _, stack := range stacks.Items {
+		if !stack.DeletionTimestamp.IsZero() {
 			continue
 		}
-		_, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), policy, func() error {
-			if policy.GetResourceVersion() != "" && !metav1.IsControlledBy(policy, stack) {
-				return fmt.Errorf("refusing to overwrite unmanaged Connectivity pull secret Policy %s", policy.GetName())
-			}
-			secrets := make([]any, 0, len(target.names))
-			for _, name := range target.names {
-				secrets = append(secrets, map[string]any{"name": name})
-			}
-			policy.Object["spec"] = map[string]any{
-				target.axis:         map[string]any{},
-				"namespaceSelector": map[string]any{"matchLabels": map[string]any{"kubernetes.io/metadata.name": stack.Name}},
-				"mode":              "Enforce",
-				"priority":          int64(0),
-				"mutate":            map[string]any{"imagePullSecrets": secrets},
-			}
-			if target.axis == "connectivitySelector" {
-				// A namespace selector also enables Connectivity's instance path.
-				// Contradictory requirements exclude every instance regardless of
-				// tenant-controlled labels while preserving Core/API selection.
-				policy.Object["spec"].(map[string]any)["instanceSelector"] = map[string]any{
-					"matchExpressions": []any{
-						map[string]any{"key": "formance.com/pull-secret-policy", "operator": "Exists"},
-						map[string]any{"key": "formance.com/pull-secret-policy", "operator": "DoesNotExist"},
-					},
-				}
-			}
-			return controllerutil.SetControllerReference(stack, policy, ctx.GetScheme())
-		})
+		source, err := settings.GetConnectivityInstancePullSecret(ctx, stack.Name)
 		if err != nil {
 			return err
 		}
+		if source != "" {
+			namespaces = append(namespaces, stack.Name)
+		}
+	}
+	slices.Sort(namespaces)
+	policy := pluginPolicyObject()
+	if len(namespaces) == 0 {
+		if err := ctx.GetAPIReader().Get(ctx, client.ObjectKeyFromObject(policy), policy); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+		if err := requireManagedPluginPolicy(policy); err != nil {
+			return err
+		}
+		uid, rv := policy.GetUID(), policy.GetResourceVersion()
+		return client.IgnoreNotFound(ctx.GetClient().Delete(ctx, policy, client.Preconditions{UID: &uid, ResourceVersion: &rv}))
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), policy, func() error {
+		if policy.GetResourceVersion() != "" {
+			if err := requireManagedPluginPolicy(policy); err != nil {
+				return err
+			}
+		}
+		labels := policy.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[sharedPluginPolicyMarker] = "true"
+		policy.SetLabels(labels)
+		values := make([]any, len(namespaces))
+		for i, name := range namespaces {
+			values[i] = name
+		}
+		policy.Object["spec"] = map[string]any{
+			"instanceSelector":  map[string]any{},
+			"namespaceSelector": map[string]any{"matchExpressions": []any{map[string]any{"key": "kubernetes.io/metadata.name", "operator": "In", "values": values}}},
+			"mode":              "Enforce", "priority": int64(0),
+			"mutate": map[string]any{"imagePullSecrets": []any{map[string]any{"name": instancePullSecretTarget}}},
+		}
+		return nil
+	})
+	return err
+}
+
+func requirePluginPolicyCapability(source string) error {
+	if source != "" && !pluginPolicyAvailable {
+		return core.NewPendingError().WithMessage("Connectivity plugin Policy unavailable; install the Policy CRD, grant policies permissions and restart Stack Operator")
 	}
 	return nil
 }
