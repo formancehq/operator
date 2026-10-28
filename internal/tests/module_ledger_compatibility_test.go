@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	ledgerv1alpha1 "github.com/formancehq/ledger/misc/operator/api/v1alpha1"
+
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	"github.com/formancehq/operator/v3/internal/core"
 	. "github.com/formancehq/operator/v3/internal/tests/internal"
@@ -193,6 +195,30 @@ var _ = Describe("Ledger v3 module compatibility", func() {
 			g.Expect(condition).NotTo(BeNil())
 			return condition.Reason
 		}).ShouldNot(Equal("IncompatibleModules"))
+	})
+
+	It("blocks a configured clusterID without previous v3 identity evidence", func() {
+		stack := &v1beta1.Stack{ObjectMeta: RandObjectMeta(), Spec: v1beta1.StackSpec{Version: "v3.0.0"}}
+		ledger := &v1beta1.Ledger{ObjectMeta: RandObjectMeta(), Spec: v1beta1.LedgerSpec{StackDependency: v1beta1.StackDependency{Stack: stack.Name}}}
+		payments := &v1beta1.Payments{ObjectMeta: RandObjectMeta(), Spec: v1beta1.PaymentsSpec{StackDependency: v1beta1.StackDependency{Stack: stack.Name}, ModuleProperties: v1beta1.ModuleProperties{Version: "v2.0.0"}}}
+		configuration := &v1beta1.LedgerConfiguration{ObjectMeta: RandObjectMeta(), Spec: v1beta1.LedgerConfigurationSpec{Stacks: []string{stack.Name}, Cluster: ledgerv1alpha1.ClusterSpec{ClusterID: "12345678-1234-4234-8234-123456789abc"}}}
+		Expect(Create(configuration, stack, payments, ledger)).To(Succeed())
+		DeferCleanup(func() {
+			for _, object := range []client.Object{payments, ledger, stack, configuration} {
+				Expect(client.IgnoreNotFound(Delete(object))).To(Succeed())
+			}
+		})
+		Eventually(func(g Gomega) {
+			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+			condition := ledger.GetConditions().Get("LedgerV3ClusterReady")
+			g.Expect(condition).NotTo(BeNil())
+			g.Expect(condition.Reason).To(Equal("IncompatibleModules"))
+			g.Expect(condition.Message).To(ContainSubstring("Payments"))
+		}).Should(Succeed())
+		Consistently(func() bool {
+			return apierrors.IsNotFound(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, primaryLedgerV3Cluster(stack.Name)))
+		}).Should(BeTrue())
+		Expect(ledger.GetAnnotations()).NotTo(HaveKey("formance.com/ledger-v3-cluster-id"))
 	})
 
 	for _, testCase := range testCases {

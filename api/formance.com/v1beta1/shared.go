@@ -261,12 +261,17 @@ type AuthConfig struct {
 type Module interface {
 	Dependent
 	GetVersion() string
+	IsDisabled() bool
 	IsDebug() bool
 	IsDev() bool
 	IsEE() bool
 }
 
 type ModuleProperties struct {
+	// Disabled stops module workloads while retaining configuration for re-enabling.
+	// A disabled Stack also disables its modules.
+	// +optional
+	Disabled      bool `json:"disabled,omitempty"`
 	DevProperties `json:",inline"`
 	//+optional
 	// Version overrides, for a specific module, the global version defined at stack level

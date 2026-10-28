@@ -66,6 +66,10 @@ A **requirement** is a condition declared by a module about one other Stack-boun
 - **readiness**: the dependency reports `status.ready=true`;
 - **effective version**: a dependency that implements `v1beta1.Module` resolves to a version inside a declared SemVer range.
 
+Disabled module dependencies fail requirements with `DependencyDisabled`, even
+when a previous Ready condition remains true. `IfPresent()` permits absence; a
+retained disabled dependency is present and does not satisfy its constraints.
+
 All requirements are combined with logical AND. Presence is mandatory by default. `IfPresent()` permits an absent dependency but still enforces its version and readiness constraints when present; ambiguous or failed lookups remain unsatisfied or unknown.
 
 ### Dependency
@@ -177,10 +181,10 @@ Invalid declarations are programming errors and prevent the controller manager f
 
 Requirement evaluation belongs in the existing module reconciliation seam. The intended order is:
 
-1. run finalizers before the normal object controller when the module is deleting;
-2. load the referenced Stack and maintain the Stack label;
+1. remove finalizers not registered with this controller; when the module is deleting, run its registered finalizers before the normal object controller; otherwise install missing registered finalizers with a `client.MergeFrom` patch without optimistic locking;
+2. load the referenced Stack through the manager client (a cached read) and maintain the Stack label;
 3. honour the Stack skip annotation and Stack deletion;
-4. maintain the owner reference and honour disabled Stack behaviour;
+4. maintain the owner reference and honour disabled Stack behaviour: Connectivity handles disable locally through `WithStackDependencyReconciler`; other modules remove owned runtime objects while retaining durable resources;
 5. resolve the module's own effective version;
 6. evaluate declared requirements;
 7. update `DependenciesSatisfied` and, on failure, `ReconciledWithStack`;
