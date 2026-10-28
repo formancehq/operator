@@ -2895,7 +2895,8 @@ Once the reconciler has found the secret, it copies it into the stack namespace,
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
 | `gvk` _[GroupVersionKind](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#groupversionkind-v1-meta)_ |  |  |  |
-| `name` _string_ |  |  |  |
+| `name` _string_ | Name identifies the authorized source object (or its referenced-by-name alias). |  |  |
+| `targetName` _string_ | TargetName is the copied object's name in the Stack namespace. Defaults to Name. |  | MaxLength: 253 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)?$` <br /> |
 
 
 
@@ -2925,7 +2926,8 @@ Once the reconciler has found the secret, it copies it into the stack namespace,
 | --- | --- | --- | --- |
 | `ready` _boolean_ | Ready indicates if the resource is seen as completely reconciled |  |  |
 | `info` _string_ | Info can contain any additional detail, such as reconciliation errors |  |  |
-| `syncedResource` _string_ |  |  |  |
+| `observedGeneration` _integer_ | ObservedGeneration is the reference generation successfully copied to its target. |  |  |
+| `syncedResource` _string_ | SyncedResource is the destination last copied successfully. |  |  |
 | `hash` _string_ |  |  |  |
 
 
