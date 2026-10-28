@@ -154,6 +154,7 @@ func init() {
 			WithOwn[*v1beta1.Payments](&batchv1.Job{}),
 			WithOwn[*v1beta1.Payments](&corev1.ConfigMap{}),
 			WithOwn[*v1beta1.Payments](&v1beta1.BenthosStream{}),
+			WithOwn[*v1beta1.Payments](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Payments](),
 			WithWatchDependency[*v1beta1.Payments](&v1beta1.Search{}),
 			databases.Watch[*v1beta1.Payments](),

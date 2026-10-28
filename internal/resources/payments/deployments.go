@@ -51,7 +51,10 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 
 	if secret := temporalURI.Query().Get("secret"); secret != "" {
 		ref, err = resourcereferences.Create(ctx, payments, "payments-temporal", secret, &corev1.Secret{})
-		hash[ref.Name] = ref.Status.Hash
+		if err != nil {
+			return
+		}
+		hash["payments-temporal"] = ref.Status.Hash
 	} else {
 		err = resourcereferences.Delete(ctx, payments, "payments-temporal")
 	}
@@ -61,7 +64,10 @@ func temporalEnvVars(ctx core.Context, stack *v1beta1.Stack, payments *v1beta1.P
 
 	if secret := temporalURI.Query().Get("encryptionKeySecret"); secret != "" {
 		ref, err = resourcereferences.Create(ctx, payments, "payments-temporal-encryption-key", secret, &corev1.Secret{})
-		hash[ref.Name] = ref.Status.Hash
+		if err != nil {
+			return
+		}
+		hash["payments-temporal-encryption-key"] = ref.Status.Hash
 	} else {
 		err = resourcereferences.Delete(ctx, payments, "payments-temporal-encryption-key")
 	}
