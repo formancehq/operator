@@ -23,10 +23,6 @@ import (
 type ConnectivitySpec struct {
 	ModuleProperties `json:",inline"`
 	StackDependency  `json:",inline"`
-	// Disabled stops Connectivity and its instances while retaining their configuration and credentials.
-	// Connectivity also remains disabled while its Stack is disabled.
-	// +optional
-	Disabled bool `json:"disabled,omitempty"`
 }
 
 type ConnectivityStatus struct {
@@ -75,6 +71,10 @@ func (in *Connectivity) SetError(s string) {
 
 func (in *Connectivity) GetConditions() *Conditions {
 	return &in.Status.Conditions
+}
+
+func (in *Connectivity) IsDisabled() bool {
+	return in.Spec.Disabled
 }
 
 func (in *Connectivity) GetVersion() string {

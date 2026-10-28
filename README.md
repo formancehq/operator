@@ -203,7 +203,7 @@ make undeploy
 
 ## Connectivity lifecycle
 
-Connectivity supports retaining configuration on Stack disable and delegating asynchronous cleanup to its controller. See the [lifecycle and upgrade requirements](docs/04-Modules/12-Connectivity.md#disable-and-delete) before upgrading the operators.
+Modules support `spec.disabled` in addition to Stack disable. Connectivity retains its configuration and credentials on either disable and delegates asynchronous deletion cleanup to its controller. See the [lifecycle and upgrade requirements](docs/04-Modules/12-Connectivity.md#disable-and-delete) before upgrading the operators.
 
 ## Settings
 

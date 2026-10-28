@@ -197,6 +197,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return NewPendingError().WithMessage("connectivity requires a Ledger module on the stack")
 	}
 
+	if ledger.IsDisabled() {
+		if err := disableConnectivity(ctx, stack, nil, connectivity); err != nil {
+			return err
+		}
+		return NewPendingError().WithMessage("waiting for the Ledger module to be enabled")
+	}
+
 	// Resolve the ledger's effective version through the same path the module
 	// reconcilers use (module override, stack version, or the referenced
 	// Versions file), so the v3 gate also works for versionsFromFile stacks. A
@@ -428,6 +435,14 @@ func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity
 }
 
 func handleUnsatisfiedLedgerRequirement(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
+	ledger, err := getStackLedger(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+	if ledger != nil && ledger.IsDisabled() {
+		// Disabled dependencies retain configuration and credentials for re-enable.
+		return disableConnectivity(ctx, stack, nil, connectivity)
+	}
 	gateClosed, err := ledgerGateClosed(ctx, stack)
 	if err != nil {
 		// Surface the lookup failure so the reconcile is retried; silently

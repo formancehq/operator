@@ -438,3 +438,41 @@ func TestConnectivityModuleKeepsDependencyAndVersionWatches(t *testing.T) {
 		require.True(t, found, "missing watch for %T", target)
 	}
 }
+
+func TestConnectivityDisabledLedgerRetainsResources(t *testing.T) {
+	for _, controller := range []string{"requirements", "direct"} {
+		t.Run(controller, func(t *testing.T) {
+			ctx, stack, module, delegated := lifecycleFixture(t)
+			stack.Spec.Disabled = false
+			module.Spec.Version = "v1.0.0"
+			ledger := &v1beta1.Ledger{ObjectMeta: metav1.ObjectMeta{Name: stack.Name}, Spec: v1beta1.LedgerSpec{
+				StackDependency:  v1beta1.StackDependency{Stack: stack.Name},
+				ModuleProperties: v1beta1.ModuleProperties{Disabled: true, Version: "v3.0.0"},
+			}}
+			ledger.Status.Ready = true // A stale Ready condition cannot make a disabled dependency usable.
+			require.NoError(t, ctx.client.Create(ctx, ledger))
+			previous := connectivityAvailable
+			connectivityAvailable = true
+			t.Cleanup(func() { connectivityAvailable = previous })
+			var err error
+			if controller == "requirements" {
+				err = reconcileConnectivityModule(ctx, stack, module)
+			} else {
+				err = Reconcile(ctx, stack, module, "v1.0.0")
+			}
+			require.True(t, core.IsApplicationError(err), "%v", err)
+			got := newDelegatedConnectivity(stack.Name)
+			require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
+			require.Equal(t, delegated.GetUID(), got.GetUID())
+			require.True(t, got.GetDeletionTimestamp().IsZero())
+			disabled, _, err := unstructured.NestedBool(got.Object, "spec", "disabled")
+			require.NoError(t, err)
+			require.True(t, disabled)
+			require.True(t, credentialsExist(t, ctx, stack.Name))
+			require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
+			secret := &corev1.Secret{}
+			require.NoError(t, ctx.client.Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: "managed"}, secret))
+			require.Equal(t, []byte("retained"), secret.Data["key"])
+		})
+	}
+}

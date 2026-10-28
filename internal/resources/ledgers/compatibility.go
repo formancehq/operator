@@ -2,6 +2,7 @@ package ledgers
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,7 +72,7 @@ func blockV3TransitionWithIncompatibleModules(ctx core.Context, stack *v1beta1.S
 
 	installed := make([]string, 0, len(ledgerV3IncompatibleModules))
 	for _, candidate := range ledgerV3IncompatibleModules {
-		found, err := core.HasDependency(ctx, stack.Name, candidate.newModule())
+		found, err := hasEnabledIncompatibleModule(ctx, stack.Name, candidate.newModule())
 		if err != nil {
 			return err
 		}
@@ -89,4 +90,21 @@ func blockV3TransitionWithIncompatibleModules(ctx core.Context, stack *v1beta1.S
 	)
 	setLedgerV3Condition(ledger, metav1.ConditionFalse, "IncompatibleModules", message)
 	return core.NewPendingError().WithMessage("%s", message)
+}
+
+// Use the same typed dependency lookup as reconciliation, including its exclusion
+// of deleting objects. Disabled CRs are retained configuration, not active
+// consumers. Neither disable intent nor deletion proves process quiescence; the
+// separate Ledger v2 resource/migration guard in reconcileV3 still applies.
+func hasEnabledIncompatibleModule(ctx core.Context, stackName string, prototype client.Object) (bool, error) {
+	modules := reflect.New(reflect.SliceOf(reflect.TypeOf(prototype)))
+	if err := core.GetAllStackDependencies(ctx, stackName, modules.Interface()); err != nil {
+		return false, err
+	}
+	for i := 0; i < modules.Elem().Len(); i++ {
+		if !modules.Elem().Index(i).Interface().(v1beta1.Module).IsDisabled() {
+			return true, nil
+		}
+	}
+	return false, nil
 }

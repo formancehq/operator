@@ -700,3 +700,101 @@ func brokerForRequirementsTest(name string, ready bool) *v1beta1.Broker {
 		},
 	}
 }
+
+func TestEvaluateDisabledModuleRequirement(t *testing.T) {
+	t.Parallel()
+	for _, optional := range []bool{false, true} {
+		for _, ready := range []bool{false, true} {
+			for _, version := range []string{"v2.4.0", "v3.0.0", "main", ""} {
+				t.Run(fmt.Sprintf("optional=%t/ready=%t/version=%s", optional, ready, version), func(t *testing.T) {
+					ledger := &v1beta1.Ledger{
+						ObjectMeta: metav1.ObjectMeta{Name: "ledger"},
+						Spec: v1beta1.LedgerSpec{
+							StackDependency:  v1beta1.StackDependency{Stack: "stack"},
+							ModuleProperties: v1beta1.ModuleProperties{Disabled: true, Version: version},
+						},
+						Status: v1beta1.LedgerStatus{Status: v1beta1.Status{Ready: ready}},
+					}
+					ctx, stack := newRequirementsTestContext(t, ledger)
+					options := []RequirementOption{Ready(), VersionBefore(v1beta1.LedgerV3Version)}
+					if optional {
+						options = append(options, IfPresent())
+					}
+					requirements := Requirements(Require(&v1beta1.Ledger{}, options...))
+					evaluation := evaluateModuleRequirements(ctx, stack, requirements)
+					require.Equal(t, metav1.ConditionFalse, evaluation.status)
+					require.Equal(t, dependencyDisabledReason, evaluation.reason)
+					require.Equal(t, "dependency Ledger is disabled in Stack stack", evaluation.message)
+					require.NoError(t, evaluation.cause)
+
+					// Re-enabling must evaluate current state rather than retain the disabled result.
+					ledger.Spec.Disabled = false
+					ledger.Spec.Version = "v2.4.0"
+					ledger.Status.Ready = true
+					require.NoError(t, ctx.client.Update(ctx, ledger))
+					evaluation = evaluateModuleRequirements(ctx, stack, requirements)
+					require.Equal(t, metav1.ConditionTrue, evaluation.status)
+					require.Equal(t, requirementsSatisfiedReason, evaluation.reason)
+				})
+			}
+		}
+	}
+}
+
+func TestForModuleDisabledDependencyReenable(t *testing.T) {
+	t.Parallel()
+	for _, optional := range []bool{false, true} {
+		t.Run(fmt.Sprintf("optional=%t", optional), func(t *testing.T) {
+			ledger := &v1beta1.Ledger{
+				ObjectMeta: metav1.ObjectMeta{Name: "ledger"},
+				Spec: v1beta1.LedgerSpec{
+					StackDependency:  v1beta1.StackDependency{Stack: "stack"},
+					ModuleProperties: v1beta1.ModuleProperties{Disabled: true, Version: "v2.4.0"},
+				},
+				Status: v1beta1.LedgerStatus{Status: v1beta1.Status{Ready: true}},
+			}
+			consumer := &v1beta1.Connectivity{
+				ObjectMeta: metav1.ObjectMeta{Name: "consumer", OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: v1beta1.GroupVersion.String(), Kind: "Stack", Name: "stack",
+				}}},
+				Spec: v1beta1.ConnectivitySpec{
+					StackDependency:  v1beta1.StackDependency{Stack: "stack"},
+					ModuleProperties: v1beta1.ModuleProperties{Version: "v1.0.0"},
+				},
+			}
+			ctx, stack := newRequirementsTestContext(t, ledger, consumer)
+			options := []RequirementOption{Ready(), VersionBefore(v1beta1.LedgerV3Version)}
+			if optional {
+				options = append(options, IfPresent())
+			}
+			calls := 0
+			controller := ForModule(Requirements(Require(&v1beta1.Ledger{}, options...)),
+				func(Context, *v1beta1.Stack, *ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
+					calls++
+					return nil
+				})
+			handled := 0
+			reconcilerOptions := &ReconcilerOptions[*v1beta1.Connectivity]{
+				UnsatisfiedRequirementsHandle: func(_ Context, _ *v1beta1.Stack, module *v1beta1.Connectivity) error {
+					handled++
+					require.Equal(t, dependencyDisabledReason, module.GetConditions().Get(DependenciesSatisfiedCondition).Reason)
+					return nil
+				},
+			}
+			err := controller(ctx, stack, reconcilerOptions, consumer)
+			require.True(t, IsApplicationError(err), "%v", err)
+			require.Zero(t, calls)
+			require.Equal(t, 1, handled)
+			require.Equal(t, metav1.ConditionFalse, consumer.GetConditions().Get(DependenciesSatisfiedCondition).Status)
+			require.Equal(t, metav1.ConditionFalse, consumer.GetConditions().Get(reconciledWithStackCondition).Status)
+
+			ledger.Spec.Disabled = false
+			require.NoError(t, ctx.client.Update(ctx, ledger))
+			require.NoError(t, controller(ctx, stack, reconcilerOptions, consumer))
+			require.Equal(t, 1, calls)
+			require.Equal(t, 1, handled)
+			require.Equal(t, metav1.ConditionTrue, consumer.GetConditions().Get(DependenciesSatisfiedCondition).Status)
+			require.Equal(t, metav1.ConditionTrue, consumer.GetConditions().Get(reconciledWithStackCondition).Status)
+		})
+	}
+}

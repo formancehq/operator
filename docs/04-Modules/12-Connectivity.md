@@ -66,6 +66,22 @@ spec:
 
 ## Disable and delete
 
+| Platform operation | Expected Connectivity lifecycle |
+| --- | --- |
+| `fctl stack module disable connectivity` | Retain module, delegated Connectivity, instances and credentials; stop workloads. |
+| `fctl stack module enable connectivity` | Clear the module disable flag; resume only if the Stack is enabled. |
+| `fctl stack disable` | Retain Connectivity configuration and credentials; stop workloads. |
+| `fctl stack delete` without force | Soft delete: disable the Stack and retain Connectivity resources for restore. |
+| `fctl stack delete --force` | Delete the Stack and its resources; complete delegated cleanup and namespace deletion. |
+
+A disabled Ledger dependency also requests Connectivity shutdown while retaining its
+configuration and credentials. This is distinct from deleting the Ledger CR.
+
+The table describes platform operations with compatible Membership, agent and
+operators. Kubernetes deletion of a Stack CR is the destructive deletion path,
+not the platform's soft delete. Restore the soft-deleted Stack before testing a
+subsequent force delete if Membership rejects deleting an already-deleted Stack.
+
 `Connectivity.spec.disabled=true` on the Stack module, or `Stack.spec.disabled=true`,
 stops Connectivity through the delegated resource's
 `spec.disabled=true`. The Stack Operator retains the delegated Connectivity CR,
@@ -115,7 +131,11 @@ not create Connectivity merely to represent a never-enabled module as disabled.
 Older agents delete the absent module CR and invoke deletion instead. Install
 the Stack Connectivity CRD and controller supporting this field before the
 compatible agent. Stack deletion retains its existing module deletion lifecycle;
-other modules retain their existing disable contract.
+all modules whose served CRD declares boolean `spec.disabled` use the same
+retain-and-toggle agent process. Their Stack Operator must implement that
+field before the compatible agent is installed. The shared module reconciler
+uses the existing Stack-disable workload cleanup for these module flags;
+Connectivity delegates shutdown while preserving its configuration and credentials.
 
 Roll out compatible Core, Connectivity CRDs and the Connectivity controller before
 this Stack Operator. The served Connectivity schema must declare boolean

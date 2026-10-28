@@ -69,6 +69,10 @@ func (in *Webhooks) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Webhooks) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Webhooks) GetVersion() string {
 	return in.Spec.Version
 }

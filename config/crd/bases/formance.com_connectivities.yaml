@@ -76,8 +76,8 @@ spec:
                 type: boolean
               disabled:
                 description: |-
-                  Disabled stops Connectivity and its instances while retaining their configuration and credentials.
-                  Connectivity also remains disabled while its Stack is disabled.
+                  Disabled stops module workloads while retaining configuration for re-enabling.
+                  A disabled Stack also disables its modules.
                 type: boolean
               stack:
                 description: Stack indicates the stack on which the module is installed

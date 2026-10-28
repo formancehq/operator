@@ -106,6 +106,10 @@ func (in *Auth) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Auth) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Auth) GetVersion() string {
 	return in.Spec.Version
 }
