@@ -146,14 +146,14 @@ var _ = Describe("Job", func() {
 	})
 	It("Should have annotations set", func() {
 		j := &batchv1.Job{}
-		Expect(LoadResource(stack.Name, fmt.Sprintf("%s-%s", module.GetUID(), job.Name), j)).To(Succeed())
+		Expect(LoadResource(stack.Name, jobs.Name(module, job.Name), j)).To(Succeed())
 
 		Expect(j.Spec.Template.Annotations).ToNot(BeNil())
 		Expect(j.Spec.Template.Annotations["first"]).To(Equal("second"))
 	})
 	It("Should have security context configured with run-as settings", func() {
 		j := &batchv1.Job{}
-		Expect(LoadResource(stack.Name, fmt.Sprintf("%s-%s", module.GetUID(), job.Name), j)).To(Succeed())
+		Expect(LoadResource(stack.Name, jobs.Name(module, job.Name), j)).To(Succeed())
 
 		for _, container := range j.Spec.Template.Spec.Containers {
 			Expect(container.SecurityContext).ToNot(BeNil())
@@ -170,6 +170,21 @@ var _ = Describe("Job", func() {
 			Expect(container.SecurityContext.RunAsGroup).ToNot(BeNil())
 			Expect(*container.SecurityContext.RunAsGroup).To(Equal(int64(runAS.group)))
 		}
+	})
+	Context("With a name too long for the job-name label", func() {
+		BeforeEach(func() {
+			// 36-byte owner UID + "-" + 27 bytes = 64 bytes, one over the label limit.
+			job.Name = "create-topic-reconciliation"
+		})
+		It("Should create the job under a shortened name", func() {
+			name := jobs.Name(module, job.Name)
+			Expect(len(module.GetUID()) + 1 + len(job.Name)).To(Equal(64))
+			Expect(len(name)).To(BeNumerically("<=", 63))
+
+			j := &batchv1.Job{}
+			Expect(LoadResource(stack.Name, name, j)).To(Succeed())
+			Expect(j).To(BeControlledBy(module))
+		})
 	})
 	AfterEach(func() {
 		for _, setting := range settings {

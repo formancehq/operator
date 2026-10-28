@@ -1,6 +1,8 @@
 package jobs
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"strings"
@@ -165,6 +167,24 @@ func withSettingAnnotations(ctx core.Context, owner v1beta1.Dependent) HandleJob
 	})
 }
 
+// maxNameLength is the longest Job name the apiserver accepts: the Job
+// controller copies the name into the job-name label, capped at 63 bytes.
+const maxNameLength = 63
+
+// Name returns the name of the Job that Handle creates for owner.
+// Names that fit are left unchanged, so existing Jobs keep their name.
+// Longer names are truncated and suffixed with a hash of the full name.
+func Name(owner client.Object, jobName string) string {
+	name := fmt.Sprintf("%s-%s", owner.GetUID(), jobName)
+	if len(name) <= maxNameLength {
+		return name
+	}
+
+	hash := sha256.Sum256([]byte(name))
+	suffix := hex.EncodeToString(hash[:4])
+	return name[:maxNameLength-len(suffix)-1] + "-" + suffix
+}
+
 func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container v1.Container, options ...HandleJobOption) error {
 	configuration := &handleJobConfiguration{}
 	if options == nil {
@@ -183,7 +203,7 @@ func Handle(ctx core.Context, owner v1beta1.Dependent, jobName string, container
 		option(configuration)
 	}
 
-	jobName = fmt.Sprintf("%s-%s", owner.GetUID(), jobName)
+	jobName = Name(owner, jobName)
 	job := &batchv1.Job{}
 	err := ctx.GetClient().Get(ctx, types.NamespacedName{
 		Namespace: owner.GetStack(),
