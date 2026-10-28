@@ -107,13 +107,15 @@ namespace and manage its lifecycle separately.
 
 ### Lifecycle compatibility and recovery
 
-Individual module disable also requires compatible Membership and agent versions:
-Membership must retain disabled Connectivity in its synchronized module state, and
-the agent must retain the module CR and set its `spec.disabled` field. Older
-versions omit the disabled module and delete its CR, which invokes deletion
-instead. Install the Stack Connectivity CRD and controller supporting this field
-before enabling the corresponding agent and Membership behavior. Other modules
-retain their existing disable contract.
+Individual module disable requires a compatible agent. Membership synchronizes
+active modules: absence of Connectivity means disabled, rather than a separate
+module deletion. The agent retains an existing Connectivity module and sets
+`spec.disabled=true` when absent, then sets `false` when enabled again. It does
+not create Connectivity merely to represent a never-enabled module as disabled.
+Older agents delete the absent module CR and invoke deletion instead. Install
+the Stack Connectivity CRD and controller supporting this field before the
+compatible agent. Stack deletion retains its existing module deletion lifecycle;
+other modules retain their existing disable contract.
 
 Roll out compatible Core, Connectivity CRDs and the Connectivity controller before
 this Stack Operator. The served Connectivity schema must declare boolean
