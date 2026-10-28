@@ -365,7 +365,7 @@
       "key": "jobs.\u003cowner-kind\u003e.containers.\u003ccontainer-name\u003e.env-vars",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/jobs/job.go:122"
+        "internal/resources/jobs/job.go:124"
       ]
     },
     {
@@ -383,14 +383,14 @@
         }
       ],
       "sources": [
-        "internal/resources/jobs/job.go:66"
+        "internal/resources/jobs/job.go:68"
       ]
     },
     {
       "key": "jobs.\u003cowner-kind\u003e.init-containers.\u003ccontainer-name\u003e.env-vars",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/jobs/job.go:132"
+        "internal/resources/jobs/job.go:134"
       ]
     },
     {
@@ -408,14 +408,14 @@
         }
       ],
       "sources": [
-        "internal/resources/jobs/job.go:77"
+        "internal/resources/jobs/job.go:79"
       ]
     },
     {
       "key": "jobs.\u003cowner-kind\u003e.spec.template.annotations",
       "valueType": "map[string]string",
       "sources": [
-        "internal/resources/jobs/job.go:150"
+        "internal/resources/jobs/job.go:152"
       ]
     },
     {
