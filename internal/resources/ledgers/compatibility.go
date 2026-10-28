@@ -70,6 +70,19 @@ func blockV3TransitionWithIncompatibleModules(ctx core.Context, stack *v1beta1.S
 		return nil
 	}
 
+	// Recreating an already materialized v3 Cluster is not a v2 migration.
+	// Require the durable primary marker, then revalidate it against direct
+	// lifecycle reads; a configured clusterID alone is not restoration evidence.
+	if ledger.GetAnnotations()[ledgerV3PrimaryIdentityAnnotation] != "" {
+		identity, err := rememberLedgerV3Identity(ctx, stack, ledger)
+		if err != nil {
+			return err
+		}
+		if identity != "" && ledger.GetAnnotations()[ledgerV3PrimaryIdentityAnnotation] == identity {
+			return nil
+		}
+	}
+
 	installed := make([]string, 0, len(ledgerV3IncompatibleModules))
 	for _, candidate := range ledgerV3IncompatibleModules {
 		found, err := hasEnabledIncompatibleModule(ctx, stack.Name, candidate.newModule())

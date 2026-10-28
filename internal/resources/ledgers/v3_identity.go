@@ -13,7 +13,10 @@ import (
 	"github.com/formancehq/operator/v3/internal/core"
 )
 
-const ledgerV3IdentityAnnotation = "formance.com/ledger-v3-cluster-id"
+const (
+	ledgerV3IdentityAnnotation        = "formance.com/ledger-v3-cluster-id"
+	ledgerV3PrimaryIdentityAnnotation = "formance.com/ledger-v3-primary-cluster-id"
+)
 
 // Compose the standard module lifecycle locally so identity is durable before
 // its disable path deletes the child Cluster. Keep the standard Stack and
@@ -77,6 +80,11 @@ func rememberLedgerV3Identity(ctx core.Context, stack *v1beta1.Stack, ledger *v1
 	if exists && !metav1.IsControlledBy(cluster, currentLedger) {
 		return "", fmt.Errorf("Ledger v3 Cluster is not controlled by this Ledger; refusing to copy its identity")
 	}
+	observedID, _, err := unstructured.NestedString(cluster.Object, "spec", "clusterID")
+	if err != nil {
+		return "", err
+	}
+	observedPrimary := exists && observedID != "" && !isLedgerV3Preview(cluster)
 	remembered := currentLedger.Annotations[ledgerV3IdentityAnnotation]
 	if !exists && remembered == "" {
 		return "", nil
@@ -85,22 +93,23 @@ func rememberLedgerV3Identity(ctx core.Context, stack *v1beta1.Stack, ledger *v1
 	if err != nil {
 		return "", err
 	}
+	primaryIdentity := currentLedger.Annotations[ledgerV3PrimaryIdentityAnnotation]
+	if primaryIdentity != "" && primaryIdentity != remembered {
+		return "", fmt.Errorf("primary Ledger v3 identity marker disagrees with remembered identity")
+	}
 	identity, err := ledgerV3Identity(base.ClusterID, remembered, cluster)
 	if err != nil {
 		return "", err
 	}
 	if exists && (stack.Spec.Disabled || ledger.IsDisabled()) && base.ClusterID == "" {
-		currentID, _, err := unstructured.NestedString(cluster.Object, "spec", "clusterID")
-		if err != nil {
-			return "", err
-		}
-		if currentID == "" {
+		if observedID == "" {
 			return "", core.NewPendingError().WithMessage("waiting for owned Ledger v3 Cluster clusterID before disable cleanup")
 		}
 	}
 	// Do not alter a legacy Ledger with no v3 child. Configured identity is
 	// applied by the v3 builder, then recorded once the child actually exists.
-	if !exists || identity == "" || identity == remembered {
+	if !exists || identity == "" || (identity == remembered && (!observedPrimary || primaryIdentity == identity)) {
+		ledger.Annotations = currentLedger.Annotations
 		return identity, nil
 	}
 	patch := client.MergeFromWithOptions(currentLedger.DeepCopy(), client.MergeFromWithOptimisticLock{})
@@ -108,6 +117,11 @@ func rememberLedgerV3Identity(ctx core.Context, stack *v1beta1.Stack, ledger *v1
 		currentLedger.Annotations = map[string]string{}
 	}
 	currentLedger.Annotations[ledgerV3IdentityAnnotation] = identity
+	// A preview carries durable storage too, but only an observed primary
+	// proves that recreating it is not a v2-to-v3 migration.
+	if observedPrimary {
+		currentLedger.Annotations[ledgerV3PrimaryIdentityAnnotation] = identity
+	}
 	if err := ctx.GetClient().Patch(ctx, currentLedger, patch); err != nil {
 		return "", fmt.Errorf("persisting Ledger v3 identity before lifecycle cleanup: %w", err)
 	}

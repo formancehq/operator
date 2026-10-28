@@ -84,7 +84,8 @@ func TestLedgerV3IdentityDisableReenable(t *testing.T) {
 					objects = append(objects, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("%s-ledger-%s-%d", volume, stack.Name, ordinal), Namespace: stack.Name, UID: types.UID(fmt.Sprintf("pvc-%s-%d", volume, ordinal))}, Spec: corev1.PersistentVolumeClaimSpec{VolumeName: fmt.Sprintf("pv-%s-%d", volume, ordinal)}})
 				}
 			}
-			objects = append(objects, stack, ledger, cluster)
+			payments := &v1beta1.Payments{ObjectMeta: metav1.ObjectMeta{Name: "payments"}, Spec: v1beta1.PaymentsSpec{StackDependency: v1beta1.StackDependency{Stack: stack.Name}}}
+			objects = append(objects, stack, ledger, cluster, payments)
 			ctx := identityTestContext(t, objects...)
 			pvcDeletes := 0
 			ctx.client = interceptor.NewClient(ctx.client.(client.WithWatch), interceptor.Funcs{Delete: func(ctx context.Context, c client.WithWatch, o client.Object, opts ...client.DeleteOption) error {
@@ -111,6 +112,9 @@ func TestLedgerV3IdentityDisableReenable(t *testing.T) {
 			require.Equal(t, identityTestUUID, id)
 			require.Equal(t, cluster.GetName(), recreated.GetName())
 			require.Equal(t, cluster.GetNamespace(), recreated.GetNamespace())
+			retainedPayments := &v1beta1.Payments{}
+			require.NoError(t, ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(payments), retainedPayments))
+			require.False(t, retainedPayments.Spec.Disabled)
 			require.Zero(t, pvcDeletes)
 			for _, o := range objects[:6] {
 				pvc := &corev1.PersistentVolumeClaim{}

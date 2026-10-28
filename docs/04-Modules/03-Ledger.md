@@ -49,6 +49,12 @@ child. Enabling it again restores that identity on the recreated Cluster,
 keeping the same namespace, Cluster name, and PVC names. Primary and preview
 use the same child name and remembered identity. The Ledger Operator storage
 retention policy must retain the PVCs for their data to remain available.
+After observing an owned primary (non-preview) Cluster, the Operator also
+records its ID in `formance.com/ledger-v3-primary-cluster-id`. This matching
+primary marker allows recreation when incompatible module CRs remain on the
+Stack. An ID from a preview, an older installation without the primary marker,
+or a configured clusterID alone does not grant this migration exception.
+Existing legacy Ledger Deployments or a Database still require explicit migration.
 
 If writing this annotation fails, disable cleanup stops. Without an explicit
 configured ID, cleanup also waits until the existing child has a clusterID;

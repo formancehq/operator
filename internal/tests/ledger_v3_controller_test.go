@@ -786,6 +786,16 @@ var _ = Describe("Ledger v3 controller", func() {
 		Expect(found).To(BeTrue(), "the fixture CRD must retain the Ledger Operator-generated clusterID")
 		Expect(retainedID).To(Equal(clusterID))
 
+		payments := &v1beta1.Payments{
+			ObjectMeta: RandObjectMeta(),
+			Spec: v1beta1.PaymentsSpec{
+				StackDependency:  v1beta1.StackDependency{Stack: stack.Name},
+				ModuleProperties: v1beta1.ModuleProperties{Version: "v2.0.0"},
+			},
+		}
+		Expect(Create(payments)).To(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(Delete(payments))).To(Succeed()) })
+
 		Expect(LoadResource("", stack.Name, stack)).To(Succeed())
 		patch := client.MergeFrom(stack.DeepCopy())
 		stack.Spec.Disabled = true
@@ -804,6 +814,7 @@ var _ = Describe("Ledger v3 controller", func() {
 
 		Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
 		Expect(ledger.GetAnnotations()).To(HaveKeyWithValue("formance.com/ledger-v3-cluster-id", clusterID))
+		Expect(ledger.GetAnnotations()).To(HaveKeyWithValue("formance.com/ledger-v3-primary-cluster-id", clusterID))
 
 		Expect(LoadResource("", stack.Name, stack)).To(Succeed())
 		patch = client.MergeFrom(stack.DeepCopy())
@@ -818,8 +829,11 @@ var _ = Describe("Ledger v3 controller", func() {
 			g.Expect(found).To(BeTrue())
 			g.Expect(id).To(Equal(clusterID))
 			g.Expect(cluster).To(BeControlledBy(ledger))
+			g.Expect(LoadResource("", payments.Name, payments)).To(Succeed())
+			g.Expect(payments.Spec.Disabled).To(BeFalse())
 			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
 			g.Expect(ledger.GetAnnotations()).To(HaveKeyWithValue("formance.com/ledger-v3-cluster-id", clusterID))
+			g.Expect(ledger.GetAnnotations()).To(HaveKeyWithValue("formance.com/ledger-v3-primary-cluster-id", clusterID))
 		}).Should(Succeed())
 	})
 
