@@ -767,6 +767,25 @@ var _ = Describe("Ledger v3 controller", func() {
 			return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
 		}).Should(Succeed())
 
+		// Envtest runs only the Formance controller. Simulate the Ledger
+		// Operator committing its generated identity through the real API server.
+		clusterID := uuid.NewString()
+		Eventually(func() error {
+			if err := Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster); err != nil {
+				return err
+			}
+			if err := unstructured.SetNestedField(cluster.Object, clusterID, "spec", "clusterID"); err != nil {
+				return err
+			}
+			return TestContext().GetClient().Update(TestContext(), cluster)
+		}).Should(Succeed())
+		originalUID := cluster.GetUID()
+		Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+		retainedID, found, err := unstructured.NestedString(cluster.Object, "spec", "clusterID")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue(), "the fixture CRD must retain the Ledger Operator-generated clusterID")
+		Expect(retainedID).To(Equal(clusterID))
+
 		Expect(LoadResource("", stack.Name, stack)).To(Succeed())
 		patch := client.MergeFrom(stack.DeepCopy())
 		stack.Spec.Disabled = true
@@ -782,6 +801,26 @@ var _ = Describe("Ledger v3 controller", func() {
 			err := Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)
 			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
+
+		Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+		Expect(ledger.GetAnnotations()).To(HaveKeyWithValue("formance.com/ledger-v3-cluster-id", clusterID))
+
+		Expect(LoadResource("", stack.Name, stack)).To(Succeed())
+		patch = client.MergeFrom(stack.DeepCopy())
+		stack.Spec.Disabled = false
+		Expect(Patch(stack, patch)).To(Succeed())
+
+		Eventually(func(g Gomega) {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			g.Expect(cluster.GetUID()).NotTo(Equal(originalUID))
+			id, found, err := unstructured.NestedString(cluster.Object, "spec", "clusterID")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(found).To(BeTrue())
+			g.Expect(id).To(Equal(clusterID))
+			g.Expect(cluster).To(BeControlledBy(ledger))
+			g.Expect(LoadResource("", ledger.Name, ledger)).To(Succeed())
+			g.Expect(ledger.GetAnnotations()).To(HaveKeyWithValue("formance.com/ledger-v3-cluster-id", clusterID))
+		}).Should(Succeed())
 	})
 
 	It("requires an explicit migration before switching back to v2", func() {

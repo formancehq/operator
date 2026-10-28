@@ -152,8 +152,7 @@ func reconcileReindexCronJob(ctx Context, stackName string, ledger *v1beta1.Ledg
 
 func init() {
 	Init(
-		WithModuleReconciler(Reconcile,
-			NoRequirements(),
+		withLedgerModuleReconciler(
 			WithOwn[*v1beta1.Ledger](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.Job{}),
 			WithOwn[*v1beta1.Ledger](&corev1.Service{}),

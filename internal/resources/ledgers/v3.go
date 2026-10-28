@@ -370,6 +370,14 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 		return nil, nil, err
 	}
 
+	identity, err := rememberLedgerV3Identity(ctx, stack, ledger)
+	if err != nil {
+		return nil, nil, err
+	}
+	if baseSpec.ClusterID == "" {
+		baseSpec.ClusterID = identity
+	}
+
 	image, err := registries.GetFormanceImage(ctx, stack, "ledger", version)
 	if err != nil {
 		return nil, nil, err
@@ -463,6 +471,12 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	cluster.SetNamespace(stack.Name)
 	cluster.SetName(stack.Name)
 	_, err = controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), cluster, func() error {
+		if cluster.GetResourceVersion() != "" && !metav1.IsControlledBy(cluster, ledger) {
+			return fmt.Errorf("Ledger v3 Cluster is not controlled by this Ledger")
+		}
+		if _, err := ledgerV3Identity(desiredSpec.ClusterID, "", cluster); err != nil {
+			return err
+		}
 		if err := preserveLedgerV3ClusterID(cluster, desiredSpecMap, desiredSpec.ClusterID); err != nil {
 			return err
 		}
