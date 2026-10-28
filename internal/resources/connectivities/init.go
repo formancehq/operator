@@ -1377,6 +1377,8 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 		WithUnsatisfiedRequirementsHandler(handleUnsatisfiedLedgerRequirement),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Auth{}),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Gateway{}),
+		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
+		WithWatchVersions[*v1beta1.Connectivity](connectivityModuleRequirements()),
 	}
 }
 
@@ -1391,8 +1393,5 @@ func connectivityModuleRequirements() ModuleRequirements {
 }
 
 func init() {
-	Init(WithModuleLifecycleReconciler(Reconcile, disableConnectivity,
-		connectivityModuleRequirements(),
-		connectivityReconcilerOptions()...,
-	))
+	Init(WithStackDependencyReconciler(reconcileConnectivityModule, connectivityReconcilerOptions()...))
 }

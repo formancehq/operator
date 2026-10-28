@@ -3,6 +3,7 @@ package connectivities
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -53,12 +54,8 @@ func lifecycleFixture(t *testing.T) (credsTestContext, *v1beta1.Stack, *v1beta1.
 
 func TestDisableConnectivityRequestsShutdownWithoutWaiting(t *testing.T) {
 	ctx, stack, module, delegated := lifecycleFixture(t)
-	opts := &core.ReconcilerOptions[*v1beta1.Connectivity]{Owns: map[client.Object][]builder.OwnsOption{delegated: nil}}
-	controller := core.ForModuleWithDisable(core.NoRequirements(), disableConnectivity, func(core.Context, *v1beta1.Stack, *core.ReconcilerOptions[*v1beta1.Connectivity], *v1beta1.Connectivity, string) error {
-		t.Fatal("normal controller ran")
-		return nil
-	})
-	require.NoError(t, controller(ctx, stack, opts, module))
+	controller := reconcileConnectivityModule
+	require.NoError(t, controller(ctx, stack, module))
 	got := newDelegatedConnectivity(stack.Name)
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
 	require.Equal(t, delegated.GetUID(), got.GetUID())
@@ -67,14 +64,14 @@ func TestDisableConnectivityRequestsShutdownWithoutWaiting(t *testing.T) {
 	require.True(t, credentialsExist(t, ctx, stack.Name))
 	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: "managed"}, &corev1.Secret{}))
-	require.NoError(t, controller(ctx, stack, opts, module))
+	require.NoError(t, controller(ctx, stack, module))
 	require.NoError(t, unstructured.SetNestedField(got.Object, "Disabled", "status", "phase"))
 	require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration()-1, "status", "observedGeneration"))
 	require.NoError(t, ctx.client.Update(ctx, got))
-	require.NoError(t, controller(ctx, stack, opts, module), "disable does not wait for observed generation")
+	require.NoError(t, controller(ctx, stack, module), "disable does not wait for observed generation")
 	require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration(), "status", "observedGeneration"))
 	require.NoError(t, ctx.client.Update(ctx, got))
-	require.NoError(t, controller(ctx, stack, opts, module))
+	require.NoError(t, controller(ctx, stack, module))
 }
 
 func TestDisableConnectivityRejectsForeignOwnershipAndDeletion(t *testing.T) {
@@ -350,4 +347,54 @@ func TestConnectivityRestoreDoesNotMutateDeletingResource(t *testing.T) {
 	require.Error(t, err)
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), after))
 	require.Equal(t, before.Object["spec"], after.Object["spec"])
+}
+
+func TestConnectivityModuleDisabledAddsStackOwnerWithoutLedger(t *testing.T) {
+	ctx, stack, module, delegated := lifecycleFixture(t)
+	require.NoError(t, reconcileConnectivityModule(ctx, stack, module))
+	got := &v1beta1.Connectivity{}
+	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(module), got))
+	require.True(t, metav1.IsControlledBy(delegated, module))
+	found := false
+	for _, owner := range got.OwnerReferences {
+		if owner.UID == stack.UID && owner.Kind == "Stack" {
+			found = true
+		}
+	}
+	require.True(t, found, "a module created while disabled must still belong to its Stack")
+}
+
+func TestConnectivityModuleEnabledRetainsLedgerRequirement(t *testing.T) {
+	ctx, stack, module, delegated := lifecycleFixture(t)
+	stack.Spec.Disabled = false
+	module.Spec.Version = "v1.0.0"
+	err := reconcileConnectivityModule(ctx, stack, module)
+	require.True(t, core.IsApplicationError(err), "%v", err)
+	condition := module.GetConditions().Get(core.DependenciesSatisfiedCondition)
+	require.NotNil(t, condition)
+	require.Equal(t, metav1.ConditionFalse, condition.Status)
+	// Missing Ledger takes the existing prerequisite cleanup path.
+	require.False(t, credentialsExist(t, ctx, stack.Name))
+	got := newDelegatedConnectivity(stack.Name)
+	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
+	require.False(t, got.GetDeletionTimestamp().IsZero())
+}
+
+func TestConnectivityModuleKeepsDependencyAndVersionWatches(t *testing.T) {
+	options := &core.ReconcilerOptions[*v1beta1.Connectivity]{
+		Owns:     map[client.Object][]builder.OwnsOption{},
+		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
+	}
+	for _, option := range connectivityReconcilerOptions() {
+		option(options)
+	}
+	for _, target := range []client.Object{&v1beta1.Ledger{}, &v1beta1.Versions{}, &v1beta1.Auth{}, &v1beta1.Gateway{}} {
+		found := false
+		for object := range options.Watchers {
+			if reflect.TypeOf(object) == reflect.TypeOf(target) {
+				found = true
+			}
+		}
+		require.True(t, found, "missing watch for %T", target)
+	}
 }

@@ -277,8 +277,25 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 			return ctrl.Result{}, err
 		}
 
-		// Finalizers belong to their registering controller. Preserve all other
-		// names, including during deletion, rather than bypassing their cleanup.
+		objectFinalizers := object.GetFinalizers()
+	l:
+		for _, existingFinalizer := range objectFinalizers {
+			for _, expectedFinalizer := range reconcilerOptions.Finalizers {
+				if expectedFinalizer.name == existingFinalizer {
+					continue l
+				}
+			}
+			controllerutil.RemoveFinalizer(object, existingFinalizer)
+		}
+		if len(objectFinalizers) != len(object.GetFinalizers()) {
+			if err := mgr.GetClient().Update(ctx, object); err != nil {
+				if apierrors.IsConflict(err) {
+					log.FromContext(ctx).Info(fmt.Sprintf("Catching conflict error: %s", err))
+					return reconcile.Result{RequeueAfter: time.Second}, nil
+				}
+				return reconcile.Result{}, errors.Wrapf(err, "patching resource to update finalizers")
+			}
+		}
 
 		reconcileContext := NewContext(mgr, ctx)
 		if !object.GetDeletionTimestamp().IsZero() {
@@ -335,7 +352,7 @@ func reconcileObject[T client.Object](mgr Manager, controller ObjectController[T
 		}
 		if len(missingFinalizers) > 0 {
 			log.FromContext(ctx).Info(fmt.Sprintf("Adding finalizers %s", missingFinalizers))
-			patch := client.MergeFromWithOptions(object.DeepCopyObject().(T), client.MergeFromWithOptimisticLock{})
+			patch := client.MergeFrom(object.DeepCopyObject().(T))
 			finalizers := object.GetFinalizers()
 			finalizers = append(finalizers, missingFinalizers...)
 			object.SetFinalizers(finalizers)
@@ -410,16 +427,11 @@ func WithResourceReconciler[T v1beta1.Dependent](fn func(ctx Context, stack *v1b
 }
 
 func WithModuleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
-	return WithModuleLifecycleReconciler(fn, disableModuleOwnedObjects[T], requirements, opts...)
-}
-
-// WithModuleLifecycleReconciler requires an explicit disable controller for a delegated lifecycle.
-func WithModuleLifecycleReconciler[T v1beta1.Module](fn func(ctx Context, stack *v1beta1.Stack, req T, version string) error, disabledController StackDependentObjectController[T], requirements ModuleRequirements, opts ...ReconcilerOption[T]) Initializer {
 	opts = withRequirementWatches(requirements, opts)
 	opts = append(opts, WithWatchVersions[T](requirements))
 	initializer := withStackDependencyReconciler(
 		ForStackDependency(
-			ForModuleWithDisable(requirements, disabledController, func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
+			ForModule(requirements, func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error {
 				return fn(ctx, stack, req, version)
 			}),
 			false,

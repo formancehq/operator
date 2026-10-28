@@ -73,7 +73,9 @@ It removes the owned gateway route and returns once the disable request is
 accepted. The delegated controller owns stopping Core, API and instance workloads;
 its status records actual completion. Repeated enable/disable changes update the
 desired state without serializing the requests behind workload shutdown.
-Other Stack modules retain their existing disable behavior.
+Connectivity handles this transition through its Stack-dependent reconciler, then
+uses the shared module reconciler for the enabled path. The shared core and other
+Stack modules retain their existing behavior.
 
 Re-enabling the Stack explicitly restores delegated `spec.disabled=false` after
 Ledger prerequisites are satisfied. The gateway stays closed until the delegated

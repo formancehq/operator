@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
 	. "github.com/formancehq/operator/v3/internal/core"
@@ -21,6 +22,32 @@ const connectivityLifecycleFinalizer = "connectivity.formance.com/connectivity"
 func lifecyclePending(module *v1beta1.Connectivity, reason, message string) error {
 	setCondition(module, metav1.ConditionFalse, reason, message)
 	return NewPendingError().WithMessage("%s", message).WithRequeueAfter(connectivityAPIRetryDelay)
+}
+
+// Connectivity delegates disable instead of using the shared module deletion path.
+func reconcileConnectivityModule(ctx Context, stack *v1beta1.Stack, module *v1beta1.Connectivity) error {
+	if stack.Spec.Disabled {
+		owned, err := HasOwnerReference(ctx, stack, module)
+		if err != nil {
+			return err
+		}
+		if !owned {
+			patch := client.MergeFrom(module.DeepCopy())
+			if err := controllerutil.SetOwnerReference(stack, module, ctx.GetScheme()); err != nil {
+				return err
+			}
+			if err := ctx.GetClient().Patch(ctx, module, patch); err != nil {
+				return err
+			}
+		}
+		module.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
+		return disableConnectivity(ctx, stack, nil, module)
+	}
+	return ForModule(connectivityModuleRequirements(), func(ctx Context, stack *v1beta1.Stack, _ *ReconcilerOptions[*v1beta1.Connectivity], module *v1beta1.Connectivity, version string) error {
+		return Reconcile(ctx, stack, module, version)
+	})(ctx, stack, &ReconcilerOptions[*v1beta1.Connectivity]{
+		UnsatisfiedRequirementsHandle: handleUnsatisfiedLedgerRequirement,
+	}, module)
 }
 
 func disableConnectivity(ctx Context, stack *v1beta1.Stack, _ *ReconcilerOptions[*v1beta1.Connectivity], module *v1beta1.Connectivity) error {

@@ -568,19 +568,7 @@ func TestDisabledStackKeepsLedgerCredentialsWithoutReconcilingModule(t *testing.
 		},
 	}
 	ctx := newReconcileTestContext(t, existing, connectivity)
-	options := &core.ReconcilerOptions[*v1beta1.Connectivity]{
-		Owns:     map[client.Object][]builder.OwnsOption{},
-		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
-	}
-	for _, option := range connectivityReconcilerOptions() {
-		option(options)
-	}
-	controller := core.ForModuleWithDisable(core.NoRequirements(), disableConnectivity, func(_ core.Context, _ *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], _ *v1beta1.Connectivity, _ string) error {
-		t.Fatal("a disabled Stack must not reconcile its Connectivity module")
-		return nil
-	})
-
-	if err := controller(ctx, stack, options, connectivity); err != nil {
+	if err := reconcileConnectivityModule(ctx, stack, connectivity); err != nil {
 		t.Fatalf("disable Connectivity module: %v", err)
 	}
 
@@ -1512,19 +1500,7 @@ func TestConnectivityModuleControllerReachesHardGateForLedgerV2Preview(t *testin
 	previewSetting := settings.New("preview", "ledger.v3.preview-version", "v3.0.0-alpha.11", stack.Name)
 	ctx := newReconcileTestContext(t, newReadyV2Ledger(stack.Name), stack, connectivity, previewSetting)
 
-	options := &core.ReconcilerOptions[*v1beta1.Connectivity]{
-		Owns:     map[client.Object][]builder.OwnsOption{},
-		Watchers: map[client.Object]core.ReconcilerOptionsWatch{},
-	}
-	for _, option := range connectivityReconcilerOptions() {
-		option(options)
-	}
-	controller := core.ForModuleWithDisable(connectivityModuleRequirements(),
-		disableConnectivity, func(ctx core.Context, stack *v1beta1.Stack, _ *core.ReconcilerOptions[*v1beta1.Connectivity], connectivity *v1beta1.Connectivity, version string) error {
-			return Reconcile(ctx, stack, connectivity, version)
-		})
-
-	err := controller(ctx, stack, options, connectivity)
+	err := reconcileConnectivityModule(ctx, stack, connectivity)
 	if !core.IsApplicationError(err) {
 		t.Fatalf("module controller returned %v, want the module gate's pending error", err)
 	}

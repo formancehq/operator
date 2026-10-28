@@ -64,8 +64,7 @@ type StackDependentObjectController[T v1beta1.Dependent] func(ctx Context, stack
 func ForStackDependency[T v1beta1.Dependent](ctrl StackDependentObjectController[T], allowDeleted bool) ObjectController[T] {
 	return func(ctx Context, reconcilerOptions *ReconcilerOptions[T], t T) error {
 		stack := &v1beta1.Stack{}
-		// A stale live Stack must not authorize provisioning after deletion starts.
-		if err := ctx.GetAPIReader().Get(ctx, types.NamespacedName{
+		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
 			Name: t.GetStack(),
 		}, stack); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -127,11 +126,6 @@ func ensureStackLabel[T v1beta1.Dependent](ctx Context, t T) error {
 type ModuleController[T v1beta1.Module] func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], req T, version string) error
 
 func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingController ModuleController[T]) StackDependentObjectController[T] {
-	return ForModuleWithDisable(requirements, disableModuleOwnedObjects[T], underlyingController)
-}
-
-// ForModuleWithDisable delegates Stack disable to the module's lifecycle controller.
-func ForModuleWithDisable[T v1beta1.Module](requirements ModuleRequirements, disabledController StackDependentObjectController[T], underlyingController ModuleController[T]) StackDependentObjectController[T] {
 	return func(ctx Context, stack *v1beta1.Stack, reconcilerOptions *ReconcilerOptions[T], t T) error {
 		hasOwnerReference, err := HasOwnerReference(ctx, stack, t)
 		if err != nil {
@@ -151,7 +145,11 @@ func ForModuleWithDisable[T v1beta1.Module](requirements ModuleRequirements, dis
 
 		if stack.Spec.Disabled {
 			t.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
-			return disabledController(ctx, stack, reconcilerOptions, t)
+			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
+			// Owned objects must be controlled by the module.
+			// if not, they will not be automatically removed on stack removal.
+			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
+			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
 		}
 
 		moduleVersion, err := GetModuleVersion(ctx, stack, t)
@@ -257,10 +255,6 @@ func ForModuleWithDisable[T v1beta1.Module](requirements ModuleRequirements, dis
 
 		return nil
 	}
-}
-
-func disableModuleOwnedObjects[T v1beta1.Module](ctx Context, _ *v1beta1.Stack, options *ReconcilerOptions[T], module T) error {
-	return removeAllModulesOwnedObjects(ctx, module, options.Owns)
 }
 
 func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[client.Object][]builder.OwnsOption) error {
