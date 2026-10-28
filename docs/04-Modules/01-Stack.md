@@ -37,6 +37,7 @@ The Connectivity controller owns its asynchronous cleanup. Namespace deletion al
 deletes externally supplied Secrets stored inside it.
 
 Do not create or reassign module attachments while a Stack is deleting. Normal
-reconciliation checks Stack liveness through the API reader; deletion discovers
+reconciliation reads the Stack through the manager's cached client and checks its
+deletion timestamp; deletion discovers
 existing attachments while requesting cleanup. These checks do not provide a
 transaction across independent API writers.
