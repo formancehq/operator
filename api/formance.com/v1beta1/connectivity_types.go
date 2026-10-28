@@ -23,6 +23,10 @@ import (
 type ConnectivitySpec struct {
 	ModuleProperties `json:",inline"`
 	StackDependency  `json:",inline"`
+	// Disabled stops Connectivity and its instances while retaining their configuration and credentials.
+	// Connectivity also remains disabled while its Stack is disabled.
+	// +optional
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 type ConnectivityStatus struct {

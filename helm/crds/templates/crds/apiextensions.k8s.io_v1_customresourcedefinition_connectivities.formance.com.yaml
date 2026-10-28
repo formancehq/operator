@@ -77,6 +77,11 @@ spec:
                   Enables dev mode on the module
                   Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example)
                 type: boolean
+              disabled:
+                description: |-
+                  Disabled stops Connectivity and its instances while retaining their configuration and credentials.
+                  Connectivity also remains disabled while its Stack is disabled.
+                type: boolean
               stack:
                 description: Stack indicates the stack on which the module is installed
                 type: string

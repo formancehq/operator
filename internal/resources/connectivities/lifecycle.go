@@ -26,7 +26,7 @@ func lifecyclePending(module *v1beta1.Connectivity, reason, message string) erro
 
 // Connectivity delegates disable instead of using the shared module deletion path.
 func reconcileConnectivityModule(ctx Context, stack *v1beta1.Stack, module *v1beta1.Connectivity) error {
-	if stack.Spec.Disabled {
+	if stack.Spec.Disabled || module.Spec.Disabled {
 		owned, err := HasOwnerReference(ctx, stack, module)
 		if err != nil {
 			return err

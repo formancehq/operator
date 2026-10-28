@@ -53,25 +53,64 @@ func lifecycleFixture(t *testing.T) (credsTestContext, *v1beta1.Stack, *v1beta1.
 }
 
 func TestDisableConnectivityRequestsShutdownWithoutWaiting(t *testing.T) {
-	ctx, stack, module, delegated := lifecycleFixture(t)
-	controller := reconcileConnectivityModule
-	require.NoError(t, controller(ctx, stack, module))
-	got := newDelegatedConnectivity(stack.Name)
-	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
-	require.Equal(t, delegated.GetUID(), got.GetUID())
-	require.Equal(t, delegated.GetFinalizers(), got.GetFinalizers())
-	require.Equal(t, map[string]any{"disabled": true, "ledgerAddress": "retained", "api": map[string]any{"enabled": true}}, got.Object["spec"])
-	require.True(t, credentialsExist(t, ctx, stack.Name))
-	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
-	require.NoError(t, ctx.client.Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: "managed"}, &corev1.Secret{}))
-	require.NoError(t, controller(ctx, stack, module))
-	require.NoError(t, unstructured.SetNestedField(got.Object, "Disabled", "status", "phase"))
-	require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration()-1, "status", "observedGeneration"))
-	require.NoError(t, ctx.client.Update(ctx, got))
-	require.NoError(t, controller(ctx, stack, module), "disable does not wait for observed generation")
-	require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration(), "status", "observedGeneration"))
-	require.NoError(t, ctx.client.Update(ctx, got))
-	require.NoError(t, controller(ctx, stack, module))
+	for _, scenario := range []struct {
+		name           string
+		stackDisabled  bool
+		moduleDisabled bool
+	}{
+		{name: "stack", stackDisabled: true},
+		{name: "module", moduleDisabled: true},
+		{name: "stack-and-module", stackDisabled: true, moduleDisabled: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			ctx, stack, module, delegated := lifecycleFixture(t)
+			stack.Spec.Disabled = scenario.stackDisabled
+			module.Spec.Disabled = scenario.moduleDisabled
+
+			controller := reconcileConnectivityModule
+			require.NoError(t, controller(ctx, stack, module))
+			got := newDelegatedConnectivity(stack.Name)
+			require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
+			require.Equal(t, delegated.GetUID(), got.GetUID())
+			require.Equal(t, delegated.GetFinalizers(), got.GetFinalizers())
+			require.Equal(t, map[string]any{"disabled": true, "ledgerAddress": "retained", "api": map[string]any{"enabled": true}}, got.Object["spec"])
+			require.True(t, credentialsExist(t, ctx, stack.Name))
+			require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
+			require.NoError(t, ctx.client.Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: "managed"}, &corev1.Secret{}))
+			require.NoError(t, controller(ctx, stack, module))
+			require.NoError(t, unstructured.SetNestedField(got.Object, "Disabled", "status", "phase"))
+			require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration()-1, "status", "observedGeneration"))
+			require.NoError(t, ctx.client.Update(ctx, got))
+			require.NoError(t, controller(ctx, stack, module), "disable does not wait for observed generation")
+			require.NoError(t, unstructured.SetNestedField(got.Object, got.GetGeneration(), "status", "observedGeneration"))
+			require.NoError(t, ctx.client.Update(ctx, got))
+			require.NoError(t, controller(ctx, stack, module))
+		})
+	}
+}
+
+func TestConnectivityClearingOneDisableFlagDoesNotResume(t *testing.T) {
+	for _, remaining := range []string{"stack", "module"} {
+		t.Run(remaining, func(t *testing.T) {
+			ctx, stack, module, delegated := lifecycleFixture(t)
+			module.Spec.Disabled = true
+			require.NoError(t, reconcileConnectivityModule(ctx, stack, module))
+			if remaining == "stack" {
+				module.Spec.Disabled = false
+			} else {
+				stack.Spec.Disabled = false
+			}
+			require.NoError(t, reconcileConnectivityModule(ctx, stack, module))
+			got := newDelegatedConnectivity(stack.Name)
+			require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
+			disabled, _, err := unstructured.NestedBool(got.Object, "spec", "disabled")
+			require.NoError(t, err)
+			require.True(t, disabled)
+			require.Equal(t, delegated.GetUID(), got.GetUID())
+			require.True(t, credentialsExist(t, ctx, stack.Name))
+			require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name))
+		})
+	}
 }
 
 func TestDisableConnectivityRejectsForeignOwnershipAndDeletion(t *testing.T) {
@@ -239,11 +278,12 @@ func TestConnectivityReenableClearsDisabledAndWaitsForCurrentReadyGeneration(t *
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 	ledger, credentials := newReadyLedgerPrerequisites()
-	ctx := newReconcileTestContext(t, ledger, credentials)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: "stack-uid"}}
 	module := newConnectivity("stack0", stack.Name)
 	module.UID = "module-uid"
-	require.True(t, core.IsApplicationError(Reconcile(ctx, stack, module, "v1.0.0")))
+	module.Spec.Version = "v1.0.0"
+	ctx := newReconcileTestContext(t, stack, module, ledger, credentials)
+	require.True(t, core.IsApplicationError(reconcileConnectivityModule(ctx, stack, module)))
 	delegated := newDelegatedConnectivity(stack.Name)
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), delegated))
 	delegated.SetUID("delegated-uid")
@@ -252,7 +292,7 @@ func TestConnectivityReenableClearsDisabledAndWaitsForCurrentReadyGeneration(t *
 	require.NoError(t, unstructured.SetNestedField(delegated.Object, "Disabled", "status", "phase"))
 	setDelegatedReadyCondition(delegated, metav1.ConditionFalse, 5)
 	require.NoError(t, ctx.client.Update(ctx, delegated))
-	require.True(t, core.IsApplicationError(Reconcile(ctx, stack, module, "v1.0.0")))
+	require.True(t, core.IsApplicationError(reconcileConnectivityModule(ctx, stack, module)))
 	got := newDelegatedConnectivity(stack.Name)
 	require.NoError(t, ctx.client.Get(ctx, client.ObjectKeyFromObject(delegated), got))
 	disabled, _, err := unstructured.NestedBool(got.Object, "spec", "disabled")
@@ -263,7 +303,7 @@ func TestConnectivityReenableClearsDisabledAndWaitsForCurrentReadyGeneration(t *
 	require.NoError(t, unstructured.SetNestedField(got.Object, "Ready", "status", "phase"))
 	setDelegatedReadyCondition(got, metav1.ConditionTrue, 4)
 	require.NoError(t, ctx.client.Update(ctx, got))
-	require.True(t, core.IsApplicationError(Reconcile(ctx, stack, module, "v1.0.0")))
+	require.True(t, core.IsApplicationError(reconcileConnectivityModule(ctx, stack, module)))
 	require.False(t, gatewayHTTPAPIExists(t, ctx, stack.Name), "stale Ready must not reopen exposure")
 }
 

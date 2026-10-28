@@ -66,7 +66,8 @@ spec:
 
 ## Disable and delete
 
-`Stack.spec.disabled=true` stops Connectivity through the delegated resource's
+`Connectivity.spec.disabled=true` on the Stack module, or `Stack.spec.disabled=true`,
+stops Connectivity through the delegated resource's
 `spec.disabled=true`. The Stack Operator retains the delegated Connectivity CR,
 all ConnectorInstance configuration and managed Secrets, and Ledger Credentials.
 It removes the owned gateway route and returns once the disable request is
@@ -77,8 +78,9 @@ Connectivity handles this transition through its Stack-dependent reconciler, the
 uses the shared module reconciler for the enabled path. The shared core and other
 Stack modules retain their existing behavior.
 
-Re-enabling the Stack explicitly restores delegated `spec.disabled=false` after
-Ledger prerequisites are satisfied. The gateway stays closed until the delegated
+Re-enabling Connectivity requires both its module and its Stack to have
+`spec.disabled=false`. The enabled reconciliation path restores delegated
+`spec.disabled=false` after Ledger prerequisites are satisfied. The gateway stays closed until the delegated
 controller reports `Ready=True` with a current `observedGeneration` in
 `status.conditions` after Core rollout, and the API
 Deployment and Service satisfy the authentication rollout checks.
@@ -104,6 +106,14 @@ namespace deletion. Store anything that must outlive the Stack outside its
 namespace and manage its lifecycle separately.
 
 ### Lifecycle compatibility and recovery
+
+Individual module disable also requires compatible Membership and agent versions:
+Membership must retain disabled Connectivity in its synchronized module state, and
+the agent must retain the module CR and set its `spec.disabled` field. Older
+versions omit the disabled module and delete its CR, which invokes deletion
+instead. Install the Stack Connectivity CRD and controller supporting this field
+before enabling the corresponding agent and Membership behavior. Other modules
+retain their existing disable contract.
 
 Roll out compatible Core, Connectivity CRDs and the Connectivity controller before
 this Stack Operator. The served Connectivity schema must declare boolean

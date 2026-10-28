@@ -567,6 +567,7 @@ Ledger v3 gRPC endpoint.
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops Connectivity and its instances while retaining their configuration and credentials.<br />Connectivity also remains disabled while its Stack is disabled. |  |  |
 
 
 
