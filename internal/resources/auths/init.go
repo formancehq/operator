@@ -119,6 +119,7 @@ func init() {
 			WithOwn[*v1beta1.Auth](&batchv1.Job{}),
 			WithOwn[*v1beta1.Auth](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Auth](),
+			WithWatchDependencySpecOnly[*v1beta1.Auth](&v1beta1.Gateway{}),
 			WithWatchDependency[*v1beta1.Auth](&v1beta1.AuthClient{}),
 			databases.Watch[*v1beta1.Auth](),
 		),

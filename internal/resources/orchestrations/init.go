@@ -114,6 +114,7 @@ func init() {
 			WithOwn[*v1beta1.Orchestration](&v1beta1.ResourceReference{}),
 			WithOwn[*v1beta1.Orchestration](&batchv1.Job{}),
 			WithWatchSettings[*v1beta1.Orchestration](),
+			WithWatchDependencySpecOnly[*v1beta1.Orchestration](&v1beta1.Gateway{}),
 			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Payments{}),
 			WithWatchDependency[*v1beta1.Orchestration](&v1beta1.Wallets{}),

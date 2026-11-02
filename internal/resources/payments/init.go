@@ -156,6 +156,7 @@ func init() {
 			WithOwn[*v1beta1.Payments](&v1beta1.BenthosStream{}),
 			WithOwn[*v1beta1.Payments](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Payments](),
+			WithWatchDependencySpecOnly[*v1beta1.Payments](&v1beta1.Gateway{}),
 			WithWatchDependency[*v1beta1.Payments](&v1beta1.Search{}),
 			databases.Watch[*v1beta1.Payments](),
 			brokertopics.Watch[*v1beta1.Payments]("payments"),
