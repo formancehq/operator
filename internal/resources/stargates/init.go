@@ -40,6 +40,7 @@ func init() {
 		WithModuleReconciler(Reconcile,
 			NoRequirements(),
 			WithWatchSettings[*v1beta1.Stargate](),
+			WithWatchDependencySpecOnly[*v1beta1.Stargate](&v1beta1.Gateway{}),
 			WithOwn[*v1beta1.Stargate](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Stargate](&v1beta1.ResourceReference{}),
 		),

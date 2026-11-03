@@ -137,6 +137,7 @@ func init() {
 			WithOwn[*v1beta1.Webhooks](&batchv1.Job{}),
 			WithOwn[*v1beta1.Webhooks](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Webhooks](),
+			WithWatchDependencySpecOnly[*v1beta1.Webhooks](&v1beta1.Gateway{}),
 			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Ledger{}),
 			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Payments{}),
 			WithWatchDependency[*v1beta1.Webhooks](&v1beta1.Reconciliation{}),

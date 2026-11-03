@@ -67,6 +67,7 @@ func init() {
 				&v1beta1.GatewayHTTPAPI{}, &v1beta1.AuthClient{}, &appsv1.Deployment{},
 			)),
 			WithWatchSettings[*v1beta1.Wallets](),
+			WithWatchDependencySpecOnly[*v1beta1.Wallets](&v1beta1.Gateway{}),
 			WithWatchDependency[*v1beta1.Wallets](&v1beta1.Auth{}),
 			WithOwn[*v1beta1.Wallets](&v1beta1.AuthClient{}),
 			WithOwn[*v1beta1.Wallets](&appsv1.Deployment{}),

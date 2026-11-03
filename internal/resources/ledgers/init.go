@@ -165,6 +165,7 @@ func init() {
 			withLedgerV3ClusterWatch(),
 			withLedgerConfigurationWatch(),
 			WithWatchSettings[*v1beta1.Ledger](),
+			WithWatchDependencySpecOnly[*v1beta1.Ledger](&v1beta1.Gateway{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.MCP{}),
 			WithWatchDependency[*v1beta1.Ledger](&v1beta1.Orchestration{}),

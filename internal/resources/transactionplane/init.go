@@ -88,6 +88,7 @@ func init() {
 			WithOwn[*v1beta1.TransactionPlane](&batchv1.Job{}),
 			WithOwn[*v1beta1.TransactionPlane](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.TransactionPlane](),
+			WithWatchDependencySpecOnly[*v1beta1.TransactionPlane](&v1beta1.Gateway{}),
 			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Auth{}),
 			WithWatchDependency[*v1beta1.TransactionPlane](&v1beta1.Payments{}),
 			brokertopics.Watch[*v1beta1.TransactionPlane]("transactionplane"),

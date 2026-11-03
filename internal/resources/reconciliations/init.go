@@ -131,6 +131,7 @@ func init() {
 			WithOwn[*v1beta1.Reconciliation](&batchv1.Job{}),
 			WithOwn[*v1beta1.Reconciliation](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Reconciliation](),
+			WithWatchDependencySpecOnly[*v1beta1.Reconciliation](&v1beta1.Gateway{}),
 			brokers.Watch[*v1beta1.Reconciliation](),
 			brokertopics.Watch[*v1beta1.Reconciliation]("reconciliation"),
 			WithWatchDependency[*v1beta1.Reconciliation](&v1beta1.Payments{}),
