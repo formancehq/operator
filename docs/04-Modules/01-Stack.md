@@ -22,3 +22,22 @@ spec:
 
 During the deployment of the Operator and for its future upgrades, the Versions files are automatically updated following the semver pattern.
 It is possible to specify a specific version by using the `versionFromFile` field in the Stack file.
+
+## Disable and deletion
+
+Disabling a Stack retains its namespace and durable resources. Connectivity uses
+its delegated disable contract to stop Core, API and all ConnectorInstance
+workloads while retaining configuration and credentials. Other modules keep their
+existing owned-runtime removal behavior. See [Connectivity lifecycle](12-Connectivity.md#disable-and-delete)
+for rollout requirements and observable completion conditions.
+
+Deleting a Stack requests deletion of all modules without imposing a Connectivity
+cleanup order, then follows the existing resource and namespace deletion lifecycle.
+The Connectivity controller owns its asynchronous cleanup. Namespace deletion also
+deletes externally supplied Secrets stored inside it.
+
+Do not create or reassign module attachments while a Stack is deleting. Normal
+reconciliation reads the Stack through the manager's cached client and checks its
+deletion timestamp; deletion discovers
+existing attachments while requesting cleanup. These checks do not provide a
+transaction across independent API writers.

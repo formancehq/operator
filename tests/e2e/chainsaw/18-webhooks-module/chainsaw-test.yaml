@@ -107,7 +107,8 @@ spec:
               for resource in \
                 ledger/ledger \
                 broker/chainsaw-webhooks \
-                database/chainsaw-webhooks-ledger; do
+                database/chainsaw-webhooks-ledger \
+                database/chainsaw-webhooks-webhooks; do
                 if kubectl get "$resource" >/dev/null 2>&1; then
                   kubectl patch "$resource" --type=merge -p '{"metadata":{"finalizers":[]}}'
                   kubectl delete "$resource" --wait=false --ignore-not-found=true

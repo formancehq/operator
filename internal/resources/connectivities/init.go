@@ -36,6 +36,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -148,15 +149,8 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	if !connectivityAvailable {
 		setCondition(connectivity, metav1.ConditionFalse, "OperatorUnavailable",
 			"connectivity operator unavailable: connectivity.formance.com Connectivity CRD is not installed")
-		// The connectivity operator is gone, so we can neither provision nor
-		// manage the delegated workload — but if the ledger hard gate is also
-		// closed we must still tear down the ledger Credentials and the gateway
-		// route we own, otherwise a closed gate leaves them behind just because
-		// this capability check short-circuits before the ledger gates below.
-		// A closed ledger gate additionally revokes the ledger Credentials. When
-		// that gate is still open, keep the workload and Credentials but close its
-		// public route: without the delegated API we cannot prove that the currently
-		// serving rollout enforces the desired authentication configuration.
+		// Revoke exposure while discovery is unavailable. A closed Ledger gate
+		// still requests delegated cleanup through direct reads.
 		gateClosed, err := ledgerGateClosed(ctx, stack)
 		if err != nil {
 			// The gate could not be determined; a possibly-due teardown must not
@@ -201,6 +195,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 			return err
 		}
 		return NewPendingError().WithMessage("connectivity requires a Ledger module on the stack")
+	}
+
+	if ledger.IsDisabled() {
+		if err := disableConnectivity(ctx, stack, nil, connectivity); err != nil {
+			return err
+		}
+		return NewPendingError().WithMessage("waiting for the Ledger module to be enabled")
 	}
 
 	// Resolve the ledger's effective version through the same path the module
@@ -323,7 +324,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	object.SetNamespace(stack.Name)
 	object.SetName(connectivityDelegatedName)
 	operation, err := controllerutil.CreateOrUpdate(ctx, ctx.GetClient(), object, func() error {
+		if !object.GetDeletionTimestamp().IsZero() {
+			return lifecyclePending(connectivity, "DelegatedDeleting", "delegated Connectivity is deleting; a new resource can be created after it disappears")
+		}
 		if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
+			return err
+		}
+		if err := unstructured.SetNestedField(object.Object, false, "spec", "disabled"); err != nil {
 			return err
 		}
 		if err := unstructured.SetNestedField(object.Object, ledgerAddress, "spec", "ledgerAddress"); err != nil {
@@ -421,19 +428,21 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	return nil
 }
 
-// teardownAccessibleResources revokes the resources owned by this operator
-// when the external Connectivity API is unavailable. Deleting the delegated CR
-// on this path would turn an RBAC capability gap into a hard Forbidden error;
-// leave that CR untouched and independently remove the public route and the
-// ledger credential that remain accessible to this controller.
+// teardownAccessibleResources uses direct reads even when startup discovery was
+// unavailable. Missing APIs and RBAC errors cannot prove delegated cleanup.
 func teardownAccessibleResources(ctx Context, connectivity *v1beta1.Connectivity) error {
-	return errors.Join(
-		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
-		deleteLedgerCredentials(ctx, connectivity),
-	)
+	return teardownDelegated(ctx, &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: connectivity.GetStack()}}, connectivity)
 }
 
 func handleUnsatisfiedLedgerRequirement(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
+	ledger, err := getStackLedger(ctx, stack.Name)
+	if err != nil {
+		return err
+	}
+	if ledger != nil && ledger.IsDisabled() {
+		// Disabled dependencies retain configuration and credentials for re-enable.
+		return disableConnectivity(ctx, stack, nil, connectivity)
+	}
 	gateClosed, err := ledgerGateClosed(ctx, stack)
 	if err != nil {
 		// Surface the lookup failure so the reconcile is retried; silently
@@ -555,18 +564,14 @@ func reconcileExistingConnectivityAPIAuth(
 // same-name replacement objects. The names/scopes mirror how they are
 // provisioned in Reconcile.
 func teardownDelegated(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connectivity) error {
-	// Attempt every deletion independently rather than bailing on the first
-	// error: a failure to delete one resource must not leave the public gateway
-	// route or the ledger Credentials behind, since the point of the hard
-	// teardown is to stop exposing the workload — and its credential — once the
-	// ledger prerequisite no longer holds. Deleting the cluster-scoped
-	// Credentials also cascades the ledger operator's key deregistration and the
-	// distributed private-key Secret, which stack-namespace GC never reclaims.
-	return errors.Join(
-		deleteOwnedDelegatedConnectivity(ctx, stack.Name, connectivity),
-		deleteOwnedGatewayHTTPAPI(ctx, connectivity),
-		deleteLedgerCredentials(ctx, connectivity),
-	)
+	// Request delegated deletion; its controller owns asynchronous cleanup.
+	if err := deleteOwnedGatewayHTTPAPI(ctx, connectivity); err != nil {
+		return err
+	}
+	if err := deleteOwnedDelegatedConnectivity(ctx, stack.Name, connectivity); err != nil {
+		return err
+	}
+	return deleteLedgerCredentials(ctx, connectivity)
 }
 
 func deleteOwnedDelegatedConnectivity(
@@ -578,14 +583,22 @@ func deleteOwnedDelegatedConnectivity(
 	delegated.SetGroupVersionKind(connectivityGVK)
 	key := client.ObjectKey{Namespace: stackName, Name: connectivityDelegatedName}
 	if err := ctx.GetAPIReader().Get(ctx, key, delegated); err != nil {
-		return ignoreAbsent(err)
+		if apierrors.IsNotFound(err) || apimeta.IsNoMatchError(err) {
+			return nil
+		}
+		return lifecyclePending(connectivity, "DelegatedLookupFailed", fmt.Sprintf("cannot prove delegated Connectivity cleanup: %v", err))
 	}
 	owner := metav1.GetControllerOf(delegated)
 	if !controllerRefMatches(owner, v1beta1.GroupVersion.WithKind("Connectivity"), connectivity) {
-		return nil
+		return lifecyclePending(connectivity, "DelegatedOwnershipConflict", "delegated Connectivity is not controlled by this module; preserving credentials")
 	}
-	uid := delegated.GetUID()
-	return ignoreAbsent(ctx.GetClient().Delete(ctx, delegated, client.Preconditions{UID: &uid}))
+	if delegated.GetDeletionTimestamp().IsZero() {
+		uid, version := delegated.GetUID(), delegated.GetResourceVersion()
+		if err := ctx.GetClient().Delete(ctx, delegated, client.Preconditions{UID: &uid, ResourceVersion: &version}); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func controllerRefMatches(ref *metav1.OwnerReference, gvk schema.GroupVersionKind, owner client.Object) bool {
@@ -678,6 +691,9 @@ func updateExistingConnectivityAPIAuth(
 		return false, client.IgnoreNotFound(err)
 	}
 
+	if !object.GetDeletionTimestamp().IsZero() {
+		return false, lifecyclePending(connectivity, "DelegatedDeleting", "delegated Connectivity is deleting; preserving its cleanup configuration")
+	}
 	before := object.DeepCopy()
 	// Match the normal CreateOrUpdate path's ownership check before mutating the
 	// fixed-name delegated resource. SetControllerReference returns an
@@ -923,10 +939,34 @@ func deleteLedgerCredentials(ctx Context, connectivity *v1beta1.Connectivity) er
 }
 
 func connectivityResourceReady(object *unstructured.Unstructured) (bool, string) {
-	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
-	if phase == "Ready" {
+	if !object.GetDeletionTimestamp().IsZero() {
+		return false, "waiting for deleting delegated Connectivity cleanup"
+	}
+	disabled, _, err := unstructured.NestedBool(object.Object, "spec", "disabled")
+	if err != nil || disabled {
+		return false, "delegated Connectivity is disabled or has invalid disable state"
+	}
+	statusMap, _, err := unstructured.NestedMap(object.Object, "status")
+	if err != nil {
+		return false, "delegated Connectivity has invalid status"
+	}
+	var status struct {
+		Conditions []metav1.Condition `json:"conditions"`
+	}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(statusMap, &status); err != nil {
+		return false, "delegated Connectivity has invalid conditions"
+	}
+	condition := apimeta.FindStatusCondition(status.Conditions, "Ready")
+	if condition == nil || condition.ObservedGeneration != object.GetGeneration() {
+		return false, "waiting for delegated Connectivity to observe its current generation"
+	}
+	if condition.Status == metav1.ConditionTrue {
 		return true, "Connectivity is ready"
 	}
+	if condition.Message != "" {
+		return false, condition.Message
+	}
+	phase, _, _ := unstructured.NestedString(object.Object, "status", "phase")
 	message, _, _ := unstructured.NestedString(object.Object, "status", "message")
 	if message == "" {
 		message = fmt.Sprintf("connectivity resource phase is %q", phase)
@@ -953,6 +993,10 @@ func connectivityAPIAuthRolloutReady(
 	if !controllerRefMatches(owner, v1beta1.GroupVersion.WithKind("Connectivity"), connectivity) {
 		return false, "", fmt.Errorf("delegated Connectivity %s/%s is not controlled by Connectivity UID %q",
 			delegated.GetNamespace(), delegated.GetName(), connectivity.UID)
+	}
+	// Use the same authoritative snapshot for lifecycle and API rollout gates.
+	if ready, message := connectivityResourceReady(delegated); !ready {
+		return false, message, nil
 	}
 	if !connectivityAPIAuthMatches(delegated, apiAuth) {
 		return false, "waiting for the delegated Connectivity to persist API authentication", nil
@@ -1340,7 +1384,7 @@ func connectivityStackFromCredentials(object client.Object) (string, bool) {
 
 func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	return []ReconcilerOption[*v1beta1.Connectivity]{
-		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
+		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", finalizeConnectivity),
 		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
@@ -1348,6 +1392,8 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 		WithUnsatisfiedRequirementsHandler(handleUnsatisfiedLedgerRequirement),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Auth{}),
 		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Gateway{}),
+		WithWatchDependency[*v1beta1.Connectivity](&v1beta1.Ledger{}),
+		WithWatchVersions[*v1beta1.Connectivity](connectivityModuleRequirements()),
 	}
 }
 
@@ -1362,8 +1408,5 @@ func connectivityModuleRequirements() ModuleRequirements {
 }
 
 func init() {
-	Init(WithModuleReconciler(Reconcile,
-		connectivityModuleRequirements(),
-		connectivityReconcilerOptions()...,
-	))
+	Init(WithStackDependencyReconciler(reconcileConnectivityModule, connectivityReconcilerOptions()...))
 }

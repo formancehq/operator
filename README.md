@@ -201,6 +201,10 @@ make uninstall
 make undeploy
 ```
 
+## Connectivity lifecycle
+
+Modules support `spec.disabled` in addition to Stack disable. Connectivity retains its configuration and credentials on either disable and delegates asynchronous deletion cleanup to its controller. See the [lifecycle and upgrade requirements](docs/04-Modules/12-Connectivity.md#disable-and-delete) before upgrading the operators.
+
 ## Settings
 
 See defined settings in [Settings](docs/09-Configuration%20reference/01-Settings.md)

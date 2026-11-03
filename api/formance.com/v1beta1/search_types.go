@@ -71,6 +71,10 @@ func (in *Search) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Search) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Search) GetVersion() string {
 	return in.Spec.Version
 }
