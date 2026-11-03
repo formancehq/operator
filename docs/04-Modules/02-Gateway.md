@@ -30,6 +30,21 @@ spec:
     scheme: http|https
 ```
 
+### Stack URL Propagation
+
+Modules derive the stack URL from the Gateway ingress:
+
+- With an ingress, the URL is `<scheme>://<host>`, built from `spec.ingress.scheme` and `spec.ingress.host`. Additional `hosts` are served but are not used for the stack URL.
+- Without an ingress, modules fall back to the internal Gateway URL, `http://gateway:8080`.
+
+Auth uses this URL as its OIDC issuer (`BASE_URL`, `<url>/api/auth`). Modules protected by Auth (Ledger, Payments, Orchestration, Reconciliation, Wallets, Webhooks, TransactionPlane) receive the same issuer as `AUTH_ISSUER`. Modules that read the stack URL, including Auth and Stargate, receive `STACK_PUBLIC_URL` only while an ingress is set.
+
+When you add, change, or remove `spec.ingress`, the operator re-renders these Deployments with the new URLs, and Kubernetes rolls them out. No manual restart is needed.
+
+:::warning
+While Auth and its dependents roll out, a dependent pod can start before the new Auth pod is serving. It then fails OIDC discovery with an error such as `issuer does not match: Expected: http://gateway:8080/api/auth, got: https://<old-host>/api/auth`, exits, and is restarted by Kubernetes until Auth advertises the new issuer. This is temporary, but recovery can take longer if Auth is slow to roll out, because restart backoff grows up to five minutes.
+:::
+
 ### Serving on Multiple Hosts
 
 You can serve a stack on multiple hostnames by adding the `hosts` field alongside `host`. The ingress will contain a rule for each host, and TLS will cover all of them.
