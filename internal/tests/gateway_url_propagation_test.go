@@ -1,6 +1,8 @@
 package tests_test
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -75,6 +77,27 @@ var _ = Describe("Gateway URL propagation", func() {
 		Eventually(deploymentEnv("auth", "BASE_URL")).Should(Equal("https://example.net/api/auth"))
 		Eventually(deploymentEnv("auth", "STACK_PUBLIC_URL")).Should(Equal("https://example.net"))
 		Eventually(deploymentEnv("ledger", "AUTH_ISSUER")).Should(Equal("https://example.net/api/auth"))
+
+		// Wait for reconciles queued during setup to drain, so the assertions below
+		// can only pass if the Gateway change itself re-enqueues the modules.
+		resourceVersions := func(g Gomega) []string {
+			ret := make([]string, 0, 4)
+			for _, obj := range []client.Object{auth, ledger} {
+				g.Expect(LoadResource("", obj.GetName(), obj)).To(Succeed())
+				ret = append(ret, obj.GetResourceVersion())
+			}
+			for _, name := range []string{"auth", "ledger"} {
+				deployment := &appsv1.Deployment{}
+				g.Expect(LoadResource(stack.Name, name, deployment)).To(Succeed())
+				ret = append(ret, deployment.GetResourceVersion())
+			}
+			return ret
+		}
+		Eventually(func(g Gomega) {
+			settled := resourceVersions(g)
+			g.Consistently(resourceVersions, 2*time.Second, 200*time.Millisecond).Should(Equal(settled))
+		}, 30*time.Second).Should(Succeed())
+		Expect(LoadResource("", gateway.Name, gateway)).To(Succeed())
 	})
 	AfterEach(func() {
 		Expect(Delete(databaseSettings)).To(Succeed())
