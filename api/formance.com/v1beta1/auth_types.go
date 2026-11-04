@@ -46,6 +46,11 @@ type AuthSpec struct {
 	// Overrides the generated per-stack signing key using a Kubernetes Secret.
 	SigningKeyFromSecret *v1.SecretKeySelector `json:"signingKeyFromSecret,omitempty"`
 	//+optional
+	// Overrides the generated per-stack crypto key (CRYPTO_KEY) using a Kubernetes Secret.
+	// The referenced secret entry must hold the standard padded base64 encoding of exactly 32 bytes.
+	// The secret stays externally managed: the operator only reads it.
+	CryptoKeyFromSecret *v1.SecretKeySelector `json:"cryptoKeyFromSecret,omitempty"`
+	//+optional
 	// Enables scope checking during authentication.
 	//
 	// If not enabled, each service will check the authentication but will not restrict access according to scopes.

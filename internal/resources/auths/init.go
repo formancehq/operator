@@ -22,6 +22,10 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	. "github.com/formancehq/go-libs/v5/pkg/types/collections"
 
@@ -107,6 +111,39 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, version st
 	return nil
 }
 
+func watchCryptoKeySecret(ctx Context, secret *corev1.Secret) []reconcile.Request {
+	// The `stack` field index on Auth is registered automatically for every
+	// Dependent kind (internal/core/setup.go), so no extra index is needed.
+	auths := &v1beta1.AuthList{}
+	if err := ctx.GetClient().List(ctx, auths, client.MatchingFields{
+		"stack": secret.GetNamespace(),
+	}); err != nil {
+		log.FromContext(ctx).Error(err, "listing auths on crypto key secret watch")
+		return nil
+	}
+
+	// Watch-only filter: enqueue an Auth only when the event is relevant to
+	// it, without ever mutating the Secret (no ownerReference adoption, no
+	// rewrite). Two cases:
+	//   - the default auth-crypto-key Secret (generated, owned, or pre-seeded
+	//     unowned): every Auth of the stack is enqueued, so rotation,
+	//     delete/recreate and bootstrap are all covered;
+	//   - any other Secret: only Auths whose cryptoKeyFromSecret selector
+	//     selects it, covering unlabeled external Secrets (no stack label
+	//     requirement), missing->created, invalid->fixed and rename flows.
+	requests := make([]reconcile.Request, 0, len(auths.Items))
+	for i := range auths.Items {
+		auth := &auths.Items[i]
+		if secret.GetName() == cryptoKeySecretName ||
+			(auth.Spec.CryptoKeyFromSecret != nil && auth.Spec.CryptoKeyFromSecret.Name == secret.GetName()) {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: auth.GetName()},
+			})
+		}
+	}
+	return requests
+}
+
 func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
@@ -116,6 +153,16 @@ func init() {
 			WithOwn[*v1beta1.Auth](&v1beta1.Database{}),
 			WithOwn[*v1beta1.Auth](&corev1.ConfigMap{}),
 			WithOwn[*v1beta1.Auth](&corev1.Secret{}),
+			// Bridge watch for the crypto key Secret: generated-mode secrets
+			// are Auth-owned and already enqueued through WithOwn(Secret), but
+			// an accepted pre-seeded (unowned) auth-crypto-key Secret would
+			// never trigger a reconciliation when rotated. This watch-only
+			// mapper enqueues the Auth(s) of the secret's stack on
+			// create/update/delete; the reconciler remains the sole writer.
+			// It never adopts the Secret (no ownerReference) and never
+			// modifies it: regeneration happens only on genuine NotFound and
+			// the existing validation path is unchanged.
+			WithWatch[*v1beta1.Auth, *corev1.Secret](watchCryptoKeySecret),
 			WithOwn[*v1beta1.Auth](&batchv1.Job{}),
 			WithOwn[*v1beta1.Auth](&v1beta1.ResourceReference{}),
 			WithWatchSettings[*v1beta1.Auth](),
