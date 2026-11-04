@@ -69,6 +69,32 @@ spec:
             type: object
           spec:
             properties:
+              cryptoKeyFromSecret:
+                description: |-
+                  Overrides the generated per-stack crypto key (CRYPTO_KEY) using a Kubernetes Secret.
+                  The referenced secret entry must hold the standard padded base64 encoding of exactly 32 bytes.
+                  The secret stays externally managed: the operator only reads it.
+                properties:
+                  key:
+                    description: The key of the secret to select from.  Must be a
+                      valid secret key.
+                    type: string
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                  optional:
+                    description: Specify whether the Secret or its key must be defined
+                    type: boolean
+                required:
+                - key
+                type: object
+                x-kubernetes-map-type: atomic
               debug:
                 default: false
                 description: Enables debug mode on the module

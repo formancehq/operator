@@ -12,7 +12,7 @@
       "key": "auth.issuers",
       "valueType": "string",
       "sources": [
-        "internal/resources/auths/deployment.go:69"
+        "internal/resources/auths/deployment.go:70"
       ]
     },
     {

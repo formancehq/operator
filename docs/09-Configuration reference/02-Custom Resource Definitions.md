@@ -445,6 +445,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 | `delegatedOIDCServer` _[DelegatedOIDCServerConfiguration](#delegatedoidcserverconfiguration)_ | Contains information about a delegated authentication server to use to delegate authentication |  |  |
 | `signingKey` _string_ | Overrides the generated per-stack signing key used to sign JWT tokens. |  |  |
 | `signingKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Overrides the generated per-stack signing key using a Kubernetes Secret. |  |  |
+| `cryptoKeyFromSecret` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#secretkeyselector-v1-core)_ | Overrides the generated per-stack crypto key (CRYPTO_KEY) using a Kubernetes Secret.<br />The referenced secret entry must hold the standard padded base64 encoding of exactly 32 bytes.<br />The secret stays externally managed: the operator only reads it. |  |  |
 | `enableScopes` _boolean_ | Enables scope checking during authentication.<br />If not enabled, each service will check the authentication but will not restrict access according to scopes.<br />In that case, being authenticated is sufficient. | false |  |
 
 ###### DelegatedOIDCServerConfiguration

@@ -9,6 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	collectionutils "github.com/formancehq/go-libs/v5/pkg/types/collections"
 
@@ -101,6 +102,45 @@ func createDeployment(ctx Context, stack *v1beta1.Stack, auth *v1beta1.Auth, dat
 				},
 			},
 		})
+	}
+	if auth.Spec.CryptoKeyFromSecret != nil {
+		// External, user-managed secret: plain local read of the selected
+		// SecretKeySelector in the stack namespace. No ResourceReference is
+		// created for this field: replication/ownership logic is not part of
+		// a read-only watch, and requiring the formance.com/stack label would
+		// reject ordinary local selectors. The operator never owns, labels,
+		// annotates or rewrites the external Secret; it validates the value
+		// and tracks the Secret's resourceVersion in the pod template so a
+		// rotation rolls the Deployment. Secret create/update/delete events
+		// for referenced selectors are bridged by the watch-only mapper in
+		// init.go (missing->created, invalid->fixed, rename, delete/recreate).
+		externalCryptoKeySecret := &corev1.Secret{}
+		if err := ctx.GetClient().Get(ctx, types.NamespacedName{
+			Namespace: auth.Spec.Stack,
+			Name:      auth.Spec.CryptoKeyFromSecret.Name,
+		}, externalCryptoKeySecret); err != nil {
+			return fmt.Errorf("retrieving external crypto key secret %s/%s: %w", auth.Spec.Stack, auth.Spec.CryptoKeyFromSecret.Name, err)
+		}
+		if err := validateCryptoKey(externalCryptoKeySecret.Data[auth.Spec.CryptoKeyFromSecret.Key]); err != nil {
+			return fmt.Errorf("invalid crypto key in external secret %s/%s: %w", auth.Spec.Stack, auth.Spec.CryptoKeyFromSecret.Name, err)
+		}
+		annotations["auth-crypto-key"] = externalCryptoKeySecret.ResourceVersion
+		env = append(env, corev1.EnvVar{
+			Name: "CRYPTO_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: auth.Spec.CryptoKeyFromSecret,
+			},
+		})
+	} else {
+		// Mode switch external -> generated: nothing to clean up, no
+		// crypto ResourceReference ever existed (the external path is a
+		// plain read-only watch, see above).
+		secret, err := ensureCryptoKeySecret(ctx, auth)
+		if err != nil {
+			return err
+		}
+		annotations["auth-crypto-key-version"] = secret.ResourceVersion
+		env = append(env, EnvFromSecret("CRYPTO_KEY", cryptoKeySecretName, cryptoKeySecretData))
 	}
 	if auth.Spec.DelegatedOIDCServer != nil {
 		if auth.Spec.DelegatedOIDCServer.ClientSecret != "" && auth.Spec.DelegatedOIDCServer.ClientSecretFromSecret != nil {
