@@ -53,6 +53,13 @@
       ]
     },
     {
+      "key": "connectivity.instances.image-pull-secrets",
+      "valueType": "string",
+      "sources": [
+        "internal/resources/settings/connectivity_pull_secrets.go:16"
+      ]
+    },
+    {
       "key": "deployments.\u003cdeployment-name\u003e.containers.\u003ccontainer-name\u003e.env-vars",
       "valueType": "map[string]string",
       "sources": [

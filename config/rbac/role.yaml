@@ -78,6 +78,7 @@ rules:
   - connectivity.formance.com
   resources:
   - connectivities
+  - policies
   verbs:
   - create
   - delete
