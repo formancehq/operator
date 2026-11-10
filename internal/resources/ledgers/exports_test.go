@@ -46,11 +46,11 @@ func ledgerConfiguration(name string, grpcPort int32, stacks ...string) *v1beta1
 	}
 }
 
-// TestV3GRPCBackendRefHonoursConfiguredGrpcPort proves the connectivity-facing
-// export resolves the same gRPC port as the gateway backend
-// (LedgerConfiguration spec.cluster.service.grpcPort), rather than always
-// defaulting to the standard port.
-func TestV3GRPCBackendRefHonoursConfiguredGrpcPort(t *testing.T) {
+// TestLedgerV3GRPCBackendRefHonoursConfiguredGrpcPort proves the gateway gRPC
+// backend resolves the port from the stack LedgerConfiguration
+// (spec.cluster.service.grpcPort), rather than always defaulting to the
+// standard port.
+func TestLedgerV3GRPCBackendRefHonoursConfiguredGrpcPort(t *testing.T) {
 	t.Parallel()
 
 	const stackName = "stack0"
@@ -94,21 +94,22 @@ func TestV3GRPCBackendRefHonoursConfiguredGrpcPort(t *testing.T) {
 
 			ctx := newExportsContext(t, tt.objects...)
 
-			backend, err := V3GRPCBackendRef(ctx, stackName)
+			baseSpec, err := ledgerV3BaseSpec(ctx, stackName)
 			if err != nil {
-				t.Fatalf("V3GRPCBackendRef() returned error: %v", err)
+				t.Fatalf("ledgerV3BaseSpec() returned error: %v", err)
 			}
+			backend := ledgerV3GRPCBackendRef(stackName, baseSpec.Service.GrpcPort)
 			if backend.Port != tt.wantPort {
-				t.Fatalf("V3GRPCBackendRef() port = %d, want %d", backend.Port, tt.wantPort)
+				t.Fatalf("ledgerV3GRPCBackendRef() port = %d, want %d", backend.Port, tt.wantPort)
 			}
 			if wantName := "ledger-" + stackName; backend.Name != wantName {
-				t.Fatalf("V3GRPCBackendRef() name = %q, want %q", backend.Name, wantName)
+				t.Fatalf("ledgerV3GRPCBackendRef() name = %q, want %q", backend.Name, wantName)
 			}
 			if backend.TLS == nil {
-				t.Fatal("V3GRPCBackendRef() must carry backend TLS material")
+				t.Fatal("ledgerV3GRPCBackendRef() must carry backend TLS material")
 			}
 			if wantServerName := "ledger-" + stackName + "." + stackName + ".svc.cluster.local"; backend.TLS.ServerName != wantServerName {
-				t.Fatalf("V3GRPCBackendRef() server name = %q, want %q", backend.TLS.ServerName, wantServerName)
+				t.Fatalf("ledgerV3GRPCBackendRef() server name = %q, want %q", backend.TLS.ServerName, wantServerName)
 			}
 		})
 	}

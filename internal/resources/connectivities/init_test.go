@@ -2416,7 +2416,7 @@ func TestConnectivityReconcileAvoidsCachedReadAfterEarlyAPIAuthWrite(t *testing.
 	t.Cleanup(func() { connectivityAvailable = previous })
 
 	ledger, credentials := newReadyLedgerPrerequisites()
-	base := newReconcileTestContext(t, ledger, credentials)
+	base := newReconcileTestContext(t, ledger, credentials, newStackGateway("stack0"))
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -2443,11 +2443,12 @@ func TestConnectivityReconcileAvoidsCachedReadAfterEarlyAPIAuthWrite(t *testing.
 		t.Fatalf("create Auth: %v", err)
 	}
 	gateway := &v1beta1.Gateway{}
-	gateway.Name = "stack0-gateway"
-	gateway.Spec.Stack = stack.Name
+	if err := base.GetClient().Get(base, client.ObjectKey{Name: "stack0-gateway"}, gateway); err != nil {
+		t.Fatalf("get Gateway: %v", err)
+	}
 	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
-	if err := base.GetClient().Create(base, gateway); err != nil {
-		t.Fatalf("create Gateway: %v", err)
+	if err := base.GetClient().Update(base, gateway); err != nil {
+		t.Fatalf("update Gateway: %v", err)
 	}
 
 	patched := false
@@ -3027,14 +3028,14 @@ func TestConnectivityReconcilePendingWhenLedgerCredentialsAPIUnavailable(t *test
 	}
 }
 
-func TestConnectivityReconcileDialsLedgerServiceAndKeepsSNIForTLS(t *testing.T) {
+func TestConnectivityReconcileDialsLedgerThroughGateway(t *testing.T) {
 	previous := connectivityAvailable
 	connectivityAvailable = true
 	t.Cleanup(func() { connectivityAvailable = previous })
 
 	ledger, credentials := newReadyLedgerPrerequisites()
 
-	ctx := newReconcileTestContext(t, ledger, credentials)
+	ctx := newReconcileTestContext(t, ledger, credentials, newStackGateway("stack0"))
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3062,11 +3063,37 @@ func TestConnectivityReconcileDialsLedgerServiceAndKeepsSNIForTLS(t *testing.T) 
 	if !reflect.DeepEqual(auth, wantAuth) {
 		t.Fatalf("spec.auth = %#v, want the Ledger Secret binding %#v", auth, wantAuth)
 	}
-	if address, _, _ := unstructured.NestedString(delegated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
-		t.Fatalf("spec.ledgerAddress = %q, want the in-namespace Service endpoint ledger-stack0:8888", address)
+	if address, _, _ := unstructured.NestedString(delegated.Object, "spec", "ledgerAddress"); address != "gateway:8080" {
+		t.Fatalf("spec.ledgerAddress = %q, want the stack Gateway gateway:8080", address)
 	}
-	if serverName, _, _ := unstructured.NestedString(delegated.Object, "spec", "ledgerTLS", "serverName"); serverName != "ledger-stack0.stack0.svc.cluster.local" {
-		t.Fatalf("spec.ledgerTLS.serverName = %q, want the certificate SNI to remain unchanged", serverName)
+	// The Gateway listener is h2c: the client must dial in plaintext.
+	if _, found, _ := unstructured.NestedFieldNoCopy(delegated.Object, "spec", "ledgerTLS"); found {
+		t.Fatal("spec.ledgerTLS must be unset when dialing the ledger through the Gateway")
+	}
+}
+
+func TestConnectivityReconcileWaitsForGatewayBeforeProvisioning(t *testing.T) {
+	previous := connectivityAvailable
+	connectivityAvailable = true
+	t.Cleanup(func() { connectivityAvailable = previous })
+
+	ledger, credentials := newReadyLedgerPrerequisites()
+
+	ctx := newReconcileTestContext(t, ledger, credentials)
+	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
+	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
+	connectivity.Spec.Stack = stack.Name
+
+	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
+	if !core.IsApplicationError(err) {
+		t.Fatalf("Reconcile() returned %v, want pending while the stack has no Gateway", err)
+	}
+	if len(connectivity.Status.Conditions) == 0 || connectivity.Status.Conditions[0].Reason != "GatewayNotFound" {
+		t.Fatalf("expected a GatewayNotFound condition, got %#v", connectivity.Status.Conditions)
+	}
+	delegated := newDelegatedConnectivity(stack.Name)
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Namespace: stack.Name, Name: connectivityDelegatedName}, delegated); !apierrors.IsNotFound(err) {
+		t.Fatalf("delegated Connectivity must not be provisioned without a Gateway, got %v", err)
 	}
 }
 
@@ -3080,6 +3107,9 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	delegated := newDelegatedConnectivity("stack0")
 	_ = unstructured.SetNestedField(delegated.Object, "old-ledger:9999", "spec", "ledgerAddress")
 	_ = unstructured.SetNestedMap(delegated.Object, map[string]any{
+		"secretName": "ledger-stack0-tls", "serverName": "ledger-stack0.stack0.svc.cluster.local",
+	}, "spec", "ledgerTLS")
+	_ = unstructured.SetNestedMap(delegated.Object, map[string]any{
 		"keyId": "old-key", "subject": "old-subject", "key": "old-inline-seed",
 	}, "spec", "auth")
 	_ = unstructured.SetNestedField(delegated.Object, "Ready", "status", "phase")
@@ -3090,7 +3120,7 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 		*metav1.NewControllerRef(connectivity, v1beta1.GroupVersion.WithKind("Connectivity")),
 	})
 
-	ctx := newReconcileTestContext(t, ledger, credentials, delegated)
+	ctx := newReconcileTestContext(t, ledger, credentials, newStackGateway("stack0"), delegated)
 
 	err := Reconcile(ctx, stack, connectivity, "v1.0.0")
 	if !core.IsApplicationError(err) {
@@ -3112,9 +3142,21 @@ func TestConnectivityReconcileReturnsPendingAfterUpdatingReadyDelegatedSpec(t *t
 	if !reflect.DeepEqual(auth, wantAuth) {
 		t.Fatalf("old auth fields were not replaced with the Ledger Secret binding: %#v", auth)
 	}
-	if address, _, _ := unstructured.NestedString(updated.Object, "spec", "ledgerAddress"); address != "ledger-stack0:8888" {
-		t.Fatalf("updated spec.ledgerAddress = %q, want ledger-stack0:8888", address)
+	if address, _, _ := unstructured.NestedString(updated.Object, "spec", "ledgerAddress"); address != "gateway:8080" {
+		t.Fatalf("updated spec.ledgerAddress = %q, want gateway:8080", address)
 	}
+	if _, found, _ := unstructured.NestedFieldNoCopy(updated.Object, "spec", "ledgerTLS"); found {
+		t.Fatal("ledgerTLS from the previous direct-to-ledger specification must be removed")
+	}
+}
+
+// newStackGateway returns the Gateway connectivity-core dials to reach the
+// Ledger v3 gRPC API.
+func newStackGateway(stackName string) *v1beta1.Gateway {
+	gateway := &v1beta1.Gateway{}
+	gateway.Name = stackName + "-gateway"
+	gateway.Spec.Stack = stackName
+	return gateway
 }
 
 // newReadyLedgerPrerequisites returns a ready v3 Ledger and its provisioned
@@ -3203,7 +3245,7 @@ func TestConnectivityReconcileAPIAuthHonorsCheckScopesSetting(t *testing.T) {
 
 	checkScopesSetting := settings.New("check-scopes", "auth.connectivity.check-scopes", "false", "stack0")
 
-	ctx := newReconcileTestContext(t, ledger, credentials, auth, checkScopesSetting)
+	ctx := newReconcileTestContext(t, ledger, credentials, newStackGateway("stack0"), auth, checkScopesSetting)
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3352,7 +3394,7 @@ func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T
 	t.Cleanup(func() { connectivityAvailable = previous })
 
 	ledger, credentials := newReadyLedgerPrerequisites()
-	ctx := newReconcileTestContext(t, ledger, credentials)
+	ctx := newReconcileTestContext(t, ledger, credentials, newStackGateway("stack0"))
 	stack := &v1beta1.Stack{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("stack-uid")}}
 	connectivity := &v1beta1.Connectivity{ObjectMeta: metav1.ObjectMeta{Name: "stack0", UID: types.UID("connectivity-uid")}}
 	connectivity.Spec.Stack = stack.Name
@@ -3428,11 +3470,12 @@ func TestConnectivityReconcileKeepsGatewayClosedUntilAPIAuthRollout(t *testing.T
 		t.Fatalf("create Auth: %v", err)
 	}
 	gateway := &v1beta1.Gateway{}
-	gateway.Name = "stack0-gateway"
-	gateway.Spec.Stack = stack.Name
+	if err := ctx.GetClient().Get(ctx, client.ObjectKey{Name: "stack0-gateway"}, gateway); err != nil {
+		t.Fatalf("get Gateway: %v", err)
+	}
 	gateway.Spec.Ingress = &v1beta1.GatewayIngress{Scheme: "https", Host: "stack0.example.com"}
-	if err := ctx.GetClient().Create(ctx, gateway); err != nil {
-		t.Fatalf("create Gateway: %v", err)
+	if err := ctx.GetClient().Update(ctx, gateway); err != nil {
+		t.Fatalf("update Gateway: %v", err)
 	}
 
 	if err := Reconcile(ctx, stack, connectivity, "v1.0.0"); !core.IsApplicationError(err) {
