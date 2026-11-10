@@ -13,6 +13,11 @@ import (
 //go:embed Caddyfile.gotpl
 var Caddyfile string
 
+// InClusterAddress is the host:port of the stack Gateway Service as seen from
+// pods in the stack namespace. The listener serves HTTP/1.1 and h2c, so gRPC
+// clients dial it in plaintext.
+const InClusterAddress = "gateway:8080"
+
 func EnvVarsIfEnabled(ctx core.Context, stackName string) ([]v1.EnvVar, error) {
 	gateway := &v1beta1.Gateway{}
 	ok, err := core.GetIfExists(ctx, stackName, gateway)

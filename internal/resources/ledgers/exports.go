@@ -78,19 +78,3 @@ func V3PreviewReady(ctx core.Context, stack *v1beta1.Stack) (bool, error) {
 	}
 	return ready, nil
 }
-
-// V3GRPCBackendRef returns the connection details of the ledger v3 gRPC service
-// for the given stack: service name, port, and backend TLS material
-// (self-signed CA secret and SNI server name). It is the single source of
-// truth for how in-cluster clients reach the ledger v3 gRPC endpoint. The gRPC
-// service port is resolved from the stack's LedgerConfiguration
-// (spec.cluster.service.grpcPort) exactly as the gateway backend resolves it,
-// so stacks overriding the ledger Cluster service port stay reachable through
-// this helper; it falls back to the default gRPC port when unset.
-func V3GRPCBackendRef(ctx core.Context, stackName string) (v1beta1.GatewayBackendRef, error) {
-	baseSpec, err := ledgerV3BaseSpec(ctx, stackName)
-	if err != nil {
-		return v1beta1.GatewayBackendRef{}, err
-	}
-	return ledgerV3GRPCBackendRef(stackName, baseSpec.Service.GrpcPort), nil
-}

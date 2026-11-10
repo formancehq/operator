@@ -1,7 +1,8 @@
 ## Requirements
 
 Formance Connectivity requires:
-- **Ledger v3**: Connectivity ingests double-entry transactions into the stack ledger through its gRPC endpoint. The effective Ledger version must be a semantic major v3 version. Ledger v2 migration previews and opaque development references are not supported because they do not select the primary v3 topology.
+- **Ledger v3**: Connectivity ingests double-entry transactions into the stack ledger through its gRPC API. The effective Ledger version must be a semantic major v3 version. Ledger v2 migration previews and opaque development references are not supported because they do not select the primary v3 topology.
+- **Gateway**: Connectivity reaches the Ledger gRPC API through the stack gateway. The Operator waits for a Gateway on the stack before it provisions the delegated resource.
 - **Ledger operator**: its Credentials CRD and controller must support `spec.superuser`. Install the compatible Ledger operator and CRD before deploying this Operator.
 - **Connectivity operator**: the module delegates the actual workload to a `connectivity.formance.com/Connectivity` resource; the Connectivity v1 CRDs (`v1.0.0-alpha.1` or later) must be installed on the cluster.
 
@@ -20,7 +21,9 @@ spec:
   stack: formance-dev
 ```
 
-The Operator provisions the delegated resource bound to the stack ledger (gRPC address, TLS material, and an Ed25519 credential registered on the ledger), and exposes the companion `connectivity-api` service through the stack gateway under `/api/connectivity`.
+The Operator provisions the delegated resource bound to the stack ledger, and exposes the companion `connectivity-api` service through the stack gateway under `/api/connectivity`. The delegated resource receives:
+- the in-cluster gateway address `gateway:8080` as its Ledger gRPC address. The gateway listener serves h2c, so no `ledgerTLS` is set. The gateway routes `ledger.BucketService` to the ledger and handles the ledger TLS itself.
+- an Ed25519 credential registered on the ledger. The gateway forwards it unchanged to the ledger, which verifies it.
 
 ## API authentication
 
