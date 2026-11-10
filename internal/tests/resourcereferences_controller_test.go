@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/formancehq/operator/v3/api/formance.com/v1beta1"
+	"github.com/formancehq/operator/v3/internal/resources/resourcereferences"
 	. "github.com/formancehq/operator/v3/internal/tests/internal"
 )
 
@@ -35,6 +36,58 @@ var _ = Describe("ResourceReferenceController", func() {
 				},
 			}
 			Expect(Create(secret)).To(Succeed())
+		})
+		Context("with a registry pull secret reference", func() {
+			newReference := func() *v1beta1.ResourceReference {
+				metadata := RandObjectMeta()
+				metadata.Labels = map[string]string{resourcereferences.ManagedPullSecretLabel: "true"}
+				return &v1beta1.ResourceReference{
+					ObjectMeta: metadata,
+					Spec: v1beta1.ResourceReferenceSpec{
+						StackDependency:  v1beta1.StackDependency{Stack: stack.Name},
+						Name:             secret.Name,
+						GroupVersionKind: &metav1.GroupVersionKind{Version: "v1", Kind: "Secret"},
+					},
+				}
+			}
+			It("rejects an unmanaged secret present when the copy is attempted", func() {
+				Eventually(func() error {
+					return LoadResource("", stack.Name, &corev1.Namespace{})
+				}).Should(Succeed())
+				local := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secret.Name, Namespace: stack.Name},
+					Data: map[string][]byte{"local": []byte("preserve")}}
+				Expect(Create(local)).To(Succeed())
+				reference := newReference()
+				Expect(Create(reference)).To(Succeed())
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource("", reference.Name, reference)).To(Succeed())
+					g.Expect(reference.Status.Info).To(ContainSubstring("refusing to overwrite unmanaged pull secret"))
+					g.Expect(reference.Status.Ready).To(BeFalse())
+				}).Should(Succeed())
+				copied := &corev1.Secret{}
+				Expect(LoadResource(stack.Name, secret.Name, copied)).To(Succeed())
+				Expect(copied.Data).To(Equal(local.Data))
+				Expect(copied.OwnerReferences).To(BeEmpty())
+			})
+			It("copies an authorized source and follows rotations without copying source authorization", func() {
+				reference := newReference()
+				Expect(Create(reference)).To(Succeed())
+				Eventually(func(g Gomega) {
+					g.Expect(LoadResource("", reference.Name, reference)).To(Succeed())
+					g.Expect(reference.Status.Ready).To(BeTrue())
+				}).Should(Succeed())
+				patch := client.MergeFrom(secret.DeepCopy())
+				secret.Data = map[string][]byte{"rotated": []byte("value")}
+				Expect(Patch(secret, patch)).To(Succeed())
+				Eventually(func(g Gomega) {
+					copied := &corev1.Secret{}
+					g.Expect(LoadResource(stack.Name, secret.Name, copied)).To(Succeed())
+					g.Expect(copied.Data).To(Equal(secret.Data))
+					g.Expect(copied.Labels).NotTo(HaveKey(v1beta1.StackLabel))
+					g.Expect(copied.OwnerReferences).To(HaveLen(1))
+					g.Expect(copied.OwnerReferences[0].UID).To(Equal(reference.UID))
+				}).Should(Succeed())
+			})
 		})
 		When("Creating a resource reference on a stack", func() {
 			var resourceReference *v1beta1.ResourceReference

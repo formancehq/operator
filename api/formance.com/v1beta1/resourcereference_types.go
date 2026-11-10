@@ -23,11 +23,21 @@ import (
 type ResourceReferenceSpec struct {
 	StackDependency  `json:",inline"`
 	GroupVersionKind *metav1.GroupVersionKind `json:"gvk"`
-	Name             string                   `json:"name"`
+	// Name identifies the authorized source object (or its referenced-by-name alias).
+	Name string `json:"name"`
+	// TargetName is the copied object's name in the Stack namespace. Defaults to Name.
+	// +optional
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)?$`
+	TargetName string `json:"targetName,omitempty"`
 }
 
 type ResourceReferenceStatus struct {
 	Status `json:",inline"`
+	// ObservedGeneration is the reference generation successfully copied to its target.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// SyncedResource is the destination last copied successfully.
 	//+optional
 	SyncedResource string `json:"syncedResource,omitempty"`
 	//+optional
@@ -122,4 +132,12 @@ type ResourceReferenceList struct {
 
 func init() {
 	SchemeBuilder.Register(&ResourceReference{}, &ResourceReferenceList{})
+}
+
+// GetTargetName preserves the source-name destination for existing references.
+func (in *ResourceReference) GetTargetName() string {
+	if in.Spec.TargetName != "" {
+		return in.Spec.TargetName
+	}
+	return in.Spec.Name
 }
