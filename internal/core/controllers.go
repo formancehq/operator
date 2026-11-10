@@ -143,9 +143,9 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingCont
 			log.FromContext(ctx).Info("Add owner reference on stack")
 		}
 
-		if stack.Spec.Disabled {
+		if stack.Spec.Disabled || t.IsDisabled() {
 			t.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
-			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
+			// Disabling a module or its Stack removes owned runtime objects.
 			// Owned objects must be controlled by the module.
 			// if not, they will not be automatically removed on stack removal.
 			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.

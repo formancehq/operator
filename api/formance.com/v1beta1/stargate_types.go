@@ -70,6 +70,10 @@ func (in *Stargate) IsEE() bool {
 	return false
 }
 
+func (in *Stargate) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Stargate) GetVersion() string {
 	return in.Spec.Version
 }

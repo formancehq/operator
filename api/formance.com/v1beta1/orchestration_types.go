@@ -74,6 +74,10 @@ func (in *Orchestration) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Orchestration) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Orchestration) GetVersion() string {
 	return in.Spec.Version
 }

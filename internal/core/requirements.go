@@ -19,6 +19,7 @@ const (
 
 	requirementsSatisfiedReason           = "RequirementsSatisfied"
 	dependencyNotFoundReason              = "DependencyNotFound"
+	dependencyDisabledReason              = "DependencyDisabled"
 	multipleDependenciesFoundReason       = "MultipleDependenciesFound"
 	dependencyNotReadyReason              = "DependencyNotReady"
 	dependencyVersionMismatchReason       = "DependencyVersionMismatch"
@@ -342,6 +343,17 @@ func evaluateRequirement(ctx Context, stack *v1beta1.Stack, requirement Requirem
 			reason:  dependencyLookupFailedReason,
 			message: fmt.Sprintf("could not resolve dependency %s in Stack %s: %s", kind, stack.Name, err),
 			cause:   err,
+		}
+	}
+
+	// A retained disabled module is present configuration, but cannot satisfy a
+	// running consumer. IfPresent permits absence only; it does not bypass this
+	// state or turn it into a missing dependency for lifecycle handlers.
+	if module, ok := dependency.(v1beta1.Module); ok && module.IsDisabled() {
+		return requirementsEvaluation{
+			status:  metav1.ConditionFalse,
+			reason:  dependencyDisabledReason,
+			message: fmt.Sprintf("dependency %s is disabled in Stack %s", kind, stack.Name),
 		}
 	}
 
