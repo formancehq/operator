@@ -48,7 +48,7 @@ import (
 	. "github.com/formancehq/operator/v3/internal/core"
 	"github.com/formancehq/operator/v3/internal/resources/auths"
 	"github.com/formancehq/operator/v3/internal/resources/gatewayhttpapis"
-	"github.com/formancehq/operator/v3/internal/resources/ledgers"
+	"github.com/formancehq/operator/v3/internal/resources/gateways"
 	"github.com/formancehq/operator/v3/internal/resources/registries"
 	"github.com/formancehq/operator/v3/internal/resources/settings"
 )
@@ -306,17 +306,21 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return err
 	}
 
-	// Reuse the single source of truth for the ledger v3 gRPC connection: same
-	// service, port and backend TLS material (self-signed CA secret + SNI) that
-	// the gateway uses to reach the ledger. The port is resolved from the stack's
-	// LedgerConfiguration so a stack overriding spec.cluster.service.grpcPort
-	// stays reachable, consistently with the gateway backend.
-	backend, err := ledgers.V3GRPCBackendRef(ctx, stack.Name)
+	// connectivity-core reaches the Ledger v3 gRPC API through the stack Gateway,
+	// which routes ledger.BucketService to the ledger and owns the backend TLS
+	// (self-signed CA + SNI) and the configured gRPC port. Without a Gateway
+	// there is no route to the ledger: wait for it rather than tearing down the
+	// workload, the Gateway watch requeues this reconcile once it appears.
+	hasGateway, err := HasDependency(ctx, stack.Name, &v1beta1.Gateway{})
 	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "LedgerBackendResolveFailed", err.Error())
+		setCondition(connectivity, metav1.ConditionFalse, "GatewayLookupFailed", err.Error())
 		return err
 	}
-	ledgerAddress := fmt.Sprintf("%s:%d", backend.Name, backend.Port)
+	if !hasGateway {
+		message := "connectivity requires a Gateway on the stack to reach the ledger"
+		setCondition(connectivity, metav1.ConditionFalse, "GatewayNotFound", message)
+		return NewPendingError().WithMessage("%s", message)
+	}
 
 	object := &unstructured.Unstructured{}
 	object.SetGroupVersionKind(connectivityGVK)
@@ -326,15 +330,13 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		if err := controllerutil.SetControllerReference(connectivity, object, ctx.GetScheme()); err != nil {
 			return err
 		}
-		if err := unstructured.SetNestedField(object.Object, ledgerAddress, "spec", "ledgerAddress"); err != nil {
+		if err := unstructured.SetNestedField(object.Object, gateways.InClusterAddress, "spec", "ledgerAddress"); err != nil {
 			return err
 		}
-		if err := unstructured.SetNestedField(object.Object, backend.TLS.SecretName, "spec", "ledgerTLS", "secretName"); err != nil {
-			return err
-		}
-		if err := unstructured.SetNestedField(object.Object, backend.TLS.ServerName, "spec", "ledgerTLS", "serverName"); err != nil {
-			return err
-		}
+		// The Gateway listener speaks h2c in-cluster and terminates the ledger
+		// backend TLS itself, so the client must dial in plaintext. Remove any
+		// ledgerTLS left by a previous direct-to-ledger specification.
+		unstructured.RemoveNestedField(object.Object, "spec", "ledgerTLS")
 		if err := unstructured.SetNestedField(object.Object, image.GetFullImageName(), "spec", "image"); err != nil {
 			return err
 		}
