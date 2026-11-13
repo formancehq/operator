@@ -63,8 +63,10 @@ dockers_v2:
   images:
   - ghcr.io/formancehq/operator-utils
   tags:
-  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}'
+  - '{{ if or (not .IsNightly) (index .Env "DEV_VERSION") }}v{{ end }}{{ .Version }}'
   - '{{ if not .IsNightly }}latest{{ end }}'
+  # RFC-0013: keep the full-SHA tag as a compatibility alias of SemVer nightlies.
+  - '{{ if and .IsNightly (index .Env "DEV_VERSION") }}{{ .FullCommit }}{{ end }}'
   platforms:
   - linux/amd64
   - linux/arm64/v8
@@ -87,8 +89,9 @@ dockers_v2:
   images:
   - ghcr.io/formancehq/operator-utils
   tags:
-  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-scratch'
+  - '{{ if or (not .IsNightly) (index .Env "DEV_VERSION") }}v{{ end }}{{ .Version }}-scratch'
   - '{{ if not .IsNightly }}latest-scratch{{ end }}'
+  - '{{ if and .IsNightly (index .Env "DEV_VERSION") }}{{ .FullCommit }}-scratch{{ end }}'
   platforms:
   - linux/amd64
   - linux/arm64/v8
@@ -103,7 +106,7 @@ dockers_v2:
   images:
   - ghcr.io/formancehq/operator-utils
   tags:
-  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64'
+  - '{{ if or (not .IsNightly) (index .Env "DEV_VERSION") }}v{{ end }}{{ .Version }}-amd64'
   platforms:
   - linux/amd64
   flags:
@@ -117,7 +120,7 @@ dockers_v2:
   images:
   - ghcr.io/formancehq/operator-utils
   tags:
-  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-amd64-scratch'
+  - '{{ if or (not .IsNightly) (index .Env "DEV_VERSION") }}v{{ end }}{{ .Version }}-amd64-scratch'
   platforms:
   - linux/amd64
   flags:
@@ -131,7 +134,7 @@ dockers_v2:
   images:
   - ghcr.io/formancehq/operator-utils
   tags:
-  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64'
+  - '{{ if or (not .IsNightly) (index .Env "DEV_VERSION") }}v{{ end }}{{ .Version }}-arm64'
   platforms:
   - linux/arm64/v8
   flags:
@@ -145,7 +148,7 @@ dockers_v2:
   images:
   - ghcr.io/formancehq/operator-utils
   tags:
-  - '{{ if not .IsNightly }}v{{ end }}{{ .Version }}-arm64-scratch'
+  - '{{ if or (not .IsNightly) (index .Env "DEV_VERSION") }}v{{ end }}{{ .Version }}-arm64-scratch'
   platforms:
   - linux/arm64/v8
   flags:
