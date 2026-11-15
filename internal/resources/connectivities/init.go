@@ -225,6 +225,16 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		return NewPendingError().WithMessage("connectivity requires a Ledger v3")
 	}
 
+	// Credential copies must bootstrap private Ledger/Auth images as well. Record
+	// image/copy failures here, but always perform the auth fail-closed preflight
+	// below before returning them. Copy readiness must not depend on Ledger Ready.
+	image, imageErr := registries.GetFormanceImage(ctx, stack, "connectivity", version)
+	apiImage, apiImageErr := registries.GetFormanceImage(ctx, stack, "connectivity-api", version)
+	pullSecretErr := errors.Join(imageErr, apiImageErr)
+	if pullSecretErr == nil {
+		pullSecretErr = reconcileImagePullSecretReferences(ctx, stack, image.PullSecrets, apiImage.PullSecrets)
+	}
+
 	// OIDC protection for the connectivity-api, following the same convention
 	// as the other stack modules (ledger, payments): nil when the stack has no
 	// Auth module, otherwise the stack auth issuer plus the scope-checking
@@ -243,6 +253,17 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 	if authErr != nil {
 		setCondition(connectivity, metav1.ConditionFalse, "APIAuthReconcileFailed", authErr.Error())
 		return authErr
+	}
+
+	if pullSecretErr != nil {
+		reason := "PullSecretsPending"
+		if imageErr != nil {
+			reason = "ImageResolveFailed"
+		} else if apiImageErr != nil {
+			reason = "APIImageResolveFailed"
+		}
+		setCondition(connectivity, metav1.ConditionFalse, reason, pullSecretErr.Error())
+		return errors.Join(pullSecretErr, revokeGatewayHTTPAPI(ctx, connectivity))
 	}
 
 	if !ledger.IsReady() {
@@ -280,23 +301,6 @@ func Reconcile(ctx Context, stack *v1beta1.Stack, connectivity *v1beta1.Connecti
 		setCondition(connectivity, metav1.ConditionFalse, "LedgerCredentialsPending",
 			"waiting for ledger credentials to be provisioned")
 		return ledgerCredentialsPendingError("waiting for ledger credentials to be provisioned")
-	}
-
-	// Resolve the connectivity core image through the operator's registry
-	// translation so it honours the stack's registry settings (e.g. the
-	// ghcr.io -> registry.v2.formance.dev rewrite and pull secrets) instead of
-	// the connectivity operator's built-in ghcr.io/...:latest default, which
-	// would not be pullable on rewritten registries. The image repository is
-	// "connectivity" (the former "connectivity-core" name no longer exists).
-	image, err := registries.GetFormanceImage(ctx, stack, "connectivity", version)
-	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "ImageResolveFailed", err.Error())
-		return err
-	}
-	apiImage, err := registries.GetFormanceImage(ctx, stack, "connectivity-api", version)
-	if err != nil {
-		setCondition(connectivity, metav1.ConditionFalse, "APIImageResolveFailed", err.Error())
-		return err
 	}
 
 	// Collector-aware OTEL configuration, embedded inline in spec.monitoring.
@@ -1342,6 +1346,7 @@ func connectivityReconcilerOptions() []ReconcilerOption[*v1beta1.Connectivity] {
 	return []ReconcilerOption[*v1beta1.Connectivity]{
 		WithFinalizer[*v1beta1.Connectivity]("delete-ledger-credentials", deleteLedgerCredentials),
 		WithOwn[*v1beta1.Connectivity](&v1beta1.GatewayHTTPAPI{}),
+		WithWatch[*v1beta1.Connectivity](mapPullSecretReferenceToConnectivity),
 		withConnectivityClusterWatch(),
 		withLedgerCredentialsWatch(),
 		WithWatchSettings[*v1beta1.Connectivity](),

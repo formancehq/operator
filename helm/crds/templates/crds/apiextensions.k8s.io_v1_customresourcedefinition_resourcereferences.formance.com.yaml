@@ -88,9 +88,17 @@ spec:
                 - version
                 type: object
               name:
+                description: Name identifies the authorized source object (or its
+                  referenced-by-name alias).
                 type: string
               stack:
                 description: Stack indicates the stack on which the module is installed
+                type: string
+              targetName:
+                description: TargetName is the copied object's name in the Stack namespace.
+                  Defaults to Name.
+                maxLength: 253
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)?$
                 type: string
             required:
             - gvk
@@ -158,11 +166,17 @@ spec:
                 description: Info can contain any additional detail, such as reconciliation
                   errors
                 type: string
+              observedGeneration:
+                description: ObservedGeneration is the reference generation successfully
+                  copied to its target.
+                format: int64
+                type: integer
               ready:
                 description: Ready indicates if the resource is seen as completely
                   reconciled
                 type: boolean
               syncedResource:
+                description: SyncedResource is the destination last copied successfully.
                 type: string
             type: object
         type: object
