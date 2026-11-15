@@ -66,6 +66,10 @@ func (in *Payments) SetError(s string) {
 	in.Status.Info = s
 }
 
+func (in *Payments) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Payments) GetVersion() string {
 	return in.Spec.Version
 }

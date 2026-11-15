@@ -73,6 +73,10 @@ func (in *Reconciliation) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Reconciliation) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Reconciliation) GetVersion() string {
 	return in.Spec.Version
 }

@@ -101,20 +101,8 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 		}
 	}
 
-	hasDependency, err := HasDependency(ctx, stack.Name, &v1beta1.Search{})
-	if err != nil {
+	if err := reconcileReindexCronJob(ctx, stack.Name, ledger); err != nil {
 		return err
-	}
-	if hasDependency {
-		_, err = createReindexCronJob(ctx, ledger)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = deleteReindexCronJob(ctx, ledger)
-		if err != nil {
-			return err
-		}
 	}
 
 	if !database.Status.Ready {
@@ -149,10 +137,22 @@ func reconcileLegacy(ctx Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger, 
 	return installLedger(ctx, stack, ledger, database, imageConfiguration, version)
 }
 
+func reconcileReindexCronJob(ctx Context, stackName string, ledger *v1beta1.Ledger) error {
+	search := &v1beta1.Search{}
+	hasDependency, err := HasDependency(ctx, stackName, search)
+	if err != nil {
+		return err
+	}
+	if hasDependency && !search.Spec.Disabled {
+		_, err := createReindexCronJob(ctx, ledger)
+		return err
+	}
+	return deleteReindexCronJob(ctx, ledger)
+}
+
 func init() {
 	Init(
-		WithModuleReconciler(Reconcile,
-			NoRequirements(),
+		withLedgerModuleReconciler(
 			WithOwn[*v1beta1.Ledger](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.Job{}),
 			WithOwn[*v1beta1.Ledger](&corev1.Service{}),

@@ -70,6 +70,10 @@ func (in *Wallets) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Wallets) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Wallets) GetVersion() string {
 	return in.Spec.Version
 }

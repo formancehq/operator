@@ -114,6 +114,10 @@ func (in *Gateway) IsEE() bool {
 	return false
 }
 
+func (in *Gateway) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Gateway) GetVersion() string {
 	return in.Spec.Version
 }
