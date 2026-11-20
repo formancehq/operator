@@ -88,7 +88,8 @@ var (
 	// ingestion path requires for its Core calls: ReadAccount (cursor GetAccount),
 	// WriteLedger (CreateLedger, CreateIndex, SaveNumscript), WriteTransaction and
 	// WriteMetadata (plugin transaction/metadata actions and cursor save in Apply),
-	// and WriteQuery (CreatePreparedQuery). Discovery is public. The list is owned
+	// WriteQuery (CreatePreparedQuery), and ReadQuery (AnalyzeNumscript before
+	// provisioning stored templates). Discovery is public. The list is owned
 	// by the integration contract, not user configuration; update it when
 	// Core's actual Ledger calls or Ledger scope names change. See connectivity's
 	// capability matrix in docs/architecture/core/ledger-capabilities.md.
@@ -98,6 +99,7 @@ var (
 		"ledger:WriteTransaction",
 		"ledger:WriteMetadata",
 		"ledger:WriteQuery",
+		"ledger:ReadQuery",
 	}
 
 	// ledgerCredentialsGVK is the cluster-scoped ledger.formance.com/Credentials
