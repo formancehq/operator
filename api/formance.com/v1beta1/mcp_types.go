@@ -70,6 +70,10 @@ func (in *MCP) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *MCP) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *MCP) GetVersion() string {
 	return in.Spec.Version
 }

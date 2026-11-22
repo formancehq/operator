@@ -43,6 +43,29 @@ name for Service and NetworkPolicy selectors and does not follow the random
 identity. The resolved ID is visible on the child Cluster and supplies Ledger's
 default backup namespace unless a backup `bucketId` is configured.
 
+The Operator records the owned child Cluster identity in the Ledger annotation
+`formance.com/ledger-v3-cluster-id` before module or Stack disable removes the
+child. Enabling it again restores that identity on the recreated Cluster,
+keeping the same namespace, Cluster name, and PVC names. Primary and preview
+use the same child name and remembered identity. The Ledger Operator storage
+retention policy must retain the PVCs for their data to remain available.
+After observing an owned primary (non-preview) Cluster, the Operator also
+records its ID in `formance.com/ledger-v3-primary-cluster-id`. This matching
+primary marker allows recreation when incompatible module CRs remain on the
+Stack. An ID from a preview, an older installation without the primary marker,
+or a configured clusterID alone does not grant this migration exception.
+Existing legacy Ledger Deployments or a Database still require explicit migration.
+
+If writing this annotation fails, disable cleanup stops. Without an explicit
+configured ID, cleanup also waits until the existing child has a clusterID;
+this prevents deletion racing with its initial identity generation. A disagreement
+between the child identity, the remembered identity, and an explicit
+`LedgerConfiguration.spec.cluster.clusterID` also stops reconciliation; restore
+matching identity values before retrying. The Operator never adopts identity
+from a Cluster controlled by another object or without a Ledger controller
+reference. If both the child and its remembered identity are lost, this
+mechanism cannot recover the identity from the PVC contents.
+
 The Ledger Operator must be installed before the Formance Operator starts so
 that the latter can watch `Cluster` resources. If the CRD is unavailable, the
 Ledger remains pending and no legacy resources are created.

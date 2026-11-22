@@ -71,6 +71,10 @@ func (in *TransactionPlane) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *TransactionPlane) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *TransactionPlane) GetVersion() string {
 	return in.Spec.Version
 }

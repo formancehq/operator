@@ -28,8 +28,16 @@ module:
     module. **It is mandatory.** Omit it and the module is invisible to the
     stack machinery even though the controller and RBAC exist.
 - Implement the `v1beta1.Module` interface: `IsEE`, `IsReady`, `SetReady`,
-  `SetError`, `GetConditions`, `GetVersion`, `GetStack`, `IsDebug`, `IsDev`.
+  `SetError`, `GetConditions`, `GetVersion`, `GetStack`, `IsDebug`, `IsDev`, `IsDisabled`.
+  `IsDisabled` returns `Spec.Disabled`, supplied by `ModuleProperties`.
 - Register the types: `func init() { SchemeBuilder.Register(&<Module>{}, &<Module>List{}) }`.
+
+The shared module reconciler stops owned runtime resources when either
+`spec.disabled` or the parent Stack's `spec.disabled` is true. It retains the
+module CR and durable resources outside the configured owned-runtime list.
+Re-enabling requires both flags to be false. Delegating modules must preserve
+their configuration and implement the delegated controller's disable contract;
+Connectivity uses its dedicated lifecycle reconciler for this purpose.
 
 ## 2. Write the reconciler
 

@@ -438,6 +438,7 @@ The auth service is basically a proxy to another OIDC compliant server.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -564,6 +565,7 @@ Ledger v3 gRPC endpoint.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -652,6 +654,7 @@ Gateway is the Schema for the gateways API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -797,6 +800,7 @@ and maintains an immutable audit trail.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -887,6 +891,7 @@ backend services using the caller bearer token.
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -975,6 +980,7 @@ Orchestration is the Schema for the orchestrations API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -1063,6 +1069,7 @@ Payments is the Schema for the payments API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -1151,6 +1158,7 @@ Reconciliation is the Schema for the reconciliations API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -1238,6 +1246,7 @@ Search is the Schema for the searches API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -1325,6 +1334,7 @@ Stargate is the Schema for the stargates API
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -1468,6 +1478,7 @@ TransactionPlane is the Schema for the transactionplanes API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -1554,6 +1565,7 @@ Wallets is the Schema for the wallets API
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |
@@ -1642,6 +1654,7 @@ Webhooks is the Schema for the webhooks API
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `stack` _string_ | Stack indicates the stack on which the module is installed |  |  |
+| `disabled` _boolean_ | Disabled stops module workloads while retaining configuration for re-enabling.<br />A disabled Stack also disables its modules. |  |  |
 | `debug` _boolean_ | Enables debug mode on the module | false |  |
 | `dev` _boolean_ | Enables dev mode on the module<br />Dev mode lets an application do custom setup in development mode (allowing insecure certificates, for example) | false |  |
 | `version` _string_ | Version overrides, for a specific module, the global version defined at stack level |  |  |

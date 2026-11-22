@@ -73,6 +73,10 @@ func (in *Connectivity) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Connectivity) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Connectivity) GetVersion() string {
 	return in.Spec.Version
 }

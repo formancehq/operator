@@ -77,6 +77,10 @@ func (in *Ledger) GetConditions() *Conditions {
 	return &in.Status.Conditions
 }
 
+func (in *Ledger) IsDisabled() bool {
+	return in.Spec.Disabled
+}
+
 func (in *Ledger) GetVersion() string {
 	return in.Spec.Version
 }
