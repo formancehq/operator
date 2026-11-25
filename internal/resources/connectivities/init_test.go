@@ -287,8 +287,8 @@ func TestEnsureLedgerCredentialsCreatesScopedCredentialAndReportsPending(t *test
 	}
 	scopes, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "scopes")
 	wantScopes := []string{
-		"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteTransaction",
-		"ledger:WriteMetadata", "ledger:WriteQuery", "ledger:ReadQuery",
+		"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteMetadata",
+		"ledger:WriteQuery", "ledger:ExecuteNumscript", "ledger:ReadQuery",
 	}
 	if !slices.Equal(scopes, wantScopes) {
 		t.Errorf("spec.scopes = %v, want exactly %v", scopes, wantScopes)
@@ -407,6 +407,10 @@ func TestEnsureLedgerCredentialsMigratesLegacyScopes(t *testing.T) {
 			"ledger:AccountRead", "ledger:LedgerWrite", "ledger:TransactionWrite",
 			"ledger:MetadataWrite", "ledger:QueryWrite",
 		}},
+		{name: "six grants before ExecuteNumscript", scopes: []string{
+			"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteTransaction",
+			"ledger:WriteMetadata", "ledger:WriteQuery", "ledger:ReadQuery",
+		}},
 		{name: "five canonical grants", scopes: []string{
 			"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteTransaction",
 			"ledger:WriteMetadata", "ledger:WriteQuery",
@@ -434,8 +438,8 @@ func TestEnsureLedgerCredentialsMigratesLegacyScopes(t *testing.T) {
 			}
 			scopes, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "scopes")
 			want := []string{
-				"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteTransaction",
-				"ledger:WriteMetadata", "ledger:WriteQuery", "ledger:ReadQuery",
+				"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteMetadata",
+				"ledger:WriteQuery", "ledger:ExecuteNumscript", "ledger:ReadQuery",
 			}
 			if !slices.Equal(scopes, want) {
 				t.Fatalf("migrated scopes = %v, want %v", scopes, want)
@@ -444,7 +448,7 @@ func TestEnsureLedgerCredentialsMigratesLegacyScopes(t *testing.T) {
 				t.Fatal("scope migration must preserve the existing credential identity")
 			}
 
-			// Adding the scope must preserve all identity, distribution and isolation fields.
+			// Replacing scopes must preserve all identity, distribution and isolation fields.
 			preserved := got.DeepCopy()
 			preserved.SetResourceVersion(existing.GetResourceVersion())
 			_ = unstructured.SetNestedStringSlice(preserved.Object, tt.scopes, "spec", "scopes")

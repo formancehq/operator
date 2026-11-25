@@ -86,8 +86,8 @@ var (
 
 	// connectivityLedgerScopes is the exact set of Ledger v3 scopes Connectivity's
 	// ingestion path requires for its Core calls: ReadAccount (cursor GetAccount),
-	// WriteLedger (CreateLedger, CreateIndex, SaveNumscript), WriteTransaction and
-	// WriteMetadata (plugin transaction/metadata actions and cursor save in Apply),
+	// WriteLedger (CreateLedger, CreateIndex, SaveNumscript), ExecuteNumscript
+	// (mapped stored/dynamic scripts) and WriteMetadata (metadata and cursor save in Apply),
 	// WriteQuery (CreatePreparedQuery), and ReadQuery (AnalyzeNumscript before
 	// provisioning stored templates). Discovery is public. The list is owned
 	// by the integration contract, not user configuration; update it when
@@ -96,9 +96,9 @@ var (
 	connectivityLedgerScopes = []string{
 		"ledger:ReadAccount",
 		"ledger:WriteLedger",
-		"ledger:WriteTransaction",
 		"ledger:WriteMetadata",
 		"ledger:WriteQuery",
+		"ledger:ExecuteNumscript",
 		"ledger:ReadQuery",
 	}
 
