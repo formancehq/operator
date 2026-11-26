@@ -222,6 +222,10 @@ func reconcileV3(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.Ledger,
 		setLedgerV3Condition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
 		return err
 	}
+	if waiting, err := resumeV3Cluster(ctx, stack, tlsReady); waiting || err != nil {
+		setLedgerV3Condition(ledger, metav1.ConditionFalse, "Resuming", "waiting for retained Ledger v3 members")
+		return err
+	}
 
 	cluster, clusterSpec, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, false, tlsCAHash)
 	if err != nil {
@@ -450,6 +454,10 @@ func createOrUpdateV3Cluster(ctx core.Context, stack *v1beta1.Stack, ledger *v1b
 	if err != nil {
 		return nil, nil, fmt.Errorf("converting Ledger v3 Cluster spec: %w", err)
 	}
+	// Stack.spec.disabled is the sole Stack-managed suspension source. The
+	// shared configuration may carry a newer suspend field than this module's
+	// pinned Ledger API, so override it in the unstructured representation.
+	desiredSpecMap["suspend"] = false
 	// ResourceRequirements is a value struct in the Ledger API. The
 	// unstructured converter therefore emits an empty resources object even
 	// though the JSON field is tagged omitempty. Remove it when neither the

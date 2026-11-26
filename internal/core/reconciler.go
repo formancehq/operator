@@ -67,6 +67,13 @@ type ReconcilerOptions[T client.Object] struct {
 	Finalizers                    []finalizerConfig[T]
 	Raws                          []func(Context, *builder.Builder) error
 	UnsatisfiedRequirementsHandle func(Context, *v1beta1.Stack, T) error
+	DisabledHandle                func(Context, *v1beta1.Stack, *ReconcilerOptions[T], T) error
+}
+
+// WithDisabledModuleHandler lets a module preserve durable resources while a
+// Stack is disabled. The handler owns cleanup for that module.
+func WithDisabledModuleHandler[T v1beta1.Module](handler func(Context, *v1beta1.Stack, *ReconcilerOptions[T], T) error) ReconcilerOption[T] {
+	return func(options *ReconcilerOptions[T]) { options.DisabledHandle = handler }
 }
 
 type ReconcilerOption[T client.Object] func(*ReconcilerOptions[T])

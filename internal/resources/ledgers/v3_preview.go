@@ -62,6 +62,10 @@ func reconcileV3Preview(ctx core.Context, stack *v1beta1.Stack, ledger *v1beta1.
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "TLSReconcileFailed", err.Error())
 		return err
 	}
+	if waiting, err := resumeV3Cluster(ctx, stack, tlsReady); waiting || err != nil {
+		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "Resuming", "waiting for retained Ledger v3 preview members")
+		return err
+	}
 	cluster, clusterSpec, err := createOrUpdateV3Cluster(ctx, stack, ledger, version, true, tlsCAHash)
 	if err != nil {
 		setLedgerV3PreviewCondition(ledger, metav1.ConditionFalse, "ReconcileFailed", err.Error())
