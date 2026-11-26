@@ -50,7 +50,7 @@ func TestDisabledV3LedgerKeepsClusterUntilSuspended(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exists)
 	require.Equal(t, "original-id", got.Object["spec"].(map[string]any)["clusterID"])
-	suspended, _, err := unstructured.NestedBool(got.Object, "spec", "suspend")
+	suspended, _, err := unstructured.NestedBool(got.Object, "spec", "disabled")
 	require.NoError(t, err)
 	require.True(t, suspended)
 
@@ -71,7 +71,7 @@ func TestResumeV3ClusterOnlyClearsSuspendFlag(t *testing.T) {
 	cluster := newV3Cluster()
 	cluster.SetName("stack")
 	cluster.SetNamespace("stack")
-	cluster.Object["spec"] = map[string]any{"suspend": true, "clusterID": "original-id", "replicas": int64(3)}
+	cluster.Object["spec"] = map[string]any{"disabled": true, "clusterID": "original-id", "replicas": int64(3)}
 	cluster.Object["status"] = map[string]any{"phase": "Suspended", "suspension": map[string]any{"phase": "Suspended"}}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster).Build()
 	ctx := suspensionTestContext{Context: t.Context(), client: c, scheme: scheme}
@@ -81,7 +81,7 @@ func TestResumeV3ClusterOnlyClearsSuspendFlag(t *testing.T) {
 	require.Error(t, err)
 	got, _, err := getV3Cluster(ctx, stack)
 	require.NoError(t, err)
-	suspend, _, err := unstructured.NestedBool(got.Object, "spec", "suspend")
+	suspend, _, err := unstructured.NestedBool(got.Object, "spec", "disabled")
 	require.NoError(t, err)
 	require.False(t, suspend)
 	require.Equal(t, "original-id", got.Object["spec"].(map[string]any)["clusterID"])

@@ -800,7 +800,7 @@ var _ = Describe("Ledger v3 controller", func() {
 
 		Eventually(func(g Gomega) bool {
 			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
-			suspend, _, err := unstructured.NestedBool(cluster.Object, "spec", "suspend")
+			suspend, _, err := unstructured.NestedBool(cluster.Object, "spec", "disabled")
 			g.Expect(err).NotTo(HaveOccurred())
 			return suspend
 		}).Should(BeTrue())
@@ -835,7 +835,7 @@ var _ = Describe("Ledger v3 controller", func() {
 		Expect(Patch(stack, patch)).To(Succeed())
 		Eventually(func(g Gomega) bool {
 			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
-			suspend, _, err := unstructured.NestedBool(cluster.Object, "spec", "suspend")
+			suspend, _, err := unstructured.NestedBool(cluster.Object, "spec", "disabled")
 			g.Expect(err).NotTo(HaveOccurred())
 			return !suspend
 		}).Should(BeTrue())

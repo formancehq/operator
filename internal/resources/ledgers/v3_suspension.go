@@ -34,7 +34,7 @@ func disableLedger(ctx core.Context, stack *v1beta1.Stack, options *core.Reconci
 	if !cluster.GetDeletionTimestamp().IsZero() {
 		return core.NewPendingError().WithMessage("Ledger v3 Cluster is deleting; reversible suspension is unavailable")
 	}
-	if err := setV3ClusterSuspend(ctx, cluster, true); err != nil {
+	if err := setV3ClusterDisabled(ctx, cluster, true); err != nil {
 		return err
 	}
 	// Keep the Cluster, Issuer and Certificate so the original Raft identity,
@@ -67,16 +67,16 @@ func disableLedger(ctx core.Context, stack *v1beta1.Stack, options *core.Reconci
 	return core.DeleteOwnedObjects(ctx, ledger, removable...)
 }
 
-func setV3ClusterSuspend(ctx core.Context, cluster *unstructured.Unstructured, suspend bool) error {
-	current, _, err := unstructured.NestedBool(cluster.Object, "spec", "suspend")
+func setV3ClusterDisabled(ctx core.Context, cluster *unstructured.Unstructured, disabled bool) error {
+	current, _, err := unstructured.NestedBool(cluster.Object, "spec", "disabled")
 	if err != nil {
 		return fmt.Errorf("reading Ledger v3 suspension request: %w", err)
 	}
-	if current == suspend {
+	if current == disabled {
 		return nil
 	}
 	before := cluster.DeepCopy()
-	if err := unstructured.SetNestedField(cluster.Object, suspend, "spec", "suspend"); err != nil {
+	if err := unstructured.SetNestedField(cluster.Object, disabled, "spec", "disabled"); err != nil {
 		return err
 	}
 	return ctx.GetClient().Patch(ctx, cluster, client.MergeFrom(before))
@@ -96,17 +96,17 @@ func resumeV3Cluster(ctx core.Context, stack *v1beta1.Stack, tlsReady bool) (boo
 	if err != nil {
 		return false, err
 	}
-	suspended, _, err := unstructured.NestedBool(cluster.Object, "spec", "suspend")
+	disabled, _, err := unstructured.NestedBool(cluster.Object, "spec", "disabled")
 	if err != nil {
 		return false, err
 	}
-	if !suspended && (phase == "" || phase == "Running") {
+	if !disabled && (phase == "" || phase == "Running") {
 		return false, nil
 	}
 	if !tlsReady {
 		return true, core.NewPendingError().WithMessage("waiting for Ledger v3 TLS before restarting retained members")
 	}
-	if err := setV3ClusterSuspend(ctx, cluster, false); err != nil {
+	if err := setV3ClusterDisabled(ctx, cluster, false); err != nil {
 		return true, err
 	}
 	return true, core.NewPendingError().WithMessage("waiting for Ledger v3 Cluster to resume")

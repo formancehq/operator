@@ -30,7 +30,7 @@ spec:
 ## Ledger v3 delegation
 
 Disabling a Stack with an existing Ledger v3 Cluster requests reversible
-`Cluster.spec.suspend: true`. The Cluster, its generated `clusterID`, TLS
+`Cluster.spec.disabled: true`. The Cluster, its generated `clusterID`, TLS
 Issuer/Certificate and retained PVCs remain. The Ledger module waits for
 `Cluster.status.phase=Suspended` before removing its gateway exposure.
 Enabling the Stack clears the suspension request and waits for the original
