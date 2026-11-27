@@ -2,6 +2,12 @@
 
 A Stack represents a set of modules that are deployed together. It is used as a way to group modules and to deploy them together with a consistent set of versions and configurations.
 
+For Ledger v3, `spec.disabled: true` stops the module through the Ledger
+Cluster's reversible suspension state machine. The Cluster identity, Raft
+membership, TLS resources and PVC data remain. The Ledger v2 cleanup behavior
+is separate and unchanged. Re-enable the Stack to start the original Ledger v3
+members before applying pending Ledger configuration changes.
+
 When you deploy a Formance module, such as Ledger or Payments, you deploy them within a Stack. This allows you to ensure that they are all deployed with the same versions and configurations.
 
 ## Stack Object

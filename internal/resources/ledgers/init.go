@@ -153,6 +153,7 @@ func init() {
 	Init(
 		WithModuleReconciler(Reconcile,
 			NoRequirements(),
+			WithDisabledModuleHandler(disableLedger),
 			WithOwn[*v1beta1.Ledger](&appsv1.Deployment{}),
 			WithOwn[*v1beta1.Ledger](&batchv1.Job{}),
 			WithOwn[*v1beta1.Ledger](&corev1.Service{}),

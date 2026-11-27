@@ -145,11 +145,14 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingCont
 
 		if stack.Spec.Disabled {
 			t.GetConditions().Delete(v1beta1.ConditionTypeMatch(DependenciesSatisfiedCondition))
+			if reconcilerOptions.DisabledHandle != nil {
+				return reconcilerOptions.DisabledHandle(ctx, stack, reconcilerOptions, t)
+			}
 			// notes(gfyrag): When disabling a stack, we remove all owned objects for modules.
 			// Owned objects must be controlled by the module.
 			// if not, they will not be automatically removed on stack removal.
 			// resources objects (like Database and BrokerTopic) are not removed since we could re-enable the stack later.
-			return removeAllModulesOwnedObjects(ctx, t, reconcilerOptions.Owns)
+			return RemoveAllModuleOwnedObjects(ctx, t, reconcilerOptions.Owns)
 		}
 
 		moduleVersion, err := GetModuleVersion(ctx, stack, t)
@@ -257,7 +260,7 @@ func ForModule[T v1beta1.Module](requirements ModuleRequirements, underlyingCont
 	}
 }
 
-func removeAllModulesOwnedObjects(ctx Context, owner client.Object, owns map[client.Object][]builder.OwnsOption) error {
+func RemoveAllModuleOwnedObjects(ctx Context, owner client.Object, owns map[client.Object][]builder.OwnsOption) error {
 	objects := make([]client.Object, 0, len(owns))
 	for object := range owns {
 		if _, ok := object.(v1beta1.Resource); ok {

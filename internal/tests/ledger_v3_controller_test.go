@@ -761,10 +761,36 @@ var _ = Describe("Ledger v3 controller", func() {
 		))
 	})
 
-	It("removes the Cluster when the stack is disabled", func() {
+	It("keeps the Cluster and waits for suspension when the stack is disabled", func() {
 		cluster := newLedgerV3Cluster()
 		Eventually(func() error {
 			return Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
+		}).Should(Succeed())
+		originalUID := cluster.GetUID()
+		originalID, _, err := unstructured.NestedString(cluster.Object, "spec", "clusterID")
+		Expect(err).NotTo(HaveOccurred())
+		tlsName := stack.Name + "-ledger-v3-tls"
+		certificate := newLedgerV3Certificate()
+		Eventually(func() error {
+			return Get(types.NamespacedName{Namespace: stack.Name, Name: tlsName}, certificate)
+		}).Should(Succeed())
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Namespace: stack.Name, Name: tlsName},
+			Data: map[string][]byte{
+				"tls.crt": []byte("certificate"),
+				"tls.key": []byte("private key"),
+				"ca.crt":  []byte("certificate authority"),
+			},
+		}
+		Expect(Create(secret)).To(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(Delete(secret))).To(Succeed()) })
+		certificate.Object["status"] = map[string]any{
+			"conditions": []any{map[string]any{"type": "Ready", "status": "True", "reason": "Ready"}},
+		}
+		Expect(TestContext().GetClient().Status().Update(TestContext(), certificate)).To(Succeed())
+		grpcAPI := &v1beta1.GatewayGRPCAPI{}
+		Eventually(func() error {
+			return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)
 		}).Should(Succeed())
 
 		Expect(LoadResource("", stack.Name, stack)).To(Succeed())
@@ -772,16 +798,65 @@ var _ = Describe("Ledger v3 controller", func() {
 		stack.Spec.Disabled = true
 		Expect(Patch(stack, patch)).To(Succeed())
 
-		Eventually(func() bool {
-			err := Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)
-			return apierrors.IsNotFound(err)
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			suspend, _, err := unstructured.NestedBool(cluster.Object, "spec", "disabled")
+			g.Expect(err).NotTo(HaveOccurred())
+			return suspend
 		}).Should(BeTrue())
+		Expect(cluster.GetUID()).To(Equal(originalUID))
+		currentID, _, err := unstructured.NestedString(cluster.Object, "spec", "clusterID")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(currentID).To(Equal(originalID))
 
-		grpcAPI := &v1beta1.GatewayGRPCAPI{}
+		// The Ledger operator is not running in envtest. Publish the status it
+		// would set after all Pods are stopped so Stack can remove the gateway.
+		Eventually(func() error {
+			if err := Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster); err != nil {
+				return err
+			}
+			cluster.Object["status"] = map[string]any{
+				"phase": "Suspended", "observedGeneration": cluster.GetGeneration(),
+				"suspension": map[string]any{"phase": "Suspended"},
+			}
+			return TestContext().GetClient().Status().Update(TestContext(), cluster)
+		}).Should(Succeed())
+
 		Eventually(func() bool {
 			err := Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)
 			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
+		Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+		Expect(cluster.GetUID()).To(Equal(originalUID))
+
+		Expect(LoadResource("", stack.Name, stack)).To(Succeed())
+		patch = client.MergeFrom(stack.DeepCopy())
+		stack.Spec.Disabled = false
+		Expect(Patch(stack, patch)).To(Succeed())
+		Eventually(func(g Gomega) bool {
+			g.Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+			suspend, _, err := unstructured.NestedBool(cluster.Object, "spec", "disabled")
+			g.Expect(err).NotTo(HaveOccurred())
+			return !suspend
+		}).Should(BeTrue())
+		Eventually(func() error {
+			if err := Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster); err != nil {
+				return err
+			}
+			cluster.Object["status"] = map[string]any{
+				"phase": "Running", "readyReplicas": int64(3), "observedGeneration": cluster.GetGeneration(),
+				"suspension": map[string]any{"phase": "Running"},
+			}
+			return TestContext().GetClient().Status().Update(TestContext(), cluster)
+		}).Should(Succeed())
+		Eventually(func() error {
+			return Get(core.GetResourceName(core.GetObjectName(stack.Name, "ledger")), grpcAPI)
+		}).Should(Succeed())
+		Expect(Get(types.NamespacedName{Namespace: stack.Name, Name: stack.Name}, cluster)).To(Succeed())
+		Expect(cluster.GetUID()).To(Equal(originalUID))
+		currentID, _, err = unstructured.NestedString(cluster.Object, "spec", "clusterID")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(currentID).To(Equal(originalID))
 	})
 
 	It("requires an explicit migration before switching back to v2", func() {

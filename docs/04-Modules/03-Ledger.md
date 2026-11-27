@@ -29,6 +29,21 @@ spec:
 
 ## Ledger v3 delegation
 
+Disabling a Stack with an existing Ledger v3 Cluster requests reversible
+`Cluster.spec.disabled: true`. The Cluster, its generated `clusterID`, TLS
+Issuer/Certificate and retained PVCs remain. The Ledger module waits for
+`Cluster.status.phase=Suspended` before removing its gateway exposure.
+Enabling the Stack clears the suspension request and waits for the original
+members to reach `Running` before applying new Ledger configuration. Ledger v2
+continues to use its existing resource cleanup; a v3 preview Cluster alongside
+v2 is suspended separately. A blocked stop leaves the Ledger Pods running and
+reports the safety reason on the Cluster.
+
+Deploy the Ledger v3 CRD and suspension-aware Ledger operator before upgrading
+the Stack operator. Do not roll back either operator while a v3 Cluster is
+suspended. The Ledger operator rejects hostPath storage and PVC deletion
+retention policies for reversible suspension.
+
 When the effective Ledger version is at or after `v3.0.0-0`, the Formance
 Operator delegates Ledger provisioning to the Ledger Operator. It creates a
 `ledger.formance.com/v1alpha1` `Cluster` with the same name and namespace as the
