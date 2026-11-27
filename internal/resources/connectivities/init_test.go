@@ -286,8 +286,12 @@ func TestEnsureLedgerCredentialsCreatesScopedCredentialAndReportsPending(t *test
 		t.Error("Credentials must have spec.superuser=false")
 	}
 	scopes, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "scopes")
-	if !slices.Equal(scopes, connectivityLedgerScopes) {
-		t.Errorf("spec.scopes = %v, want exactly %v", scopes, connectivityLedgerScopes)
+	wantScopes := []string{
+		"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteMetadata",
+		"ledger:WriteQuery", "ledger:ExecuteNumscript", "ledger:ReadQuery",
+	}
+	if !slices.Equal(scopes, wantScopes) {
+		t.Errorf("spec.scopes = %v, want exactly %v", scopes, wantScopes)
 	}
 	if sel, _, _ := unstructured.NestedStringMap(got.Object, "spec", "selector", "matchLabels"); sel["formance.com/stack"] != "stack0" {
 		t.Errorf("selector.matchLabels[formance.com/stack] = %q, want stack0", sel["formance.com/stack"])
@@ -393,78 +397,101 @@ func TestEnsureLedgerCredentialsConvergesSuperuserCredentialToScoped(t *testing.
 	}
 }
 
-// Scope renames must migrate an existing scoped credential in place, without
-// trusting the Ready status for its previous grants or rotating the signing key.
+// Scope updates migrate in place without trusting stale readiness or rotating keys.
 func TestEnsureLedgerCredentialsMigratesLegacyScopes(t *testing.T) {
-	existing := readyLedgerCredentialsForStack1(1, 1)
-	existing.SetUID(types.UID("existing-credential"))
-	legacyScopes := []string{
-		"ledger:AccountRead", "ledger:LedgerWrite", "ledger:TransactionWrite",
-		"ledger:MetadataWrite", "ledger:QueryWrite",
-	}
-	_ = unstructured.SetNestedStringSlice(existing.Object, legacyScopes, "spec", "scopes")
-	ctx := newCredsTestContext(t, existing)
-	stack := &v1beta1.Stack{}
-	stack.Name = "stack1"
+	for _, tt := range []struct {
+		name   string
+		scopes []string
+	}{
+		{name: "RC1 names", scopes: []string{
+			"ledger:AccountRead", "ledger:LedgerWrite", "ledger:TransactionWrite",
+			"ledger:MetadataWrite", "ledger:QueryWrite",
+		}},
+		{name: "six grants before ExecuteNumscript", scopes: []string{
+			"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteTransaction",
+			"ledger:WriteMetadata", "ledger:WriteQuery", "ledger:ReadQuery",
+		}},
+		{name: "five canonical grants", scopes: []string{
+			"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteTransaction",
+			"ledger:WriteMetadata", "ledger:WriteQuery",
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := readyLedgerCredentialsForStack1(1, 1)
+			existing.SetUID(types.UID("existing-credential"))
+			_ = unstructured.SetNestedStringSlice(existing.Object, tt.scopes, "spec", "scopes")
+			ctx := newCredsTestContext(t, existing)
+			stack := &v1beta1.Stack{}
+			stack.Name = "stack1"
 
-	keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ready || keyID != "" || secret != "" {
-		t.Fatal("legacy Ready status must not authorize delegation after scope migration")
-	}
-	got := &unstructured.Unstructured{}
-	got.SetGroupVersionKind(ledgerCredentialsGVK)
-	if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(existing), got); err != nil {
-		t.Fatal(err)
-	}
-	scopes, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "scopes")
-	want := []string{
-		"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteTransaction",
-		"ledger:WriteMetadata", "ledger:WriteQuery",
-	}
-	if !slices.Equal(scopes, want) {
-		t.Fatalf("migrated scopes = %v, want %v", scopes, want)
-	}
-	if got.GetUID() != existing.GetUID() {
-		t.Fatal("scope migration must preserve the existing credential identity")
-	}
+			keyID, secret, ready, err := ensureLedgerCredentials(ctx, stack)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ready || keyID != "" || secret != "" {
+				t.Fatal("legacy Ready status must not authorize delegation after scope migration")
+			}
+			got := &unstructured.Unstructured{}
+			got.SetGroupVersionKind(ledgerCredentialsGVK)
+			if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(existing), got); err != nil {
+				t.Fatal(err)
+			}
+			scopes, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "scopes")
+			want := []string{
+				"ledger:ReadAccount", "ledger:WriteLedger", "ledger:WriteMetadata",
+				"ledger:WriteQuery", "ledger:ExecuteNumscript", "ledger:ReadQuery",
+			}
+			if !slices.Equal(scopes, want) {
+				t.Fatalf("migrated scopes = %v, want %v", scopes, want)
+			}
+			if got.GetUID() != existing.GetUID() {
+				t.Fatal("scope migration must preserve the existing credential identity")
+			}
 
-	// Fake clients do not increment generation on spec changes; model the API
-	// server increment before checking the unobserved and observed states.
-	got.SetGeneration(2)
-	if err := ctx.GetClient().Update(ctx, got); err != nil {
-		t.Fatal(err)
-	}
-	keyID, secret, ready, err = ensureLedgerCredentials(ctx, stack)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ready || keyID != "" || secret != "" {
-		t.Fatal("migrated credential must wait for the new observedGeneration")
-	}
-	_ = unstructured.SetNestedField(got.Object, int64(2), "status", "observedGeneration")
-	if err := ctx.GetClient().Update(ctx, got); err != nil {
-		t.Fatal(err)
-	}
+			// Replacing scopes must preserve all identity, distribution and isolation fields.
+			preserved := got.DeepCopy()
+			preserved.SetResourceVersion(existing.GetResourceVersion())
+			_ = unstructured.SetNestedStringSlice(preserved.Object, tt.scopes, "spec", "scopes")
+			if !reflect.DeepEqual(preserved.Object, existing.Object) {
+				t.Fatal("scope migration changed fields other than scopes and resourceVersion")
+			}
 
-	for range 2 {
-		keyID, secret, ready, err = ensureLedgerCredentials(ctx, stack)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ready || keyID != "2ba721b2866686f6" || secret != "ledger-connectivity-stack1-credentials-keys" {
-			t.Fatalf("migrated credential changed identity: ready=%v keyID=%q secret=%q", ready, keyID, secret)
-		}
-		after := &unstructured.Unstructured{}
-		after.SetGroupVersionKind(ledgerCredentialsGVK)
-		if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(existing), after); err != nil {
-			t.Fatal(err)
-		}
-		if after.GetResourceVersion() != got.GetResourceVersion() {
-			t.Fatal("reconciling canonical scopes must not update an already-converged credential")
-		}
+			// Fake clients do not increment generation on spec changes; model the API
+			// server increment before checking the unobserved and observed states.
+			got.SetGeneration(2)
+			if err := ctx.GetClient().Update(ctx, got); err != nil {
+				t.Fatal(err)
+			}
+			keyID, secret, ready, err = ensureLedgerCredentials(ctx, stack)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ready || keyID != "" || secret != "" {
+				t.Fatal("migrated credential must wait for the new observedGeneration")
+			}
+			_ = unstructured.SetNestedField(got.Object, int64(2), "status", "observedGeneration")
+			if err := ctx.GetClient().Update(ctx, got); err != nil {
+				t.Fatal(err)
+			}
+
+			for range 2 {
+				keyID, secret, ready, err = ensureLedgerCredentials(ctx, stack)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !ready || keyID != "2ba721b2866686f6" || secret != "ledger-connectivity-stack1-credentials-keys" {
+					t.Fatalf("migrated credential changed identity: ready=%v keyID=%q secret=%q", ready, keyID, secret)
+				}
+				after := &unstructured.Unstructured{}
+				after.SetGroupVersionKind(ledgerCredentialsGVK)
+				if err := ctx.GetClient().Get(ctx, client.ObjectKeyFromObject(existing), after); err != nil {
+					t.Fatal(err)
+				}
+				if after.GetResourceVersion() != got.GetResourceVersion() {
+					t.Fatal("reconciling canonical scopes must not update an already-converged credential")
+				}
+			}
+		})
 	}
 }
 
