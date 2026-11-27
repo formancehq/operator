@@ -34,3 +34,6 @@ tests/e2e/artifacts/
 
 # Local scratch files
 tmp/
+
+.env
+.envrc.local
